@@ -266,6 +266,9 @@ class Importer(QMainWindow, Interface):
             self.move_vpk_signatures()
 
             if self.bsp_file:
+                if not self.java_installed:
+                    raise Exception("Java is not installed. Cannot decompile BSP file.")
+
                 temp_dir = tempfile.gettempdir()
                 maps_dir = os.path.join(temp_dir, "maps")
                 if not os.path.exists(maps_dir):
