@@ -6,6 +6,9 @@ The tools provided by Valve for importing maps aren't very user friendly, this t
 - Utilises Windows File Explorer so you don't need to manually copy/paste the directory paths you're using.
 - Less inputs needed; the tool only takes the `Counter-Strike Global Offensive` folder and figures out the rest for you (assuming correct directory structuring).
 - Will create a temporary `/maps/` folder for any selected `.vmf` without one, as this is necessary for Valve's scripts to work correctly.
+### Different from sarim's one
+- Automatically remove .decode() in import scripts and disable vpk signature check.
+- Add ability to validate csgo and cs2.
 
 ## Prerequisites
 While this tools makes the porting process much easier, there's still some work you need to do yourself:
@@ -13,18 +16,6 @@ While this tools makes the porting process much easier, there's still some work 
 - Python must be installed (ideally `3.x.x`) and added to `PATH`.
 - Your CS2 `\game\bin\win64\` folder also needs to be added to `PATH`.
 - `python -m pip install colorama` is necessary for Valve's scripts to work with the tool.
-- Remove `.decode()` from line 328 of `import_map_community.py` in your CS2 files.
-- Rename file `vpk.signatures` in `Counter-Strike Global Offensive\game\bin\win64` to anything else (such as `vpk.signatures.old`).
 - Make sure your `.vmf` isn't in your `Counter-Strike Global Offensive` folder. It can be anywhere, just not there.
 - If you have any custom content in your map, make sure it's in your CS:GO's materials and models folders. This can be done by decompiling the map and copying the materials and models over.
 - A CS2 addon needs to be created before importing the map.
-
-## Video Tutorial
-[![Porting a CS:GO map to CS2](https://img.youtube.com/vi/i4AGxsjsXT4/maxresdefault.jpg)](https://www.youtube.com/watch?v=i4AGxsjsXT4 "Porting a CS:GO map to CS2")
-
-## Support
-
-- Read Valve's documentation [here](https://developer.valvesoftware.com/wiki/Source_2/Docs/Level_Design/Import_Tool_Documentation).
-- Open an issue on GitHub.
-
-
