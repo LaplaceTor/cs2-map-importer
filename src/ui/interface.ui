@@ -118,13 +118,27 @@
       </item>
      </layout>
     </item>
-    <item row="7" column="1" colspan="2">
-     <widget class="QLineEdit" name="launch_options_edit">
+    <item row="7" column="1">
+     <widget class="QCheckBox" name="usebsp_checkbox">
       <property name="text">
-       <string>-usebsp</string>
+       <string>usebsp</string>
       </property>
-      <property name="placeholderText">
-       <string>Enter launch options:</string>
+      <property name="checked">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+    <item row="8" column="1">
+     <widget class="QCheckBox" name="usebsp_nomergeinstances_checkbox">
+      <property name="text">
+       <string>usebsp_nomergeinstances</string>
+      </property>
+     </widget>
+    </item>
+    <item row="9" column="1">
+     <widget class="QCheckBox" name="skipdeps_checkbox">
+      <property name="text">
+       <string>skipdeps</string>
       </property>
      </widget>
     </item>
