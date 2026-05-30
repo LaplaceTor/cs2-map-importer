@@ -31,13 +31,6 @@ def check_colorama():
         except Exception as e:
             print(f"Failed to install colorama: {e}")
 
-def check_python():
-    try:
-        result = subprocess.run(["python", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        return result.returncode == 0
-    except FileNotFoundError:
-        return False
-
 def check_java():
     try:
         result = subprocess.run(["java", "-version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -49,9 +42,7 @@ class Importer(QMainWindow, Interface):
     def __init__(self):
         super().__init__()
 
-        self.python_installed = check_python()
-        if self.python_installed:
-            check_colorama()
+        check_colorama()
 
         self.vmf_default_path = "C:\\"
         self.cs2_basefolder = None
