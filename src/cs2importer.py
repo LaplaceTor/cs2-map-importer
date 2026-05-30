@@ -106,8 +106,16 @@ class Importer(QMainWindow, Interface):
         self.validate_cs2_button.clicked.connect(self.validate_cs2)
         self.validate_csgo_button.clicked.connect(self.validate_csgo)
         self.addon_edit.textChanged.connect(self.get_addon)
-        self.launch_options_edit.textChanged.connect(self.get_launch_options)
         self.go_button.clicked.connect(self.go)
+
+        # Connect mutual exclusivity for usebsp checkboxes
+        self.usebsp_checkbox.toggled.connect(self.on_usebsp_toggled)
+        self.usebsp_nomergeinstances_checkbox.toggled.connect(self.on_usebsp_nomergeinstances_toggled)
+
+        # Connect checkboxes to get_launch_options
+        self.usebsp_checkbox.stateChanged.connect(self.get_launch_options)
+        self.usebsp_nomergeinstances_checkbox.stateChanged.connect(self.get_launch_options)
+        self.skipdeps_checkbox.stateChanged.connect(self.get_launch_options)
 
     def validate_cs2(self):
         # Open URL to prompt Steam to validate CS2 files
@@ -127,6 +135,9 @@ class Importer(QMainWindow, Interface):
         self.csgo_button.setToolTip('Use "csgo legacy" folder or any folder inside it.')
         self.vmf_button.setToolTip('Does not need to be in a "maps" folder, one will be created then deleted afterwards if necessary.')
         self.config_checkbox.setToolTip('Auto-selects folders, auto-selects .VMF folder when you open the dialog, and auto-fills launch options for next time.')
+        self.usebsp_checkbox.setToolTip('This runs the map through a special vbsp process to generate clean map geometry from brushes, removing hidden faces and stitching up edges, making the CS2 version easier to work with in Hammer. It preserves world (vis) brushes and func_detail brushes for compatibility with Source 2. This parameter will also merge all func_instances in your map. Note that the final geometry will be triangulated, but cleaning it up is a fairly simple process, which will be explained in another guide.')
+        self.usebsp_nomergeinstances_checkbox.setToolTip('Use this instead of -usebsp if you wish to both generate clean geo and also preserve func_instances. Note that this takes a little longer as it has to run through the import process twice. The final geometry will also be triangulated.')
+        self.skipdeps_checkbox.setToolTip("Optional: skips importing all dependencies/content and only generates the vmap file(s). This provides a 'quick' import when iterating entities for example. Do not run with this if you are importing for the first time.")
 
     def select_cs2_folder(self):
         path = QFileDialog.getExistingDirectory(self, "Select a folder:", "C:\\", QFileDialog.ShowDirsOnly)
@@ -221,17 +232,35 @@ class Importer(QMainWindow, Interface):
         self.vmf_label.setText(path)
         self.vmf_label.setStyleSheet("background-color:rgb(0, 255, 0)")
 
+    def on_usebsp_toggled(self, checked):
+        if checked:
+            self.usebsp_nomergeinstances_checkbox.setChecked(False)
+
+    def on_usebsp_nomergeinstances_toggled(self, checked):
+        if checked:
+            self.usebsp_checkbox.setChecked(False)
+
     def get_addon(self):
         self.addon = self.addon_edit.text()
 
     def get_launch_options(self):
-        self.launch_options = self.launch_options_edit.text()
-
-    def set_launch_options(self, text):
-        self.launch_options_edit.setText(text)
+        options = []
+        if self.usebsp_checkbox.isChecked():
+            options.append("-usebsp")
+        if self.usebsp_nomergeinstances_checkbox.isChecked():
+            options.append("-usebsp_nomergeinstances")
+        if self.skipdeps_checkbox.isChecked():
+            options.append("-skipdeps")
+        self.launch_options = " ".join(options)
 
     def save_to_cfg(self): 
-        temp = f"""{self.launch_options}
+        usebsp_state = str(self.usebsp_checkbox.isChecked())
+        nomerge_state = str(self.usebsp_nomergeinstances_checkbox.isChecked())
+        skipdeps_state = str(self.skipdeps_checkbox.isChecked())
+
+        temp = f"""{usebsp_state}
+{nomerge_state}
+{skipdeps_state}
 {self.cs2_basefolder}
 {self.csgo_basefolder}
 {self.vmf_folder_to_save}"""
@@ -244,23 +273,32 @@ class Importer(QMainWindow, Interface):
             open("cs2importer.cfg", "w").close()
 
         with open("cs2importer.cfg", "r") as f:
-            temp = f.readlines()
+            temp = [line.strip() for line in f.readlines()]
             if not temp:
                 return
 
-        self.set_launch_options(temp[0].strip())
-
-        # Backwards compatibility check
-        if len(temp) == 3:
-            # Old format: launch_options, old_csgo_folder(which was CS2), vmf
-            # We assume old format means they had Counter-Strike Global Offensive set.
-            self.set_cs2_folder(temp[1].strip())
-            self.vmf_default_path = temp[2].strip()
-        elif len(temp) >= 4:
-            # New format: launch_options, cs2_folder, csgo_folder, vmf
-            self.set_cs2_folder(temp[1].strip())
-            self.set_csgo_folder(temp[2].strip())
-            self.vmf_default_path = temp[3].strip()
+        # Check if new format (first line is True or False)
+        if temp[0] in ["True", "False"]:
+            if len(temp) >= 6:
+                self.usebsp_checkbox.setChecked(temp[0] == "True")
+                self.usebsp_nomergeinstances_checkbox.setChecked(temp[1] == "True")
+                self.skipdeps_checkbox.setChecked(temp[2] == "True")
+                self.set_cs2_folder(temp[3])
+                self.set_csgo_folder(temp[4])
+                self.vmf_default_path = temp[5]
+        else:
+            # Old format backwards compatibility check
+            # We ignore the old launch options (temp[0])
+            if len(temp) == 3:
+                # Old format: launch_options, old_csgo_folder(which was CS2), vmf
+                # We assume old format means they had Counter-Strike Global Offensive set.
+                self.set_cs2_folder(temp[1])
+                self.vmf_default_path = temp[2]
+            elif len(temp) >= 4:
+                # New format (but still string launch options): launch_options, cs2_folder, csgo_folder, vmf
+                self.set_cs2_folder(temp[1])
+                self.set_csgo_folder(temp[2])
+                self.vmf_default_path = temp[3]
 
     def fix_import_script(self):
         if not self.cs2_basefolder:
