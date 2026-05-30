@@ -11,9 +11,47 @@ import os
 import shutil
 import tempfile
 
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+def check_colorama():
+    try:
+        # Check if the system python (the one used for Valve scripts) has colorama
+        subprocess.check_call(["python", "-c", "import colorama"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        print("colorama not found in system python. Installing...")
+        try:
+            subprocess.check_call(["python", "-m", "pip", "install", "colorama"])
+        except Exception as e:
+            print(f"Failed to install colorama: {e}")
+
+def check_python():
+    try:
+        result = subprocess.run(["python", "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
+
+def check_java():
+    try:
+        result = subprocess.run(["java", "-version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        return True
+    except FileNotFoundError:
+        return False
+
 class Importer(QMainWindow, Interface):
     def __init__(self):
         super().__init__()
+
+        self.python_installed = check_python()
+        if self.python_installed:
+            check_colorama()
 
         self.vmf_default_path = "C:\\"
         self.cs2_basefolder = None
@@ -23,12 +61,17 @@ class Importer(QMainWindow, Interface):
         self.addon = None
         self.map_name = None
         self.vpk_signatures_moved = False
+        self.java_installed = check_java()
+        self.bsp_file = None
 
         self.setupUi(self)
         self.set_tooltips()
         self.set_stylesheets()
         self.get_addon()
         self.get_launch_options()
+
+        if not self.java_installed:
+            self.vmf_button.setToolTip('Java is not installed. BSP decompilation is disabled.')
 
         self.load_from_cfg()
 
@@ -95,12 +138,26 @@ class Importer(QMainWindow, Interface):
             self.csgo_label.setStyleSheet("background-color:rgb(0, 255, 0)")
 
     def select_vmf(self):
-        path = QFileDialog.getOpenFileName(self, "Select a VMF", self.vmf_default_path, "VMF files (*.vmf)")[0]
+        filter_str = "Map files (*.bsp *.vmf);;VMF files (*.vmf);;BSP files (*.bsp)" if self.java_installed else "VMF files (*.vmf)"
+        path = QFileDialog.getOpenFileName(self, "Select a BSP or VMF", self.vmf_default_path, filter_str)[0]
         if not path:
             return
         
+        self.bsp_file = None
         temp = path.split("/")
-        self.map_name = temp.pop().split(".vmf")[0]
+        filename = temp.pop()
+
+        if filename.lower().endswith(".bsp"):
+            self.bsp_file = path
+            self.map_name = filename.split(".bsp")[0]
+            self.vmf_folder = "/".join(temp)
+            self.vmf_folder_to_save = self.vmf_folder
+
+            self.vmf_label.setText(path)
+            self.vmf_label.setStyleSheet("background-color:rgb(0, 255, 0)")
+            return
+
+        self.map_name = filename.split(".vmf")[0]
         self.vmf_folder = "/".join(temp)
 
         # if path doesnt end with /maps
@@ -216,6 +273,26 @@ class Importer(QMainWindow, Interface):
 
             self.fix_import_script()
             self.move_vpk_signatures()
+
+            if self.bsp_file:
+                temp_dir = tempfile.gettempdir()
+                maps_dir = os.path.join(temp_dir, "maps")
+                if not os.path.exists(maps_dir):
+                    os.mkdir(maps_dir)
+
+                vmf_dest = os.path.join(maps_dir, self.map_name + ".vmf")
+                bspsrc_jar = resource_path("bspsrc.jar")
+
+                if not os.path.exists(bspsrc_jar):
+                    raise Exception(f"Could not find bspsrc.jar at {bspsrc_jar}")
+
+                print(f"Decompiling BSP: {self.bsp_file}")
+                # decompile using java
+                decomp_cmd = ["java", "-jar", bspsrc_jar, self.bsp_file, "-out", vmf_dest]
+                subprocess.check_call(decomp_cmd)
+
+                self.vmf_folder = temp_dir
+                print(f"Decompiled to: {vmf_dest}")
 
             cd = self.cs2_basefolder + '/game/csgo/import_scripts'
             command = "python import_map_community.py "

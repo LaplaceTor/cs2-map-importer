@@ -139,7 +139,7 @@ class Ui_MainWindow(object):
         self.csgo_label.setText(_translate("MainWindow", "None selected"))
         self.launch_options_edit.setText(_translate("MainWindow", "-usebsp"))
         self.launch_options_edit.setPlaceholderText(_translate("MainWindow", "Enter launch options:"))
-        self.vmf_button.setText(_translate("MainWindow", "Select .VMF"))
+        self.vmf_button.setText(_translate("MainWindow", "select bsp or vmf"))
         self.vmf_label.setText(_translate("MainWindow", "None selected"))
         self.validate_cs2_button.setText(_translate("MainWindow", "Validate CS2"))
         self.validate_csgo_button.setText(_translate("MainWindow", "Validate CSGO"))
