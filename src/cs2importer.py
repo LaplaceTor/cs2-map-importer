@@ -175,30 +175,23 @@ class Importer(QMainWindow, Interface):
         self.map_name = filename.split(".vmf")[0]
         self.vmf_folder = "/".join(temp)
 
-        # if path doesnt end with /maps
-        if not self.vmf_folder.endswith("/maps"):
-            temp_dir = tempfile.gettempdir()
-
-            # check if /maps is in temp already, otherwise create it
-            if not os.path.exists(temp_dir + "/maps"):
-                os.mkdir(temp_dir + "/maps")
+        # Always copy the selected VMF to self.app_dir/maps so it behaves exactly like BSP decompilation
+        target_maps_dir = os.path.join(self.app_dir, "maps")
+        if not os.path.exists(target_maps_dir):
+            os.mkdir(target_maps_dir)
             
-            # delete vmf in /maps if exists, as maybe it isnt the newest ver. 
-            # only need to do this if /maps wasnt just created.
-            else:
-                if os.path.isfile(temp_dir  + "/maps/" + self.map_name + ".vmf"):
-                    os.remove(temp_dir  + "/maps/" + self.map_name + ".vmf")
+        target_vmf_path = os.path.join(target_maps_dir, self.map_name + ".vmf")
+        source_vmf_path = os.path.join(self.vmf_folder, self.map_name + ".vmf")
 
-            # copy *.vmf to temp/maps/*.vmf
-            shutil.copy(self.vmf_folder + "/" + self.map_name + ".vmf", temp_dir + "/maps")
-            
-            self.vmf_folder_to_save = self.vmf_folder
-            self.vmf_folder = temp_dir
+        if not os.path.samefile(source_vmf_path, target_vmf_path) if os.path.exists(target_vmf_path) else True:
+            if os.path.exists(target_vmf_path):
+                os.remove(target_vmf_path)
+            shutil.copy(source_vmf_path, target_maps_dir)
 
-        else:
-            self.vmf_folder = "/".join(self.vmf_folder.split("/")[:-1])
-            self.vmf_folder_to_save = self.vmf_folder
-            print(self.vmf_folder)
+        # import_map_community.py expects the parent of the maps folder
+        self.vmf_folder_to_save = self.vmf_folder
+        self.vmf_folder = self.app_dir
+        print(f"VMF set up at: {target_vmf_path}")
 
         # update gui
         self.vmf_label.setText(path)
@@ -323,8 +316,45 @@ class Importer(QMainWindow, Interface):
 
                 print(f"Decompiling BSP: {self.bsp_file}")
                 # decompile using java
-                decomp_cmd = ["java", "-jar", bspsrc_jar, self.bsp_file, "-o", vmf_dest]
+                decomp_cmd = ["java", "-jar", bspsrc_jar, self.bsp_file, "-o", vmf_dest, "-unpack_embedded"]
                 subprocess.check_call(decomp_cmd)
+
+                # Find the unpacked directory (named after map_name)
+                # It could be created in the current working directory, or next to the BSP file, or next to the output VMF.
+                unpacked_dir = None
+                possible_locations = [
+                    os.path.join(os.getcwd(), self.map_name),
+                    os.path.join(self.app_dir, self.map_name),
+                    os.path.join(os.path.dirname(self.bsp_file), self.map_name),
+                    os.path.join(maps_dir, self.map_name) # already where it needs to be
+                ]
+
+                for loc in possible_locations:
+                    if os.path.isdir(loc):
+                        unpacked_dir = loc
+                        break
+
+                if unpacked_dir:
+                    print(f"Found unpacked files at {unpacked_dir}")
+
+                    # Copy materials and models to csgo_basefolder/csgo/ if they exist
+                    if self.csgo_basefolder:
+                        for folder_name in ["materials", "models"]:
+                            src_folder = os.path.join(unpacked_dir, folder_name)
+                            if os.path.isdir(src_folder):
+                                dest_folder = os.path.join(self.csgo_basefolder, "csgo", folder_name)
+                                print(f"Copying {src_folder} to {dest_folder}")
+                                shutil.copytree(src_folder, dest_folder, dirs_exist_ok=True)
+
+                    # Move the unpacked folder next to the generated VMF (inside maps_dir)
+                    target_unpacked_dir = os.path.join(maps_dir, self.map_name)
+                    if unpacked_dir != target_unpacked_dir:
+                        if os.path.exists(target_unpacked_dir):
+                            shutil.rmtree(target_unpacked_dir)
+                        shutil.move(unpacked_dir, target_unpacked_dir)
+                        print(f"Moved unpacked directory to {target_unpacked_dir}")
+                else:
+                    print(f"Could not find unpacked embedded files directory '{self.map_name}'")
 
                 self.vmf_folder = self.app_dir
                 print(f"Decompiled to: {vmf_dest}")
