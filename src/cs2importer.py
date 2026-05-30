@@ -22,28 +22,15 @@ def download_bspsrc(base_path):
 
     print("bspsrc.jar not found. Downloading the latest version...")
     try:
-        req = urllib.request.Request("https://api.github.com/repos/ata4/bspsrc/releases/latest")
-        with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode())
+        download_url = "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip"
+        print(f"Downloading from {download_url}...")
+        req_zip = urllib.request.Request(download_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req_zip) as zip_response:
+            with zipfile.ZipFile(io.BytesIO(zip_response.read())) as zip_file:
+                zip_file.extract("bspsrc.jar", path=base_path)
 
-            download_url = None
-            for asset in data.get("assets", []):
-                if asset.get("name") == "bspsrc-jar-only.zip":
-                    download_url = asset.get("browser_download_url")
-                    break
-
-            if not download_url:
-                print("Could not find bspsrc-jar-only.zip in the latest release.")
-                return False
-
-            print(f"Downloading from {download_url}...")
-            req_zip = urllib.request.Request(download_url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req_zip) as zip_response:
-                with zipfile.ZipFile(io.BytesIO(zip_response.read())) as zip_file:
-                    zip_file.extract("bspsrc.jar", path=base_path)
-
-            print(f"Successfully downloaded and extracted bspsrc.jar to {base_path}")
-            return True
+        print(f"Successfully downloaded and extracted bspsrc.jar to {base_path}")
+        return True
     except Exception as e:
         print(f"Failed to download bspsrc: {e}")
         return False
