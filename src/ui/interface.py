@@ -145,7 +145,6 @@ class Ui_MainWindow(object):
         self.cs2_label.setText(_translate("MainWindow", "None selected"))
         self.csgo_button.setText(_translate("MainWindow", "Select CSGO folder"))
         self.csgo_label.setText(_translate("MainWindow", "None selected"))
-        self.launch_options_edit.setText(_translate("MainWindow", "-usebsp"))
         self.launch_options_edit.setPlaceholderText(_translate("MainWindow", "Enter launch options:"))
         self.vmf_button.setText(_translate("MainWindow", "Select VMF"))
         self.bsp_button.setText(_translate("MainWindow", "Select BSP"))
