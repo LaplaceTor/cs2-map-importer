@@ -145,7 +145,7 @@
          <string extracomment="Doesn't need to be in a &quot;maps&quot; folder, one will be created then deleted afterwards if necessary."/>
         </property>
         <property name="text">
-         <string>Select .VMF</string>
+         <string>select bsp or vmf</string>
         </property>
        </widget>
       </item>

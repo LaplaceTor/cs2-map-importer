@@ -25,9 +25,16 @@ jobs:
         python -m pip install --upgrade pip
         pip install pyinstaller PyQt5
 
+    - name: Download bspsrc
+      shell: pwsh
+      run: |
+        Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip" -OutFile "bspsrc.zip"
+        Expand-Archive -Path bspsrc.zip -DestinationPath bspsrc
+        Copy-Item bspsrc/bspsrc.jar src/bspsrc.jar
+
     - name: Build with PyInstaller
       run: |
-        pyinstaller --onefile src/cs2importer.py
+        pyinstaller --onefile --add-data "src/bspsrc.jar;." src/cs2importer.py
 
     - name: Prepare Release Artifacts
       run: |
