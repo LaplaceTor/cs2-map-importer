@@ -298,7 +298,12 @@ class Importer(QMainWindow, Interface):
             command += self.launch_options
             command = command.replace("/", "\\")
             print(command)
-            subprocess.Popen(command, cwd=cd)
+
+            my_env = os.environ.copy()
+            bin_path = os.path.join(self.cs2_basefolder, 'game', 'bin', 'win64').replace("/", "\\")
+            my_env["PATH"] = bin_path + os.pathsep + my_env.get("PATH", "")
+
+            subprocess.Popen(command, cwd=cd, env=my_env)
 
         except Exception as e:
             print(e)
