@@ -44,8 +44,8 @@ private:
     QString vmf_default_path;
     QString cs2_basefolder;
     QString csgo_basefolder;
-    QString vmf_folder;
-    QString vmf_folder_to_save;
+    QString content_folder;
+    QString content_folder_to_save;
     QString addon;
     QString map_name;
     bool vpk_signatures_moved;
