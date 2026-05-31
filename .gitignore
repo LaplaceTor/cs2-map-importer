@@ -2,3 +2,4 @@
 *.spec
 *.cfg
 release
+build/
