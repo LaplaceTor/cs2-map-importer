@@ -203,11 +203,29 @@ void Importer::select_cs2_folder()
     QString path = QFileDialog::getExistingDirectory(this, "Select a folder:", "C:\\", QFileDialog::ShowDirsOnly);
     if (path.isEmpty()) return;
 
-    QStringList parts = path.split("/Counter-Strike Global Offensive/", Qt::KeepEmptyParts);
-    if (parts.size() < 2) parts.append("");
+    QString gameinfo_path = QDir(path).filePath("game/csgo/gameinfo.gi");
+    QFile file(gameinfo_path);
+    bool valid = false;
 
-    QString newPath = parts[0] + "/game/csgo" + parts[1];
-    set_cs2_folder(newPath);
+    if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&file);
+        QRegularExpression regex("^\\s*game\\s+\"Counter-Strike 2\"\\s*$");
+        while (!in.atEnd()) {
+            if (regex.match(in.readLine()).hasMatch()) {
+                valid = true;
+                break;
+            }
+        }
+        file.close();
+    }
+
+    if (!valid) {
+        QMessageBox::critical(this, "Invalid CS2 Folder", "The selected folder is not a valid CS2 installation.\nPlease make sure to select a folder where game/csgo/gameinfo.gi contains 'game \"Counter-Strike 2\"'.");
+        QTimer::singleShot(0, this, &Importer::select_cs2_folder);
+        return;
+    }
+
+    set_cs2_folder(path);
 }
 
 void Importer::set_cs2_folder(const QString& path)
@@ -224,11 +242,29 @@ void Importer::select_csgo_folder()
     QString path = QFileDialog::getExistingDirectory(this, "Select a folder:", "C:\\", QFileDialog::ShowDirsOnly);
     if (path.isEmpty()) return;
 
-    QStringList parts = path.split("/csgo legacy/", Qt::KeepEmptyParts);
-    if (parts.size() < 2) parts.append("");
+    QString gameinfo_path = QDir(path).filePath("csgo/gameinfo.txt");
+    QFile file(gameinfo_path);
+    bool valid = false;
 
-    QString newPath = parts[0] + "/csgo" + parts[1];
-    set_csgo_folder(newPath);
+    if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&file);
+        QRegularExpression regex("^\\s*game\\s+\"Counter-Strike: Global Offensive\"\\s*$");
+        while (!in.atEnd()) {
+            if (regex.match(in.readLine()).hasMatch()) {
+                valid = true;
+                break;
+            }
+        }
+        file.close();
+    }
+
+    if (!valid) {
+        QMessageBox::critical(this, "Invalid CS:GO Folder", "The selected folder is not a valid CS:GO legacy installation.\nPlease make sure to select a folder where csgo/gameinfo.txt contains 'game \"Counter-Strike: Global Offensive\"'.");
+        QTimer::singleShot(0, this, &Importer::select_csgo_folder);
+        return;
+    }
+
+    set_csgo_folder(path);
 }
 
 void Importer::set_csgo_folder(const QString& path)
