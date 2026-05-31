@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
@@ -36,7 +36,7 @@
          </sizepolicy>
         </property>
         <property name="toolTip">
-         <string extracomment="Select &quot;Counter-Strike Global Offensive&quot; folder for CS2."/>
+         <string extracomment="Select &quot;Counter-Strike Global Offensive&quot; folder for CS2." />
         </property>
         <property name="text">
          <string>Select CS2 folder</string>
@@ -84,7 +84,7 @@
          </sizepolicy>
         </property>
         <property name="toolTip">
-         <string extracomment="Select &quot;csgo legacy&quot; folder."/>
+         <string extracomment="Select &quot;csgo legacy&quot; folder." />
         </property>
         <property name="text">
          <string>Select CSGO folder</string>
@@ -156,7 +156,7 @@
          </sizepolicy>
         </property>
         <property name="toolTip">
-         <string extracomment="Doesn't need to be in a &quot;maps&quot; folder, one will be created then deleted afterwards if necessary."/>
+         <string extracomment="Doesn't need to be in a &quot;maps&quot; folder, one will be created then deleted afterwards if necessary." />
         </property>
         <property name="text">
          <string>Select VMF</string>
@@ -253,9 +253,21 @@
       </property>
      </widget>
     </item>
-   </layout>
+   <item row="10" column="1" colspan="3">
+     <widget class="QPlainTextEdit" name="log_output">
+      <property name="readOnly">
+       <bool>true</bool>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>320</height>
+       </size>
+      </property>
+     </widget>
+    </item></layout>
   </widget>
  </widget>
- <resources/>
- <connections/>
+ <resources />
+ <connections />
 </ui>

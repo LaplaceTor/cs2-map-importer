@@ -3,7 +3,7 @@ name: Build and Release
 on:
   push:
     branches:
-      - main
+      - cmake
 
 jobs:
   build:
@@ -15,33 +15,38 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
       with:
-        python-version: '3.10'
+        version: '5.15.2'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2019_64'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pyinstaller PyQt5
+    - name: Configure CMake
+      run: cmake -B build -S .
+
+    - name: Build with CMake
+      run: cmake --build build --config Release
 
     - name: Download bspsrc
       shell: pwsh
       run: |
         Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip" -OutFile "bspsrc.zip"
         Expand-Archive -Path bspsrc.zip -DestinationPath bspsrc
-        Copy-Item bspsrc/bspsrc.jar src/bspsrc.jar
-
-    - name: Build with PyInstaller
-      run: |
-        pyinstaller --onefile --add-data "src/bspsrc.jar;." src/cs2importer.py
+        # It will be placed next to the built executable later
 
     - name: Prepare Release Artifacts
+      shell: pwsh
       run: |
         mkdir release
-        move dist\cs2importer.exe release\
+        # The built executable is usually in build\Release\ on Windows MSVC
+        Copy-Item build\Release\cs2importer.exe release\
+        Copy-Item bspsrc\bspsrc.jar release\
+        # Deploy Qt dependencies next to the executable
+        windeployqt release\cs2importer.exe
         cd release
-        7z a cs2importer.zip cs2importer.exe
+        7z a cs2importer.zip *
 
     - name: Get commit SHA
       id: vars
