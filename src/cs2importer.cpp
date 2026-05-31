@@ -736,9 +736,9 @@ void Importer::go()
 
         QStringList args;
         args << "import_map_community.py"
-             << QDir(csgo_basefolder).filePath("csgo")
-             << content_folder
-             << QDir(cs2_basefolder).filePath("game/csgo")
+             << QDir(csgo_basefolder).filePath("csgo").replace("/", "\\")
+             << content_folder.replace("/", "\\")
+             << QDir(cs2_basefolder).filePath("game/csgo").replace("/", "\\")
              << addon
              << map_name;
 
