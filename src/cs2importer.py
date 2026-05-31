@@ -354,7 +354,7 @@ class Importer(QMainWindow, Interface):
 
                 print(f"Decompiling BSP: {self.bsp_file}")
                 # decompile using java
-                decomp_cmd = ["java", "-jar", bspsrc_jar, self.bsp_file, "-o", vmf_dest, "-unpack_embedded"]
+                decomp_cmd = ["java", "-jar", bspsrc_jar, self.bsp_file, "-o", vmf_dest, "--unpack_embedded"]
                 subprocess.check_call(decomp_cmd)
 
                 # Find the unpacked directory (named after map_name)
