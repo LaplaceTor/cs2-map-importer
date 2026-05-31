@@ -23,7 +23,7 @@ Importer::Importer(QWidget *parent) :
     bspsrc_installed(false),
     java_installed(false),
     vmf_default_path("C:\\"),
-    vmf_folder_to_save("C:\\"),
+    content_folder_to_save("C:\\"),
     vpk_signatures_moved(false),
     process(new QProcess(this))
 {
@@ -284,9 +284,9 @@ void Importer::select_vmf()
     bsp_file.clear();
     QFileInfo fileInfo(path);
     map_name = fileInfo.baseName();
-    vmf_folder = fileInfo.absolutePath();
+    content_folder = fileInfo.absolutePath();
 
-    QString target_maps_dir = QDir(app_dir).filePath("maps");
+    QString target_maps_dir = QDir(app_dir).filePath(QString("maps/%1/maps").arg(map_name));
     QDir().mkpath(target_maps_dir);
 
     QString target_vmf_path = QDir(target_maps_dir).filePath(fileInfo.fileName());
@@ -298,8 +298,8 @@ void Importer::select_vmf()
         QFile::copy(fileInfo.absoluteFilePath(), target_vmf_path);
     }
 
-    vmf_folder_to_save = vmf_folder;
-    vmf_folder = app_dir;
+    content_folder_to_save = content_folder;
+    content_folder = QDir(app_dir).filePath(QString("maps/%1").arg(map_name));
     log("VMF set up at: " + target_vmf_path);
 
     ui->vmf_label->setText(path);
@@ -314,7 +314,7 @@ void Importer::select_bsp()
     bsp_file = path;
     QFileInfo fileInfo(path);
     map_name = fileInfo.baseName();
-    vmf_folder_to_save = fileInfo.absolutePath();
+    content_folder_to_save = fileInfo.absolutePath();
 
     ui->vmf_label->setText(path);
     ui->vmf_label->setStyleSheet("background-color:rgb(0, 255, 0)");
@@ -360,7 +360,7 @@ void Importer::save_to_cfg()
         .arg(skipdeps_state)
         .arg(cs2_basefolder)
         .arg(csgo_basefolder)
-        .arg(vmf_folder_to_save);
+        .arg(content_folder_to_save);
 
     QFile file("cs2importer.cfg");
     if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -609,7 +609,7 @@ void Importer::go()
         QMessageBox::warning(this, "Validation Error", "CSGO folder not selected.");
         return;
     }
-    if (bsp_file.isEmpty() && vmf_folder.isEmpty()) {
+    if (bsp_file.isEmpty() && content_folder.isEmpty()) {
         QMessageBox::warning(this, "Validation Error", "Please select a VMF or BSP file.");
         return;
     }
@@ -713,8 +713,23 @@ void Importer::go()
             }
 
             fix_top_level_key(vmf_dest);
-            vmf_folder = app_dir;
-            log("Decompiled to: " + vmf_dest);
+
+            // Move vmf to maps/<map_name>/maps/
+            QString target_maps_dir = QDir(app_dir).filePath(QString("maps/%1/maps").arg(map_name));
+            QDir().mkpath(target_maps_dir);
+            QString final_vmf_dest = QDir(target_maps_dir).filePath(map_name + ".vmf");
+
+            if (QFile::exists(final_vmf_dest)) {
+                QFile::remove(final_vmf_dest);
+            }
+            if (QFile::rename(vmf_dest, final_vmf_dest)) {
+                 log("Moved VMF to: " + final_vmf_dest);
+            } else {
+                 log("Failed to move VMF to: " + final_vmf_dest);
+            }
+
+            content_folder = QDir(app_dir).filePath(QString("maps/%1").arg(map_name));
+            log("Decompiled and prepared at: " + final_vmf_dest);
         }
 
         QString cd = QDir(cs2_basefolder).filePath("game/csgo/import_scripts");
@@ -722,7 +737,7 @@ void Importer::go()
         QStringList args;
         args << "import_map_community.py"
              << QDir(csgo_basefolder).filePath("csgo")
-             << vmf_folder
+             << content_folder
              << QDir(cs2_basefolder).filePath("game/csgo")
              << addon
              << map_name;
