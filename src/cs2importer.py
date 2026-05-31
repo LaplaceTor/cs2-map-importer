@@ -261,6 +261,39 @@ class Importer(QMainWindow, Interface):
         with open("cs2importer.cfg", "w") as f:
             f.write(temp)
 
+    def fix_vmf_versioninfo(self, vmf_path):
+        if not os.path.exists(vmf_path):
+            return
+
+        with open(vmf_path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+
+        mapversion = "2"
+        mapversion_regex = re.compile(r'^\s*"mapversion"\s+"([^"]+)"')
+
+        # Find and remove mapversion line
+        for i, line in enumerate(lines):
+            match = mapversion_regex.search(line)
+            if match:
+                mapversion = match.group(1)
+                del lines[i]
+                break
+
+        # Add versioninfo block at the top
+        versioninfo_block = f"""versioninfo
+{{
+\t"editorversion" "400"
+\t"editorbuild" "9999"
+\t"mapversion" "{mapversion}"
+\t"formatversion" "100"
+\t"prefab" "0"
+}}
+"""
+        lines.insert(0, versioninfo_block)
+
+        with open(vmf_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+
     def load_from_cfg(self):
         if not os.path.isfile("cs2importer.cfg"):
             open("cs2importer.cfg", "w").close()
@@ -393,6 +426,9 @@ class Importer(QMainWindow, Interface):
                         print(f"Moved unpacked directory to {target_unpacked_dir}")
                 else:
                     print(f"Could not find unpacked embedded files directory '{self.map_name}'")
+
+                # Fix versioninfo in the decompiled VMF
+                self.fix_vmf_versioninfo(vmf_dest)
 
                 self.vmf_folder = self.app_dir
                 print(f"Decompiled to: {vmf_dest}")
