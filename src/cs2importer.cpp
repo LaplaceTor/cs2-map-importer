@@ -206,7 +206,7 @@ void Importer::select_cs2_folder()
     QStringList parts = path.split("/Counter-Strike Global Offensive/", Qt::KeepEmptyParts);
     if (parts.size() < 2) parts.append("");
 
-    QString newPath = parts[0] + "/Counter-Strike Global Offensive" + parts[1];
+    QString newPath = parts[0] + "/game/csgo" + parts[1];
     set_cs2_folder(newPath);
 }
 
@@ -227,7 +227,7 @@ void Importer::select_csgo_folder()
     QStringList parts = path.split("/csgo legacy/", Qt::KeepEmptyParts);
     if (parts.size() < 2) parts.append("");
 
-    QString newPath = parts[0] + "/csgo legacy" + parts[1];
+    QString newPath = parts[0] + "/csgo" + parts[1];
     set_csgo_folder(newPath);
 }
 
@@ -491,13 +491,6 @@ void Importer::fix_import_script()
     file.close();
 
     bool modified = false;
-
-    if (lines.size() >= 328) {
-        if (lines[327].contains(".decode()")) {
-            lines[327] = lines[327].replace(".decode()", "");
-            modified = true;
-        }
-    }
 
     int start_idx = -1;
     for (int i = 0; i < lines.size(); ++i) {
