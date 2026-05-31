@@ -203,10 +203,9 @@ void Importer::select_cs2_folder()
     QString path = QFileDialog::getExistingDirectory(this, "Select a folder:", "C:\\", QFileDialog::ShowDirsOnly);
     if (path.isEmpty()) return;
 
-    QStringList parts = path.split("/Counter-Strike Global Offensive/", Qt::KeepEmptyParts);
-    if (parts.size() < 2) parts.append("");
+    QStringList parts = path.split("/Counter-Strike Global Offensive");
 
-    QString newPath = parts[0] + "/game/csgo" + parts[1];
+    QString newPath = parts[0] + "/Counter-Strike Global Offensive";
     set_cs2_folder(newPath);
 }
 
@@ -224,10 +223,9 @@ void Importer::select_csgo_folder()
     QString path = QFileDialog::getExistingDirectory(this, "Select a folder:", "C:\\", QFileDialog::ShowDirsOnly);
     if (path.isEmpty()) return;
 
-    QStringList parts = path.split("/csgo legacy/", Qt::KeepEmptyParts);
-    if (parts.size() < 2) parts.append("");
+    QStringList parts = path.split("/csgo legacy");
 
-    QString newPath = parts[0] + "/csgo" + parts[1];
+    QString newPath = parts[0] + "/csgo legacy";
     set_csgo_folder(newPath);
 }
 
