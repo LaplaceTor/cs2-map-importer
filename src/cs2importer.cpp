@@ -490,17 +490,43 @@ void Importer::fix_import_script()
     }
     file.close();
 
+    bool modified = false;
+
     if (lines.size() >= 328) {
         if (lines[327].contains(".decode()")) {
             lines[327] = lines[327].replace(".decode()", "");
-            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                QTextStream out(&file);
-                out.setCodec("UTF-8");
-                for (const QString& line : lines) {
-                    out << line << "\n";
+            modified = true;
+        }
+    }
+
+    for (int i = 0; i < lines.size(); ++i) {
+        if (lines[i].contains("Enter to Continue, Esc to Quit")) {
+            lines[i] = lines[i].replace("Enter to Continue, Esc to Quit", "Auto-continuing in 5 seconds...");
+            modified = true;
+        }
+        if (lines[i].trimmed() == "while True:") {
+            if (i + 8 < lines.size() && lines[i+1].contains("utl.kbd.kbhit()")) {
+                QString indent = lines[i].left(lines[i].indexOf("while"));
+                // Comment out the while loop and its contents
+                for (int j = i; j <= i + 8; ++j) {
+                    lines[j] = "# " + lines[j];
                 }
-                file.close();
+                // Insert the sleep
+                lines.insert(i + 9, indent + "import time; time.sleep(5)");
+                modified = true;
+                break;
             }
+        }
+    }
+
+    if (modified) {
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&file);
+            out.setCodec("UTF-8");
+            for (const QString& line : lines) {
+                out << line << "\n";
+            }
+            file.close();
         }
     }
 }
@@ -669,13 +695,6 @@ void Importer::go()
         process->setWorkingDirectory(cd);
         python_output.clear();
         process->start("python", args);
-
-        QTimer::singleShot(5000, this, [this]() {
-            if (process->state() == QProcess::Running) {
-                log("Auto-pressing Enter...");
-                process->write("\n");
-            }
-        });
 
     } catch (const std::exception& e) {
         log(QString("Error: %1").arg(e.what()));
