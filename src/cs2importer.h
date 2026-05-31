@@ -51,6 +51,7 @@ private:
     bool vpk_signatures_moved;
     QString bsp_file;
     QString launch_options;
+    QString python_output;
 
     QProcess *process;
 
