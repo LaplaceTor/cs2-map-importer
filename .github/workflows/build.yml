@@ -58,7 +58,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         tag_name: release-${{ steps.vars.outputs.sha_short }}
-        name: CS2 Importer Release ${{ steps.vars.outputs.sha_short }}
+        name: CS2 Importer Dev ${{ steps.vars.outputs.sha_short }}
         files: release/cs2importer.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
