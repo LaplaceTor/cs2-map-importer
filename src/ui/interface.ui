@@ -264,6 +264,9 @@
         <height>320</height>
        </size>
       </property>
+      <property name="styleSheet">
+       <string notr="true">background-color: black; color: white;</string>
+      </property>
      </widget>
     </item></layout>
   </widget>

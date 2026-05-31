@@ -15,6 +15,7 @@
 #include <QTimer>
 #include <QProcessEnvironment>
 #include <QDebug>
+#include <QDateTime>
 
 Importer::Importer(QWidget *parent) :
     QMainWindow(parent),
@@ -86,6 +87,7 @@ void Importer::appendLogOutput()
 {
     QByteArray data = process->readAllStandardOutput();
     QString text = QString::fromLocal8Bit(data);
+    python_output += text;
     log(text.trimmed());
 }
 
@@ -93,6 +95,7 @@ void Importer::appendLogError()
 {
     QByteArray data = process->readAllStandardError();
     QString text = QString::fromLocal8Bit(data);
+    python_output += text;
     log(text.trimmed());
 }
 
@@ -102,6 +105,24 @@ void Importer::processFinished(int exitCode, QProcess::ExitStatus exitStatus)
         log("Process crashed!");
     } else {
         log(QString("Process finished with exit code %1").arg(exitCode));
+    }
+
+    if (!python_output.isEmpty()) {
+        QDir log_dir(app_dir);
+        if (!log_dir.exists("log")) {
+            log_dir.mkdir("log");
+        }
+        QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss");
+        QString log_filename = QString("log/%1_%2.log").arg(timestamp, addon);
+        QFile log_file(log_dir.filePath(log_filename));
+        if (log_file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&log_file);
+            out << python_output;
+            log_file.close();
+            log("Saved python output to " + log_filename);
+        } else {
+            log("Failed to save python output to " + log_filename);
+        }
     }
 }
 
@@ -646,7 +667,15 @@ void Importer::go()
 
         process->setProcessEnvironment(env);
         process->setWorkingDirectory(cd);
+        python_output.clear();
         process->start("python", args);
+
+        QTimer::singleShot(5000, this, [this]() {
+            if (process->state() == QProcess::Running) {
+                log("Auto-pressing Enter...");
+                process->write("\n");
+            }
+        });
 
     } catch (const std::exception& e) {
         log(QString("Error: %1").arg(e.what()));
