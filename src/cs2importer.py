@@ -279,6 +279,32 @@ class Importer(QMainWindow, Interface):
                 del lines[i]
                 break
 
+        # Find and extract visgroups block
+        visgroups_start_idx = -1
+        visgroups_end_idx = -1
+        for i, line in enumerate(lines):
+            if line.strip() == "visgroups":
+                visgroups_start_idx = i
+                break
+
+        visgroups_lines = []
+        if visgroups_start_idx != -1:
+            open_brackets = 0
+            found_first_bracket = False
+            for i in range(visgroups_start_idx, len(lines)):
+                open_brackets += lines[i].count('{')
+                open_brackets -= lines[i].count('}')
+                if '{' in lines[i]:
+                    found_first_bracket = True
+
+                if found_first_bracket and open_brackets == 0:
+                    visgroups_end_idx = i
+                    break
+
+            if visgroups_end_idx != -1:
+                visgroups_lines = lines[visgroups_start_idx:visgroups_end_idx+1]
+                del lines[visgroups_start_idx:visgroups_end_idx+1]
+
         # Add versioninfo block at the top
         versioninfo_block = f"""versioninfo
 {{
@@ -290,6 +316,29 @@ class Importer(QMainWindow, Interface):
 }}
 """
         lines.insert(0, versioninfo_block)
+
+        # Insert visgroups block right after versioninfo block
+        # Since versioninfo_block is a single string inserted at index 0,
+        # we can insert the visgroups lines starting at index 1.
+        if visgroups_lines:
+            # We add a newline if the last item doesn't have it (though readlines usually does)
+            if visgroups_lines[-1] and not visgroups_lines[-1].endswith('\n'):
+                visgroups_lines[-1] += '\n'
+            for i, vl in enumerate(visgroups_lines):
+                lines.insert(i + 1, vl)
+
+        # Append cordon block to the end
+        cordon_block = """cordon
+{
+	"mins" "(-1024 -1024 -1024)"
+	"maxs" "(1024 1024 1024)"
+	"active" "0"
+}
+"""
+        # Make sure the last line of the current file has a newline
+        if lines and not lines[-1].endswith('\n'):
+            lines[-1] += '\n'
+        lines.append(cordon_block)
 
         with open(vmf_path, 'w', encoding='utf-8') as f:
             f.writelines(lines)
