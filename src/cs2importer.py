@@ -261,7 +261,7 @@ class Importer(QMainWindow, Interface):
         with open("cs2importer.cfg", "w") as f:
             f.write(temp)
 
-    def fix_vmf_versioninfo(self, vmf_path):
+    def fix_top_level_key(self, vmf_path):
         if not os.path.exists(vmf_path):
             return
 
@@ -271,13 +271,17 @@ class Importer(QMainWindow, Interface):
         mapversion = "2"
         mapversion_regex = re.compile(r'^\s*"mapversion"\s+"([^"]+)"')
 
-        # Find and remove mapversion line
+        # Find mapversion line (do not delete)
+        mapversion_found = False
         for i, line in enumerate(lines):
             match = mapversion_regex.search(line)
             if match:
                 mapversion = match.group(1)
-                del lines[i]
+                mapversion_found = True
                 break
+
+        if not mapversion_found:
+            raise Exception("No mapversion found in VMF. Aborting.")
 
         # Find and extract visgroups block
         visgroups_start_idx = -1
@@ -304,6 +308,8 @@ class Importer(QMainWindow, Interface):
             if visgroups_end_idx != -1:
                 visgroups_lines = lines[visgroups_start_idx:visgroups_end_idx+1]
                 del lines[visgroups_start_idx:visgroups_end_idx+1]
+        else:
+            raise Exception("No visgroups block found in VMF. Aborting.")
 
         # Add versioninfo block at the top
         versioninfo_block = f"""versioninfo
@@ -321,18 +327,32 @@ class Importer(QMainWindow, Interface):
         # Since versioninfo_block is a single string inserted at index 0,
         # we can insert the visgroups lines starting at index 1.
         if visgroups_lines:
-            # We add a newline if the last item doesn't have it (though readlines usually does)
             if visgroups_lines[-1] and not visgroups_lines[-1].endswith('\n'):
                 visgroups_lines[-1] += '\n'
             for i, vl in enumerate(visgroups_lines):
                 lines.insert(i + 1, vl)
 
+        viewsettings_block = """viewsettings
+{
+\t"bSnapToGrid" "1"
+\t"bShowGrid" "1"
+\t"bShowLogicalGrid" "0"
+\t"nGridSpacing" "64"
+\t"bShow3DGrid" "0"
+}
+"""
+
+        # Calculate insert index for viewsettings: right after visgroups.
+        # versioninfo is at index 0, visgroups is at 1 to len(visgroups_lines)
+        insert_idx = 1 + len(visgroups_lines)
+        lines.insert(insert_idx, viewsettings_block)
+
         # Append cordon block to the end
         cordon_block = """cordon
 {
-	"mins" "(-1024 -1024 -1024)"
-	"maxs" "(1024 1024 1024)"
-	"active" "0"
+\t"mins" "(-1024 -1024 -1024)"
+\t"maxs" "(1024 1024 1024)"
+\t"active" "0"
 }
 """
         # Make sure the last line of the current file has a newline
@@ -412,7 +432,22 @@ class Importer(QMainWindow, Interface):
             self.vpk_signatures_moved = True
 
     def go(self):
+        # Validation check before doing anything
+        if not self.cs2_basefolder:
+            QMessageBox.warning(self, "Validation Error", "CS2 folder not selected.")
+            return
+        if not self.csgo_basefolder:
+            QMessageBox.warning(self, "Validation Error", "CSGO folder not selected.")
+            return
+        if not self.bsp_file and not self.vmf_folder:
+            QMessageBox.warning(self, "Validation Error", "Please select a VMF or BSP file.")
+            return
+
         try:
+
+            self.get_addon()
+            if not self.addon or not self.addon.strip():
+                self.addon = self.map_name
             if bool(self.config_checkbox.checkState()):
                 self.save_to_cfg()
 
@@ -477,7 +512,7 @@ class Importer(QMainWindow, Interface):
                     print(f"Could not find unpacked embedded files directory '{self.map_name}'")
 
                 # Fix versioninfo in the decompiled VMF
-                self.fix_vmf_versioninfo(vmf_dest)
+                self.fix_top_level_key(vmf_dest)
 
                 self.vmf_folder = self.app_dir
                 print(f"Decompiled to: {vmf_dest}")
