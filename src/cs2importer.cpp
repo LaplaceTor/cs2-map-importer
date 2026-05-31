@@ -499,22 +499,30 @@ void Importer::fix_import_script()
         }
     }
 
+    int warning_idx = -1;
     for (int i = 0; i < lines.size(); ++i) {
         if (lines[i].contains("Enter to Continue, Esc to Quit")) {
             lines[i] = lines[i].replace("Enter to Continue, Esc to Quit", "Auto-continuing in 5 seconds...");
             modified = true;
+            warning_idx = i;
+            break; // found the warning, proceed to find the loop
         }
-        if (lines[i].trimmed() == "while True:") {
-            if (i + 8 < lines.size() && lines[i+1].contains("utl.kbd.kbhit()")) {
-                QString indent = lines[i].left(lines[i].indexOf("while"));
-                // Comment out the while loop and its contents
-                for (int j = i; j <= i + 8; ++j) {
-                    lines[j] = "# " + lines[j];
+    }
+
+    if (warning_idx != -1) {
+        for (int i = warning_idx; i < lines.size(); ++i) {
+            if (lines[i].trimmed() == "while True:") {
+                if (i + 8 < lines.size() && lines[i+1].contains("utl.kbd.kbhit()")) {
+                    QString indent = lines[i].left(lines[i].indexOf("while"));
+                    // Comment out the while loop and its contents
+                    for (int j = i; j <= i + 8; ++j) {
+                        lines[j] = "# " + lines[j];
+                    }
+                    // Insert the sleep
+                    lines.insert(i + 9, indent + "import time; time.sleep(5)");
+                    modified = true;
+                    break;
                 }
-                // Insert the sleep
-                lines.insert(i + 9, indent + "import time; time.sleep(5)");
-                modified = true;
-                break;
             }
         }
     }
