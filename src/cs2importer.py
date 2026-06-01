@@ -15,26 +15,6 @@ import json
 import zipfile
 import io
 
-def download_bspsrc(base_path):
-    bspsrc_path = os.path.join(base_path, "bspsrc.jar")
-    if os.path.exists(bspsrc_path):
-        return True
-
-    print("bspsrc.jar not found. Downloading the latest version...")
-    try:
-        download_url = "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip"
-        print(f"Downloading from {download_url}...")
-        req_zip = urllib.request.Request(download_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req_zip) as zip_response:
-            with zipfile.ZipFile(io.BytesIO(zip_response.read())) as zip_file:
-                zip_file.extract("bspsrc.jar", path=base_path)
-
-        print(f"Successfully downloaded and extracted bspsrc.jar to {base_path}")
-        return True
-    except Exception as e:
-        print(f"Failed to download bspsrc: {e}")
-        return False
-
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """
     try:
@@ -74,7 +54,7 @@ class Importer(QMainWindow, Interface):
         else:
             self.app_dir = os.path.abspath(".")
 
-        self.bspsrc_installed = download_bspsrc(self.app_dir)
+        self.bspsrc_installed = os.path.exists(os.path.join(self.app_dir, "bspsrc.jar"))
 
         self.vmf_default_path = "C:\\"
         self.cs2_basefolder = None
@@ -406,11 +386,29 @@ class Importer(QMainWindow, Interface):
         with open(script_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
+        modified = False
+
         if len(lines) >= 328:
             if '.decode()' in lines[327]:
                 lines[327] = lines[327].replace('.decode()', '')
-                with open(script_path, 'w', encoding='utf-8') as f:
-                    f.writelines(lines)
+                modified = True
+
+        for i, line in enumerate(lines):
+            if r'"game\csgo_addons"' in line:
+                lines[i] = lines[i].replace(r'"game\csgo_addons"', r'"game\\csgo_addons"')
+                modified = True
+
+            if r'"content\csgo_addons"' in line:
+                lines[i] = lines[i].replace(r'"content\csgo_addons"', r'"content\\csgo_addons"')
+                modified = True
+
+            if '_prefab' in line:
+                lines[i] = lines[i].replace('_prefab', '')
+                modified = True
+
+        if modified:
+            with open(script_path, 'w', encoding='utf-8') as f:
+                f.writelines(lines)
 
     def move_vpk_signatures(self):
         if not self.cs2_basefolder:
