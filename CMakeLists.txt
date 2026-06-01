@@ -17,6 +17,8 @@ set(SOURCES
     src/main.cpp
     src/cs2importer.cpp
     src/cs2importer.h
+    src/mapimporter.cpp
+    src/mapimporter.h
     src/ui/interface.ui
 )
 
