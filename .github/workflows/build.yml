@@ -30,18 +30,19 @@ jobs:
       run: |
         Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip" -OutFile "bspsrc.zip"
         Expand-Archive -Path bspsrc.zip -DestinationPath bspsrc
-        Copy-Item bspsrc/bspsrc.jar src/bspsrc.jar
+        Copy-Item bspsrc/bspsrc.jar bspsrc.jar
 
     - name: Build with PyInstaller
       run: |
-        pyinstaller --onefile --add-data "src/bspsrc.jar;." src/cs2importer.py
+        pyinstaller --onefile src/cs2importer.py
 
     - name: Prepare Release Artifacts
       run: |
         mkdir release
         move dist\cs2importer.exe release\
+        move bspsrc.jar release\
         cd release
-        7z a cs2importer.zip cs2importer.exe
+        7z a cs2importer.zip cs2importer.exe bspsrc.jar
 
     - name: Get commit SHA
       id: vars
