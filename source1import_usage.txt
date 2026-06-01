@@ -1,0 +1,65 @@
+Usage: source1import.exe -src1gameinfodir <s1gameinfodir> -src1contentdir <optional s1contentdir> -game <s2 mod>
+ [-r] <source 1 file>'
+        -src1gameinfodir An absolute path to S1 mod gameinfo.txt
+
+        -src1contentdir An absolute path to S1 content (optional, if content path not relative to src1gameinfodir).
+
+        -game Specify the S2 mod to import into (ie. csgo).
+
+        [-s2addon <addondirname>] Import to s2 addon only.
+                Note you have to do a separate import for each addon.
+
+        [-r] Search recursively.
+                File name list path is relative to the source 1 game dir.
+                Using an absolute path will try to import that exact file.
+
+        [-usefilelist <filelist.txt>] Read import specs from the provided
+                filelist keyvalues txt file located in the export mod's content dir
+                Example Format is:
+                importfilelist
+                {
+                        "file" "materials\models\props\de_dust\hr_dust\dust_kasbah\*.vmt"
+                }
+
+        [-filelist_filter] Apply a substring filter to the import filelist
+        [-quiet] Suppress lots of informative spew.
+
+        [-verbose] Maximum Verbosity.
+
+        [-logwarnings] Write warnings/errors to file
+                source1importlibwarnings_lastrun.txt ( and append to _log.txt).
+
+        [-showmatchesonly] List files that were found to convert.
+                No file importing occurs
+
+        [-show_unknown_only] List files the importer doesn't know how to
+                import. No file importing occurs.
+
+        [-fullimport] Import everything.
+                This will enable many options including -quiet, -logwarnings,
+                -reuse_cache, -rebuildparticleremaptable, -checkforuniquemeshneeds
+                Delete all .txt files directly under content for a clean import.
+
+        [-regenerate_pcf_import_code] Make pcf code import tables for the
+                pcf importer. Used by programmers.
+        [-rebuildparticleremaptable] Create master particle name remap table
+        [-use_particle_manifest] Import pcf file only if
+                in particles_manifest.txt
+        [-particleshaders] Show which source1 shaders are used
+                in particle systems
+
+        [-use_gamesounds_manifest] Import game_sounds*.txt file only if
+                in game_sounds_manifest.txt
+
+        [-use_soundscape_manifest] Import soundscape*.txt file only if
+                in soundscapes_manifest.txt
+
+        [-import_sounds_basemod] Import sound/*.* sound files that are in
+                base mod folder but not the leafier mod folder - sound files that are
+                actually referenced in one of the scripts/game_sounds_*.txt file.
+
+        [-presskeytoexit] Force user to press a key after importing is done.
+                Useful to keep cmd window up.
+
+        [-particle_allow_depth_blend] Respect $DEPTHBLEND in particle materials.
+        [-particle_disable_diffuse] Disable diffuse lighting on imported particle systems.
