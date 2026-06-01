@@ -547,25 +547,6 @@ void Importer::fix_import_script()
         modified = true;
     }
 
-    // Remove the explicit copy of the main .vmap
-    int vmap_copy_idx = -1;
-    for (int i = 0; i < lines.size() - 3; ++i) {
-        if (lines[i].contains("# explicit copy of main .vmap") &&
-            lines[i + 1].contains("infile =") && lines[i + 1].contains(".vmap") &&
-            lines[i + 2].contains("os.path.exists") && lines[i + 2].contains("infile") &&
-            lines[i + 3].contains("utl.RunCommand") && lines[i + 3].contains("xcopy")) {
-            vmap_copy_idx = i;
-            break;
-        }
-    }
-
-    if (vmap_copy_idx != -1) {
-        for (int j = 0; j < 4; ++j) {
-            lines.removeAt(vmap_copy_idx);
-        }
-        modified = true;
-    }
-
     if (modified) {
         if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
             QTextStream out(&file);
