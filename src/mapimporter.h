@@ -44,9 +44,9 @@ private:
     bool nomergeinstances;
     bool skipdeps;
 
-    std::string s2gameaddon;
+    std::string s2gamedir;
     std::string s2contentcsgo;
-    std::string s2contentcsgoimported;
+    std::string s2contentdir;
 
     int runCommand(const std::string& program, const std::vector<std::string>& args);
 

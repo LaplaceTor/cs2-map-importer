@@ -27,20 +27,20 @@ void MapImporter::setPaths(const QString& s1game, const QString& s1content,
     s2addon = addon.toStdString();
     mapname = map.toStdString();
 
-    std::string s2gameaddondir = "game\\csgo_addons\\" + s2addon;
-    s2gameaddon = s2gamecsgo;
+    std::string s2gamedirdir = "game\\csgo_addons\\" + s2addon;
+    s2gamedir = s2gamecsgo;
 
-    size_t pos = s2gameaddon.find("game\\csgo");
+    size_t pos = s2gamedir.find("game\\csgo");
     if (pos != std::string::npos) {
-        s2gameaddon.replace(pos, 9, s2gameaddondir);
+        s2gamedir.replace(pos, 9, s2gamedirdir);
     } else {
-        pos = s2gameaddon.find("game/csgo");
+        pos = s2gamedir.find("game/csgo");
         if (pos != std::string::npos) {
-            s2gameaddon.replace(pos, 9, s2gameaddondir);
+            s2gamedir.replace(pos, 9, s2gamedirdir);
         }
     }
 
-    s2contentcsgo = s2gameaddon;
+    s2contentcsgo = s2gamedir;
     pos = s2contentcsgo.find("game\\csgo_addons");
     if (pos != std::string::npos) {
         s2contentcsgo.replace(pos, 16, "content\\csgo_addons");
@@ -50,7 +50,7 @@ void MapImporter::setPaths(const QString& s1game, const QString& s1content,
             s2contentcsgo.replace(pos, 16, "content/csgo_addons");
         }
     }
-    s2contentcsgoimported = s2contentcsgo;
+    s2contentdir = s2contentcsgo;
 }
 
 void MapImporter::setOptions(bool bsp, bool nomerge, bool skip)
@@ -156,19 +156,19 @@ void MapImporter::run()
         replaceAll(prefabMapname, "instances", "prefabs");
 
         if (!skipdeps) {
-            std::string prefabRefsPath = s2contentcsgoimported + "\\maps\\" + prefabMapname + "_prefab_refs.txt";
+            std::string prefabRefsPath = s2contentdir + "\\maps\\" + prefabMapname + "_prefab_refs.txt";
             stripMDLsFromRefs(prefabRefsPath);
 
-            std::string prefabMdlLstPath = s2contentcsgoimported + "\\maps\\" + prefabMapname + "_prefab_mdl_lst.txt";
+            std::string prefabMdlLstPath = s2contentdir + "\\maps\\" + prefabMapname + "_prefab_mdl_lst.txt";
             importAndCompileMapMDLs(prefabMdlLstPath);
 
-            std::string prefabNewRefsPath = s2contentcsgoimported + "\\maps\\" + prefabMapname + "_prefab_new_refs.txt";
+            std::string prefabNewRefsPath = s2contentdir + "\\maps\\" + prefabMapname + "_prefab_new_refs.txt";
             importAndCompileMapRefs(prefabNewRefsPath);
 
             runCommand("source1import", mapImportArgs);
         }
 
-        std::string srcVmap = s2contentcsgoimported + "\\maps\\" + prefabMapname + ".vmap";
+        std::string srcVmap = s2contentdir + "\\maps\\" + prefabMapname + ".vmap";
         std::string finalVmapPath = s2contentcsgo + "\\maps\\" + prefabMapname + ".vmap";
 
         fs::path destDir = fs::path(s2contentcsgo) / "maps";
@@ -233,7 +233,7 @@ void MapImporter::stripMDLsFromRefs(const std::string& filename)
 
 void MapImporter::forceUV2ForVMAT(const std::string& mtlfile)
 {
-    std::string vmatfilename = s2contentcsgoimported + "\\" + mtlfile;
+    std::string vmatfilename = s2contentdir + "\\" + mtlfile;
     replaceAll(vmatfilename, ".vmt", ".vmat");
 
     std::ifstream file(vmatfilename);
@@ -390,9 +390,9 @@ void MapImporter::importAndCompileMapMDLs(const std::string& filename)
         } else {
             replaceAll(mdlfile, "/", "\\");
             std::string infile = mdlfile;
-            std::string outName = s2contentcsgoimported + "\\" + mdlfile;
+            std::string outName = s2contentdir + "\\" + mdlfile;
             replaceAll(outName, ".mdl", ".vmdl");
-            std::string refsName = s2contentcsgoimported + "\\" + mdlfile;
+            std::string refsName = s2contentdir + "\\" + mdlfile;
             replaceAll(refsName, ".mdl", "_refs.txt");
 
             std::vector<std::string> importArgs;
@@ -403,7 +403,7 @@ void MapImporter::importAndCompileMapMDLs(const std::string& filename)
             importArgs.push_back("-i");
             importArgs.push_back("\"" + s1gamecsgo + "\"");
             importArgs.push_back("-o");
-            importArgs.push_back("\"" + s2contentcsgoimported + "\"");
+            importArgs.push_back("\"" + s2contentdir + "\"");
             importArgs.push_back("\"" + infile + "\"");
             runCommand("cs_mdl_import", importArgs);
 
@@ -467,7 +467,7 @@ void MapImporter::importAndCompileMapMDLs(const std::string& filename)
     for (std::string mtlfile : mdlmtls) {
         if (mtlfile.find("-") == 0 || mtlfile.empty()) continue;
         replaceAll(mtlfile, "/", "\\");
-        std::string outName = s2contentcsgoimported + "\\" + mtlfile;
+        std::string outName = s2contentdir + "\\" + mtlfile;
         replaceAll(outName, ".vmt", ".vmat");
 
         std::vector<std::string> resCompArgs;
@@ -483,12 +483,12 @@ void MapImporter::importAndCompileMapMDLs(const std::string& filename)
     for (std::string mdlfile : mdlfiles) {
         if (mdlfile.find("-") == 0) continue;
         replaceAll(mdlfile, "/", "\\");
-        std::string outName = s2contentcsgoimported + "\\" + mdlfile;
+        std::string outName = s2contentdir + "\\" + mdlfile;
         replaceAll(outName, ".mdl", ".vmdl");
 
         if (!fs::exists(outName)) continue;
 
-        std::string refsName = s2contentcsgoimported + "\\" + mdlfile;
+        std::string refsName = s2contentdir + "\\" + mdlfile;
         replaceAll(refsName, ".mdl", "_refs.txt");
 
         bool bForceCompile = force2UVsIfRequired(refsName, global2UVMaterials, listFileName);
@@ -533,7 +533,7 @@ void MapImporter::importAndCompileMapRefs(const std::string& refsFile)
             replaceAll(line, ".vmt", ".vmat");
             replaceAll(line, " ", "_");
             replaceAll(line, "/", "\\");
-            newList += s2contentcsgoimported + "\\" + line + "\n";
+            newList += s2contentdir + "\\" + line + "\n";
         }
     }
     file.close();
@@ -541,7 +541,7 @@ void MapImporter::importAndCompileMapRefs(const std::string& refsFile)
     std::string prefabMapname = mapname;
     replaceAll(prefabMapname, "instances", "prefabs");
 
-    std::string tmpFile = s2contentcsgoimported + "\\maps\\" + prefabMapname + "_prefab_compile_new_refs.txt";
+    std::string tmpFile = s2contentdir + "\\maps\\" + prefabMapname + "_prefab_compile_new_refs.txt";
     std::ofstream tempFile(tmpFile);
     if (tempFile.is_open()) {
         tempFile << newList;
