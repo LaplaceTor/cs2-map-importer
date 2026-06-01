@@ -2,10 +2,10 @@
 #define MAPIMPORTER_H
 
 #include <QObject>
-#include <QFile>
 #include <QString>
-#include <QSet>
-#include <QProcess>
+#include <string>
+#include <vector>
+#include <set>
 
 class MapImporter : public QObject
 {
@@ -13,6 +13,8 @@ class MapImporter : public QObject
 public:
     explicit MapImporter(QObject *parent = nullptr);
 
+    // Keep QString in the public API for Qt compatibility from the UI thread,
+    // but internally convert to std::string.
     void setPaths(const QString& s1gamecsgo,
                   const QString& s1contentcsgo,
                   const QString& s2gamecsgo,
@@ -31,29 +33,31 @@ signals:
     void error(const QString& errorMsg);
 
 private:
-    QString s1gamecsgo;
-    QString s1contentcsgo;
-    QString s2gamecsgo;
-    QString s2addon;
-    QString mapname;
-    QString binPath;
+    std::string s1gamecsgo;
+    std::string s1contentcsgo;
+    std::string s2gamecsgo;
+    std::string s2addon;
+    std::string mapname;
+    std::string binPath;
 
     bool usebsp;
     bool nomergeinstances;
     bool skipdeps;
 
-    QString s2gameaddon;
-    QString s2contentcsgo;
-    QString s2contentcsgoimported;
+    std::string s2gameaddon;
+    std::string s2contentcsgo;
+    std::string s2contentcsgoimported;
 
-    int runCommand(const QString& program, const QStringList& args, const QString& workingDirectory = QString());
+    int runCommand(const std::string& program, const std::vector<std::string>& args);
 
-    void stripMDLsFromRefs(const QString& filename);
-    bool force2UVsIfRequired(const QString& refsName, QSet<QString>& global2UVMaterials, QFile& global2UVMaterialsFile);
-    void forceUV2ForVMAT(const QString& mtlfile);
+    void stripMDLsFromRefs(const std::string& filename);
+    bool force2UVsIfRequired(const std::string& refsName, std::set<std::string>& global2UVMaterials, const std::string& global2UVMaterialsFile);
+    void forceUV2ForVMAT(const std::string& mtlfile);
 
-    void importAndCompileMapMDLs(const QString& filename);
-    void importAndCompileMapRefs(const QString& refsFile);
+    void importAndCompileMapMDLs(const std::string& filename);
+    void importAndCompileMapRefs(const std::string& refsFile);
+
+    void emitLog(const std::string& msg);
 };
 
 #endif // MAPIMPORTER_H
