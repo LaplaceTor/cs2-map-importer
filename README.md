@@ -11,9 +11,11 @@ The tools provided by Valve for importing maps aren't very user friendly, this t
 - Don't need to add cs2 path to your environment.
 - Automatically check coloroma is install or not and install it if not.
 - Automatically decompile if select bsp as input, and copy all contents in bsp out into csgo folder.
+- Separate CS2 and CSGO folders.
+- Import script patching to fix known issues.
 
 ## Prerequisites
 While this tools makes the porting process much easier, there's still some work you need to do yourself:
 
 - Python must be installed.
-- If you have any custom content in your map, make sure it's in your CS:GO's materials and models folders when you select vmf as input.
+- If you select vmf as input and have any custom content in your map, make sure it's in your CS:GO's materials and models folders when you select vmf as input.
