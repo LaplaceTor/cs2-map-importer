@@ -1,0 +1,18 @@
+Usage: cs_mdl_import -o <path> [options] <filespecs...>
+Options:
+    -h                         : Print this message
+    -game <game>               : Override the mod (Default csgo)
+    -v                         : Verbose mode
+    -i <path>                  : Input path (this is replaced by the ouputpath from -o
+    -o <path>                  : Output path (Required)
+    -l filelist.txt            : List of files or filespecs
+    -r                         : Recurse input dirs
+    -skipcommondmxwrite        : Skip writing dmx files (anims)
+    -YupToZup                  : Change bindpose from Yup to Zup
+    -c <changelist>            : Changelist to use, "default" by default.
+    -overridelean              : Override "lean" sequence
+    -write_weapon_anim_prefab  : Write sequences & weighlists into a prefab.
+                                 All sequences & weightlists will be prefixed with the weapon filename in the prefab
+    -header_hull_bounds        : Import mdl hull bounds from the studiohdr (typically we use we derive from physics hulls)
+    -weapon_anim_prefab <path> : Path to a prefab to be included. Path relative to 'output path'.
+    -lods                      : Import all lods. By default, only lod 0 is imported.
