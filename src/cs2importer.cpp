@@ -1,7 +1,9 @@
 #include "cs2importer.h"
 #include "ui/ui_interface.h"
+#include "mapimporter.h"
 
 #include <QFileDialog>
+#include <thread>
 #include <QMessageBox>
 #include <QDir>
 #include <QFile>
@@ -24,20 +26,16 @@ Importer::Importer(QWidget *parent) :
     java_installed(false),
     vmf_default_path("C:\\"),
     content_folder_to_save("C:\\"),
-    vpk_signatures_moved(false),
-    process(new QProcess(this))
+    vpk_signatures_moved(false)
+
 {
     ui->setupUi(this);
 
     app_dir = QCoreApplication::applicationDirPath();
 
-    connect(process, &QProcess::readyReadStandardOutput, this, &Importer::appendLogOutput);
-    connect(process, &QProcess::readyReadStandardError, this, &Importer::appendLogError);
-    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, &Importer::processFinished);
 
     log("Initializing CS2 Importer...");
 
-    check_colorama();
     java_installed = check_java();
     bspsrc_installed = check_bspsrc(app_dir);
 
@@ -81,67 +79,6 @@ void Importer::log(const QString& message)
     ui->log_output->appendPlainText(message);
     // Auto-scroll to bottom
     ui->log_output->moveCursor(QTextCursor::End);
-}
-
-void Importer::appendLogOutput()
-{
-    QByteArray data = process->readAllStandardOutput();
-    QString text = QString::fromLocal8Bit(data);
-    python_output += text;
-    log(text.trimmed());
-}
-
-void Importer::appendLogError()
-{
-    QByteArray data = process->readAllStandardError();
-    QString text = QString::fromLocal8Bit(data);
-    python_output += text;
-    log(text.trimmed());
-}
-
-void Importer::processFinished(int exitCode, QProcess::ExitStatus exitStatus)
-{
-    if (exitStatus == QProcess::CrashExit) {
-        log("Process crashed!");
-    } else {
-        log(QString("Process finished with exit code %1").arg(exitCode));
-    }
-
-    if (!python_output.isEmpty()) {
-        QDir log_dir(app_dir);
-        if (!log_dir.exists("log")) {
-            log_dir.mkdir("log");
-        }
-        QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss");
-        QString log_filename = QString("log/%1_%2.log").arg(timestamp, addon);
-        QFile log_file(log_dir.filePath(log_filename));
-        if (log_file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            QTextStream out(&log_file);
-            out << python_output;
-            log_file.close();
-            log("Saved python output to " + log_filename);
-        } else {
-            log("Failed to save python output to " + log_filename);
-        }
-    }
-}
-
-void Importer::check_colorama()
-{
-    log("Checking for Python colorama...");
-    QProcess chkProc;
-    chkProc.start("python", QStringList() << "-c" << "import colorama");
-    chkProc.waitForFinished(-1);
-    if (chkProc.exitCode() != 0) {
-        log("colorama not found in system python. Installing...");
-        QProcess instProc;
-        instProc.setProcessChannelMode(QProcess::MergedChannels);
-        instProc.start("python", QStringList() << "-m" << "pip" << "install" << "colorama");
-        instProc.waitForFinished(-1);
-        log(QString::fromLocal8Bit(instProc.readAll()));
-    } else {
-        log("colorama found.");
-    }
 }
 
 bool Importer::check_java()
@@ -510,55 +447,6 @@ void Importer::fix_top_level_key(const QString& vmf_path)
     }
 }
 
-void Importer::fix_import_script()
-{
-    if (cs2_basefolder.isEmpty()) return;
-
-    QString script_path = QDir(cs2_basefolder).filePath("game/csgo/import_scripts/import_map_community.py");
-    QFile file(script_path);
-    if (!file.exists() || !file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
-
-    QStringList lines;
-    QTextStream in(&file);
-    in.setCodec("UTF-8");
-    while (!in.atEnd()) {
-        lines.append(in.readLine());
-    }
-    file.close();
-
-    bool modified = false;
-
-    int start_idx = -1;
-    for (int i = 0; i < lines.size(); ++i) {
-        if (lines[i].contains("Enter to Continue, Esc to Quit")) {
-            start_idx = i;
-            break;
-        }
-    }
-
-    if (start_idx != -1 && start_idx + 13 < lines.size()) {
-        QString indent = lines[start_idx].left(lines[start_idx].indexOf("utl.print_color"));
-        // Remove 14 lines (from start_idx to start_idx + 13)
-        for (int j = 0; j < 14; ++j) {
-            lines.removeAt(start_idx);
-        }
-        // Insert bRunImport = True
-        lines.insert(start_idx, indent + "bRunImport = True");
-        modified = true;
-    }
-
-    if (modified) {
-        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            QTextStream out(&file);
-            out.setCodec("UTF-8");
-            for (const QString& line : lines) {
-                out << line << "\n";
-            }
-            file.close();
-        }
-    }
-}
-
 void Importer::move_vpk_signatures()
 {
     if (cs2_basefolder.isEmpty()) return;
@@ -604,7 +492,6 @@ void Importer::go()
             save_to_cfg();
         }
 
-        fix_import_script();
         move_vpk_signatures();
 
         if (!bsp_file.isEmpty()) {
@@ -713,31 +600,37 @@ void Importer::go()
             log("Decompiled and prepared at: " + final_vmf_dest);
         }
 
-        QString cd = QDir(cs2_basefolder).filePath("game/csgo/import_scripts");
+        ui->go_button->setEnabled(false);
+        log("Starting MapImporter thread...");
 
-        QStringList args;
-        args << "import_map_community.py"
-             << QDir(csgo_basefolder).filePath("csgo").replace("/", "\\")
-             << content_folder.replace("/", "\\")
-             << QDir(cs2_basefolder).filePath("game/csgo").replace("/", "\\")
-             << addon
-             << map_name;
+        MapImporter::Options opts;
+        opts.s1gamecsgo = QDir(csgo_basefolder).filePath("csgo").replace("/", "\\").toStdString();
+        opts.s1contentcsgo = content_folder.replace("/", "\\").toStdString();
+        opts.s2gamecsgo = QDir(cs2_basefolder).filePath("game/csgo").replace("/", "\\").toStdString();
+        opts.s2addon = addon.toStdString();
+        opts.mapname = map_name.toStdString();
+        opts.usebsp = ui->usebsp_checkbox->isChecked();
+        opts.usebsp_nomergeinstances = ui->usebsp_nomergeinstances_checkbox->isChecked();
+        opts.skipdeps = ui->skipdeps_checkbox->isChecked();
+        opts.cs2_basefolder = cs2_basefolder.replace("/", "\\").toStdString();
 
-        if (ui->usebsp_checkbox->isChecked()) args << "-usebsp";
-        if (ui->usebsp_nomergeinstances_checkbox->isChecked()) args << "-usebsp_nomergeinstances";
-        if (ui->skipdeps_checkbox->isChecked()) args << "-skipdeps";
+        std::thread([this, opts]() {
+            MapImporter importer(opts, [this](const std::string& msg) {
+                QMetaObject::invokeMethod(this, "log", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdString(msg)));
+            });
 
-        log("Executing Python script: python " + args.join(" "));
+            bool success = importer.Run();
 
-        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-        QString bin_path = QDir(cs2_basefolder).filePath("game/bin/win64").replace("/", "\\");
-        QString currentPath = env.value("PATH");
-        env.insert("PATH", bin_path + ";" + currentPath);
+            QMetaObject::invokeMethod(this, [this, success]() {
+                ui->go_button->setEnabled(true);
+                if (success) {
+                    log("MapImporter thread finished successfully.");
+                } else {
+                    log("MapImporter thread finished with errors.");
+                }
+            }, Qt::QueuedConnection);
 
-        process->setProcessEnvironment(env);
-        process->setWorkingDirectory(cd);
-        python_output.clear();
-        process->start("python", args);
+        }).detach();
 
     } catch (const std::exception& e) {
         log(QString("Error: %1").arg(e.what()));

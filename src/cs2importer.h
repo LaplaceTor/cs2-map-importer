@@ -30,10 +30,8 @@ private slots:
     void get_launch_options();
     void go();
 
-    // Slots for process output
-    void appendLogOutput();
-    void appendLogError();
-    void processFinished(int exitCode, QProcess::ExitStatus exitStatus);
+public slots:
+    void log(const QString& message);
 
 private:
     Ui::MainWindow *ui;
@@ -51,13 +49,6 @@ private:
     bool vpk_signatures_moved;
     QString bsp_file;
     QString launch_options;
-    QString python_output;
-
-    QProcess *process;
-
-    void log(const QString& message);
-
-    void check_colorama();
     bool check_java();
     bool check_bspsrc(const QString& base_path);
 
@@ -69,7 +60,6 @@ private:
     void load_from_cfg();
     void save_to_cfg();
     void fix_top_level_key(const QString& vmf_path);
-    void fix_import_script();
     void move_vpk_signatures();
 
 protected:
