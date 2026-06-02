@@ -13,6 +13,7 @@ public:
         std::string s1contentcsgo;
         std::string s2gamecsgo;
         std::string s2addon;
+        std::string s2contentdir;
         std::string mapname;
         bool usebsp;
         bool usebsp_nomergeinstances;
@@ -28,10 +29,6 @@ public:
 private:
     Options m_options;
     std::function<void(const std::string&)> m_log;
-
-    std::string m_s2contentcsgoimported;
-    std::string m_s2gameaddon;
-    std::string m_s2contentcsgo;
 
     void Log(const std::string& msg);
     int RunCommand(const std::string& cmd);

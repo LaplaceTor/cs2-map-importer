@@ -608,6 +608,7 @@ void Importer::go()
         opts.s1contentcsgo = content_folder.replace("/", "\\").toStdString();
         opts.s2gamecsgo = QDir(cs2_basefolder).filePath("game/csgo").replace("/", "\\").toStdString();
         opts.s2addon = addon.toStdString();
+        opts.s2contentdir = QDir(cs2_basefolder).filePath("content/csgo_addons/" + addon).replace("/", "\\").toStdString();
         opts.mapname = map_name.toStdString();
         opts.usebsp = ui->usebsp_checkbox->isChecked();
         opts.usebsp_nomergeinstances = ui->usebsp_nomergeinstances_checkbox->isChecked();
