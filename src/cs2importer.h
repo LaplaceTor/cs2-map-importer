@@ -26,7 +26,7 @@ private slots:
     void validate_csgo();
     void on_usebsp_toggled(bool checked);
     void on_usebsp_nomergeinstances_toggled(bool checked);
-    void get_addon();
+    void get_addon_name();
     void get_launch_options();
     void go();
 
@@ -44,7 +44,7 @@ private:
     QString s1game_basefolder;
     QString content_folder;
     QString content_folder_to_save;
-    QString addon;
+    QString addon_name;
     QString map_name;
     bool vpk_signatures_moved;
     QString bsp_file;

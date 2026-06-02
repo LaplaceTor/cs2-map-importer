@@ -41,7 +41,7 @@ Importer::Importer(QWidget *parent) :
 
     set_tooltips();
     set_stylesheets();
-    get_addon();
+    get_addon_name();
     get_launch_options();
 
     if (!java_installed || !bspsrc_installed) {
@@ -58,7 +58,7 @@ Importer::Importer(QWidget *parent) :
     connect(ui->bsp_button, &QPushButton::clicked, this, &Importer::select_bsp);
     connect(ui->validate_cs2_button, &QPushButton::clicked, this, &Importer::validate_cs2);
     connect(ui->validate_csgo_button, &QPushButton::clicked, this, &Importer::validate_csgo);
-    connect(ui->addon_edit, &QLineEdit::textChanged, this, &Importer::get_addon);
+    connect(ui->addon_edit, &QLineEdit::textChanged, this, &Importer::get_addon_name);
     connect(ui->go_button, &QPushButton::clicked, this, &Importer::go);
 
     connect(ui->usebsp_checkbox, &QCheckBox::toggled, this, &Importer::on_usebsp_toggled);
@@ -271,9 +271,9 @@ void Importer::on_usebsp_nomergeinstances_toggled(bool checked)
     }
 }
 
-void Importer::get_addon()
+void Importer::get_addon_name()
 {
-    addon = ui->addon_edit->text();
+    addon_name = ui->addon_edit->text();
 }
 
 void Importer::get_launch_options()
@@ -484,9 +484,9 @@ void Importer::go()
     }
 
     try {
-        get_addon();
-        if (addon.trimmed().isEmpty()) {
-            addon = map_name;
+        get_addon_name();
+        if (addon_name.trimmed().isEmpty()) {
+            addon_name = map_name;
         }
         if (ui->config_checkbox->isChecked()) {
             save_to_cfg();
@@ -606,8 +606,8 @@ void Importer::go()
         MapImporter::Options opts;
         opts.s1gamecsgo = QDir(s1game_basefolder).filePath("csgo").replace("/", "\\").toStdString();
         opts.s1contentdir = content_folder.replace("/", "\\").toStdString();
-        opts.s2addonname = addon.toStdString();
-        opts.s2contentdir = QDir(cs2_basefolder).filePath("content/csgo_addons/" + addon).replace("/", "\\").toStdString();
+        opts.s2addonname = addon_name.toStdString();
+        opts.s2contentdir = QDir(cs2_basefolder).filePath("content/csgo_addons/" + addon_name).replace("/", "\\").toStdString();
         opts.mapname = map_name.toStdString();
         opts.usebsp = ui->usebsp_checkbox->isChecked();
         opts.usebsp_nomergeinstances = ui->usebsp_nomergeinstances_checkbox->isChecked();
