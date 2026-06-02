@@ -11,7 +11,6 @@ public:
     struct Options {
         std::string s1gamecsgo;
         std::string s1contentcsgo;
-        std::string s2gamecsgo;
         std::string s2addon;
         std::string s2contentdir;
         std::string mapname;

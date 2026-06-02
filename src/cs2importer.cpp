@@ -606,7 +606,6 @@ void Importer::go()
         MapImporter::Options opts;
         opts.s1gamecsgo = QDir(csgo_basefolder).filePath("csgo").replace("/", "\\").toStdString();
         opts.s1contentcsgo = content_folder.replace("/", "\\").toStdString();
-        opts.s2gamecsgo = QDir(cs2_basefolder).filePath("game/csgo").replace("/", "\\").toStdString();
         opts.s2addon = addon.toStdString();
         opts.s2contentdir = QDir(cs2_basefolder).filePath("content/csgo_addons/" + addon).replace("/", "\\").toStdString();
         opts.mapname = map_name.toStdString();
