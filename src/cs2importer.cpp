@@ -61,7 +61,7 @@ Importer::Importer(QWidget *parent) :
     connect(ui->addon_edit, &QLineEdit::textChanged, this, &Importer::get_addon_name);
     connect(ui->s1_game_combo, &QComboBox::currentTextChanged, this, [this](const QString &) {
         s1game_basefolder.clear();
-        ui->s1_label->setText("None selected");
+        ui->s1_label->setText("Not selected");
         ui->s1_label->setStyleSheet("background-color:rgb(255, 0, 0)");
     });
     connect(ui->go_button, &QPushButton::clicked, this, &Importer::go);
@@ -130,7 +130,7 @@ void Importer::set_stylesheets()
 {
     ui->cs2_label->setStyleSheet("background-color:rgb(255, 0, 0)");
     ui->s1_label->setStyleSheet("background-color:rgb(255, 0, 0)");
-    ui->vmf_label->setStyleSheet("background-color:rgb(255, 0, 0)");
+    ui->map_label->setStyleSheet("background-color:rgb(255, 0, 0)");
 }
 
 void Importer::set_tooltips()
@@ -178,7 +178,7 @@ void Importer::set_cs2_folder(const QString& path)
 {
     if (!path.isEmpty() && path != "None") {
         cs2_basefolder = path;
-        ui->cs2_label->setText(path);
+        ui->cs2_label->setText("Selected");
         ui->cs2_label->setStyleSheet("background-color:rgb(0, 255, 0)");
     }
 }
@@ -242,7 +242,7 @@ void Importer::set_s1_folder(const QString& path)
 {
     if (!path.isEmpty() && path != "None") {
         s1game_basefolder = path;
-        ui->s1_label->setText(path);
+        ui->s1_label->setText("Selected");
         ui->s1_label->setStyleSheet("background-color:rgb(0, 255, 0)");
     }
 }
@@ -273,8 +273,8 @@ void Importer::select_vmf()
     content_folder = QDir(app_dir).filePath(QString("maps/%1").arg(map_name));
     log("VMF set up at: " + target_vmf_path);
 
-    ui->vmf_label->setText(path);
-    ui->vmf_label->setStyleSheet("background-color:rgb(0, 255, 0)");
+    ui->map_label->setText("Selected");
+    ui->map_label->setStyleSheet("background-color:rgb(0, 255, 0)");
 }
 
 void Importer::select_bsp()
@@ -287,8 +287,8 @@ void Importer::select_bsp()
     map_name = fileInfo.baseName();
     content_folder_to_save = fileInfo.absolutePath();
 
-    ui->vmf_label->setText(path);
-    ui->vmf_label->setStyleSheet("background-color:rgb(0, 255, 0)");
+    ui->map_label->setText("Selected");
+    ui->map_label->setStyleSheet("background-color:rgb(0, 255, 0)");
 }
 
 void Importer::on_usebsp_toggled(bool checked)
