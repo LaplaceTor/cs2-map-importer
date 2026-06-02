@@ -4,6 +4,8 @@
 #include <QMainWindow>
 #include <QString>
 #include <QProcess>
+#include <QFile>
+#include <QTextStream>
 
 namespace Ui {
 class MainWindow;
@@ -50,6 +52,10 @@ private:
     bool vpk_signatures_moved;
     QString bsp_file;
     QString launch_options;
+
+    QFile* log_file;
+    QTextStream* log_stream;
+
     bool check_java();
     bool check_bspsrc(const QString& base_path);
 

@@ -26,7 +26,9 @@ Importer::Importer(QWidget *parent) :
     java_installed(false),
     vmf_default_path("C:\\"),
     content_folder_to_save("C:\\"),
-    vpk_signatures_moved(false)
+    vpk_signatures_moved(false),
+    log_file(nullptr),
+    log_stream(nullptr)
 
 {
     ui->setupUi(this);
@@ -76,6 +78,17 @@ Importer::Importer(QWidget *parent) :
 
 Importer::~Importer()
 {
+    if (log_stream) {
+        delete log_stream;
+        log_stream = nullptr;
+    }
+    if (log_file) {
+        if (log_file->isOpen()) {
+            log_file->close();
+        }
+        delete log_file;
+        log_file = nullptr;
+    }
     delete ui;
 }
 
@@ -84,6 +97,11 @@ void Importer::log(const QString& message)
     ui->log_output->appendPlainText(message);
     // Auto-scroll to bottom
     ui->log_output->moveCursor(QTextCursor::End);
+
+    if (log_stream && log_file && log_file->isOpen()) {
+        *log_stream << message << "\n";
+        log_stream->flush();
+    }
 }
 
 bool Importer::check_java()
@@ -541,6 +559,33 @@ void Importer::go()
             save_to_cfg();
         }
 
+        QString log_dir_path = QDir(app_dir).filePath("log");
+        QDir().mkpath(log_dir_path);
+        QString log_filename = QString("%1_%2.log")
+            .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss"))
+            .arg(addon_name);
+        QString log_file_path = QDir(log_dir_path).filePath(log_filename);
+
+        if (log_stream) {
+            delete log_stream;
+            log_stream = nullptr;
+        }
+        if (log_file) {
+            if (log_file->isOpen()) {
+                log_file->close();
+            }
+            delete log_file;
+            log_file = nullptr;
+        }
+
+        log_file = new QFile(log_file_path);
+        if (log_file->open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+            log_stream = new QTextStream(log_file);
+        } else {
+            delete log_file;
+            log_file = nullptr;
+        }
+
         move_vpk_signatures();
 
         if (!bsp_file.isEmpty()) {
@@ -589,25 +634,6 @@ void Importer::go()
 
             if (!unpacked_dir.isEmpty()) {
                 log("Found unpacked files at " + unpacked_dir);
-
-                if (!s1game_basefolder.isEmpty()) {
-                    QStringList foldersToCopy = {"materials", "models"};
-                    QString s1_subfolder = s1_game_type == "css" ? "cstrike/" : "csgo/";
-                    for (const QString& folder_name : foldersToCopy) {
-                        QDir src_folder(QDir(unpacked_dir).filePath(folder_name));
-                        if (src_folder.exists()) {
-                            QDir dest_folder(QDir(s1game_basefolder).filePath(s1_subfolder + folder_name));
-                            log("Copying " + src_folder.absolutePath() + " to " + dest_folder.absolutePath());
-                            // Recursive copy function would be needed here, or call system xcopy/cp
-                            // For simplicity, calling system xcopy on Windows
-                            QString srcPathStr = src_folder.absolutePath().replace("/", "\\");
-                            QString destPathStr = dest_folder.absolutePath().replace("/", "\\");
-                            QProcess xcopyProc;
-                            xcopyProc.start("xcopy", QStringList() << srcPathStr << destPathStr << "/E" << "/I" << "/Y");
-                            xcopyProc.waitForFinished(-1);
-                        }
-                    }
-                }
 
                 QString target_unpacked_dir = QDir(maps_dir).filePath(map_name);
                 if (unpacked_dir != target_unpacked_dir) {
@@ -679,6 +705,18 @@ void Importer::go()
                     log("MapImporter thread finished successfully.");
                 } else {
                     log("MapImporter thread finished with errors.");
+                }
+
+                if (log_stream) {
+                    delete log_stream;
+                    log_stream = nullptr;
+                }
+                if (log_file) {
+                    if (log_file->isOpen()) {
+                        log_file->close();
+                    }
+                    delete log_file;
+                    log_file = nullptr;
                 }
             }, Qt::QueuedConnection);
 
