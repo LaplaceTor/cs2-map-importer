@@ -19,11 +19,6 @@
 
 namespace fs = std::filesystem;
 
-MapImporter::MapImporter(const Options& options, std::function<void(const std::string&)> logCallback)
-    : m_options(options), m_log(logCallback)
-{
-}
-
 void MapImporter::Log(const std::string& msg) {
     if (m_log) m_log(msg);
 }

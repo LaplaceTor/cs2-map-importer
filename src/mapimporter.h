@@ -22,7 +22,8 @@ public:
         std::string cs2_basefolder; // to get the binaries
     };
 
-    MapImporter(const Options& options, std::function<void(const std::string&)> logCallback);
+    MapImporter(const Options& options, std::function<void(const std::string&)> logCallback)
+        : m_options(options), m_log(logCallback) {}
 
     bool Run();
 
