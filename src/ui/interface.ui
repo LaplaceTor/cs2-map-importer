@@ -76,6 +76,26 @@
        <enum>QLayout::SetMaximumSize</enum>
       </property>
       <item>
+       <widget class="QComboBox" name="s1_game_combo">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <item>
+         <property name="text">
+          <string>CSGO</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>CSS</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item>
        <widget class="QPushButton" name="s1_button">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Maximum">

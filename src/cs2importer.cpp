@@ -59,6 +59,11 @@ Importer::Importer(QWidget *parent) :
     connect(ui->validate_cs2_button, &QPushButton::clicked, this, &Importer::validate_cs2);
     connect(ui->validate_s1_button, &QPushButton::clicked, this, &Importer::validate_s1);
     connect(ui->addon_edit, &QLineEdit::textChanged, this, &Importer::get_addon_name);
+    connect(ui->s1_game_combo, &QComboBox::currentTextChanged, this, [this](const QString &) {
+        s1game_basefolder.clear();
+        ui->s1_label->setText("None selected");
+        ui->s1_label->setStyleSheet("background-color:rgb(255, 0, 0)");
+    });
     connect(ui->go_button, &QPushButton::clicked, this, &Importer::go);
 
     connect(ui->usebsp_checkbox, &QCheckBox::toggled, this, &Importer::on_usebsp_toggled);
@@ -183,44 +188,49 @@ void Importer::select_s1_folder()
     QString path = QFileDialog::getExistingDirectory(this, "Select a folder:", "C:\\", QFileDialog::ShowDirsOnly);
     if (path.isEmpty()) return;
 
-    QString gameinfo_path_csgo = QDir(path).filePath("csgo/gameinfo.txt");
-    QFile file_csgo(gameinfo_path_csgo);
-    bool valid_csgo = false;
+    QString selected_game = ui->s1_game_combo->currentText();
+    bool valid = false;
 
-    if (file_csgo.exists() && file_csgo.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QTextStream in(&file_csgo);
-        QRegularExpression regex("^\\s*game\\s+\"Counter-Strike: Global Offensive\"\\s*$");
-        while (!in.atEnd()) {
-            if (regex.match(in.readLine()).hasMatch()) {
-                valid_csgo = true;
-                break;
+    if (selected_game == "CSGO") {
+        QString gameinfo_path_csgo = QDir(path).filePath("csgo/gameinfo.txt");
+        QFile file_csgo(gameinfo_path_csgo);
+
+        if (file_csgo.exists() && file_csgo.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&file_csgo);
+            QRegularExpression regex("^\\s*game\\s+\"Counter-Strike: Global Offensive\"\\s*$");
+            while (!in.atEnd()) {
+                if (regex.match(in.readLine()).hasMatch()) {
+                    valid = true;
+                    s1_game_type = "csgo";
+                    break;
+                }
             }
+            file_csgo.close();
         }
-        file_csgo.close();
+    } else if (selected_game == "CSS") {
+        QString gameinfo_path_css = QDir(path).filePath("cstrike/gameinfo.txt");
+        QFile file_css(gameinfo_path_css);
+
+        if (file_css.exists() && file_css.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&file_css);
+            QRegularExpression regex("^\\s*game\\s+\"Counter-Strike Source\"\\s*$");
+            while (!in.atEnd()) {
+                if (regex.match(in.readLine()).hasMatch()) {
+                    valid = true;
+                    s1_game_type = "css";
+                    break;
+                }
+            }
+            file_css.close();
+        }
     }
 
-    QString gameinfo_path_css = QDir(path).filePath("cstrike/gameinfo.txt");
-    QFile file_css(gameinfo_path_css);
-    bool valid_css = false;
-
-    if (file_css.exists() && file_css.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QTextStream in(&file_css);
-        QRegularExpression regex("^\\s*game\\s+\"Counter-Strike Source\"\\s*$");
-        while (!in.atEnd()) {
-            if (regex.match(in.readLine()).hasMatch()) {
-                valid_css = true;
-                break;
-            }
+    if (!valid) {
+        if (selected_game == "CSGO") {
+            QMessageBox::critical(this, "Invalid Source 1 Folder", "The selected folder is not a valid CS:GO legacy installation.\nPlease make sure to select a folder where csgo/gameinfo.txt contains 'game \"Counter-Strike: Global Offensive\"'.");
+        } else {
+            QMessageBox::critical(this, "Invalid Source 1 Folder", "The selected folder is not a valid Counter-Strike Source installation.\nPlease make sure to select a folder where cstrike/gameinfo.txt contains 'game \"Counter-Strike Source\"'.");
         }
-        file_css.close();
-    }
-
-    if (valid_csgo) {
-        s1_game_type = "csgo";
-    } else if (valid_css) {
-        s1_game_type = "css";
-    } else {
-        QMessageBox::critical(this, "Invalid Source 1 Folder", "The selected folder is not a valid CS:GO legacy or Counter-Strike Source installation.\nPlease make sure to select a folder containing either csgo/gameinfo.txt ('game \"Counter-Strike: Global Offensive\"') or cstrike/gameinfo.txt ('game \"Counter-Strike Source\"').");
         QTimer::singleShot(0, this, &Importer::select_s1_folder);
         return;
     }
@@ -363,6 +373,12 @@ void Importer::load_from_cfg()
                     s1_game_type = temp[6];
                 } else {
                     s1_game_type = "csgo"; // Assume CSGO for old configs
+                }
+
+                if (s1_game_type == "css") {
+                    ui->s1_game_combo->setCurrentText("CSS");
+                } else {
+                    ui->s1_game_combo->setCurrentText("CSGO");
                 }
 
                 set_s1_folder(temp[4]);
