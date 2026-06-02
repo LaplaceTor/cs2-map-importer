@@ -232,7 +232,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
             pos = refsName.rfind(".mdl");
             if (pos != std::string::npos) refsName.replace(pos, 4, "_refs.txt");
 
-            std::string importCmd = "cs_mdl_import.exe -nop4 " + extraoptions + " -i \"" + m_options.s1gameinfo + "\" -o \"" + m_options.s2contentdir + "\" \"" + infile + "\"";
+            std::string importCmd = "cs_mdl_import.exe -nop4 " + extraoptions + " -i \"" + m_options.s1gamedir + "\" -o \"" + m_options.s2contentdir + "\" \"" + infile + "\"";
             RunCommand(importCmd);
 
             if (fs::exists(refsName)) {
@@ -254,7 +254,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
     for (const auto& mtl : mdlmtls) fw << mtl << "\n";
     fw.close();
 
-    std::string importRefsCmd = "source1import.exe -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gameinfo + "\" -s2addon " + m_options.s2addonname + " -game " + m_options.s1gamename + " -usefilelist \"" + temp_refs + "\"";
+    std::string importRefsCmd = "source1import.exe -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game " + m_options.s1gamename + " -usefilelist \"" + temp_refs + "\"";
     RunCommand(importRefsCmd);
 
     std::set<std::string> global2UVMaterials;
@@ -308,7 +308,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
 }
 
 void MapImporter::ImportAndCompileMapRefs(const std::string& refsFile) {
-    std::string importcmd = "source1import.exe -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gameinfo + "\" -s2addon " + m_options.s2addonname + " -game " + m_options.s1gamename + " -usefilelist \"" + refsFile + "\"";
+    std::string importcmd = "source1import.exe -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game " + m_options.s1gamename + " -usefilelist \"" + refsFile + "\"";
     RunCommand(importcmd);
 
     auto refs = ReadTextFile(refsFile);
@@ -343,7 +343,7 @@ bool MapImporter::Run() {
 
     std::string mapImportCmd = "source1import.exe -retail -nop4 -nop4sync " + usebspStr;
     if (!nomergeinstancesStr.empty()) mapImportCmd += " " + nomergeinstancesStr;
-    mapImportCmd += " -src1gameinfodir \"" + m_options.s1gameinfo + "\" -src1contentdir \"" + m_options.s1contentdir + "\" -s2addon \"" + m_options.s2addonname + "\" -game " + m_options.s1gamename + " maps\\" + m_options.mapname + ".vmf";
+    mapImportCmd += " -src1gameinfodir \"" + m_options.s1gamedir + "\" -src1contentdir \"" + m_options.s1contentdir + "\" -s2addon \"" + m_options.s2addonname + "\" -game " + m_options.s1gamename + " maps\\" + m_options.mapname + ".vmf";
 
     RunCommand(mapImportCmd);
 

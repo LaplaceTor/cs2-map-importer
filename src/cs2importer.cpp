@@ -655,7 +655,7 @@ void Importer::go()
 
         MapImporter::Options opts;
         QString s1_subfolder = s1_game_type == "css" ? "cstrike" : "csgo";
-        opts.s1gameinfo = QDir(s1game_basefolder).filePath(s1_subfolder).replace("/", "\\").toStdString();
+        opts.s1gamedir = QDir(s1game_basefolder).filePath(s1_subfolder).replace("/", "\\").toStdString();
         opts.s1gamename = s1_game_type == "css" ? "css" : "csgo";
         opts.s1contentdir = content_folder.replace("/", "\\").toStdString();
         opts.s2addonname = addon_name.toStdString();
