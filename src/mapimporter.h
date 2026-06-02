@@ -9,7 +9,8 @@
 class MapImporter {
 public:
     struct Options {
-        std::string s1gamecsgo;
+        std::string s1gameinfo;
+        std::string s1gamename;
         std::string s1contentdir;
         std::string s2addonname;
         std::string s2contentdir;

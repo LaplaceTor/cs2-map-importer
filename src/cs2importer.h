@@ -19,11 +19,11 @@ public:
 
 private slots:
     void select_cs2_folder();
-    void select_csgo_folder();
+    void select_s1_folder();
     void select_vmf();
     void select_bsp();
     void validate_cs2();
-    void validate_csgo();
+    void validate_s1();
     void on_usebsp_toggled(bool checked);
     void on_usebsp_nomergeinstances_toggled(bool checked);
     void get_addon_name();
@@ -42,6 +42,7 @@ private:
     QString vmf_default_path;
     QString cs2_basefolder;
     QString s1game_basefolder;
+    QString s1_game_type; // "csgo" or "css"
     QString content_folder;
     QString content_folder_to_save;
     QString addon_name;
@@ -53,7 +54,7 @@ private:
     bool check_bspsrc(const QString& base_path);
 
     void set_cs2_folder(const QString& path);
-    void set_csgo_folder(const QString& path);
+    void set_s1_folder(const QString& path);
 
     void set_tooltips();
     void set_stylesheets();

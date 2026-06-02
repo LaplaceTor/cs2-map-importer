@@ -76,7 +76,7 @@
        <enum>QLayout::SetMaximumSize</enum>
       </property>
       <item>
-       <widget class="QPushButton" name="csgo_button">
+       <widget class="QPushButton" name="s1_button">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Maximum">
           <horstretch>0</horstretch>
@@ -87,12 +87,12 @@
          <string extracomment="Select &quot;csgo legacy&quot; folder." />
         </property>
         <property name="text">
-         <string>Select CSGO folder</string>
+         <string>Select Source 1 game folder</string>
         </property>
        </widget>
       </item>
       <item>
-       <widget class="QLabel" name="csgo_label">
+       <widget class="QLabel" name="s1_label">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
           <horstretch>0</horstretch>
@@ -211,7 +211,7 @@
      </widget>
     </item>
     <item row="3" column="2" colspan="1">
-     <widget class="QPushButton" name="validate_csgo_button">
+     <widget class="QPushButton" name="validate_s1_button">
       <property name="text">
        <string>Validate CSGO</string>
       </property>

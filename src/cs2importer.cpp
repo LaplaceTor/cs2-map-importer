@@ -53,11 +53,11 @@ Importer::Importer(QWidget *parent) :
     load_from_cfg();
 
     connect(ui->cs2_button, &QPushButton::clicked, this, &Importer::select_cs2_folder);
-    connect(ui->csgo_button, &QPushButton::clicked, this, &Importer::select_csgo_folder);
+    connect(ui->s1_button, &QPushButton::clicked, this, &Importer::select_s1_folder);
     connect(ui->vmf_button, &QPushButton::clicked, this, &Importer::select_vmf);
     connect(ui->bsp_button, &QPushButton::clicked, this, &Importer::select_bsp);
     connect(ui->validate_cs2_button, &QPushButton::clicked, this, &Importer::validate_cs2);
-    connect(ui->validate_csgo_button, &QPushButton::clicked, this, &Importer::validate_csgo);
+    connect(ui->validate_s1_button, &QPushButton::clicked, this, &Importer::validate_s1);
     connect(ui->addon_edit, &QLineEdit::textChanged, this, &Importer::get_addon_name);
     connect(ui->go_button, &QPushButton::clicked, this, &Importer::go);
 
@@ -112,7 +112,7 @@ void Importer::validate_cs2()
     QDesktopServices::openUrl(QUrl("steam://validate/730"));
 }
 
-void Importer::validate_csgo()
+void Importer::validate_s1()
 {
     QDesktopServices::openUrl(QUrl("steam://validate/4465480"));
 }
@@ -120,14 +120,14 @@ void Importer::validate_csgo()
 void Importer::set_stylesheets()
 {
     ui->cs2_label->setStyleSheet("background-color:rgb(255, 0, 0)");
-    ui->csgo_label->setStyleSheet("background-color:rgb(255, 0, 0)");
+    ui->s1_label->setStyleSheet("background-color:rgb(255, 0, 0)");
     ui->vmf_label->setStyleSheet("background-color:rgb(255, 0, 0)");
 }
 
 void Importer::set_tooltips()
 {
     ui->cs2_button->setToolTip("Use \"Counter-Strike Global Offensive\" folder or any folder inside it.");
-    ui->csgo_button->setToolTip("Use \"csgo legacy\" folder or any folder inside it.");
+    ui->s1_button->setToolTip("Use \"csgo legacy\" folder or any folder inside it.");
     ui->vmf_button->setToolTip("Does not need to be in a \"maps\" folder, one will be created then deleted afterwards if necessary.");
     ui->config_checkbox->setToolTip("Auto-selects folders, auto-selects .VMF folder when you open the dialog, and auto-fills launch options for next time.");
     ui->usebsp_checkbox->setToolTip("This runs the map through a special vbsp process to generate clean map geometry from brushes, removing hidden faces and stitching up edges, making the CS2 version easier to work with in Hammer. It preserves world (vis) brushes and func_detail brushes for compatibility with Source 2. This parameter will also merge all func_instances in your map. Note that the final geometry will be triangulated, but cleaning it up is a fairly simple process, which will be explained in another guide.");
@@ -174,42 +174,62 @@ void Importer::set_cs2_folder(const QString& path)
     }
 }
 
-void Importer::select_csgo_folder()
+void Importer::select_s1_folder()
 {
     QString path = QFileDialog::getExistingDirectory(this, "Select a folder:", "C:\\", QFileDialog::ShowDirsOnly);
     if (path.isEmpty()) return;
 
-    QString gameinfo_path = QDir(path).filePath("csgo/gameinfo.txt");
-    QFile file(gameinfo_path);
-    bool valid = false;
+    QString gameinfo_path_csgo = QDir(path).filePath("csgo/gameinfo.txt");
+    QFile file_csgo(gameinfo_path_csgo);
+    bool valid_csgo = false;
 
-    if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QTextStream in(&file);
+    if (file_csgo.exists() && file_csgo.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&file_csgo);
         QRegularExpression regex("^\\s*game\\s+\"Counter-Strike: Global Offensive\"\\s*$");
         while (!in.atEnd()) {
             if (regex.match(in.readLine()).hasMatch()) {
-                valid = true;
+                valid_csgo = true;
                 break;
             }
         }
-        file.close();
+        file_csgo.close();
     }
 
-    if (!valid) {
-        QMessageBox::critical(this, "Invalid CS:GO Folder", "The selected folder is not a valid CS:GO legacy installation.\nPlease make sure to select a folder where csgo/gameinfo.txt contains 'game \"Counter-Strike: Global Offensive\"'.");
-        QTimer::singleShot(0, this, &Importer::select_csgo_folder);
+    QString gameinfo_path_css = QDir(path).filePath("cstrike/gameinfo.txt");
+    QFile file_css(gameinfo_path_css);
+    bool valid_css = false;
+
+    if (file_css.exists() && file_css.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&file_css);
+        QRegularExpression regex("^\\s*game\\s+\"Counter-Strike Source\"\\s*$");
+        while (!in.atEnd()) {
+            if (regex.match(in.readLine()).hasMatch()) {
+                valid_css = true;
+                break;
+            }
+        }
+        file_css.close();
+    }
+
+    if (valid_csgo) {
+        s1_game_type = "csgo";
+    } else if (valid_css) {
+        s1_game_type = "css";
+    } else {
+        QMessageBox::critical(this, "Invalid Source 1 Folder", "The selected folder is not a valid CS:GO legacy or Counter-Strike Source installation.\nPlease make sure to select a folder containing either csgo/gameinfo.txt ('game \"Counter-Strike: Global Offensive\"') or cstrike/gameinfo.txt ('game \"Counter-Strike Source\"').");
+        QTimer::singleShot(0, this, &Importer::select_s1_folder);
         return;
     }
 
-    set_csgo_folder(path);
+    set_s1_folder(path);
 }
 
-void Importer::set_csgo_folder(const QString& path)
+void Importer::set_s1_folder(const QString& path)
 {
     if (!path.isEmpty() && path != "None") {
         s1game_basefolder = path;
-        ui->csgo_label->setText(path);
-        ui->csgo_label->setStyleSheet("background-color:rgb(0, 255, 0)");
+        ui->s1_label->setText(path);
+        ui->s1_label->setStyleSheet("background-color:rgb(0, 255, 0)");
     }
 }
 
@@ -291,13 +311,14 @@ void Importer::save_to_cfg()
     QString nomerge_state = ui->usebsp_nomergeinstances_checkbox->isChecked() ? "True" : "False";
     QString skipdeps_state = ui->skipdeps_checkbox->isChecked() ? "True" : "False";
 
-    QString temp = QString("%1\n%2\n%3\n%4\n%5\n%6")
+    QString temp = QString("%1\n%2\n%3\n%4\n%5\n%6\n%7")
         .arg(usebsp_state)
         .arg(nomerge_state)
         .arg(skipdeps_state)
         .arg(cs2_basefolder)
         .arg(s1game_basefolder)
-        .arg(content_folder_to_save);
+        .arg(content_folder_to_save)
+        .arg(s1_game_type);
 
     QFile file("cs2importer.cfg");
     if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -332,7 +353,15 @@ void Importer::load_from_cfg()
                 ui->usebsp_nomergeinstances_checkbox->setChecked(temp[1] == "True");
                 ui->skipdeps_checkbox->setChecked(temp[2] == "True");
                 set_cs2_folder(temp[3]);
-                set_csgo_folder(temp[4]);
+
+                // For backward compatibility: if s1_game_type wasn't saved, try to infer it.
+                if (temp.size() >= 7) {
+                    s1_game_type = temp[6];
+                } else {
+                    s1_game_type = "csgo"; // Assume CSGO for old configs
+                }
+
+                set_s1_folder(temp[4]);
                 vmf_default_path = temp[5];
             }
         } else {
@@ -341,7 +370,7 @@ void Importer::load_from_cfg()
                 vmf_default_path = temp[2];
             } else if (temp.size() >= 4) {
                 set_cs2_folder(temp[1]);
-                set_csgo_folder(temp[2]);
+                set_s1_folder(temp[2]);
                 vmf_default_path = temp[3];
             }
         }
@@ -543,10 +572,11 @@ void Importer::go()
 
                 if (!s1game_basefolder.isEmpty()) {
                     QStringList foldersToCopy = {"materials", "models"};
+                    QString s1_subfolder = s1_game_type == "css" ? "cstrike/" : "csgo/";
                     for (const QString& folder_name : foldersToCopy) {
                         QDir src_folder(QDir(unpacked_dir).filePath(folder_name));
                         if (src_folder.exists()) {
-                            QDir dest_folder(QDir(s1game_basefolder).filePath("csgo/" + folder_name));
+                            QDir dest_folder(QDir(s1game_basefolder).filePath(s1_subfolder + folder_name));
                             log("Copying " + src_folder.absolutePath() + " to " + dest_folder.absolutePath());
                             // Recursive copy function would be needed here, or call system xcopy/cp
                             // For simplicity, calling system xcopy on Windows
@@ -604,7 +634,9 @@ void Importer::go()
         log("Starting MapImporter thread...");
 
         MapImporter::Options opts;
-        opts.s1gamecsgo = QDir(s1game_basefolder).filePath("csgo").replace("/", "\\").toStdString();
+        QString s1_subfolder = s1_game_type == "css" ? "cstrike" : "csgo";
+        opts.s1gameinfo = QDir(s1game_basefolder).filePath(s1_subfolder).replace("/", "\\").toStdString();
+        opts.s1gamename = s1_game_type == "css" ? "css" : "csgo";
         opts.s1contentdir = content_folder.replace("/", "\\").toStdString();
         opts.s2addonname = addon_name.toStdString();
         opts.s2contentdir = QDir(cs2_basefolder).filePath("content/csgo_addons/" + addon_name).replace("/", "\\").toStdString();
