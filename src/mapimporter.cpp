@@ -361,12 +361,6 @@ bool MapImporter::Run() {
         RunCommand(mapImportCmd);
     }
 
-    std::string infile = m_options.s2contentdir + "\\maps\\" + m_mapname + ".vmap";
-    if (!fs::exists(infile)) {
-        std::string xcopyCmd = "xcopy /Y /I \"" + m_options.s2contentdir + "\\maps\\" + m_mapname + ".vmap\" \"" + m_options.s2contentdir + "\\maps\\*\"";
-        RunCommand(xcopyCmd);
-    }
-
     Log("Import process complete.");
     return true;
 }
