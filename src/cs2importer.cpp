@@ -207,7 +207,7 @@ void Importer::select_csgo_folder()
 void Importer::set_csgo_folder(const QString& path)
 {
     if (!path.isEmpty() && path != "None") {
-        csgo_basefolder = path;
+        s1game_basefolder = path;
         ui->csgo_label->setText(path);
         ui->csgo_label->setStyleSheet("background-color:rgb(0, 255, 0)");
     }
@@ -296,7 +296,7 @@ void Importer::save_to_cfg()
         .arg(nomerge_state)
         .arg(skipdeps_state)
         .arg(cs2_basefolder)
-        .arg(csgo_basefolder)
+        .arg(s1game_basefolder)
         .arg(content_folder_to_save);
 
     QFile file("cs2importer.cfg");
@@ -474,7 +474,7 @@ void Importer::go()
         QMessageBox::warning(this, "Validation Error", "CS2 folder not selected.");
         return;
     }
-    if (csgo_basefolder.isEmpty()) {
+    if (s1game_basefolder.isEmpty()) {
         QMessageBox::warning(this, "Validation Error", "CSGO folder not selected.");
         return;
     }
@@ -541,12 +541,12 @@ void Importer::go()
             if (!unpacked_dir.isEmpty()) {
                 log("Found unpacked files at " + unpacked_dir);
 
-                if (!csgo_basefolder.isEmpty()) {
+                if (!s1game_basefolder.isEmpty()) {
                     QStringList foldersToCopy = {"materials", "models"};
                     for (const QString& folder_name : foldersToCopy) {
                         QDir src_folder(QDir(unpacked_dir).filePath(folder_name));
                         if (src_folder.exists()) {
-                            QDir dest_folder(QDir(csgo_basefolder).filePath("csgo/" + folder_name));
+                            QDir dest_folder(QDir(s1game_basefolder).filePath("csgo/" + folder_name));
                             log("Copying " + src_folder.absolutePath() + " to " + dest_folder.absolutePath());
                             // Recursive copy function would be needed here, or call system xcopy/cp
                             // For simplicity, calling system xcopy on Windows
@@ -604,9 +604,9 @@ void Importer::go()
         log("Starting MapImporter thread...");
 
         MapImporter::Options opts;
-        opts.s1gamecsgo = QDir(csgo_basefolder).filePath("csgo").replace("/", "\\").toStdString();
-        opts.s1contentcsgo = content_folder.replace("/", "\\").toStdString();
-        opts.s2addon = addon.toStdString();
+        opts.s1gamecsgo = QDir(s1game_basefolder).filePath("csgo").replace("/", "\\").toStdString();
+        opts.s1contentdir = content_folder.replace("/", "\\").toStdString();
+        opts.s2addonname = addon.toStdString();
         opts.s2contentdir = QDir(cs2_basefolder).filePath("content/csgo_addons/" + addon).replace("/", "\\").toStdString();
         opts.mapname = map_name.toStdString();
         opts.usebsp = ui->usebsp_checkbox->isChecked();

@@ -254,7 +254,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
     for (const auto& mtl : mdlmtls) fw << mtl << "\n";
     fw.close();
 
-    std::string importRefsCmd = "source1import.exe -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamecsgo + "\" -s2addon " + m_options.s2addon + " -game csgo -usefilelist \"" + temp_refs + "\"";
+    std::string importRefsCmd = "source1import.exe -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamecsgo + "\" -s2addon " + m_options.s2addonname + " -game csgo -usefilelist \"" + temp_refs + "\"";
     RunCommand(importRefsCmd);
 
     std::set<std::string> global2UVMaterials;
@@ -308,7 +308,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
 }
 
 void MapImporter::ImportAndCompileMapRefs(const std::string& refsFile) {
-    std::string importcmd = "source1import.exe -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamecsgo + "\" -s2addon " + m_options.s2addon + " -game csgo -usefilelist \"" + refsFile + "\"";
+    std::string importcmd = "source1import.exe -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamecsgo + "\" -s2addon " + m_options.s2addonname + " -game csgo -usefilelist \"" + refsFile + "\"";
     RunCommand(importcmd);
 
     auto refs = ReadTextFile(refsFile);
@@ -343,7 +343,7 @@ bool MapImporter::Run() {
 
     std::string mapImportCmd = "source1import.exe -retail -nop4 -nop4sync " + usebspStr;
     if (!nomergeinstancesStr.empty()) mapImportCmd += " " + nomergeinstancesStr;
-    mapImportCmd += " -src1gameinfodir \"" + m_options.s1gamecsgo + "\" -src1contentdir \"" + m_options.s1contentcsgo + "\" -s2addon \"" + m_options.s2addon + "\" -game csgo maps\\" + m_options.mapname + ".vmf";
+    mapImportCmd += " -src1gameinfodir \"" + m_options.s1gamecsgo + "\" -src1contentdir \"" + m_options.s1contentdir + "\" -s2addon \"" + m_options.s2addonname + "\" -game csgo maps\\" + m_options.mapname + ".vmf";
 
     RunCommand(mapImportCmd);
 

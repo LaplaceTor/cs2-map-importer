@@ -10,8 +10,8 @@ class MapImporter {
 public:
     struct Options {
         std::string s1gamecsgo;
-        std::string s1contentcsgo;
-        std::string s2addon;
+        std::string s1contentdir;
+        std::string s2addonname;
         std::string s2contentdir;
         std::string mapname;
         bool usebsp;

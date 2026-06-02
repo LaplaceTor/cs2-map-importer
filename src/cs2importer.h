@@ -41,7 +41,7 @@ private:
     bool java_installed;
     QString vmf_default_path;
     QString cs2_basefolder;
-    QString csgo_basefolder;
+    QString s1game_basefolder;
     QString content_folder;
     QString content_folder_to_save;
     QString addon;
