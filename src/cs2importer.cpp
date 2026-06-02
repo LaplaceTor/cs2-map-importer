@@ -114,7 +114,11 @@ void Importer::validate_cs2()
 
 void Importer::validate_s1()
 {
-    QDesktopServices::openUrl(QUrl("steam://validate/4465480"));
+    if (s1_game_type == "css") {
+        QDesktopServices::openUrl(QUrl("steam://validate/240"));
+    } else {
+        QDesktopServices::openUrl(QUrl("steam://validate/4465480"));
+    }
 }
 
 void Importer::set_stylesheets()
