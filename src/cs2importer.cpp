@@ -116,7 +116,7 @@ void Importer::validate_s1()
 {
     if (s1_game_type == "css") {
         QDesktopServices::openUrl(QUrl("steam://validate/240"));
-    } else {
+    } else if (s1_game_type == "csgo") {
         QDesktopServices::openUrl(QUrl("steam://validate/4465480"));
     }
 }
