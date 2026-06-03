@@ -194,12 +194,8 @@ void AppCore::fix_top_level_key(const std::string& vmf_path, LogCallback log) {
                 indent = l.substr(0, first_non_space);
             }
 
-            out_lines.push_back(indent + "offsets");
-            out_lines.push_back(indent + "{");
-            out_lines.push_back(indent + "}");
-            out_lines.push_back(indent + "offsets_normals");
-            out_lines.push_back(indent + "{");
-            out_lines.push_back(indent + "}");
+            std::string offsets_block = indent + "offsets\n" + indent + "{\n" + indent + "}\n" + indent + "offsets_normals\n" + indent + "{\n" + indent + "}";
+            out_lines.push_back(offsets_block);
         }
 
         out_lines.push_back(l);
