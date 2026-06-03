@@ -1,6 +1,7 @@
-#include "cs2importer.h"
+#include "ui.h"
 #include "ui/ui_interface.h"
 #include "mapimporter.h"
+#include "appcore.h"
 
 #include <QFileDialog>
 #include <thread>
@@ -11,12 +12,9 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QRegularExpression>
-#include <QProcess>
 #include <QCoreApplication>
 #include <QCloseEvent>
 #include <QTimer>
-#include <QProcessEnvironment>
-#include <QDebug>
 #include <QDateTime>
 
 Importer::Importer(QWidget *parent) :
@@ -35,11 +33,10 @@ Importer::Importer(QWidget *parent) :
 
     app_dir = QCoreApplication::applicationDirPath();
 
-
     log("Initializing CS2 Importer...");
 
-    java_installed = check_java();
-    bspsrc_installed = check_bspsrc(app_dir);
+    java_installed = AppCore::check_java();
+    bspsrc_installed = AppCore::check_bspsrc(app_dir.toStdString());
 
     set_tooltips();
     set_stylesheets();
@@ -102,32 +99,6 @@ void Importer::log(const QString& message)
         *log_stream << message << "\n";
         log_stream->flush();
     }
-}
-
-bool Importer::check_java()
-{
-    QProcess javaProc;
-    javaProc.start("java", QStringList() << "-version");
-    javaProc.waitForFinished(-1);
-    // Usually prints to stderr
-    QString output = QString::fromLocal8Bit(javaProc.readAllStandardError());
-    if (output.contains("version") || javaProc.exitCode() == 0) {
-        log("Java is installed.");
-        return true;
-    }
-    log("Java is NOT installed or not in PATH.");
-    return false;
-}
-
-bool Importer::check_bspsrc(const QString& base_path)
-{
-    QString bspsrc_path = QDir(base_path).filePath("bspsrc.jar");
-    if (QFile::exists(bspsrc_path)) {
-        log("bspsrc.jar found.");
-        return true;
-    }
-    log("bspsrc.jar not found at " + bspsrc_path);
-    return false;
 }
 
 void Importer::validate_cs2()
@@ -415,126 +386,6 @@ void Importer::load_from_cfg()
     }
 }
 
-void Importer::fix_top_level_key(const QString& vmf_path)
-{
-    QFile file(vmf_path);
-    if (!file.exists() || !file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
-
-    QStringList lines;
-    QTextStream in(&file);
-    in.setCodec("UTF-8");
-    while (!in.atEnd()) {
-        lines.append(in.readLine());
-    }
-    file.close();
-
-    QString mapversion = "2";
-    QRegularExpression mapversion_regex("^\\s*\"mapversion\"\\s+\"([^\"]+)\"");
-
-    bool mapversion_found = false;
-    for (const QString& line : lines) {
-        QRegularExpressionMatch match = mapversion_regex.match(line);
-        if (match.hasMatch()) {
-            mapversion = match.captured(1);
-            mapversion_found = true;
-            break;
-        }
-    }
-
-    if (!mapversion_found) {
-        log("No mapversion found in VMF. Aborting fix.");
-        return;
-    }
-
-    int visgroups_start_idx = -1;
-    int visgroups_end_idx = -1;
-    for (int i = 0; i < lines.size(); ++i) {
-        if (lines[i].trimmed() == "visgroups") {
-            visgroups_start_idx = i;
-            break;
-        }
-    }
-
-    QStringList visgroups_lines;
-    if (visgroups_start_idx != -1) {
-        int open_brackets = 0;
-        bool found_first_bracket = false;
-        for (int i = visgroups_start_idx; i < lines.size(); ++i) {
-            open_brackets += lines[i].count('{');
-            open_brackets -= lines[i].count('}');
-            if (lines[i].contains('{')) {
-                found_first_bracket = true;
-            }
-
-            if (found_first_bracket && open_brackets == 0) {
-                visgroups_end_idx = i;
-                break;
-            }
-        }
-
-        if (visgroups_end_idx != -1) {
-            for (int i = visgroups_start_idx; i <= visgroups_end_idx; ++i) {
-                visgroups_lines.append(lines[i]);
-            }
-            // Remove the lines backwards to avoid shifting index issues
-            for (int i = visgroups_end_idx; i >= visgroups_start_idx; --i) {
-                lines.removeAt(i);
-            }
-        }
-    } else {
-        log("No visgroups block found in VMF. Aborting fix.");
-        return;
-    }
-
-    QString versioninfo_block = QString("versioninfo\n{\n\t\"editorversion\" \"400\"\n\t\"editorbuild\" \"9999\"\n\t\"mapversion\" \"%1\"\n\t\"formatversion\" \"100\"\n\t\"prefab\" \"0\"\n}").arg(mapversion);
-
-    lines.insert(0, versioninfo_block);
-
-    if (!visgroups_lines.isEmpty()) {
-        for (int i = 0; i < visgroups_lines.size(); ++i) {
-            lines.insert(i + 1, visgroups_lines[i]);
-        }
-    }
-
-    QString viewsettings_block = "viewsettings\n{\n\t\"bSnapToGrid\" \"1\"\n\t\"bShowGrid\" \"1\"\n\t\"bShowLogicalGrid\" \"0\"\n\t\"nGridSpacing\" \"64\"\n\t\"bShow3DGrid\" \"0\"\n}";
-
-    int insert_idx = 1 + visgroups_lines.size();
-    lines.insert(insert_idx, viewsettings_block);
-
-    QString cordon_block = "cordon\n{\n\t\"mins\" \"(-1024 -1024 -1024)\"\n\t\"maxs\" \"(1024 1024 1024)\"\n\t\"active\" \"0\"\n}";
-    lines.append(cordon_block);
-
-    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QTextStream out(&file);
-        out.setCodec("UTF-8");
-        for (const QString& line : lines) {
-            out << line << "\n";
-        }
-        file.close();
-    }
-}
-
-void Importer::move_vpk_signatures()
-{
-    if (cs2_basefolder.isEmpty()) return;
-
-    QDir bin_folder(QDir(cs2_basefolder).filePath("game/bin/win64"));
-    QString vpk_path = bin_folder.filePath("vpk.signatures");
-    QDir temp_folder(bin_folder.filePath("temp"));
-    QString temp_vpk_path = temp_folder.filePath("vpk.signatures");
-
-    if (QFile::exists(vpk_path)) {
-        if (!temp_folder.exists()) {
-            bin_folder.mkpath("temp");
-        }
-        if (QFile::exists(temp_vpk_path)) {
-            QFile::remove(temp_vpk_path);
-        }
-        QFile::rename(vpk_path, temp_vpk_path);
-        vpk_signatures_moved = true;
-    }
-}
-
 void Importer::go()
 {
     if (cs2_basefolder.isEmpty()) {
@@ -586,118 +437,66 @@ void Importer::go()
             log_file = nullptr;
         }
 
-        move_vpk_signatures();
-
-        if (!bsp_file.isEmpty()) {
-            if (!java_installed) {
-                throw std::runtime_error("Java is not installed. Cannot decompile BSP file.");
-            }
-
-            QString maps_dir = QDir(app_dir).filePath("maps");
-            QDir().mkpath(maps_dir);
-
-            QString vmf_dest = QDir(maps_dir).filePath(map_name + ".vmf");
-            QString bspsrc_jar = QDir(app_dir).filePath("bspsrc.jar");
-
-            if (!QFile::exists(bspsrc_jar)) {
-                throw std::runtime_error("Could not find bspsrc.jar at " + bspsrc_jar.toStdString());
-            }
-
-            log("Decompiling BSP: " + bsp_file);
-
-            QProcess decompProc;
-            decompProc.setProcessChannelMode(QProcess::MergedChannels);
-            QStringList args;
-            args << "-jar" << bspsrc_jar << bsp_file << "-o" << vmf_dest << "--unpack_embedded";
-            decompProc.start("java", args);
-            decompProc.waitForFinished(-1);
-            log(QString::fromLocal8Bit(decompProc.readAll()));
-
-            if (decompProc.exitCode() != 0) {
-                throw std::runtime_error("BSP Decompilation failed.");
-            }
-
-            QString unpacked_dir;
-            QStringList possible_locations = {
-                QDir::current().filePath(map_name),
-                QDir(app_dir).filePath(map_name),
-                QFileInfo(bsp_file).absoluteDir().filePath(map_name),
-                QDir(maps_dir).filePath(map_name)
-            };
-
-            for (const QString& loc : possible_locations) {
-                if (QDir(loc).exists()) {
-                    unpacked_dir = loc;
-                    break;
-                }
-            }
-
-            if (!unpacked_dir.isEmpty()) {
-                log("Found unpacked files at " + unpacked_dir);
-
-                QString target_unpacked_dir = QDir(maps_dir).filePath(map_name);
-                if (unpacked_dir != target_unpacked_dir) {
-                    // QDir::rename works if target doesn't exist.
-                    // If moving fails (e.g., across drives), one needs full copy/delete.
-                    // Using system move for reliability on Windows if needed, or simple rename.
-                    if (QDir(target_unpacked_dir).exists()) {
-                        QDir(target_unpacked_dir).removeRecursively();
-                    }
-                    if (QDir().rename(unpacked_dir, target_unpacked_dir)) {
-                         log("Moved unpacked directory to " + target_unpacked_dir);
-                    } else {
-                         log("Failed to rename unpacked directory to " + target_unpacked_dir + ". Attempting move command...");
-                         QProcess moveProc;
-                         moveProc.start("cmd.exe", QStringList() << "/c" << "move" << "/y" << unpacked_dir.replace("/", "\\") << target_unpacked_dir.replace("/", "\\"));
-                         moveProc.waitForFinished(-1);
-                    }
-                }
-            } else {
-                log("Could not find unpacked embedded files directory '" + map_name + "'");
-            }
-
-            fix_top_level_key(vmf_dest);
-
-            // Move vmf to maps/<map_name>/maps/
-            QString target_maps_dir = QDir(app_dir).filePath(QString("maps/%1/maps").arg(map_name));
-            QDir().mkpath(target_maps_dir);
-            QString final_vmf_dest = QDir(target_maps_dir).filePath(map_name + ".vmf");
-
-            if (QFile::exists(final_vmf_dest)) {
-                QFile::remove(final_vmf_dest);
-            }
-            if (QFile::rename(vmf_dest, final_vmf_dest)) {
-                 log("Moved VMF to: " + final_vmf_dest);
-            } else {
-                 log("Failed to move VMF to: " + final_vmf_dest);
-            }
-
-            content_folder = QDir(app_dir).filePath(QString("maps/%1").arg(map_name));
-            log("Decompiled and prepared at: " + final_vmf_dest);
-        }
+        AppCore::move_vpk_signatures(cs2_basefolder.toStdString(), vpk_signatures_moved);
 
         ui->go_button->setEnabled(false);
-        log("Starting MapImporter thread...");
+        log("Starting AppCore thread...");
 
-        MapImporter::Options opts;
-        QString s1_subfolder = s1_game_type == "css" ? "cstrike" : "csgo";
-        opts.s1gamedir = QDir(s1game_basefolder).filePath(s1_subfolder).replace("/", "\\").toStdString();
-        opts.s1gamename = s1_game_type == "css" ? "css" : "csgo";
-        opts.s1contentdir = content_folder.replace("/", "\\").toStdString();
-        opts.s2addonname = addon_name.toStdString();
-        opts.s2contentdir = QDir(cs2_basefolder).filePath("content/csgo_addons/" + addon_name).replace("/", "\\").toStdString();
-        opts.mapname = map_name.toStdString();
+        AppCore::Options opts;
+        opts.cs2_basefolder = cs2_basefolder.replace("/", "\\").toStdString();
+        opts.s1game_basefolder = s1game_basefolder.toStdString();
+        opts.s1_game_type = s1_game_type.toStdString();
+        opts.content_folder = content_folder.toStdString();
+        opts.map_name = map_name.toStdString();
+        opts.bsp_file = bsp_file.toStdString();
+        opts.app_dir = app_dir.toStdString();
+        opts.addon_name = addon_name.toStdString();
         opts.usebsp = ui->usebsp_checkbox->isChecked();
         opts.usebsp_nomergeinstances = ui->usebsp_nomergeinstances_checkbox->isChecked();
         opts.skipdeps = ui->skipdeps_checkbox->isChecked();
-        opts.cs2_basefolder = cs2_basefolder.replace("/", "\\").toStdString();
 
-        std::thread([this, opts]() {
-            MapImporter importer(opts, [this](const std::string& msg) {
-                QMetaObject::invokeMethod(this, "log", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdString(msg)));
-            });
+        opts.logger = [this](const std::string& msg) {
+            QMetaObject::invokeMethod(this, "log", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdString(msg)));
+        };
 
-            bool success = importer.Run();
+        std::thread([this, opts]() mutable {
+            bool success = true;
+            try {
+                if (!opts.bsp_file.empty()) {
+                    if (!AppCore::check_java()) {
+                        throw std::runtime_error("Java is not installed. Cannot decompile BSP file.");
+                    }
+                    AppCore::process_bsp(opts);
+                }
+
+                MapImporter::Options mapOpts;
+                std::string s1_subfolder = opts.s1_game_type == "css" ? "cstrike" : "csgo";
+
+                std::string s1gamedir = opts.s1game_basefolder + "\\" + s1_subfolder;
+                for (size_t i = 0; i < s1gamedir.length(); ++i) if (s1gamedir[i] == '/') s1gamedir[i] = '\\';
+                mapOpts.s1gamedir = s1gamedir;
+
+                mapOpts.s1gamename = opts.s1_game_type == "css" ? "css" : "csgo";
+
+                std::string contentdir = opts.content_folder;
+                for (size_t i = 0; i < contentdir.length(); ++i) if (contentdir[i] == '/') contentdir[i] = '\\';
+                mapOpts.s1contentdir = contentdir;
+
+                mapOpts.s2addonname = opts.addon_name;
+                mapOpts.s2contentdir = opts.cs2_basefolder + "\\content\\csgo_addons\\" + opts.addon_name;
+                mapOpts.mapname = opts.map_name;
+                mapOpts.usebsp = opts.usebsp;
+                mapOpts.usebsp_nomergeinstances = opts.usebsp_nomergeinstances;
+                mapOpts.skipdeps = opts.skipdeps;
+                mapOpts.cs2_basefolder = opts.cs2_basefolder;
+
+                MapImporter importer(mapOpts, opts.logger);
+                success = importer.Run();
+
+            } catch (const std::exception& e) {
+                opts.logger(std::string("Error: ") + e.what());
+                success = false;
+            }
 
             QMetaObject::invokeMethod(this, [this, success]() {
                 ui->go_button->setEnabled(true);
@@ -731,15 +530,7 @@ void Importer::go()
 void Importer::closeEvent(QCloseEvent *event)
 {
     if (vpk_signatures_moved && !cs2_basefolder.isEmpty()) {
-        QDir bin_folder(QDir(cs2_basefolder).filePath("game/bin/win64"));
-        QString vpk_path = bin_folder.filePath("vpk.signatures");
-        QString temp_vpk_path = bin_folder.filePath("temp/vpk.signatures");
-        if (QFile::exists(temp_vpk_path)) {
-            if (QFile::exists(vpk_path)) {
-                QFile::remove(vpk_path);
-            }
-            QFile::rename(temp_vpk_path, vpk_path);
-        }
+        AppCore::restore_vpk_signatures(cs2_basefolder.toStdString());
     }
     event->accept();
 }
