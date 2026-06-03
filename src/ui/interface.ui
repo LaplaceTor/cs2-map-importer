@@ -176,17 +176,28 @@
     </item>
 
     <item row="6" column="0" colspan="2">
-     <widget class="QCheckBox" name="usebsp_checkbox">
-      <property name="text">
-       <string>usebsp</string>
-      </property>
-      <property name="checked">
-       <bool>true</bool>
-      </property>
-     </widget>
+     <layout class="QHBoxLayout" name="usebsp_layout">
+      <item>
+       <widget class="QCheckBox" name="usebsp_checkbox">
+        <property name="text">
+         <string>clean unecessary faces in source 2 way</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="usebsp_nomergeinstances_checkbox">
+        <property name="text">
+         <string>keep instances</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </item>
 
-    <item row="6" column="2" rowspan="3">
+    <item row="6" column="2" rowspan="2">
      <widget class="QPushButton" name="go_button">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
@@ -207,14 +218,6 @@
     </item>
 
     <item row="7" column="0" colspan="2">
-     <widget class="QCheckBox" name="usebsp_nomergeinstances_checkbox">
-      <property name="text">
-       <string>usebsp_nomergeinstances</string>
-      </property>
-     </widget>
-    </item>
-
-    <item row="8" column="0" colspan="2">
      <widget class="QCheckBox" name="skipdeps_checkbox">
       <property name="text">
        <string>skipdeps</string>

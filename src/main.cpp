@@ -1,5 +1,5 @@
 #include <QApplication>
-#include "cs2importer.h"
+#include "ui.h"
 
 int main(int argc, char *argv[])
 {

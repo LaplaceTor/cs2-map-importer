@@ -15,8 +15,10 @@ set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/src/ui)
 
 set(SOURCES
     src/main.cpp
-    src/cs2importer.cpp
-    src/cs2importer.h
+    src/ui.cpp
+    src/ui.h
+    src/appcore.cpp
+    src/appcore.h
     src/mapimporter.cpp
     src/mapimporter.h
     src/ui/interface.ui

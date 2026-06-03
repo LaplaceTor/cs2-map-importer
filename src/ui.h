@@ -1,9 +1,8 @@
-#ifndef CS2IMPORTER_H
-#define CS2IMPORTER_H
+#ifndef UI_H
+#define UI_H
 
 #include <QMainWindow>
 #include <QString>
-#include <QProcess>
 #include <QFile>
 #include <QTextStream>
 
@@ -56,9 +55,6 @@ private:
     QFile* log_file;
     QTextStream* log_stream;
 
-    bool check_java();
-    bool check_bspsrc(const QString& base_path);
-
     void set_cs2_folder(const QString& path);
     void set_s1_folder(const QString& path);
 
@@ -66,11 +62,9 @@ private:
     void set_stylesheets();
     void load_from_cfg();
     void save_to_cfg();
-    void fix_top_level_key(const QString& vmf_path);
-    void move_vpk_signatures();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
 };
 
-#endif // CS2IMPORTER_H
+#endif // UI_H
