@@ -19,6 +19,25 @@
 
 namespace fs = std::filesystem;
 
+static std::string CleanRefPath(std::string input) {
+    size_t filePos = input.find("\"file\"");
+    if (filePos != std::string::npos) {
+        input = input.substr(filePos + 6);
+    }
+    size_t start = input.find_first_not_of(" \t\"");
+    if (start != std::string::npos) {
+        input = input.substr(start);
+    } else {
+        return "";
+    }
+    size_t end = input.find_last_not_of(" \t\"");
+    if (end != std::string::npos) {
+        input = input.substr(0, end + 1);
+    }
+    if (input == "importfilelist" || input == "{" || input == "}") return "";
+    return input;
+}
+
 void MapImporter::Log(const std::string& msg) {
     if (m_log) m_log(msg);
 }
@@ -149,12 +168,14 @@ void MapImporter::StripMDLsFromRefs(const std::string& filename) {
 
     for (const auto& ref : refs) {
         if (ref.empty()) continue;
-        std::string lowerRef = ref;
+        std::string cleanedRef = CleanRefPath(ref);
+        if (cleanedRef.empty()) continue;
+        std::string lowerRef = cleanedRef;
         std::transform(lowerRef.begin(), lowerRef.end(), lowerRef.begin(), ::tolower);
         if (lowerRef.find(".mdl") != std::string::npos) {
-            mdls.push_back(ref);
+            mdls.push_back(cleanedRef);
         } else {
-            others.push_back(ref);
+            others.push_back(cleanedRef);
         }
     }
 
@@ -164,7 +185,9 @@ void MapImporter::StripMDLsFromRefs(const std::string& filename) {
 
     EnsureFileWritable(mdlfilename);
     std::ofstream mdlFile(mdlfilename);
-    for (const auto& m : mdls) mdlFile << m << "\n";
+    mdlFile << "importfilelist\n{\n";
+    for (const auto& m : mdls) mdlFile << "\t\"file\"\t\"" << m << "\"\n";
+    mdlFile << "}\n";
 
     std::string refsfilename = filename;
     pos = refsfilename.rfind("_refs.txt");
@@ -172,7 +195,9 @@ void MapImporter::StripMDLsFromRefs(const std::string& filename) {
 
     EnsureFileWritable(refsfilename);
     std::ofstream refFile(refsfilename);
-    for (const auto& o : others) refFile << o << "\n";
+    refFile << "importfilelist\n{\n";
+    for (const auto& o : others) refFile << "\t\"file\"\t\"" << o << "\"\n";
+    refFile << "}\n";
 }
 
 void MapImporter::ForceUV2ForVMAT(const std::string& mtlfile) {
@@ -239,7 +264,8 @@ bool MapImporter::Force2UVsIfRequired(const std::string& refsName, std::set<std:
         numuvs = 2;
     }
 
-    for (const auto& mtlfile : refsList) {
+    for (const auto& refLine : refsList) {
+        std::string mtlfile = CleanRefPath(refLine);
         if (mtlfile.empty()) continue;
         if (uvsUpdated.count(mtlfile)) continue;
 
@@ -282,31 +308,13 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
     std::set<std::string> mdlmtls;
     std::string extraoptions = "";
 
-    auto cleanMdlPath = [](std::string input) -> std::string {
-        size_t filePos = input.find("\"file\"");
-        if (filePos != std::string::npos) {
-            input = input.substr(filePos + 6);
-        }
-        size_t start = input.find_first_not_of(" \t\"");
-        if (start != std::string::npos) {
-            input = input.substr(start);
-        } else {
-            return "";
-        }
-        size_t end = input.find_last_not_of(" \t\"");
-        if (end != std::string::npos) {
-            input = input.substr(0, end + 1);
-        }
-        return input;
-    };
-
     for (const auto& m : mdlfiles) {
         if (m.empty()) continue;
         if (m[0] == '-') {
             if (m == "-" || m == "-nooptions") extraoptions = "";
             else extraoptions = m;
         } else {
-            std::string mdlfile = cleanMdlPath(m);
+            std::string mdlfile = CleanRefPath(m);
             if (mdlfile.empty()) continue;
             std::replace(mdlfile.begin(), mdlfile.end(), '/', '\\');
 
@@ -325,7 +333,8 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
             if (fs::exists(refsName)) {
                 auto refs = ReadTextFile(refsName);
                 for (const auto& ref : refs) {
-                    if (!ref.empty()) mdlmtls.insert(ref);
+                    std::string cleanedRef = CleanRefPath(ref);
+                    if (!cleanedRef.empty()) mdlmtls.insert(cleanedRef);
                 }
                 force2UVList.push_back(refsName);
             }
@@ -338,7 +347,9 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
 
     EnsureFileWritable(temp_refs);
     std::ofstream fw(temp_refs);
-    for (const auto& mtl : mdlmtls) fw << mtl << "\n";
+    fw << "importfilelist\n{\n";
+    for (const auto& mtl : mdlmtls) fw << "\t\"file\"\t\"" << mtl << "\"\n";
+    fw << "}\n";
     fw.close();
 
     std::string importRefsCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\"  -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game " + m_options.s1gamename + " -usefilelist \"" + temp_refs + "\"";
@@ -369,7 +380,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
 
     for (const auto& m : mdlfiles) {
         if (m.empty() || m[0] == '-') continue;
-        std::string mdlfile = cleanMdlPath(m);
+        std::string mdlfile = CleanRefPath(m);
         if (mdlfile.empty()) continue;
         std::replace(mdlfile.begin(), mdlfile.end(), '/', '\\');
 
@@ -403,8 +414,9 @@ void MapImporter::ImportAndCompileMapRefs(const std::string& refsFile) {
     std::string newList = "";
 
     for (const auto& line : refs) {
-        if (!line.empty()) {
-            std::string modLine = line;
+        std::string cleanedRef = CleanRefPath(line);
+        if (!cleanedRef.empty()) {
+            std::string modLine = cleanedRef;
             size_t pos = modLine.rfind(".vmt");
             if (pos != std::string::npos) modLine.replace(pos, 4, ".vmat");
             std::replace(modLine.begin(), modLine.end(), ' ', '_');
