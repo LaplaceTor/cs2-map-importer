@@ -282,13 +282,32 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
     std::set<std::string> mdlmtls;
     std::string extraoptions = "";
 
+    auto cleanMdlPath = [](std::string input) -> std::string {
+        size_t filePos = input.find("\"file\"");
+        if (filePos != std::string::npos) {
+            input = input.substr(filePos + 6);
+        }
+        size_t start = input.find_first_not_of(" \t\"");
+        if (start != std::string::npos) {
+            input = input.substr(start);
+        } else {
+            return "";
+        }
+        size_t end = input.find_last_not_of(" \t\"");
+        if (end != std::string::npos) {
+            input = input.substr(0, end + 1);
+        }
+        return input;
+    };
+
     for (const auto& m : mdlfiles) {
         if (m.empty()) continue;
         if (m[0] == '-') {
             if (m == "-" || m == "-nooptions") extraoptions = "";
             else extraoptions = m;
         } else {
-            std::string mdlfile = m;
+            std::string mdlfile = cleanMdlPath(m);
+            if (mdlfile.empty()) continue;
             std::replace(mdlfile.begin(), mdlfile.end(), '/', '\\');
 
             std::string infile = mdlfile;
@@ -350,7 +369,8 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
 
     for (const auto& m : mdlfiles) {
         if (m.empty() || m[0] == '-') continue;
-        std::string mdlfile = m;
+        std::string mdlfile = cleanMdlPath(m);
+        if (mdlfile.empty()) continue;
         std::replace(mdlfile.begin(), mdlfile.end(), '/', '\\');
 
         std::string outName = m_options.s2contentdir + "\\" + mdlfile;
