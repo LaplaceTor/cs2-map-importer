@@ -25,18 +25,86 @@ void MapImporter::Log(const std::string& msg) {
 
 int MapImporter::RunCommand(const std::string& cmd) {
     Log(cmd);
+#ifdef _WIN32
+    SECURITY_ATTRIBUTES saAttr;
+    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+    saAttr.bInheritHandle = TRUE;
+    saAttr.lpSecurityDescriptor = NULL;
+    HANDLE hChildStd_OUT_Rd = NULL;
+    HANDLE hChildStd_OUT_Wr = NULL;
+    if (!CreatePipe(&hChildStd_OUT_Rd, &hChildStd_OUT_Wr, &saAttr, 0)) {
+        Log("Failed to create pipe.");
+        return -1;
+    }
+    if (!SetHandleInformation(hChildStd_OUT_Rd, HANDLE_FLAG_INHERIT, 0)) {
+        Log("Failed to set handle information.");
+        CloseHandle(hChildStd_OUT_Rd);
+        CloseHandle(hChildStd_OUT_Wr);
+        return -1;
+    }
+    PROCESS_INFORMATION piProcInfo;
+    ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
+    STARTUPINFOA siStartInfo;
+    ZeroMemory(&siStartInfo, sizeof(STARTUPINFOA));
+    siStartInfo.cb = sizeof(STARTUPINFOA);
+    siStartInfo.hStdError = hChildStd_OUT_Wr;
+    siStartInfo.hStdOutput = hChildStd_OUT_Wr;
+    siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
+    // Use CREATE_NO_WINDOW to hide the console window
+    std::string writableCmd = cmd;
+    BOOL bSuccess = CreateProcessA(
+        NULL,
+        writableCmd.data(),
+        NULL,
+        NULL,
+        TRUE,
+        CREATE_NO_WINDOW,
+        NULL,
+        NULL,
+        &siStartInfo,
+        &piProcInfo
+    );
+    if (!bSuccess) {
+        Log("Failed to run command.");
+        CloseHandle(hChildStd_OUT_Rd);
+        CloseHandle(hChildStd_OUT_Wr);
+        return -1;
+    }
+    CloseHandle(hChildStd_OUT_Wr);
+    DWORD dwRead;
+    CHAR chBuf[4096];
+    std::string outputBuffer = "";
+    while (true) {
+        bSuccess = ReadFile(hChildStd_OUT_Rd, chBuf, sizeof(chBuf) - 1, &dwRead, NULL);
+        if (!bSuccess || dwRead == 0) break;
+        chBuf[dwRead] = '\0';
+        outputBuffer += chBuf;
+        size_t pos;
+        while ((pos = outputBuffer.find('\n')) != std::string::npos) {
+            std::string line_out = outputBuffer.substr(0, pos);
+            if (!line_out.empty() && line_out.back() == '\r') line_out.pop_back();
+            Log(line_out);
+            outputBuffer.erase(0, pos + 1);
+        }
+    }
+    if (!outputBuffer.empty()) {
+        if (!outputBuffer.empty() && outputBuffer.back() == '\r') outputBuffer.pop_back();
+        Log(outputBuffer);
+    }
+    CloseHandle(hChildStd_OUT_Rd);
+    DWORD exitCode;
+    WaitForSingleObject(piProcInfo.hProcess, INFINITE);
+    GetExitCodeProcess(piProcInfo.hProcess, &exitCode);
 
-    std::string fullCmd = "cmd.exe /c \"";
-    // Setup environment path to include cs2 bin dir
-    std::string binPath = m_options.cs2_basefolder + "\\game\\bin\\win64";
-    fullCmd += "set PATH=" + binPath + ";%PATH% && " + cmd + "\"";
-
-    std::unique_ptr<FILE, int(*)(FILE*)> pipe(POPEN(fullCmd.c_str(), "r"), PCLOSE);
+    CloseHandle(piProcInfo.hProcess);
+    CloseHandle(piProcInfo.hThread);
+    return exitCode;
+#else
+    std::unique_ptr<FILE, int(*)(FILE*)> pipe(POPEN(cmd.c_str(), "r"), PCLOSE);
     if (!pipe) {
         Log("Failed to run command.");
         return -1;
     }
-
     std::array<char, 128> buffer;
     while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
         std::string output = buffer.data();
@@ -46,8 +114,8 @@ int MapImporter::RunCommand(const std::string& cmd) {
              Log(output);
         }
     }
-
     return 0; // simplified
+#endif
 }
 
 std::vector<std::string> MapImporter::ReadTextFile(const std::string& filepath) {
@@ -232,7 +300,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
             pos = refsName.rfind(".mdl");
             if (pos != std::string::npos) refsName.replace(pos, 4, "_refs.txt");
 
-            std::string importCmd = "cs_mdl_import.exe -nop4 " + extraoptions + " -i \"" + m_options.s1gamedir + "\" -o \"" + m_options.s2contentdir + "\" \"" + infile + "\"";
+            std::string importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\cs_mdl_import.exe\"  -nop4 " + extraoptions + " -i \"" + m_options.s1gamedir + "\" -o \"" + m_options.s2contentdir + "\" \"" + infile + "\"";
             RunCommand(importCmd);
 
             if (fs::exists(refsName)) {
@@ -254,7 +322,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
     for (const auto& mtl : mdlmtls) fw << mtl << "\n";
     fw.close();
 
-    std::string importRefsCmd = "source1import.exe -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game " + m_options.s1gamename + " -usefilelist \"" + temp_refs + "\"";
+    std::string importRefsCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\"  -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game " + m_options.s1gamename + " -usefilelist \"" + temp_refs + "\"";
     RunCommand(importRefsCmd);
 
     std::set<std::string> global2UVMaterials;
@@ -276,7 +344,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
         pos = outName.rfind(".vmt");
         if (pos != std::string::npos) outName.replace(pos, 4, ".vmat");
 
-        std::string resCompCmd = "resourcecompiler.exe -retail -nop4 -game " + m_options.s1gamename + " \"" + outName + "\"";
+        std::string resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -game " + m_options.s1gamename + " \"" + outName + "\"";
         RunCommand(resCompCmd);
     }
 
@@ -299,16 +367,16 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
 
         std::string resCompCmd;
         if (bForceCompile) {
-            resCompCmd = "resourcecompiler.exe -retail -nop4 -f -game " + m_options.s1gamename + " \"" + outName + "\"";
+            resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -f -game " + m_options.s1gamename + " \"" + outName + "\"";
         } else {
-            resCompCmd = "resourcecompiler.exe -retail -nop4 -game " + m_options.s1gamename + " \"" + outName + "\"";
+            resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -game " + m_options.s1gamename + " \"" + outName + "\"";
         }
         RunCommand(resCompCmd);
     }
 }
 
 void MapImporter::ImportAndCompileMapRefs(const std::string& refsFile) {
-    std::string importcmd = "source1import.exe -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game " + m_options.s1gamename + " -usefilelist \"" + refsFile + "\"";
+    std::string importcmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\"  -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game " + m_options.s1gamename + " -usefilelist \"" + refsFile + "\"";
     RunCommand(importcmd);
 
     auto refs = ReadTextFile(refsFile);
@@ -331,7 +399,7 @@ void MapImporter::ImportAndCompileMapRefs(const std::string& refsFile) {
     writeFile << newList;
     writeFile.close();
 
-    std::string compilercmd = "resourcecompiler.exe -retail -nop4 -game " + m_options.s1gamename + " -f -filelist \"" + tmpFile + "\"";
+    std::string compilercmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -game " + m_options.s1gamename + " -f -filelist \"" + tmpFile + "\"";
     RunCommand(compilercmd);
 }
 
@@ -341,7 +409,7 @@ bool MapImporter::Run() {
     std::string usebspStr = m_options.usebsp ? "-usebsp" : "";
     std::string nomergeinstancesStr = m_options.usebsp_nomergeinstances ? "-usebsp_nomergeinstances" : "";
 
-    std::string mapImportCmd = "source1import.exe -retail -nop4 -nop4sync " + usebspStr;
+    std::string mapImportCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\"  -retail -nop4 -nop4sync " + usebspStr;
     if (!nomergeinstancesStr.empty()) mapImportCmd += " " + nomergeinstancesStr;
     mapImportCmd += " -src1gameinfodir \"" + m_options.s1gamedir + "\" -src1contentdir \"" + m_options.s1contentdir + "\" -s2addon \"" + m_options.s2addonname + "\" -game " + m_options.s1gamename + " maps\\" + m_options.mapname + ".vmf";
 
