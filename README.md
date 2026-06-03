@@ -8,7 +8,7 @@ The tools provided by Valve for importing maps aren't very user friendly, this t
 - Automatically remove .decode() in import scripts and disable vpk signature check.
 - Separate CS2 and CSGO folders.
 - Import script patching to fix known issues.
-- - Add ability to validate csgo and cs2.
+- Add ability to validate csgo and cs2.
 - Import maps always copy to what program in as a backup.
 - Don't need to add cs2 path to your environment.
 - Automatically check coloroma is install or not and install it if not.
