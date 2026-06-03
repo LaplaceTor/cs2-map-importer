@@ -1,7 +1,7 @@
 # [CS2] Map Import Tool
 The tools provided by Valve for importing maps aren't very user friendly, then I made a new one here.
 
-## Python version that fork from sarrim's one
+## Python version that fork from sarim's one
 No longer support, no more features, but you still got these features different from sarrim's one:
 - Automatically disable vpk signature check.
 - Add ability to validate csgo and cs2.
