@@ -71,6 +71,9 @@ Importer::Importer(QWidget *parent) :
     connect(ui->usebsp_checkbox, &QCheckBox::stateChanged, this, &Importer::get_launch_options);
     connect(ui->usebsp_nomergeinstances_checkbox, &QCheckBox::stateChanged, this, &Importer::get_launch_options);
     connect(ui->skipdeps_checkbox, &QCheckBox::stateChanged, this, &Importer::get_launch_options);
+
+    // Initial state
+    ui->usebsp_nomergeinstances_checkbox->setEnabled(ui->usebsp_checkbox->isChecked());
 }
 
 Importer::~Importer()
@@ -127,7 +130,6 @@ void Importer::set_tooltips()
     ui->cs2_button->setToolTip("Use \"Counter-Strike Global Offensive\" folder or any folder inside it.");
     ui->s1_button->setToolTip("Use \"csgo legacy\" folder or any folder inside it.");
     ui->vmf_button->setToolTip("Does not need to be in a \"maps\" folder, one will be created then deleted afterwards if necessary.");
-    ui->config_checkbox->setToolTip("Auto-selects folders, auto-selects .VMF folder when you open the dialog, and auto-fills launch options for next time.");
     ui->usebsp_checkbox->setToolTip("This runs the map through a special vbsp process to generate clean map geometry from brushes, removing hidden faces and stitching up edges, making the CS2 version easier to work with in Hammer. It preserves world (vis) brushes and func_detail brushes for compatibility with Source 2. This parameter will also merge all func_instances in your map. Note that the final geometry will be triangulated, but cleaning it up is a fairly simple process, which will be explained in another guide.");
     ui->usebsp_nomergeinstances_checkbox->setToolTip("Use this instead of -usebsp if you wish to both generate clean geo and also preserve func_instances. Note that this takes a little longer as it has to run through the import process twice. The final geometry will also be triangulated.");
     ui->skipdeps_checkbox->setToolTip("Optional: skips importing all dependencies/content and only generates the vmap file(s). This provides a 'quick' import when iterating entities for example. Do not run with this if you are importing for the first time.");
@@ -282,7 +284,8 @@ void Importer::select_bsp()
 
 void Importer::on_usebsp_toggled(bool checked)
 {
-    if (checked) {
+    ui->usebsp_nomergeinstances_checkbox->setEnabled(checked);
+    if (!checked) {
         ui->usebsp_nomergeinstances_checkbox->setChecked(false);
     }
 }
@@ -290,7 +293,7 @@ void Importer::on_usebsp_toggled(bool checked)
 void Importer::on_usebsp_nomergeinstances_toggled(bool checked)
 {
     if (checked) {
-        ui->usebsp_checkbox->setChecked(false);
+        ui->usebsp_checkbox->setChecked(true);
     }
 }
 
@@ -302,8 +305,13 @@ void Importer::get_addon_name()
 void Importer::get_launch_options()
 {
     QStringList options;
-    if (ui->usebsp_checkbox->isChecked()) options.append("-usebsp");
-    if (ui->usebsp_nomergeinstances_checkbox->isChecked()) options.append("-usebsp_nomergeinstances");
+    if (ui->usebsp_checkbox->isChecked()) {
+        if (ui->usebsp_nomergeinstances_checkbox->isChecked()) {
+            options.append("-usebsp_nomergeinstances");
+        } else {
+            options.append("-usebsp");
+        }
+    }
     if (ui->skipdeps_checkbox->isChecked()) options.append("-skipdeps");
     launch_options = options.join(" ");
 }
@@ -354,6 +362,7 @@ void Importer::load_from_cfg()
             if (temp.size() >= 6) {
                 ui->usebsp_checkbox->setChecked(temp[0] == "True");
                 ui->usebsp_nomergeinstances_checkbox->setChecked(temp[1] == "True");
+                ui->usebsp_nomergeinstances_checkbox->setEnabled(temp[0] == "True");
                 ui->skipdeps_checkbox->setChecked(temp[2] == "True");
                 set_cs2_folder(temp[3]);
 
@@ -406,9 +415,8 @@ void Importer::go()
         if (addon_name.trimmed().isEmpty()) {
             addon_name = map_name;
         }
-        if (ui->config_checkbox->isChecked()) {
-            save_to_cfg();
-        }
+
+        save_to_cfg();
 
         QString log_dir_path = QDir(app_dir).filePath("log");
         QDir().mkpath(log_dir_path);
@@ -451,8 +459,8 @@ void Importer::go()
         opts.bsp_file = bsp_file.toStdString();
         opts.app_dir = app_dir.toStdString();
         opts.addon_name = addon_name.toStdString();
-        opts.usebsp = ui->usebsp_checkbox->isChecked();
-        opts.usebsp_nomergeinstances = ui->usebsp_nomergeinstances_checkbox->isChecked();
+        opts.usebsp = ui->usebsp_checkbox->isChecked() && !ui->usebsp_nomergeinstances_checkbox->isChecked();
+        opts.usebsp_nomergeinstances = ui->usebsp_checkbox->isChecked() && ui->usebsp_nomergeinstances_checkbox->isChecked();
         opts.skipdeps = ui->skipdeps_checkbox->isChecked();
 
         opts.logger = [this](const std::string& msg) {
