@@ -282,34 +282,52 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
     std::set<std::string> mdlmtls;
     std::string extraoptions = "";
 
+    auto cleanMdlPath = [](std::string input) -> std::string {
+        size_t filePos = input.find("\"file\"");
+        if (filePos != std::string::npos) {
+            input = input.substr(filePos + 6);
+        }
+        size_t start = input.find_first_not_of(" \t\"");
+        if (start != std::string::npos) {
+            input = input.substr(start);
+        } else {
+            return "";
+        }
+        size_t end = input.find_last_not_of(" \t\"");
+        if (end != std::string::npos) {
+            input = input.substr(0, end + 1);
+        }
+        return input;
+    };
+
     for (const auto& m : mdlfiles) {
         if (m.empty()) continue;
         if (m[0] == '-') {
             if (m == "-" || m == "-nooptions") extraoptions = "";
             else extraoptions = m;
-        } else {
-            std::string mdlfile = m;
-            std::replace(mdlfile.begin(), mdlfile.end(), '/', '\\');
+        }
+    }
 
-            std::string infile = mdlfile;
-            std::string outName = m_options.s2contentdir + "\\" + mdlfile;
-            size_t pos = outName.rfind(".mdl");
-            if (pos != std::string::npos) outName.replace(pos, 4, ".vmdl");
+    std::string importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\cs_mdl_import.exe\"  -nop4 " + extraoptions + " -i \"" + m_options.s1gamedir + "\" -o \"" + m_options.s2contentdir + "\" -l \"" + filename + "\"";
+    RunCommand(importCmd);
 
-            std::string refsName = m_options.s2contentdir + "\\" + mdlfile;
-            pos = refsName.rfind(".mdl");
-            if (pos != std::string::npos) refsName.replace(pos, 4, "_refs.txt");
+    for (const auto& m : mdlfiles) {
+        if (m.empty() || m[0] == '-') continue;
 
-            std::string importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\cs_mdl_import.exe\"  -nop4 " + extraoptions + " -i \"" + m_options.s1gamedir + "\" -o \"" + m_options.s2contentdir + "\" \"" + infile + "\"";
-            RunCommand(importCmd);
+        std::string mdlfile = cleanMdlPath(m);
+        if (mdlfile.empty()) continue;
+        std::replace(mdlfile.begin(), mdlfile.end(), '/', '\\');
 
-            if (fs::exists(refsName)) {
-                auto refs = ReadTextFile(refsName);
-                for (const auto& ref : refs) {
-                    if (!ref.empty()) mdlmtls.insert(ref);
-                }
-                force2UVList.push_back(refsName);
+        std::string refsName = m_options.s2contentdir + "\\" + mdlfile;
+        size_t pos = refsName.rfind(".mdl");
+        if (pos != std::string::npos) refsName.replace(pos, 4, "_refs.txt");
+
+        if (fs::exists(refsName)) {
+            auto refs = ReadTextFile(refsName);
+            for (const auto& ref : refs) {
+                if (!ref.empty()) mdlmtls.insert(ref);
             }
+            force2UVList.push_back(refsName);
         }
     }
 
@@ -350,7 +368,8 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
 
     for (const auto& m : mdlfiles) {
         if (m.empty() || m[0] == '-') continue;
-        std::string mdlfile = m;
+        std::string mdlfile = cleanMdlPath(m);
+        if (mdlfile.empty()) continue;
         std::replace(mdlfile.begin(), mdlfile.end(), '/', '\\');
 
         std::string outName = m_options.s2contentdir + "\\" + mdlfile;
