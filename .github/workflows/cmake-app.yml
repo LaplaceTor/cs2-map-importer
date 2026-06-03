@@ -1,4 +1,4 @@
-name: CMake Release
+name: Build CMake Release
 
 on:
   workflow_dispatch:
