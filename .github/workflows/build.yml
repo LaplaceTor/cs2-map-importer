@@ -44,6 +44,7 @@ jobs:
         Copy-Item bspsrc\bspsrc.jar release\
         # Deploy Qt dependencies next to the executable
         windeployqt release\cs2importer.exe
+        Copy-Item -Path bin -Destination release\bin -Recurse
         cd release
         7z a cs2importer.zip *
 
