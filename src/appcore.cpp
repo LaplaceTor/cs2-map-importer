@@ -74,7 +74,7 @@ void AppCore::restore_vpk_signatures(const std::string& cs2_basefolder) {
     }
 }
 
-void AppCore::fix_top_level_key(const std::string& vmf_path, LogCallback log) {
+void AppCore::fix_vmf_from_bsp(const std::string& vmf_path, LogCallback log) {
     if (!fs::exists(vmf_path)) return;
 
     std::ifstream infile(vmf_path);
@@ -103,13 +103,28 @@ void AppCore::fix_top_level_key(const std::string& vmf_path, LogCallback log) {
 
     int visgroups_start_idx = -1;
     int visgroups_end_idx = -1;
+    bool has_versioninfo = false;
+    bool has_viewsettings = false;
+    bool has_cordon = false;
+
     for (size_t i = 0; i < lines.size(); ++i) {
         std::string trimmed = lines[i];
         trimmed.erase(0, trimmed.find_first_not_of(" \t\r\n"));
-        trimmed.erase(trimmed.find_last_not_of(" \t\r\n") + 1);
-        if (trimmed == "visgroups") {
+        if (!trimmed.empty()) {
+            trimmed.erase(trimmed.find_last_not_of(" \t\r\n") + 1);
+        }
+
+        if (trimmed == "visgroups" && visgroups_start_idx == -1) {
             visgroups_start_idx = i;
-            break;
+        }
+        if (trimmed == "versioninfo") {
+            has_versioninfo = true;
+        }
+        if (trimmed == "viewsettings") {
+            has_viewsettings = true;
+        }
+        if (trimmed == "cordon") {
+            has_cordon = true;
         }
     }
 
@@ -141,26 +156,32 @@ void AppCore::fix_top_level_key(const std::string& vmf_path, LogCallback log) {
         return;
     }
 
-    std::string versioninfo_block = "versioninfo\n{\n\t\"editorversion\" \"400\"\n\t\"editorbuild\" \"9999\"\n\t\"mapversion\" \"" + mapversion + "\"\n\t\"formatversion\" \"100\"\n\t\"prefab\" \"0\"\n}";
-
-    lines.insert(lines.begin(), versioninfo_block);
-
-    if (!visgroups_lines.empty()) {
-        lines.insert(lines.begin() + 1, visgroups_lines.begin(), visgroups_lines.end());
+    if (!has_versioninfo) {
+        std::string versioninfo_block = "versioninfo\n{\n\t\"editorversion\" \"400\"\n\t\"editorbuild\" \"9999\"\n\t\"mapversion\" \"" + mapversion + "\"\n\t\"formatversion\" \"100\"\n\t\"prefab\" \"0\"\n}";
+        lines.insert(lines.begin(), versioninfo_block);
     }
 
-    std::string viewsettings_block = "viewsettings\n{\n\t\"bSnapToGrid\" \"1\"\n\t\"bShowGrid\" \"1\"\n\t\"bShowLogicalGrid\" \"0\"\n\t\"nGridSpacing\" \"64\"\n\t\"bShow3DGrid\" \"0\"\n}";
+    if (!visgroups_lines.empty()) {
+        int insert_idx = has_versioninfo ? 0 : 1;
+        lines.insert(lines.begin() + insert_idx, visgroups_lines.begin(), visgroups_lines.end());
+    }
 
-    int insert_idx = 1 + visgroups_lines.size();
-    lines.insert(lines.begin() + insert_idx, viewsettings_block);
+    if (!has_viewsettings) {
+        std::string viewsettings_block = "viewsettings\n{\n\t\"bSnapToGrid\" \"1\"\n\t\"bShowGrid\" \"1\"\n\t\"bShowLogicalGrid\" \"0\"\n\t\"nGridSpacing\" \"64\"\n\t\"bShow3DGrid\" \"0\"\n}";
+        int insert_idx = (has_versioninfo ? 0 : 1) + visgroups_lines.size();
+        lines.insert(lines.begin() + insert_idx, viewsettings_block);
+    }
 
-    std::string cordon_block = "cordon\n{\n\t\"mins\" \"(-1024 -1024 -1024)\"\n\t\"maxs\" \"(1024 1024 1024)\"\n\t\"active\" \"0\"\n}";
-    lines.push_back(cordon_block);
+    if (!has_cordon) {
+        std::string cordon_block = "cordon\n{\n\t\"mins\" \"(-1024 -1024 -1024)\"\n\t\"maxs\" \"(1024 1024 1024)\"\n\t\"active\" \"0\"\n}";
+        lines.push_back(cordon_block);
+    }
 
     std::vector<std::string> out_lines;
     bool in_dispinfo = false;
     int open_brackets_disp = 0;
     bool in_dispinfo_bracket = false;
+    bool has_offsets = false;
 
     for (size_t i = 0; i < lines.size(); ++i) {
         std::string l = lines[i];
@@ -174,6 +195,7 @@ void AppCore::fix_top_level_key(const std::string& vmf_path, LogCallback log) {
             in_dispinfo = true;
             open_brackets_disp = 0;
             in_dispinfo_bracket = false;
+            has_offsets = false;
         }
 
         if (in_dispinfo) {
@@ -182,12 +204,17 @@ void AppCore::fix_top_level_key(const std::string& vmf_path, LogCallback log) {
             if (!in_dispinfo_bracket && l.find('{') != std::string::npos) {
                 in_dispinfo_bracket = true;
             }
+
+            if (trimmed == "offsets" || trimmed == "offset_normals") {
+                has_offsets = true;
+            }
+
             if (in_dispinfo_bracket && open_brackets_disp == 0) {
                 in_dispinfo = false;
             }
         }
 
-        if (in_dispinfo && trimmed == "alphas") {
+        if (in_dispinfo && trimmed == "alphas" && !has_offsets) {
             size_t first_non_space = l.find_first_not_of(" \t");
             std::string indent = "";
             if (first_non_space != std::string::npos) {
@@ -384,7 +411,7 @@ void AppCore::process_bsp(Options& options) {
         options.logger("Could not find unpacked embedded files directory '" + options.map_name + "'");
     }
 
-    fix_top_level_key(vmf_dest.string(), options.logger);
+    fix_vmf_from_bsp(vmf_dest.string(), options.logger);
 
     fs::path target_maps_dir = app_dir / "maps" / options.map_name / "maps";
     fs::create_directories(target_maps_dir);

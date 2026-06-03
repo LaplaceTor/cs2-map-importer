@@ -27,7 +27,7 @@ public:
 
     static bool check_java();
     static bool check_bspsrc(const std::string& base_path);
-    static void fix_top_level_key(const std::string& vmf_path, LogCallback log);
+    static void fix_vmf_from_bsp(const std::string& vmf_path, LogCallback log);
     static void move_vpk_signatures(const std::string& cs2_basefolder, bool& vpk_signatures_moved);
     static void restore_vpk_signatures(const std::string& cs2_basefolder);
 
