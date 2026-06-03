@@ -157,9 +157,53 @@ void AppCore::fix_top_level_key(const std::string& vmf_path, LogCallback log) {
     std::string cordon_block = "cordon\n{\n\t\"mins\" \"(-1024 -1024 -1024)\"\n\t\"maxs\" \"(1024 1024 1024)\"\n\t\"active\" \"0\"\n}";
     lines.push_back(cordon_block);
 
+    std::vector<std::string> out_lines;
+    bool in_dispinfo = false;
+    int open_brackets_disp = 0;
+    bool in_dispinfo_bracket = false;
+
+    for (size_t i = 0; i < lines.size(); ++i) {
+        std::string l = lines[i];
+        std::string trimmed = l;
+        trimmed.erase(0, trimmed.find_first_not_of(" \t\r\n"));
+        if (!trimmed.empty()) {
+            trimmed.erase(trimmed.find_last_not_of(" \t\r\n") + 1);
+        }
+
+        if (trimmed == "dispinfo") {
+            in_dispinfo = true;
+            open_brackets_disp = 0;
+            in_dispinfo_bracket = false;
+        }
+
+        if (in_dispinfo) {
+            open_brackets_disp += std::count(l.begin(), l.end(), '{');
+            open_brackets_disp -= std::count(l.begin(), l.end(), '}');
+            if (!in_dispinfo_bracket && l.find('{') != std::string::npos) {
+                in_dispinfo_bracket = true;
+            }
+            if (in_dispinfo_bracket && open_brackets_disp == 0) {
+                in_dispinfo = false;
+            }
+        }
+
+        if (in_dispinfo && trimmed == "alphas") {
+            size_t first_non_space = l.find_first_not_of(" \t");
+            std::string indent = "";
+            if (first_non_space != std::string::npos) {
+                indent = l.substr(0, first_non_space);
+            }
+
+            std::string offsets_block = indent + "offsets\n" + indent + "{\n" + indent + "}\n" + indent + "offsets_normals\n" + indent + "{\n" + indent + "}";
+            out_lines.push_back(offsets_block);
+        }
+
+        out_lines.push_back(l);
+    }
+
     std::ofstream outfile(vmf_path);
     if (outfile.is_open()) {
-        for (const auto& l : lines) {
+        for (const auto& l : out_lines) {
             outfile << l << "\n";
         }
     }
