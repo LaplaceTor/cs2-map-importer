@@ -305,29 +305,30 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
         if (m[0] == '-') {
             if (m == "-" || m == "-nooptions") extraoptions = "";
             else extraoptions = m;
-        }
-    }
+        } else {
+            std::string mdlfile = cleanMdlPath(m);
+            if (mdlfile.empty()) continue;
+            std::replace(mdlfile.begin(), mdlfile.end(), '/', '\\');
 
-    std::string importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\cs_mdl_import.exe\"  -nop4 " + extraoptions + " -i \"" + m_options.s1gamedir + "\" -o \"" + m_options.s2contentdir + "\" -l \"" + filename + "\"";
-    RunCommand(importCmd);
+            std::string infile = mdlfile;
+            std::string outName = m_options.s2contentdir + "\\" + mdlfile;
+            size_t pos = outName.rfind(".mdl");
+            if (pos != std::string::npos) outName.replace(pos, 4, ".vmdl");
 
-    for (const auto& m : mdlfiles) {
-        if (m.empty() || m[0] == '-') continue;
+            std::string refsName = m_options.s2contentdir + "\\" + mdlfile;
+            pos = refsName.rfind(".mdl");
+            if (pos != std::string::npos) refsName.replace(pos, 4, "_refs.txt");
 
-        std::string mdlfile = cleanMdlPath(m);
-        if (mdlfile.empty()) continue;
-        std::replace(mdlfile.begin(), mdlfile.end(), '/', '\\');
+            std::string importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\cs_mdl_import.exe\"  -nop4 " + extraoptions + " -i \"" + m_options.s1gamedir + "\" -o \"" + m_options.s2contentdir + "\" \"" + infile + "\"";
+            RunCommand(importCmd);
 
-        std::string refsName = m_options.s2contentdir + "\\" + mdlfile;
-        size_t pos = refsName.rfind(".mdl");
-        if (pos != std::string::npos) refsName.replace(pos, 4, "_refs.txt");
-
-        if (fs::exists(refsName)) {
-            auto refs = ReadTextFile(refsName);
-            for (const auto& ref : refs) {
-                if (!ref.empty()) mdlmtls.insert(ref);
+            if (fs::exists(refsName)) {
+                auto refs = ReadTextFile(refsName);
+                for (const auto& ref : refs) {
+                    if (!ref.empty()) mdlmtls.insert(ref);
+                }
+                force2UVList.push_back(refsName);
             }
-            force2UVList.push_back(refsName);
         }
     }
 
