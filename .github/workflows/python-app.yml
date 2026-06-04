@@ -1,7 +1,8 @@
 name: Build Python Release
 
 on:
-  workflow_dispatch:
+  push:
+    branches: "python"
 
 jobs:
   build:
