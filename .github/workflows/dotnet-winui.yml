@@ -37,7 +37,7 @@ jobs:
       shell: pwsh
       run: |
         mkdir release
-        Copy-Item -Path "src\CS2Importer\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\*" -Destination release -Recurse
+        Copy-Item -Path "src\CS2Importer\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish\*" -Destination release -Recurse
         Copy-Item -Path "bspsrc\bspsrc.jar" -Destination release
         if (Test-Path bin) { Copy-Item -Path bin -Destination release\bin -Recurse }
         cd release
