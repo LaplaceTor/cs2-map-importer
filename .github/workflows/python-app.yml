@@ -1,0 +1,58 @@
+name: Build Python Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller PyQt5
+
+    - name: Download bspsrc
+      shell: pwsh
+      run: |
+        Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip" -OutFile "bspsrc.zip"
+        Expand-Archive -Path bspsrc.zip -DestinationPath bspsrc
+        Copy-Item bspsrc/bspsrc.jar bspsrc.jar
+
+    - name: Build with PyInstaller
+      run: |
+        pyinstaller --onefile src/cs2importer.py
+
+    - name: Prepare Release Artifacts
+      run: |
+        mkdir release
+        move dist\cs2importer.exe release\
+        move bspsrc.jar release\
+        cd release
+        7z a cs2importer.zip cs2importer.exe bspsrc.jar
+
+    - name: Get commit SHA
+      id: vars
+      shell: bash
+      run: |
+        echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: release-${{ steps.vars.outputs.sha_short }}
+        name: CS2 Importer Python Release ${{ steps.vars.outputs.sha_short }}
+        files: release/cs2importer.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
