@@ -3,7 +3,6 @@ name: Build CMake Release
 on:
   workflow_dispatch:
 
-
 jobs:
   build:
     runs-on: windows-latest
@@ -14,16 +13,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Qt
-      uses: jurplel/install-qt-action@v3
-      with:
-        version: '5.15.2'
-        host: 'windows'
-        target: 'desktop'
-        arch: 'win64_msvc2019_64'
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v1.1
 
     - name: Configure CMake
-      run: cmake -B build -S .
+      run: cmake -B build -S . -G "Visual Studio 17 2022" -A x64
 
     - name: Build with CMake
       run: cmake --build build --config Release
@@ -33,17 +27,13 @@ jobs:
       run: |
         Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip" -OutFile "bspsrc.zip"
         Expand-Archive -Path bspsrc.zip -DestinationPath bspsrc
-        # It will be placed next to the built executable later
 
     - name: Prepare Release Artifacts
       shell: pwsh
       run: |
         mkdir release
-        # The built executable is usually in build\Release\ on Windows MSVC
-        Copy-Item build\Release\cs2importer.exe release\
+        Copy-Item build\Release\* release\ -Recurse
         Copy-Item bspsrc\bspsrc.jar release\
-        # Deploy Qt dependencies next to the executable
-        windeployqt release\cs2importer.exe
         Copy-Item -Path bin -Destination release\bin -Recurse
         cd release
         7z a cs2importer.zip *

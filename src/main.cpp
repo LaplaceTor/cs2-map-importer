@@ -1,11 +1,18 @@
-#include <QApplication>
-#include "ui.h"
+#include "pch.h"
+#include "App.xaml.h"
+#include <winrt/Microsoft.UI.Xaml.h>
 
-int main(int argc, char *argv[])
+using namespace winrt;
+
+int __stdcall wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
 {
-    QApplication a(argc, argv);
+    init_apartment(apartment_type::single_threaded);
 
-    Importer w;
-    w.show();
-    return a.exec();
+    ::winrt::Microsoft::UI::Xaml::Application::Start(
+        [](auto&&)
+        {
+            ::winrt::make<::winrt::cs2importer::implementation::App>();
+        });
+
+    return 0;
 }
