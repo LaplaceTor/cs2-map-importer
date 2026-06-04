@@ -102,9 +102,8 @@ namespace CS2Importer
 
             try
             {
-                // In C#, instead of passing the whole string to cmd.exe or CreateProcess,
-                // we can just use cmd.exe /c
-                var processInfo = new ProcessStartInfo("cmd.exe", "/c " + cmd)
+                // Wrap the entire command string in an extra set of quotes to prevent cmd.exe from stripping quotes
+                var processInfo = new ProcessStartInfo("cmd.exe", "/c \"" + cmd + "\"")
                 {
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,

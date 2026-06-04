@@ -22,6 +22,11 @@
     <None Remove="MainWindow.xaml" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
+  </PropertyGroup>
+
   <ItemGroup>
     <ApplicationDefinition Include="App.xaml">
       <SubType>Designer</SubType>
