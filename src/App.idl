@@ -1,0 +1,8 @@
+namespace cs2importer
+{
+    [default_interface]
+    runtimeclass App : Microsoft.UI.Xaml.Application
+    {
+        App();
+    }
+}
