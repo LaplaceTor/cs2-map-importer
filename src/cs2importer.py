@@ -241,7 +241,7 @@ class Importer(QMainWindow, Interface):
         with open("cs2importer.cfg", "w") as f:
             f.write(temp)
 
-    def fix_top_level_key(self, vmf_path):
+    def fix_vmf_from_bsp(self, vmf_path):
         if not os.path.exists(vmf_path):
             return
 
@@ -340,8 +340,89 @@ class Importer(QMainWindow, Interface):
             lines[-1] += '\n'
         lines.append(cordon_block)
 
+        new_lines = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+
+            if stripped == "dispinfo":
+                # Collect the dispinfo block
+                dispinfo_lines = []
+                found_first_bracket = False
+                dispinfo_open_brackets = 0
+                j = i
+                while j < len(lines):
+                    dispinfo_lines.append(lines[j])
+                    b_open = lines[j].count('{')
+                    b_close = lines[j].count('}')
+                    dispinfo_open_brackets += b_open
+                    dispinfo_open_brackets -= b_close
+                    if '{' in lines[j]:
+                        found_first_bracket = True
+
+                    if found_first_bracket and dispinfo_open_brackets == 0:
+                        break
+                    j += 1
+
+                # Check for existing offsets/offset_normals
+                has_offsets = False
+                has_offset_normals = False
+                for dl in dispinfo_lines:
+                    if dl.strip() == "offsets":
+                        has_offsets = True
+                    if dl.strip() == "offset_normals":
+                        has_offset_normals = True
+
+                if not has_offsets or not has_offset_normals:
+                    modified_dispinfo = []
+                    for dl in dispinfo_lines:
+                        if dl.strip() == "alphas":
+                            indent = dl[:len(dl) - len(dl.lstrip())]
+                            if not has_offsets:
+                                offsets_block = f"""{indent}offsets
+{indent}{{
+{indent}\t"row0" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row1" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row2" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row3" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row4" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row5" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row6" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row7" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row8" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}}}
+"""
+                                modified_dispinfo.append(offsets_block)
+
+                            if not has_offset_normals:
+                                offset_normals_block = f"""{indent}offset_normals
+{indent}{{
+{indent}\t"row0" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row1" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row2" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row3" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row4" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row5" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row6" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row7" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row8" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}}}
+"""
+                                modified_dispinfo.append(offset_normals_block)
+
+                        modified_dispinfo.append(dl)
+                    new_lines.extend(modified_dispinfo)
+                else:
+                    new_lines.extend(dispinfo_lines)
+
+                i = j + 1
+            else:
+                new_lines.append(line)
+                i += 1
+
         with open(vmf_path, 'w', encoding='utf-8') as f:
-            f.writelines(lines)
+            f.writelines(new_lines)
 
     def load_from_cfg(self):
         if not os.path.isfile("cs2importer.cfg"):
@@ -510,7 +591,7 @@ class Importer(QMainWindow, Interface):
                     print(f"Could not find unpacked embedded files directory '{self.map_name}'")
 
                 # Fix versioninfo in the decompiled VMF
-                self.fix_top_level_key(vmf_dest)
+                self.fix_vmf_from_bsp(vmf_dest)
 
                 self.vmf_folder = self.app_dir
                 print(f"Decompiled to: {vmf_dest}")
