@@ -20,7 +20,6 @@
 Importer::Importer(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
-    bspsrc_installed(false),
     java_installed(false),
     vmf_default_path("C:\\"),
     content_folder_to_save("C:\\"),
@@ -36,17 +35,16 @@ Importer::Importer(QWidget *parent) :
     log("Initializing CS2 Importer...");
 
     java_installed = AppCore::check_java();
-    bspsrc_installed = AppCore::check_bspsrc(app_dir.toStdString());
 
     set_tooltips();
     set_stylesheets();
     get_addon_name();
     get_launch_options();
 
-    if (!java_installed || !bspsrc_installed) {
-        ui->bsp_button->setToolTip("Java or bspsrc.jar is missing. BSP decompilation is disabled.");
+    if (!java_installed) {
+        ui->bsp_button->setToolTip("Java is missing. BSP decompilation is disabled.");
         ui->bsp_button->setEnabled(false);
-        log("Warning: Java or bspsrc.jar is missing. BSP decompilation disabled.");
+        log("Warning: Java is missing. BSP decompilation disabled.");
     }
 
     load_from_cfg();
@@ -74,6 +72,8 @@ Importer::Importer(QWidget *parent) :
 
     // Initial state
     ui->usebsp_nomergeinstances_checkbox->setEnabled(ui->usebsp_checkbox->isChecked());
+
+    log("Initializing CS2 Importer... Finished");
 }
 
 Importer::~Importer()
@@ -397,6 +397,8 @@ void Importer::load_from_cfg()
 
 void Importer::go()
 {
+    ui->log_output->clear();
+
     if (cs2_basefolder.isEmpty()) {
         QMessageBox::warning(this, "Validation Error", "CS2 folder not selected.");
         return;
