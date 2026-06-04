@@ -38,7 +38,6 @@ private:
     Ui::MainWindow *ui;
 
     QString app_dir;
-    bool bspsrc_installed;
     bool java_installed;
     QString vmf_default_path;
     QString cs2_basefolder;

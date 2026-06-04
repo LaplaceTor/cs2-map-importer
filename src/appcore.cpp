@@ -34,11 +34,6 @@ bool AppCore::check_java() {
     return output.find("version") != std::string::npos;
 }
 
-bool AppCore::check_bspsrc(const std::string& base_path) {
-    fs::path p = fs::path(base_path) / "bspsrc.jar";
-    return fs::exists(p);
-}
-
 void AppCore::move_vpk_signatures(const std::string& cs2_basefolder, bool& vpk_signatures_moved) {
     if (cs2_basefolder.empty()) return;
 
