@@ -344,22 +344,43 @@ class Importer(QMainWindow, Interface):
         i = 0
         while i < len(lines):
             line = lines[i]
-            # When we see 'alphas', we check if we're inside 'dispinfo' block (simplest way is to just look for 'alphas {' structure, but better to check if it's 'alphas' inside dispinfo).
-            # The exact requirement is: I need to add these lines between distances and alphas for each "dispinfo"
-            # It's safest to look for "alphas" at any indent and insert the blocks with the same indent if it matches the pattern.
-            stripped_line = line.strip()
-            if stripped_line == "alphas":
-                # Calculate the indent
-                indent = line[:len(line) - len(line.lstrip())]
+            stripped = line.strip()
 
-                # We also need to be sure we are inside dispinfo.
-                # A simple way to inject between distances and alphas is to just inject before 'alphas' when we encounter it,
-                # assuming 'alphas' only appears in 'dispinfo' blocks in VMF (which is true for standard VMFs, it's only in dispinfo).
+            if stripped == "dispinfo":
+                # Collect the dispinfo block
+                dispinfo_lines = []
+                found_first_bracket = False
+                dispinfo_open_brackets = 0
+                j = i
+                while j < len(lines):
+                    dispinfo_lines.append(lines[j])
+                    b_open = lines[j].count('{')
+                    b_close = lines[j].count('}')
+                    dispinfo_open_brackets += b_open
+                    dispinfo_open_brackets -= b_close
+                    if '{' in lines[j]:
+                        found_first_bracket = True
 
-                # Check previous lines to confirm we just passed distances
-                # Actually, just inserting before `alphas` is sufficient and matches the structure.
+                    if found_first_bracket and dispinfo_open_brackets == 0:
+                        break
+                    j += 1
 
-                offsets_block = f"""{indent}offsets
+                # Check for existing offsets/offset_normals
+                has_offsets = False
+                has_offset_normals = False
+                for dl in dispinfo_lines:
+                    if dl.strip() == "offsets":
+                        has_offsets = True
+                    if dl.strip() == "offset_normals":
+                        has_offset_normals = True
+
+                if not has_offsets or not has_offset_normals:
+                    modified_dispinfo = []
+                    for dl in dispinfo_lines:
+                        if dl.strip() == "alphas":
+                            indent = dl[:len(dl) - len(dl.lstrip())]
+                            if not has_offsets:
+                                offsets_block = f"""{indent}offsets
 {indent}{{
 {indent}\t"row0" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
 {indent}\t"row1" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
@@ -371,7 +392,11 @@ class Importer(QMainWindow, Interface):
 {indent}\t"row7" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
 {indent}\t"row8" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
 {indent}}}
-{indent}offset_normals
+"""
+                                modified_dispinfo.append(offsets_block)
+
+                            if not has_offset_normals:
+                                offset_normals_block = f"""{indent}offset_normals
 {indent}{{
 {indent}\t"row0" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
 {indent}\t"row1" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
@@ -384,10 +409,17 @@ class Importer(QMainWindow, Interface):
 {indent}\t"row8" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
 {indent}}}
 """
-                new_lines.append(offsets_block)
+                                modified_dispinfo.append(offset_normals_block)
 
-            new_lines.append(line)
-            i += 1
+                        modified_dispinfo.append(dl)
+                    new_lines.extend(modified_dispinfo)
+                else:
+                    new_lines.extend(dispinfo_lines)
+
+                i = j + 1
+            else:
+                new_lines.append(line)
+                i += 1
 
         with open(vmf_path, 'w', encoding='utf-8') as f:
             f.writelines(new_lines)
