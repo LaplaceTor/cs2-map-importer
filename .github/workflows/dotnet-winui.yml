@@ -25,7 +25,7 @@ jobs:
       run: dotnet restore CS2Importer.sln
 
     - name: Build and Publish
-      run: dotnet publish src/CS2Importer/CS2Importer.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:WindowsAppSDKSelfContained=true
+      run: dotnet publish src/CS2Importer/CS2Importer.csproj -c Release -r win-x64 -p:Platform=x64 --self-contained true -p:PublishSingleFile=false -p:WindowsAppSDKSelfContained=true
 
     - name: Download bspsrc
       shell: pwsh
