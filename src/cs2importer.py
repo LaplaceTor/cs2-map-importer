@@ -241,7 +241,7 @@ class Importer(QMainWindow, Interface):
         with open("cs2importer.cfg", "w") as f:
             f.write(temp)
 
-    def fix_top_level_key(self, vmf_path):
+    def fix_vmf_from_bsp(self, vmf_path):
         if not os.path.exists(vmf_path):
             return
 
@@ -340,8 +340,57 @@ class Importer(QMainWindow, Interface):
             lines[-1] += '\n'
         lines.append(cordon_block)
 
+        new_lines = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            # When we see 'alphas', we check if we're inside 'dispinfo' block (simplest way is to just look for 'alphas {' structure, but better to check if it's 'alphas' inside dispinfo).
+            # The exact requirement is: I need to add these lines between distances and alphas for each "dispinfo"
+            # It's safest to look for "alphas" at any indent and insert the blocks with the same indent if it matches the pattern.
+            stripped_line = line.strip()
+            if stripped_line == "alphas":
+                # Calculate the indent
+                indent = line[:len(line) - len(line.lstrip())]
+
+                # We also need to be sure we are inside dispinfo.
+                # A simple way to inject between distances and alphas is to just inject before 'alphas' when we encounter it,
+                # assuming 'alphas' only appears in 'dispinfo' blocks in VMF (which is true for standard VMFs, it's only in dispinfo).
+
+                # Check previous lines to confirm we just passed distances
+                # Actually, just inserting before `alphas` is sufficient and matches the structure.
+
+                offsets_block = f"""{indent}offsets
+{indent}{{
+{indent}\t"row0" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row1" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row2" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row3" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row4" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row5" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row6" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row7" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}\t"row8" "0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+{indent}}}
+{indent}offset_normals
+{indent}{{
+{indent}\t"row0" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row1" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row2" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row3" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row4" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row5" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row6" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row7" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}\t"row8" "0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1"
+{indent}}}
+"""
+                new_lines.append(offsets_block)
+
+            new_lines.append(line)
+            i += 1
+
         with open(vmf_path, 'w', encoding='utf-8') as f:
-            f.writelines(lines)
+            f.writelines(new_lines)
 
     def load_from_cfg(self):
         if not os.path.isfile("cs2importer.cfg"):
@@ -510,7 +559,7 @@ class Importer(QMainWindow, Interface):
                     print(f"Could not find unpacked embedded files directory '{self.map_name}'")
 
                 # Fix versioninfo in the decompiled VMF
-                self.fix_top_level_key(vmf_dest)
+                self.fix_vmf_from_bsp(vmf_dest)
 
                 self.vmf_folder = self.app_dir
                 print(f"Decompiled to: {vmf_dest}")
