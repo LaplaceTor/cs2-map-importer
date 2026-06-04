@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CS2Importer/CS2Importer.csproj" />
+  </Folder>
+</Solution>

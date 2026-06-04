@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="CS2Importer.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:CS2Importer"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="CS2 Map Importer"
+    Width="800"
+    Height="600">
+
+    <Grid Margin="20" RowSpacing="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Paths -->
+        <StackPanel Grid.Row="0" Spacing="10">
+            <TextBlock Text="Paths" Style="{StaticResource SubtitleTextBlockStyle}"/>
+
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="100"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="CS2 Path:" VerticalAlignment="Center" Width="80"/>
+                <TextBox x:Name="cs2PathTextBox" Grid.Column="1" IsReadOnly="True" />
+                <Button x:Name="selectCs2Button" Grid.Column="2" Content="Select Folder" Click="SelectCs2Folder_Click" HorizontalAlignment="Stretch" ToolTipService.ToolTip="Use 'Counter-Strike Global Offensive' folder or any folder inside it."/>
+                <Button x:Name="validateCs2Button" Grid.Column="3" Content="Validate" Click="ValidateCs2_Click"/>
+            </Grid>
+
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="100"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="S1 Path:" VerticalAlignment="Center" Width="80"/>
+                <ComboBox x:Name="s1GameCombo" Grid.Column="1" Width="100" SelectionChanged="S1GameCombo_SelectionChanged">
+                    <x:String>CSGO</x:String>
+                    <x:String>CSS</x:String>
+                </ComboBox>
+                <TextBox x:Name="s1PathTextBox" Grid.Column="2" IsReadOnly="True" />
+                <Button x:Name="selectS1Button" Grid.Column="3" Content="Select Folder" Click="SelectS1Folder_Click" HorizontalAlignment="Stretch" ToolTipService.ToolTip="Use 'csgo legacy' folder or any folder inside it."/>
+                <Button x:Name="validateS1Button" Grid.Column="4" Content="Validate" Click="ValidateS1_Click"/>
+            </Grid>
+
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="100"/>
+                    <ColumnDefinition Width="100"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Map Path:" VerticalAlignment="Center" Width="80"/>
+                <TextBox x:Name="mapPathTextBox" Grid.Column="1" IsReadOnly="True" />
+                <Button x:Name="selectVmfButton" Grid.Column="2" Content="Select VMF" Click="SelectVmf_Click" HorizontalAlignment="Stretch" ToolTipService.ToolTip="Does not need to be in a 'maps' folder, one will be created then deleted afterwards if necessary."/>
+                <Button x:Name="selectBspButton" Grid.Column="3" Content="Select BSP" Click="SelectBsp_Click" HorizontalAlignment="Stretch"/>
+            </Grid>
+        </StackPanel>
+
+        <!-- Options -->
+        <StackPanel Grid.Row="1" Spacing="10">
+            <TextBlock Text="Options" Style="{StaticResource SubtitleTextBlockStyle}"/>
+
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Addon Name:" VerticalAlignment="Center" Width="80"/>
+                <TextBox x:Name="addonNameTextBox" Grid.Column="1" TextChanged="AddonNameTextBox_TextChanged"/>
+            </Grid>
+
+            <StackPanel Orientation="Horizontal" Spacing="15">
+                <CheckBox x:Name="useBspCheckBox" Content="-usebsp" Checked="UseBspCheckBox_Changed" Unchecked="UseBspCheckBox_Changed" ToolTipService.ToolTip="This runs the map through a special vbsp process to generate clean map geometry..."/>
+                <CheckBox x:Name="useBspNoMergeCheckBox" Content="-usebsp_nomergeinstances" Checked="UseBspNoMergeCheckBox_Changed" Unchecked="UseBspNoMergeCheckBox_Changed" ToolTipService.ToolTip="Use this instead of -usebsp if you wish to both generate clean geo and also preserve func_instances..."/>
+                <CheckBox x:Name="skipDepsCheckBox" Content="-skipdeps" ToolTipService.ToolTip="Optional: skips importing all dependencies/content and only generates the vmap file(s)..."/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Log Output -->
+        <TextBlock Grid.Row="4" Text="Log Output" Style="{StaticResource SubtitleTextBlockStyle}"/>
+        <ScrollViewer Grid.Row="5" BorderThickness="1" BorderBrush="{ThemeResource ControlElevationBorderBrush}" CornerRadius="4">
+            <TextBlock x:Name="logOutputTextBlock" TextWrapping="Wrap" Padding="10" FontFamily="Consolas" IsTextSelectionEnabled="True"/>
+        </ScrollViewer>
+
+        <!-- Go Button -->
+        <Button x:Name="goButton" Grid.Row="6" Content="GO" HorizontalAlignment="Right" Width="100" Height="40" Click="GoButton_Click" Style="{StaticResource AccentButtonStyle}"/>
+
+    </Grid>
+</Window>
