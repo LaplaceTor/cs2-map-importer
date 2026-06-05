@@ -393,13 +393,20 @@ void AppCore::process_bsp(Options& options) {
             if (!ec) {
                 options.logger("Moved unpacked directory to " + target_unpacked_dir.string());
             } else {
-                options.logger("Failed to rename unpacked directory to " + target_unpacked_dir.string() + ". Attempting move command...");
-#ifdef _WIN32
-                std::string move_cmd = "cmd.exe /c move /y \"" + unpacked_dir.string() + "\" \"" + target_unpacked_dir.string() + "\"";
-#else
-                std::string move_cmd = "mv \"" + unpacked_dir.string() + "\" \"" + target_unpacked_dir.string() + "\"";
-#endif
-                run_command_sync(move_cmd, options.logger);
+                options.logger("Failed to rename unpacked directory to " + target_unpacked_dir.string() + ". Attempting recursive copy...");
+                std::error_code copy_ec;
+                fs::copy(unpacked_dir, target_unpacked_dir, fs::copy_options::recursive | fs::copy_options::overwrite_existing, copy_ec);
+                if (!copy_ec) {
+                    std::error_code remove_ec;
+                    fs::remove_all(unpacked_dir, remove_ec);
+                    if (!remove_ec) {
+                        options.logger("Successfully copied and removed original unpacked directory.");
+                    } else {
+                        options.logger("Successfully copied but failed to remove original unpacked directory: " + unpacked_dir.string());
+                    }
+                } else {
+                    options.logger("Failed to copy unpacked directory: " + copy_ec.message());
+                }
             }
         }
     } else {
