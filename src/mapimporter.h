@@ -32,7 +32,6 @@ private:
     std::function<void(const std::string&)> m_log;
 
     void Log(const std::string& msg);
-    int RunCommand(const std::string& cmd);
 
     std::vector<std::string> ReadTextFile(const std::string& filepath);
     void EnsureFileWritable(const std::string& filepath);
