@@ -447,6 +447,7 @@ void Importer::go()
             log_file = nullptr;
         }
 
+        AppCore::cancel_import = false;
         AppCore::move_vpk_signatures(cs2_basefolder.toStdString(), vpk_signatures_moved);
 
         ui->go_button->setEnabled(false);
@@ -509,6 +510,10 @@ void Importer::go()
             }
 
             QMetaObject::invokeMethod(this, [this, success]() {
+                if (vpk_signatures_moved && !cs2_basefolder.isEmpty()) {
+                    AppCore::restore_vpk_signatures(cs2_basefolder.toStdString());
+                    vpk_signatures_moved = false;
+                }
                 ui->go_button->setEnabled(true);
                 if (success) {
                     log("MapImporter thread finished successfully.");
@@ -539,8 +544,10 @@ void Importer::go()
 
 void Importer::closeEvent(QCloseEvent *event)
 {
+    AppCore::cancel_all();
     if (vpk_signatures_moved && !cs2_basefolder.isEmpty()) {
         AppCore::restore_vpk_signatures(cs2_basefolder.toStdString());
+        vpk_signatures_moved = false;
     }
     event->accept();
 }
