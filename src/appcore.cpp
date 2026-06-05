@@ -232,7 +232,8 @@ std::vector<std::string> AppCore::patch_dispinfo(const std::vector<std::string>&
                 indent + "\t\"row6\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
                 indent + "\t\"row7\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
                 indent + "\t\"row8\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                indent + "}\n" +
+                indent + "}";
+            std::string offset_normals_block =
                 indent + "offset_normals\n" +
                 indent + "{\n" +
                 indent + "\t\"row0\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
@@ -246,6 +247,7 @@ std::vector<std::string> AppCore::patch_dispinfo(const std::vector<std::string>&
                 indent + "\t\"row8\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
                 indent + "}";
             out_lines.push_back(offsets_block);
+            out_lines.push_back(offset_normals_block);
         }
 
         out_lines.push_back(l);
