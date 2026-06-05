@@ -1,7 +1,11 @@
-name: Build CMake Release
+name: Build CMake CI
 
 on:
-  workflow_dispatch:
+  push:
+    branches-ignore:
+      - cmake
+      - cmake-qt
+      - python
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -9,8 +13,6 @@ env:
 jobs:
   build:
     runs-on: windows-latest
-    permissions:
-      contents: write
 
     steps:
     - name: Checkout code
@@ -35,19 +37,15 @@ jobs:
       run: |
         Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip" -OutFile "bspsrc.zip"
         Expand-Archive -Path bspsrc.zip -DestinationPath bspsrc
-        # It will be placed next to the built executable later
 
-    - name: Prepare Release Artifacts
+    - name: Prepare Artifacts
       shell: pwsh
       run: |
         mkdir release
-        # The built executable is usually in build\Release\ on Windows MSVC
         Copy-Item build\Release\cs2importer.exe release\
         Copy-Item bspsrc\bspsrc.jar release\
-        # Deploy Qt dependencies next to the executable
         windeployqt release\cs2importer.exe
 
-        # Remove unused Qt folders
         Remove-Item -Path release\translations -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -Path release\iconengines -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -Path release\imageformats -Recurse -Force -ErrorAction SilentlyContinue
@@ -62,11 +60,8 @@ jobs:
       run: |
         echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v2
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
       with:
-        tag_name: release-${{ steps.vars.outputs.sha_short }}
-        name: CS2 Importer Dev ${{ steps.vars.outputs.sha_short }}
-        files: release/cs2importer.zip
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        name: CS2-Importer-Dev-${{ steps.vars.outputs.sha_short }}
+        path: release/cs2importer.zip
