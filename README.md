@@ -2,7 +2,7 @@
 
 A user-friendly tool with a Graphical User Interface (GUI) to import maps from Source 1 (CS:GO / Counter-Strike: Source legacy) into Counter-Strike 2 (Source 2). The tools provided by Valve for importing maps aren't very user-friendly, so this program was created to streamline the process.
 
-This project was previously a Python script (forked from sarim's importer) but has now been fully rewritten as a standalone C++ Qt application.
+This project was previously a Python program (forked from sarim's importer) but has now been fully rewritten as a standalone C++ Qt application.
 
 ## Features
 
@@ -48,4 +48,4 @@ On Windows, the CMake configuration will create a GUI application without a cons
 
 ## Historical Context
 
-The original Python version of this tool was a fork from sarim's script. It added features like automatic VPK signature check disabling, validation for CS:GO and CS2, automatic BSP decompiling, and script patching to fix known issues. That Python version is no longer supported and will not receive new features. You can still download the final Python version from the [releases page](https://github.com/LaplaceTor/cs2-map-importer/releases/tag/PythonFinal). This C++ Qt version brings those features into a native, standalone graphical application.
+The original Python version of this tool was a fork from sarim's program. It added features like automatic VPK signature check disabling, validation for CS:GO and CS2, automatic BSP decompiling, and script patching to fix known issues. That Python version is no longer supported and will not receive new features. You can still download the final Python version from the [releases page](https://github.com/LaplaceTor/cs2-map-importer/releases/tag/PythonFinal). This C++ Qt version brings those features into a native, standalone graphical application.
