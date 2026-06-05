@@ -162,6 +162,7 @@ bool MapImporter::Force2UVsIfRequired(const std::string& refsName, std::set<std:
     }
 
     for (const auto& refLine : refsList) {
+        if (AppCore::cancel_import) return false;
         std::string mtlfile = CleanRefPath(refLine);
         if (mtlfile.empty()) continue;
         if (uvsUpdated.count(mtlfile)) continue;
@@ -206,6 +207,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
     std::string extraoptions = "";
 
     for (const auto& m : mdlfiles) {
+        if (AppCore::cancel_import) return;
         if (m.empty()) continue;
         if (m[0] == '-') {
             if (m == "-" || m == "-nooptions") extraoptions = "";
@@ -264,6 +266,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
     EnsureFileWritable(global2UVMaterialFilepath);
 
     for (const auto& mtlfile : mdlmtls) {
+        if (AppCore::cancel_import) return;
         if (mtlfile.empty() || mtlfile[0] == '-') continue;
         std::string mtl = mtlfile;
         std::replace(mtl.begin(), mtl.end(), '/', '\\');
@@ -276,6 +279,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
     }
 
     for (const auto& m : mdlfiles) {
+        if (AppCore::cancel_import) return;
         if (m.empty() || m[0] == '-') continue;
         std::string mdlfile = CleanRefPath(m);
         if (mdlfile.empty()) continue;
@@ -311,6 +315,7 @@ void MapImporter::ImportAndCompileMapRefs(const std::string& refsFile) {
     std::string newList = "";
 
     for (const auto& line : refs) {
+        if (AppCore::cancel_import) return;
         std::string cleanedRef = CleanRefPath(line);
         if (!cleanedRef.empty()) {
             std::string modLine = cleanedRef;
@@ -333,6 +338,7 @@ void MapImporter::ImportAndCompileMapRefs(const std::string& refsFile) {
 }
 
 bool MapImporter::Run() {
+    if (AppCore::cancel_import) return false;
     Log("Starting Map Import process via C++.");
 
     std::string usebspStr = m_options.usebsp ? "-usebsp" : "";

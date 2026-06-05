@@ -57,6 +57,21 @@ void AppCore::restore_vpk_signatures(const std::string& cs2_basefolder) {
     }
 }
 
+std::atomic<bool> AppCore::cancel_import{false};
+#ifdef _WIN32
+std::atomic<HANDLE> AppCore::current_child_process{nullptr};
+#endif
+
+void AppCore::cancel_all() {
+    cancel_import = true;
+#ifdef _WIN32
+    HANDLE hProc = current_child_process.load();
+    if (hProc) {
+        TerminateProcess(hProc, 1);
+    }
+#endif
+}
+
 std::string AppCore::parse_mapversion(const std::vector<std::string>& lines, bool& found) {
     std::string mapversion = "2";
     found = false;
@@ -296,6 +311,7 @@ void AppCore::fix_vmf_from_bsp(const std::string& vmf_path, LogCallback log) {
 }
 
 int AppCore::run_command_sync(const std::string& cmd, LogCallback logger) {
+    if (cancel_import) return -1;
     if (logger) logger(cmd);
 #ifdef _WIN32
     SECURITY_ATTRIBUTES saAttr;
@@ -336,6 +352,7 @@ int AppCore::run_command_sync(const std::string& cmd, LogCallback logger) {
         &siStartInfo,
         &piProcInfo
     );
+    current_child_process = piProcInfo.hProcess;
     if (!bSuccess) {
         if (logger) logger("Failed to run command.");
         CloseHandle(hChildStd_OUT_Rd);
@@ -368,6 +385,7 @@ int AppCore::run_command_sync(const std::string& cmd, LogCallback logger) {
     WaitForSingleObject(piProcInfo.hProcess, INFINITE);
     GetExitCodeProcess(piProcInfo.hProcess, &exitCode);
 
+    current_child_process = nullptr;
     CloseHandle(piProcInfo.hProcess);
     CloseHandle(piProcInfo.hThread);
     return exitCode;
@@ -391,6 +409,7 @@ int AppCore::run_command_sync(const std::string& cmd, LogCallback logger) {
 }
 
 void AppCore::process_bsp(Options& options) {
+    if (cancel_import) return;
     fs::path app_dir = options.app_dir;
     fs::path maps_dir = app_dir / "maps";
     fs::create_directories(maps_dir);
@@ -406,6 +425,7 @@ void AppCore::process_bsp(Options& options) {
 
     std::string decomp_cmd = "java -jar \"" + bspsrc_jar.string() + "\" \"" + options.bsp_file + "\" -o \"" + vmf_dest.string() + "\" --unpack_embedded";
     int ret = run_command_sync(decomp_cmd, options.logger);
+    if (cancel_import) return;
     if (ret != 0) {
         throw std::runtime_error("BSP Decompilation failed.");
     }
@@ -459,6 +479,7 @@ void AppCore::process_bsp(Options& options) {
     }
 
     fix_vmf_from_bsp(vmf_dest.string(), options.logger);
+    if (cancel_import) return;
 
     fs::path target_maps_dir = app_dir / "maps" / options.map_name / "maps";
     fs::create_directories(target_maps_dir);

@@ -3,6 +3,7 @@
 #include <string>
 #include <functional>
 #include <vector>
+#include <atomic>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -43,7 +44,14 @@ public:
     static void process_bsp(Options& options);
 
     static int run_command_sync(const std::string& cmd, LogCallback logger);
-  
+    static void cancel_all();
+
+    static std::atomic<bool> cancel_import;
+
+#ifdef _WIN32
+    static std::atomic<HANDLE> current_child_process;
+#endif
+
 private:
     static std::string parse_mapversion(const std::vector<std::string>& lines, bool& found);
     static std::vector<std::string> extract_visgroups(const std::vector<std::string>& lines, std::vector<std::string>& remaining_lines);
