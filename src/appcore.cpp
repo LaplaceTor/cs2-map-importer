@@ -60,38 +60,25 @@ void AppCore::restore_vpk_signatures(const std::string& cs2_basefolder) {
     }
 }
 
-void AppCore::fix_vmf_from_bsp(const std::string& vmf_path, LogCallback log) {
-    if (!fs::exists(vmf_path)) return;
-
-    std::ifstream infile(vmf_path);
-    if (!infile.is_open()) return;
-
-    std::vector<std::string> lines;
-    std::string line;
+std::string AppCore::parse_mapversion(const std::vector<std::string>& lines, bool& found) {
     std::string mapversion = "2";
+    found = false;
     std::regex mapversion_regex("^\\s*\"mapversion\"\\s+\"([^\"]+)\"");
-    bool mapversion_found = false;
 
-    while (std::getline(infile, line)) {
-        lines.push_back(line);
+    for (const auto& line : lines) {
         std::smatch match;
-        if (!mapversion_found && std::regex_search(line, match, mapversion_regex)) {
+        if (std::regex_search(line, match, mapversion_regex)) {
             mapversion = match[1].str();
-            mapversion_found = true;
+            found = true;
+            break;
         }
     }
-    infile.close();
+    return mapversion;
+}
 
-    if (!mapversion_found) {
-        log("No mapversion found in VMF. Aborting fix.");
-        return;
-    }
-
+std::vector<std::string> AppCore::extract_visgroups(const std::vector<std::string>& lines, std::vector<std::string>& remaining_lines) {
     int visgroups_start_idx = -1;
     int visgroups_end_idx = -1;
-    bool has_versioninfo = false;
-    bool has_viewsettings = false;
-    bool has_cordon = false;
 
     for (size_t i = 0; i < lines.size(); ++i) {
         std::string trimmed = lines[i];
@@ -102,19 +89,13 @@ void AppCore::fix_vmf_from_bsp(const std::string& vmf_path, LogCallback log) {
 
         if (trimmed == "visgroups" && visgroups_start_idx == -1) {
             visgroups_start_idx = i;
-        }
-        if (trimmed == "versioninfo") {
-            has_versioninfo = true;
-        }
-        if (trimmed == "viewsettings") {
-            has_viewsettings = true;
-        }
-        if (trimmed == "cordon") {
-            has_cordon = true;
+            break;
         }
     }
 
     std::vector<std::string> visgroups_lines;
+    remaining_lines = lines;
+
     if (visgroups_start_idx != -1) {
         int open_brackets = 0;
         bool found_first_bracket = false;
@@ -135,39 +116,63 @@ void AppCore::fix_vmf_from_bsp(const std::string& vmf_path, LogCallback log) {
             for (int i = visgroups_start_idx; i <= visgroups_end_idx; ++i) {
                 visgroups_lines.push_back(lines[i]);
             }
-            lines.erase(lines.begin() + visgroups_start_idx, lines.begin() + visgroups_end_idx + 1);
+            remaining_lines.erase(remaining_lines.begin() + visgroups_start_idx, remaining_lines.begin() + visgroups_end_idx + 1);
         }
-    } else {
-        log("No visgroups block found in VMF. Aborting fix.");
-        return;
     }
+
+    return visgroups_lines;
+}
+
+std::vector<std::string> AppCore::insert_required_blocks(const std::vector<std::string>& lines, const std::string& mapversion, const std::vector<std::string>& visgroups) {
+    bool has_versioninfo = false;
+    bool has_viewsettings = false;
+    bool has_cordon = false;
+
+    for (size_t i = 0; i < lines.size(); ++i) {
+        std::string trimmed = lines[i];
+        trimmed.erase(0, trimmed.find_first_not_of(" \t\r\n"));
+        if (!trimmed.empty()) {
+            trimmed.erase(trimmed.find_last_not_of(" \t\r\n") + 1);
+        }
+
+        if (trimmed == "versioninfo") has_versioninfo = true;
+        if (trimmed == "viewsettings") has_viewsettings = true;
+        if (trimmed == "cordon") has_cordon = true;
+    }
+
+    std::vector<std::string> out_lines = lines;
 
     if (!has_versioninfo) {
         std::string versioninfo_block = "versioninfo\n{\n\t\"editorversion\" \"400\"\n\t\"editorbuild\" \"9999\"\n\t\"mapversion\" \"" + mapversion + "\"\n\t\"formatversion\" \"100\"\n\t\"prefab\" \"0\"\n}";
-        lines.insert(lines.begin(), versioninfo_block);
+        out_lines.insert(out_lines.begin(), versioninfo_block);
     }
 
-    if (!visgroups_lines.empty()) {
+    if (!visgroups.empty()) {
         int insert_idx = has_versioninfo ? 0 : 1;
-        lines.insert(lines.begin() + insert_idx, visgroups_lines.begin(), visgroups_lines.end());
+        out_lines.insert(out_lines.begin() + insert_idx, visgroups.begin(), visgroups.end());
     }
 
     if (!has_viewsettings) {
         std::string viewsettings_block = "viewsettings\n{\n\t\"bSnapToGrid\" \"1\"\n\t\"bShowGrid\" \"1\"\n\t\"bShowLogicalGrid\" \"0\"\n\t\"nGridSpacing\" \"64\"\n\t\"bShow3DGrid\" \"0\"\n}";
-        int insert_idx = (has_versioninfo ? 0 : 1) + visgroups_lines.size();
-        lines.insert(lines.begin() + insert_idx, viewsettings_block);
+        int insert_idx = (has_versioninfo ? 0 : 1) + visgroups.size();
+        out_lines.insert(out_lines.begin() + insert_idx, viewsettings_block);
     }
 
     if (!has_cordon) {
         std::string cordon_block = "cordon\n{\n\t\"mins\" \"(-1024 -1024 -1024)\"\n\t\"maxs\" \"(1024 1024 1024)\"\n\t\"active\" \"0\"\n}";
-        lines.push_back(cordon_block);
+        out_lines.push_back(cordon_block);
     }
 
+    return out_lines;
+}
+
+std::vector<std::string> AppCore::patch_dispinfo(const std::vector<std::string>& lines) {
     std::vector<std::string> out_lines;
     bool in_dispinfo = false;
     int open_brackets_disp = 0;
     bool in_dispinfo_bracket = false;
     bool has_offsets = false;
+    bool has_offset_normals = false;
 
     for (size_t i = 0; i < lines.size(); ++i) {
         std::string l = lines[i];
@@ -182,6 +187,7 @@ void AppCore::fix_vmf_from_bsp(const std::string& vmf_path, LogCallback log) {
             open_brackets_disp = 0;
             in_dispinfo_bracket = false;
             has_offsets = false;
+            has_offset_normals = false;
         }
 
         if (in_dispinfo) {
@@ -191,8 +197,11 @@ void AppCore::fix_vmf_from_bsp(const std::string& vmf_path, LogCallback log) {
                 in_dispinfo_bracket = true;
             }
 
-            if (trimmed == "offsets" || trimmed == "offset_normals") {
+            if (trimmed == "offsets") {
                 has_offsets = true;
+            }
+            if (trimmed == "offset_normals") {
+                has_offset_normals = true;
             }
 
             if (in_dispinfo_bracket && open_brackets_disp == 0) {
@@ -200,43 +209,86 @@ void AppCore::fix_vmf_from_bsp(const std::string& vmf_path, LogCallback log) {
             }
         }
 
-        if (in_dispinfo && trimmed == "alphas" && !has_offsets) {
+        if (in_dispinfo && trimmed == "alphas" && (!has_offsets || !has_offset_normals)) {
             size_t first_non_space = l.find_first_not_of(" \t");
             std::string indent = "";
             if (first_non_space != std::string::npos) {
                 indent = l.substr(0, first_non_space);
             }
 
-            std::string offsets_block =
-                indent + "offsets\n" +
-                indent + "{\n" +
-                indent + "\t\"row0\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                indent + "\t\"row1\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                indent + "\t\"row2\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                indent + "\t\"row3\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                indent + "\t\"row4\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                indent + "\t\"row5\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                indent + "\t\"row6\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                indent + "\t\"row7\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                indent + "\t\"row8\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                indent + "}\n" +
-                indent + "offset_normals\n" +
-                indent + "{\n" +
-                indent + "\t\"row0\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                indent + "\t\"row1\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                indent + "\t\"row2\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                indent + "\t\"row3\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                indent + "\t\"row4\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                indent + "\t\"row5\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                indent + "\t\"row6\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                indent + "\t\"row7\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                indent + "\t\"row8\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                indent + "}";
-            out_lines.push_back(offsets_block);
+            if (!has_offsets) {
+                std::string offsets_block =
+                    indent + "offsets\n" +
+                    indent + "{\n" +
+                    indent + "\t\"row0\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
+                    indent + "\t\"row1\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
+                    indent + "\t\"row2\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
+                    indent + "\t\"row3\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
+                    indent + "\t\"row4\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
+                    indent + "\t\"row5\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
+                    indent + "\t\"row6\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
+                    indent + "\t\"row7\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
+                    indent + "\t\"row8\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
+                    indent + "}";
+                out_lines.push_back(offsets_block);
+            }
+
+            if (!has_offset_normals) {
+                std::string offset_normals_block =
+                    indent + "offset_normals\n" +
+                    indent + "{\n" +
+                    indent + "\t\"row0\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
+                    indent + "\t\"row1\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
+                    indent + "\t\"row2\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
+                    indent + "\t\"row3\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
+                    indent + "\t\"row4\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
+                    indent + "\t\"row5\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
+                    indent + "\t\"row6\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
+                    indent + "\t\"row7\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
+                    indent + "\t\"row8\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
+                    indent + "}";
+                out_lines.push_back(offset_normals_block);
+            }
         }
 
         out_lines.push_back(l);
     }
+
+    return out_lines;
+}
+
+void AppCore::fix_vmf_from_bsp(const std::string& vmf_path, LogCallback log) {
+    if (!fs::exists(vmf_path)) return;
+
+    std::ifstream infile(vmf_path);
+    if (!infile.is_open()) return;
+
+    std::vector<std::string> lines;
+    std::string line;
+
+    while (std::getline(infile, line)) {
+        lines.push_back(line);
+    }
+    infile.close();
+
+    bool mapversion_found = false;
+    std::string mapversion = parse_mapversion(lines, mapversion_found);
+
+    if (!mapversion_found) {
+        log("No mapversion found in VMF. Aborting fix.");
+        return;
+    }
+
+    std::vector<std::string> remaining_lines;
+    std::vector<std::string> visgroups_lines = extract_visgroups(lines, remaining_lines);
+
+    if (visgroups_lines.empty()) {
+        log("No visgroups block found in VMF. Aborting fix.");
+        return;
+    }
+
+    std::vector<std::string> structured_lines = insert_required_blocks(remaining_lines, mapversion, visgroups_lines);
+    std::vector<std::string> out_lines = patch_dispinfo(structured_lines);
 
     std::ofstream outfile(vmf_path);
     if (outfile.is_open()) {

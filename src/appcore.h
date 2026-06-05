@@ -41,4 +41,10 @@ public:
 
     // Decompiles the BSP, moves unpacked files, and moves materials/models folders into s1gamedir
     static void process_bsp(Options& options);
+
+private:
+    static std::string parse_mapversion(const std::vector<std::string>& lines, bool& found);
+    static std::vector<std::string> extract_visgroups(const std::vector<std::string>& lines, std::vector<std::string>& remaining_lines);
+    static std::vector<std::string> insert_required_blocks(const std::vector<std::string>& lines, const std::string& mapversion, const std::vector<std::string>& visgroups);
+    static std::vector<std::string> patch_dispinfo(const std::vector<std::string>& lines);
 };
