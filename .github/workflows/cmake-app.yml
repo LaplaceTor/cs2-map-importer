@@ -3,6 +3,8 @@ name: Build CMake Release
 on:
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -44,6 +46,12 @@ jobs:
         Copy-Item bspsrc\bspsrc.jar release\
         # Deploy Qt dependencies next to the executable
         windeployqt release\cs2importer.exe
+
+        # Remove unused Qt folders
+        Remove-Item -Path release\translations -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path release\iconengines -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path release\imageformats -Recurse -Force -ErrorAction SilentlyContinue
+
         Copy-Item -Path bin -Destination release\bin -Recurse
         cd release
         7z a cs2importer.zip *
