@@ -32,4 +32,6 @@ public:
 
     // Decompiles the BSP, moves unpacked files, and moves materials/models folders into s1gamedir
     static void process_bsp(Options& options);
+
+    static int run_command_sync(const std::string& cmd, LogCallback logger);
 };

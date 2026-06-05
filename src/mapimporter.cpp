@@ -1,4 +1,5 @@
 #include "mapimporter.h"
+#include "appcore.h"
 #include <fstream>
 #include <filesystem>
 #include <iostream>
@@ -7,15 +8,6 @@
 #include <cstdio>
 #include <array>
 #include <memory>
-
-#ifdef _WIN32
-#include <windows.h>
-#define POPEN _popen
-#define PCLOSE _pclose
-#else
-#define POPEN popen
-#define PCLOSE pclose
-#endif
 
 namespace fs = std::filesystem;
 
@@ -40,101 +32,6 @@ static std::string CleanRefPath(std::string input) {
 
 void MapImporter::Log(const std::string& msg) {
     if (m_log) m_log(msg);
-}
-
-int MapImporter::RunCommand(const std::string& cmd) {
-    Log(cmd);
-#ifdef _WIN32
-    SECURITY_ATTRIBUTES saAttr;
-    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
-    saAttr.bInheritHandle = TRUE;
-    saAttr.lpSecurityDescriptor = NULL;
-    HANDLE hChildStd_OUT_Rd = NULL;
-    HANDLE hChildStd_OUT_Wr = NULL;
-    if (!CreatePipe(&hChildStd_OUT_Rd, &hChildStd_OUT_Wr, &saAttr, 0)) {
-        Log("Failed to create pipe.");
-        return -1;
-    }
-    if (!SetHandleInformation(hChildStd_OUT_Rd, HANDLE_FLAG_INHERIT, 0)) {
-        Log("Failed to set handle information.");
-        CloseHandle(hChildStd_OUT_Rd);
-        CloseHandle(hChildStd_OUT_Wr);
-        return -1;
-    }
-    PROCESS_INFORMATION piProcInfo;
-    ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
-    STARTUPINFOA siStartInfo;
-    ZeroMemory(&siStartInfo, sizeof(STARTUPINFOA));
-    siStartInfo.cb = sizeof(STARTUPINFOA);
-    siStartInfo.hStdError = hChildStd_OUT_Wr;
-    siStartInfo.hStdOutput = hChildStd_OUT_Wr;
-    siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
-    // Use CREATE_NO_WINDOW to hide the console window
-    std::string writableCmd = cmd;
-    BOOL bSuccess = CreateProcessA(
-        NULL,
-        writableCmd.data(),
-        NULL,
-        NULL,
-        TRUE,
-        CREATE_NO_WINDOW,
-        NULL,
-        NULL,
-        &siStartInfo,
-        &piProcInfo
-    );
-    if (!bSuccess) {
-        Log("Failed to run command.");
-        CloseHandle(hChildStd_OUT_Rd);
-        CloseHandle(hChildStd_OUT_Wr);
-        return -1;
-    }
-    CloseHandle(hChildStd_OUT_Wr);
-    DWORD dwRead;
-    CHAR chBuf[4096];
-    std::string outputBuffer = "";
-    while (true) {
-        bSuccess = ReadFile(hChildStd_OUT_Rd, chBuf, sizeof(chBuf) - 1, &dwRead, NULL);
-        if (!bSuccess || dwRead == 0) break;
-        chBuf[dwRead] = '\0';
-        outputBuffer += chBuf;
-        size_t pos;
-        while ((pos = outputBuffer.find('\n')) != std::string::npos) {
-            std::string line_out = outputBuffer.substr(0, pos);
-            if (!line_out.empty() && line_out.back() == '\r') line_out.pop_back();
-            Log(line_out);
-            outputBuffer.erase(0, pos + 1);
-        }
-    }
-    if (!outputBuffer.empty()) {
-        if (!outputBuffer.empty() && outputBuffer.back() == '\r') outputBuffer.pop_back();
-        Log(outputBuffer);
-    }
-    CloseHandle(hChildStd_OUT_Rd);
-    DWORD exitCode;
-    WaitForSingleObject(piProcInfo.hProcess, INFINITE);
-    GetExitCodeProcess(piProcInfo.hProcess, &exitCode);
-
-    CloseHandle(piProcInfo.hProcess);
-    CloseHandle(piProcInfo.hThread);
-    return exitCode;
-#else
-    std::unique_ptr<FILE, int(*)(FILE*)> pipe(POPEN(cmd.c_str(), "r"), PCLOSE);
-    if (!pipe) {
-        Log("Failed to run command.");
-        return -1;
-    }
-    std::array<char, 128> buffer;
-    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-        std::string output = buffer.data();
-        if (!output.empty() && output.back() == '\n') output.pop_back();
-        if (!output.empty() && output.back() == '\r') output.pop_back();
-        if (!output.empty()) {
-             Log(output);
-        }
-    }
-    return 0; // simplified
-#endif
 }
 
 std::vector<std::string> MapImporter::ReadTextFile(const std::string& filepath) {
@@ -328,7 +225,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
             if (pos != std::string::npos) refsName.replace(pos, 4, "_refs.txt");
 
             std::string importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\cs_mdl_import.exe\"  -nop4 " + extraoptions + " -i \"" + m_options.s1gamedir + "\" -o \"" + m_options.s2contentdir + "\" \"" + infile + "\"";
-            RunCommand(importCmd);
+            AppCore::run_command_sync(importCmd, m_log);
 
             if (fs::exists(refsName)) {
                 auto refs = ReadTextFile(refsName);
@@ -353,7 +250,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
     fw.close();
 
     std::string importRefsCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\"  -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game " + m_options.s1gamename + " -usefilelist \"" + temp_refs + "\"";
-    RunCommand(importRefsCmd);
+    AppCore::run_command_sync(importRefsCmd, m_log);
 
     std::set<std::string> global2UVMaterials;
     std::string global2UVMaterialFilepath = "source1import_2uvmateriallist.txt";
@@ -375,7 +272,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
         if (pos != std::string::npos) outName.replace(pos, 4, ".vmat");
 
         std::string resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -game " + m_options.s1gamename + " \"" + outName + "\"";
-        RunCommand(resCompCmd);
+        AppCore::run_command_sync(resCompCmd, m_log);
     }
 
     for (const auto& m : mdlfiles) {
@@ -402,13 +299,13 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
         } else {
             resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -game " + m_options.s1gamename + " \"" + outName + "\"";
         }
-        RunCommand(resCompCmd);
+        AppCore::run_command_sync(resCompCmd, m_log);
     }
 }
 
 void MapImporter::ImportAndCompileMapRefs(const std::string& refsFile) {
     std::string importcmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\"  -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game " + m_options.s1gamename + " -usefilelist \"" + refsFile + "\"";
-    RunCommand(importcmd);
+    AppCore::run_command_sync(importcmd, m_log);
 
     auto refs = ReadTextFile(refsFile);
     std::string newList = "";
@@ -432,7 +329,7 @@ void MapImporter::ImportAndCompileMapRefs(const std::string& refsFile) {
     writeFile.close();
 
     std::string compilercmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -game " + m_options.s1gamename + " -f -filelist \"" + tmpFile + "\"";
-    RunCommand(compilercmd);
+    AppCore::run_command_sync(compilercmd, m_log);
 }
 
 bool MapImporter::Run() {
@@ -445,7 +342,7 @@ bool MapImporter::Run() {
     if (!nomergeinstancesStr.empty()) mapImportCmd += " " + nomergeinstancesStr;
     mapImportCmd += " -src1gameinfodir \"" + m_options.s1gamedir + "\" -src1contentdir \"" + m_options.s1contentdir + "\" -s2addon \"" + m_options.s2addonname + "\" -game " + m_options.s1gamename + " maps\\" + m_options.mapname + ".vmf";
 
-    RunCommand(mapImportCmd);
+    AppCore::run_command_sync(mapImportCmd, m_log);
 
     std::string m_mapname = m_options.mapname;
     size_t pos = m_mapname.find("instances");
@@ -458,7 +355,7 @@ bool MapImporter::Run() {
         ImportAndCompileMapMDLs(m_options.s2contentdir + "\\maps\\" + m_mapname + "_mdl_lst.txt");
         ImportAndCompileMapRefs(m_options.s2contentdir + "\\maps\\" + m_mapname + "_new_refs.txt");
 
-        RunCommand(mapImportCmd);
+        AppCore::run_command_sync(mapImportCmd, m_log);
     }
 
     Log("Import process complete.");

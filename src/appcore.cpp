@@ -5,6 +5,7 @@
 #include <regex>
 #include <memory>
 #include <stdexcept>
+#include <array>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -255,8 +256,8 @@ void AppCore::fix_vmf_from_bsp(const std::string& vmf_path, LogCallback log) {
     }
 }
 
-static int run_command_sync(const std::string& cmd, AppCore::LogCallback logger) {
-    logger(cmd);
+int AppCore::run_command_sync(const std::string& cmd, LogCallback logger) {
+    if (logger) logger(cmd);
 #ifdef _WIN32
     SECURITY_ATTRIBUTES saAttr;
     saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
@@ -265,9 +266,11 @@ static int run_command_sync(const std::string& cmd, AppCore::LogCallback logger)
     HANDLE hChildStd_OUT_Rd = NULL;
     HANDLE hChildStd_OUT_Wr = NULL;
     if (!CreatePipe(&hChildStd_OUT_Rd, &hChildStd_OUT_Wr, &saAttr, 0)) {
+        if (logger) logger("Failed to create pipe.");
         return -1;
     }
     if (!SetHandleInformation(hChildStd_OUT_Rd, HANDLE_FLAG_INHERIT, 0)) {
+        if (logger) logger("Failed to set handle information.");
         CloseHandle(hChildStd_OUT_Rd);
         CloseHandle(hChildStd_OUT_Wr);
         return -1;
@@ -280,7 +283,7 @@ static int run_command_sync(const std::string& cmd, AppCore::LogCallback logger)
     siStartInfo.hStdError = hChildStd_OUT_Wr;
     siStartInfo.hStdOutput = hChildStd_OUT_Wr;
     siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
-
+    // Use CREATE_NO_WINDOW to hide the console window
     std::string writableCmd = cmd;
     BOOL bSuccess = CreateProcessA(
         NULL,
@@ -295,6 +298,7 @@ static int run_command_sync(const std::string& cmd, AppCore::LogCallback logger)
         &piProcInfo
     );
     if (!bSuccess) {
+        if (logger) logger("Failed to run command.");
         CloseHandle(hChildStd_OUT_Rd);
         CloseHandle(hChildStd_OUT_Wr);
         return -1;
@@ -312,13 +316,13 @@ static int run_command_sync(const std::string& cmd, AppCore::LogCallback logger)
         while ((pos = outputBuffer.find('\n')) != std::string::npos) {
             std::string line_out = outputBuffer.substr(0, pos);
             if (!line_out.empty() && line_out.back() == '\r') line_out.pop_back();
-            logger(line_out);
+            if (logger) logger(line_out);
             outputBuffer.erase(0, pos + 1);
         }
     }
     if (!outputBuffer.empty()) {
-        if (outputBuffer.back() == '\r') outputBuffer.pop_back();
-        logger(outputBuffer);
+        if (!outputBuffer.empty() && outputBuffer.back() == '\r') outputBuffer.pop_back();
+        if (logger) logger(outputBuffer);
     }
     CloseHandle(hChildStd_OUT_Rd);
     DWORD exitCode;
@@ -329,19 +333,21 @@ static int run_command_sync(const std::string& cmd, AppCore::LogCallback logger)
     CloseHandle(piProcInfo.hThread);
     return exitCode;
 #else
-    FILE* pipe = POPEN(cmd.c_str(), "r");
+    std::unique_ptr<FILE, int(*)(FILE*)> pipe(POPEN(cmd.c_str(), "r"), PCLOSE);
     if (!pipe) {
+        if (logger) logger("Failed to run command.");
         return -1;
     }
-    char buffer[128];
-    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-        std::string output = buffer;
+    std::array<char, 128> buffer;
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        std::string output = buffer.data();
         if (!output.empty() && output.back() == '\n') output.pop_back();
         if (!output.empty() && output.back() == '\r') output.pop_back();
-        if (!output.empty()) logger(output);
+        if (!output.empty()) {
+             if (logger) logger(output);
+        }
     }
-    int status = PCLOSE(pipe);
-    return status;
+    return PCLOSE(pipe.release());
 #endif
 }
 
