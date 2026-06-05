@@ -1,4 +1,5 @@
 #include "mapimporter.h"
+#include "appcore.h"
 #include <fstream>
 #include <filesystem>
 #include <iostream>
@@ -7,15 +8,6 @@
 #include <cstdio>
 #include <array>
 #include <memory>
-
-#ifdef _WIN32
-#include <windows.h>
-#define POPEN _popen
-#define PCLOSE _pclose
-#else
-#define POPEN popen
-#define PCLOSE pclose
-#endif
 
 namespace fs = std::filesystem;
 

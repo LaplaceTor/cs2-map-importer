@@ -6,15 +6,6 @@
 #include <memory>
 #include <stdexcept>
 
-#ifdef _WIN32
-#include <windows.h>
-#define POPEN _popen
-#define PCLOSE _pclose
-#else
-#define POPEN popen
-#define PCLOSE pclose
-#endif
-
 namespace fs = std::filesystem;
 
 bool AppCore::check_java() {

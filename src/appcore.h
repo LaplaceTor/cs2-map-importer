@@ -4,6 +4,15 @@
 #include <functional>
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+#define POPEN _popen
+#define PCLOSE _pclose
+#else
+#define POPEN popen
+#define PCLOSE pclose
+#endif
+
 class AppCore {
 public:
     using LogCallback = std::function<void(const std::string&)>;
