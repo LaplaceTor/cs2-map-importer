@@ -3,3 +3,6 @@
 *.cfg
 release
 build/
+include/
+lib/
+runtime/

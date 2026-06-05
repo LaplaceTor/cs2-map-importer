@@ -1,69 +1,84 @@
-#ifndef UI_H
-#define UI_H
+#pragma once
 
-#include <QMainWindow>
-#include <QString>
-#include <QFile>
-#include <QTextStream>
+#include <string>
+#include <fstream>
+#include <iostream>
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.Foundation.Collections.h>
+#include <winrt/Microsoft.UI.Xaml.h>
+#include <winrt/Microsoft.UI.Xaml.Controls.h>
+#include <winrt/Microsoft.UI.Xaml.Controls.Primitives.h>
+#include <winrt/Microsoft.UI.Xaml.Data.h>
+#include <winrt/Microsoft.UI.Xaml.Interop.h>
+#include <winrt/Microsoft.UI.Xaml.Markup.h>
+#include <winrt/Microsoft.UI.Xaml.Navigation.h>
+#include <winrt/Microsoft.UI.Dispatching.h>
 
-namespace Ui {
-class MainWindow;
-}
-
-class Importer : public QMainWindow
+class ImporterApp : public winrt::Microsoft::UI::Xaml::ApplicationT<ImporterApp>
 {
-    Q_OBJECT
-
 public:
-    explicit Importer(QWidget *parent = nullptr);
-    ~Importer();
+    ImporterApp();
+    void OnLaunched(winrt::Microsoft::UI::Xaml::LaunchActivatedEventArgs const&);
 
-private slots:
+private:
+    winrt::Microsoft::UI::Xaml::Window m_window{ nullptr };
+    winrt::Microsoft::UI::Dispatching::DispatcherQueue m_dispatcherQueue{ nullptr };
+
+    // UI elements
+    winrt::Microsoft::UI::Xaml::Controls::TextBlock m_cs2Label{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::TextBlock m_s1Label{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::TextBlock m_mapLabel{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::ComboBox m_s1GameCombo{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::TextBox m_addonEdit{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::CheckBox m_useBspCheckBox{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::CheckBox m_noMergeInstancesCheckBox{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::CheckBox m_skipDepsCheckBox{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::Button m_goButton{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::TextBox m_logOutput{ nullptr };
+
+    // App state
+    std::wstring m_appDir;
+    bool m_javaInstalled;
+    std::wstring m_vmfDefaultPath;
+    std::wstring m_cs2BaseFolder;
+    std::wstring m_s1GameBaseFolder;
+    std::wstring m_s1GameType; // "csgo" or "css"
+    std::wstring m_contentFolder;
+    std::wstring m_contentFolderToSave;
+    std::wstring m_addonName;
+    std::wstring m_mapName;
+    bool m_vpkSignaturesMoved;
+    std::wstring m_bspFile;
+    std::wstring m_launchOptions;
+
+    std::ofstream m_logFile;
+
+    // Methods
+    void InitUI();
+    void BuildUI();
+
     void select_cs2_folder();
     void select_s1_folder();
     void select_vmf();
     void select_bsp();
     void validate_cs2();
     void validate_s1();
-    void on_usebsp_toggled(bool checked);
-    void on_usebsp_nomergeinstances_toggled(bool checked);
+    void on_usebsp_toggled();
+    void on_usebsp_nomergeinstances_toggled();
     void get_addon_name();
     void get_launch_options();
     void go();
 
-public slots:
-    void log(const QString& message);
+    void set_cs2_folder(const std::wstring& path);
+    void set_s1_folder(const std::wstring& path);
 
-private:
-    Ui::MainWindow *ui;
-
-    QString app_dir;
-    bool java_installed;
-    QString vmf_default_path;
-    QString cs2_basefolder;
-    QString s1game_basefolder;
-    QString s1_game_type; // "csgo" or "css"
-    QString content_folder;
-    QString content_folder_to_save;
-    QString addon_name;
-    QString map_name;
-    bool vpk_signatures_moved;
-    QString bsp_file;
-    QString launch_options;
-
-    QFile* log_file;
-    QTextStream* log_stream;
-
-    void set_cs2_folder(const QString& path);
-    void set_s1_folder(const QString& path);
-
-    void set_tooltips();
-    void set_stylesheets();
     void load_from_cfg();
     void save_to_cfg();
 
-protected:
-    void closeEvent(QCloseEvent *event) override;
-};
+    std::wstring SelectFolderDialog(const std::wstring& title);
+    std::wstring SelectFileDialog(const std::wstring& title, const std::wstring& filterName, const std::wstring& filterExt);
 
-#endif // UI_H
+public:
+    void log(const std::wstring& message);
+    void log(const std::string& message);
+};

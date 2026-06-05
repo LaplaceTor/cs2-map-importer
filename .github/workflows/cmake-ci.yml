@@ -1,6 +1,9 @@
 name: Build CMake CI
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches-ignore:
       - main
@@ -18,19 +21,14 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Qt
-      uses: jurplel/install-qt-action@v3
-      with:
-        version: '5.15.2'
-        host: 'windows'
-        target: 'desktop'
-        arch: 'win64_msvc2019_64'
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
 
     - name: Configure CMake
-      run: cmake -B build -S .
+      run: cmake -B build -G "Visual Studio 17 2022" -A x64 -S .
 
-    - name: Build with CMake
-      run: cmake --build build --config Release
+    - name: Build with MSBuild
+      run: msbuild build\cs2importer.sln /p:Configuration=Release /p:Platform=x64 -restore
 
     - name: Download bspsrc
       shell: pwsh
@@ -42,15 +40,11 @@ jobs:
       shell: pwsh
       run: |
         mkdir release
-        Copy-Item build\Release\cs2importer.exe release\
+        # Copy the executable and all WinUI3/WindowsAppSDK DLLs and resources recursively
+        Copy-Item -Path build\Release\* -Destination release\ -Recurse -Force
         Copy-Item bspsrc\bspsrc.jar release\
-        windeployqt release\cs2importer.exe
 
-        Remove-Item -Path release\translations -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path release\iconengines -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path release\imageformats -Recurse -Force -ErrorAction SilentlyContinue
-
-        Copy-Item -Path bin -Destination release\bin -Recurse
+        Copy-Item -Path bin -Destination release\bin -Recurse -Force
         cd release
         7z a cs2importer.zip *
 
