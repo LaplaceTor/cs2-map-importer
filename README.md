@@ -1,18 +1,51 @@
-# [CS2] Map Import Tool
-The tools provided by Valve for importing maps aren't very user friendly, then I made a new one here.
+# CS2 Map Importer
 
-## Python version that fork from sarim's one
-No longer support, no more features, but you still got these features different from sarrim's one:
-- Automatically disable vpk signature check.
-- Add ability to validate csgo and cs2.
-- Import maps always copy to what program in as a backup.
-- Don't need to add cs2 path to your environment.
-- Automatically check coloroma is install or not and install it if not.
-- Automatically decompile if select bsp as input, and copy all contents in bsp out into csgo folder.
-- Separate CS2 and CSGO folders.
-- Import script patching to fix known issues.
+A user-friendly tool with a Graphical User Interface (GUI) to import maps from Source 1 (CS:GO / Counter-Strike: Source legacy) into Counter-Strike 2 (Source 2). The tools provided by Valve for importing maps aren't very user-friendly, so this program was created to streamline the process.
 
-Download it here https://github.com/LaplaceTor/cs2-map-importer/releases/tag/PythonFinal
+This project was previously a Python script (forked from sarim's importer) but has now been fully rewritten as a standalone C++ Qt application.
 
-## CMake version
-Still work in progress.
+## Features
+
+- **GUI Interface:** Easy-to-use graphical interface built with Qt5.
+- **Direct Import:** Import maps directly from `.vmf` files.
+- **Automatic Decompilation:** Select a `.bsp` file as input, and it will automatically decompile it using `bspsrc` (requires Java) and prepare it for import.
+- **VMF Patching:** Automatically fixes `dispinfo` blocks and inserts missing required structural elements (e.g., `versioninfo`, `viewsettings`, `cordon`) in decompiled `.vmf` files.
+- **VPK Signature Check Disabling:** Automatically moves and restores `vpk.signatures` during the import process.
+- **Legacy Support:** Supports both CS:GO and CS:Source legacy folders.
+- **Import Options:** Includes options like `-usebsp`, `-usebsp_nomergeinstances` (for better geometry importing), and `-skipdeps` (to skip importing dependencies for quicker iterations).
+- **Log Output:** Built-in console log output and automated log file generation.
+
+## Requirements
+
+To build and run this program, you will need:
+- **C++17** compatible compiler
+- **CMake** (version 3.10 or higher)
+- **Qt5** (Core and Widgets modules)
+- **Java** (Required only if you intend to decompile `.bsp` files)
+
+## Build Instructions
+
+You can build this project using CMake:
+
+```bash
+mkdir build
+cd build
+cmake ..
+cmake --build .
+```
+
+On Windows, the CMake configuration will create a GUI application without a console window. On Linux/macOS, it will create a standard executable.
+
+## Usage
+
+1. Launch `cs2importer`.
+2. Select your **Counter-Strike 2** folder (ensure it contains `game/csgo/gameinfo.gi` with `Counter-Strike 2`).
+3. Select your **Source 1** folder (CS:GO or CSS).
+4. Choose whether to import a **VMF** file or a **BSP** file.
+5. Provide an Addon Name (defaults to the map name).
+6. Configure any additional launch options (`-usebsp`, `-usebsp_nomergeinstances`, `-skipdeps`).
+7. Click **GO!** to start the import process. The log output will show the progress.
+
+## Historical Context
+
+The original Python version of this tool was a fork from sarim's script. It added features like automatic VPK signature check disabling, validation for CS:GO and CS2, automatic BSP decompiling, and script patching to fix known issues. That Python version is no longer supported and will not receive new features. You can still download the final Python version from the [releases page](https://github.com/LaplaceTor/cs2-map-importer/releases/tag/PythonFinal). This C++ Qt version brings those features into a native, standalone graphical application.
