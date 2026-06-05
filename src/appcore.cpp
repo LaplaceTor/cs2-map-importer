@@ -9,11 +9,7 @@
 namespace fs = std::filesystem;
 
 bool AppCore::check_java() {
-#ifdef _WIN32
     std::string cmd = "java -version 2>&1";
-#else
-    std::string cmd = "java -version 2>&1";
-#endif
     std::unique_ptr<FILE, int(*)(FILE*)> pipe(POPEN(cmd.c_str(), "r"), PCLOSE);
     if (!pipe) return false;
 
