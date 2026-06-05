@@ -30,6 +30,13 @@ set_target_properties(cs2importer PROPERTIES
     VS_GLOBAL_WindowsPackageType "None"
     VS_GLOBAL_WindowsAppSDKSelfContained "true"
     VS_GLOBAL_AppxPackage "false"
+    VS_GLOBAL_Keyword "Win32Proj"
+    VS_GLOBAL_TargetFramework "native"
+    VS_GLOBAL_Language "C++"
+    VS_GLOBAL_ProjectTypes "{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}"
+    VS_GLOBAL_WindowsTargetPlatformVersion "10.0.22621.0"
+    VS_GLOBAL_WindowsTargetPlatformMinVersion "10.0.17763.0"
+    VS_GLOBAL_ResolveNuGetPackages "true"
 )
 
 target_include_directories(cs2importer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
