@@ -3,7 +3,7 @@ name: Build CMake CI
 on:
   push:
     branches-ignore:
-      - cmake
+      - main
       - cmake-qt
       - python
 
