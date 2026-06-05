@@ -4,6 +4,15 @@
 #include <functional>
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+#define POPEN _popen
+#define PCLOSE _pclose
+#else
+#define POPEN popen
+#define PCLOSE pclose
+#endif
+
 class AppCore {
 public:
     using LogCallback = std::function<void(const std::string&)>;
@@ -34,4 +43,10 @@ public:
     static void process_bsp(Options& options);
 
     static int run_command_sync(const std::string& cmd, LogCallback logger);
+  
+private:
+    static std::string parse_mapversion(const std::vector<std::string>& lines, bool& found);
+    static std::vector<std::string> extract_visgroups(const std::vector<std::string>& lines, std::vector<std::string>& remaining_lines);
+    static std::vector<std::string> insert_required_blocks(const std::vector<std::string>& lines, const std::string& mapversion, const std::vector<std::string>& visgroups);
+    static std::vector<std::string> patch_dispinfo(const std::vector<std::string>& lines);
 };
