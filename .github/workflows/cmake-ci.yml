@@ -24,8 +24,14 @@ jobs:
     - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
+    - name: Setup NuGet
+      uses: nuget/setup-nuget@v2
+
     - name: Configure CMake
       run: cmake -B build -G "Visual Studio 17 2022" -A x64 -S .
+
+    - name: Restore NuGet Packages
+      run: nuget restore build\cs2importer.sln
 
     - name: Build with MSBuild
       run: msbuild build\cs2importer.sln /p:Configuration=Release /p:Platform=x64 -restore
