@@ -18,16 +18,14 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Qt
-      uses: jurplel/install-qt-action@v3
-      with:
-        version: '5.15.2'
-        host: 'windows'
-        target: 'desktop'
-        arch: 'win64_msvc2019_64'
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v2
 
     - name: Configure CMake
       run: cmake -B build -S .
+
+    - name: Restore NuGet Packages
+      run: nuget restore build/cs2importer.sln
 
     - name: Build with CMake
       run: cmake --build build --config Release
