@@ -36,13 +36,7 @@ jobs:
         $QtPath = (Get-Item "${{ github.workspace }}\Qt\6.8.*\win64_msvc2022_64").FullName
         $Qt6Dir = "$QtPath\lib\cmake\Qt6"
         cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$Qt6Dir"
-    
-    # Compile the project
-    cmake --build build --config Release
-
-
-    - name: Build with CMake
-      run: cmake --build build --config Release
+        cmake --build build --config Release
 
     - name: Download bspsrc
       shell: pwsh
