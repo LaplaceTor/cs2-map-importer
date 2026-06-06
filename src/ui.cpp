@@ -11,6 +11,8 @@
 #include <iomanip>
 #include <sstream>
 
+#undef FindText
+
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Microsoft.UI.Xaml.h>
@@ -25,8 +27,6 @@
 #include <microsoft.ui.xaml.window.h>
 #include <algorithm>
 #include <cctype>
-
-#undef FindText
 
 namespace fs = std::filesystem;
 using namespace winrt;
