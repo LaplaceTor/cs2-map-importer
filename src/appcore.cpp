@@ -100,7 +100,7 @@ std::vector<std::string> AppCore::extract_visgroups(const std::vector<std::strin
         }
 
         if (trimmed == "visgroups" && visgroups_start_idx == -1) {
-            visgroups_start_idx = i;
+            visgroups_start_idx = static_cast<int>(i);
             break;
         }
     }
@@ -119,7 +119,7 @@ std::vector<std::string> AppCore::extract_visgroups(const std::vector<std::strin
             }
 
             if (found_first_bracket && open_brackets == 0) {
-                visgroups_end_idx = i;
+                visgroups_end_idx = static_cast<int>(i);
                 break;
             }
         }
