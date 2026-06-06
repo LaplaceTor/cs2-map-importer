@@ -2,6 +2,8 @@
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.Dispatching.h>
 #include <windows.h>
+#include <WindowsAppSDK-VersionInfo.h>
+#include <MddBootstrap.h>
 #include "ui.h"
 
 using namespace winrt;
@@ -21,6 +23,11 @@ private:
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, PSTR, int)
 {
+    HRESULT hr = MddBootstrapInitialize(WINDOWSAPPSDK_RELEASE_MAJORMINOR, WINDOWSAPPSDK_RELEASE_VERSION_SHORTTAG_W, WINDOWSAPPSDK_RUNTIME_VERSION_UINT64);
+    if (FAILED(hr))
+    {
+        return 1;
+    }
 
     init_apartment(apartment_type::single_threaded);
 
@@ -33,5 +40,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, PSTR, int)
         make<App>();
     });
 
+    MddBootstrapShutdown();
     return 0;
 }
