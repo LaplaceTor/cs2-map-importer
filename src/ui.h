@@ -1,24 +1,20 @@
-#ifndef UI_H
-#define UI_H
+#pragma once
 
-#include <QMainWindow>
-#include <QString>
-#include <QFile>
-#include <QTextStream>
+#include <string>
+#include <fstream>
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Microsoft.UI.Xaml.h>
+#include <winrt/Microsoft.UI.Xaml.Controls.h>
 
-namespace Ui {
-class MainWindow;
-}
-
-class Importer : public QMainWindow
+class Importer
 {
-    Q_OBJECT
-
 public:
-    explicit Importer(QWidget *parent = nullptr);
+    Importer();
     ~Importer();
 
-private slots:
+    winrt::Microsoft::UI::Xaml::Window GetWindow() const { return window; }
+
+private:
     void select_cs2_folder();
     void select_s1_folder();
     void select_vmf();
@@ -31,39 +27,58 @@ private slots:
     void get_launch_options();
     void go();
 
-public slots:
-    void log(const QString& message);
+public:
+    void log(const std::string& message);
 
 private:
-    Ui::MainWindow *ui;
+    winrt::Microsoft::UI::Xaml::Window window{ nullptr };
 
-    QString app_dir;
+    // UI elements
+    winrt::Microsoft::UI::Xaml::Controls::Button cs2_button{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::TextBlock cs2_label{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::Button validate_cs2_button{ nullptr };
+
+    winrt::Microsoft::UI::Xaml::Controls::ComboBox s1_game_combo{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::Button s1_button{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::TextBlock s1_label{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::Button validate_s1_button{ nullptr };
+
+    winrt::Microsoft::UI::Xaml::Controls::Button vmf_button{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::Button bsp_button{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::TextBlock map_label{ nullptr };
+
+    winrt::Microsoft::UI::Xaml::Controls::TextBox addon_edit{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::CheckBox usebsp_checkbox{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::CheckBox usebsp_nomergeinstances_checkbox{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::CheckBox skipdeps_checkbox{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::Button go_button{ nullptr };
+
+    winrt::Microsoft::UI::Xaml::Controls::ScrollViewer log_scroll{ nullptr };
+    winrt::Microsoft::UI::Xaml::Controls::TextBlock log_output{ nullptr };
+
+    std::string app_dir;
     bool java_installed;
-    QString vmf_default_path;
-    QString cs2_basefolder;
-    QString s1game_basefolder;
-    QString s1_game_type; // "csgo" or "css"
-    QString content_folder;
-    QString content_folder_to_save;
-    QString addon_name;
-    QString map_name;
+    std::string vmf_default_path;
+    std::string cs2_basefolder;
+    std::string s1game_basefolder;
+    std::string s1_game_type; // "csgo" or "css"
+    std::string content_folder;
+    std::string content_folder_to_save;
+    std::string addon_name;
+    std::string map_name;
     bool vpk_signatures_moved;
-    QString bsp_file;
-    QString launch_options;
+    std::string bsp_file;
+    std::string launch_options;
 
-    QFile* log_file;
-    QTextStream* log_stream;
+    std::ofstream* log_file;
 
-    void set_cs2_folder(const QString& path);
-    void set_s1_folder(const QString& path);
+    void set_cs2_folder(const std::string& path);
+    void set_s1_folder(const std::string& path);
 
     void set_tooltips();
     void set_stylesheets();
     void load_from_cfg();
     void save_to_cfg();
 
-protected:
-    void closeEvent(QCloseEvent *event) override;
+    void create_ui();
 };
-
-#endif // UI_H
