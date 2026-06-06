@@ -1,3 +1,0 @@
-/app/build_temp/CMakeFiles/cs2importer.dir
-/app/build_temp/CMakeFiles/edit_cache.dir
-/app/build_temp/CMakeFiles/rebuild_cache.dir

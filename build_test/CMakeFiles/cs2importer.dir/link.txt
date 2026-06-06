@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/cs2importer.dir/src/main.cpp.o CMakeFiles/cs2importer.dir/src/ui.cpp.o CMakeFiles/cs2importer.dir/src/appcore.cpp.o CMakeFiles/cs2importer.dir/src/mapimporter.cpp.o -o cs2importer

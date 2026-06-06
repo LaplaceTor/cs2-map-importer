@@ -31,6 +31,7 @@ if(WIN32)
 
     # Workaround for MSBuild Sequence contains no elements bug
     set_property(TARGET cs2importer PROPERTY VS_GLOBAL_TargetFramework "native")
+    set_property(TARGET cs2importer PROPERTY VS_GLOBAL_ResolveNuGetPackages "false")
 
     # We must enable exception handling to use C++/WinRT exceptions smoothly
     target_compile_options(cs2importer PRIVATE /EHsc)
