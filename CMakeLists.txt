@@ -31,7 +31,11 @@ if(WIN32)
 
     set_property(TARGET cs2importer PROPERTY VS_GLOBAL_TargetFrameworkMoniker "native,Version=v0.0")
 
-    set(WIN_ARCH "win10-x64")
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        set(WIN_ARCH "win10-x64")
+    else()
+        set(WIN_ARCH "win10-x86")
+    endif()
 
     if(DEFINED ENV{USERPROFILE})
         set(NUGET_ROOT "$ENV{USERPROFILE}/.nuget/packages")
