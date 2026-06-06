@@ -23,7 +23,7 @@ jobs:
 
     - name: Install Windows App SDK
       run: |
-        nuget install Microsoft.WindowsAppSDK -Version 2.1.3 -OutputDirectory packages
+        nuget install Microsoft.WindowsAppSDK -Version 2.1.3
 
     - name: Configure CMake
       run: cmake -B build -S .      
@@ -45,19 +45,11 @@ jobs:
       shell: pwsh
       run: |
         mkdir release
-        Copy-Item build\Release\cs2importer.exe release\
-
-        # Copy WinUI 3 and other necessary DLLs and assets
-        if (Test-Path build\Release\*.dll) { Copy-Item build\Release\*.dll release\ }
-        if (Test-Path build\Release\*.pri) { Copy-Item build\Release\*.pri release\ }
-        if (Test-Path build\Release\*.xbf) { Copy-Item build\Release\*.xbf release\ }
-        if (Test-Path build\Release\*.pak) { Copy-Item build\Release\*.pak release\ }
+        Copy-Item build\Release\ release\
 
         Copy-Item bspsrc\bspsrc.jar release\
 
         Copy-Item -Path bin -Destination release\bin -Recurse
-        cd release
-        7z a cs2importer.zip *
 
     - name: Get commit SHA
       id: vars
@@ -69,4 +61,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: CS2-Importer-Dev-${{ steps.vars.outputs.sha_short }}
-        path: release/cs2importer.zip
+        path: release
