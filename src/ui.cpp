@@ -1,11 +1,8 @@
 #include "ui.h"
-#include "ui/ui_interface.h"
 #include "mapimporter.h"
 #include "appcore.h"
 
-#include <QFileDialog>
 #include <thread>
-#include <QMessageBox>
 #include <QDir>
 #include <QFile>
 #include <QTextStream>
@@ -13,70 +10,39 @@
 #include <QUrl>
 #include <QRegularExpression>
 #include <QCoreApplication>
-#include <QCloseEvent>
 #include <QTimer>
 #include <QDateTime>
+#include <QFileInfo>
 
-Importer::Importer(QWidget *parent) :
-    QMainWindow(parent),
-    ui(new Ui::MainWindow),
+Backend::Backend(QObject *parent) :
+    QObject(parent),
     java_installed(false),
     vmf_default_path("C:\\"),
+    s1_game_type("csgo"),
     content_folder_to_save("C:\\"),
     vpk_signatures_moved(false),
     log_file(nullptr),
     log_stream(nullptr)
 
 {
-    ui->setupUi(this);
-
     app_dir = QCoreApplication::applicationDirPath();
 
     log("Initializing CS2 Importer...");
 
     java_installed = AppCore::check_java();
 
-    set_tooltips();
-    set_stylesheets();
-    get_addon_name();
     get_launch_options();
 
     if (!java_installed) {
-        ui->bsp_button->setToolTip("Java is missing. BSP decompilation is disabled.");
-        ui->bsp_button->setEnabled(false);
         log("Warning: Java is missing. BSP decompilation disabled.");
     }
 
     load_from_cfg();
 
-    connect(ui->cs2_button, &QPushButton::clicked, this, &Importer::select_cs2_folder);
-    connect(ui->s1_button, &QPushButton::clicked, this, &Importer::select_s1_folder);
-    connect(ui->vmf_button, &QPushButton::clicked, this, &Importer::select_vmf);
-    connect(ui->bsp_button, &QPushButton::clicked, this, &Importer::select_bsp);
-    connect(ui->validate_cs2_button, &QPushButton::clicked, this, &Importer::validate_cs2);
-    connect(ui->validate_s1_button, &QPushButton::clicked, this, &Importer::validate_s1);
-    connect(ui->addon_edit, &QLineEdit::textChanged, this, &Importer::get_addon_name);
-    connect(ui->s1_game_combo, &QComboBox::currentTextChanged, this, [this](const QString &) {
-        s1game_basefolder.clear();
-        ui->s1_label->setText("Not selected");
-        ui->s1_label->setStyleSheet("background-color:rgb(255, 0, 0)");
-    });
-    connect(ui->go_button, &QPushButton::clicked, this, &Importer::go);
-
-    connect(ui->usebsp_checkbox, &QCheckBox::toggled, this, &Importer::on_usebsp_toggled);
-    connect(ui->usebsp_nomergeinstances_checkbox, &QCheckBox::toggled, this, &Importer::on_usebsp_nomergeinstances_toggled);
-
-    connect(ui->usebsp_checkbox, &QCheckBox::stateChanged, this, &Importer::get_launch_options);
-    connect(ui->usebsp_nomergeinstances_checkbox, &QCheckBox::stateChanged, this, &Importer::get_launch_options);
-    connect(ui->skipdeps_checkbox, &QCheckBox::stateChanged, this, &Importer::get_launch_options);
-
-    // Initial state
-    ui->usebsp_nomergeinstances_checkbox->setEnabled(ui->usebsp_checkbox->isChecked());
-
     log("Initializing CS2 Importer... Finished");
 }
 
-Importer::~Importer()
+Backend::~Backend()
 {
     if (log_stream) {
         delete log_stream;
@@ -89,14 +55,11 @@ Importer::~Importer()
         delete log_file;
         log_file = nullptr;
     }
-    delete ui;
 }
 
-void Importer::log(const QString& message)
+void Backend::log(const QString& message)
 {
-    ui->log_output->appendPlainText(message);
-    // Auto-scroll to bottom
-    ui->log_output->moveCursor(QTextCursor::End);
+    emit logMessage(message);
 
     if (log_stream && log_file && log_file->isOpen()) {
         *log_stream << message << "\n";
@@ -104,12 +67,12 @@ void Importer::log(const QString& message)
     }
 }
 
-void Importer::validate_cs2()
+void Backend::validate_cs2()
 {
     QDesktopServices::openUrl(QUrl("steam://validate/730"));
 }
 
-void Importer::validate_s1()
+void Backend::validate_s1()
 {
     if (s1_game_type == "css") {
         QDesktopServices::openUrl(QUrl("steam://validate/240"));
@@ -118,26 +81,20 @@ void Importer::validate_s1()
     }
 }
 
-void Importer::set_stylesheets()
+void Backend::set_s1_game_type(const QString& type)
 {
-    ui->cs2_label->setStyleSheet("background-color:rgb(255, 0, 0)");
-    ui->s1_label->setStyleSheet("background-color:rgb(255, 0, 0)");
-    ui->map_label->setStyleSheet("background-color:rgb(255, 0, 0)");
+    if (s1_game_type != type) {
+        s1_game_type = type;
+        s1game_basefolder.clear();
+        emit s1gameBasefolderChanged();
+        emit s1GameTypeChanged();
+        updateCanGo();
+    }
 }
 
-void Importer::set_tooltips()
+void Backend::select_cs2_folder_dialog(const QUrl& url)
 {
-    ui->cs2_button->setToolTip("Use \"Counter-Strike Global Offensive\" folder or any folder inside it.");
-    ui->s1_button->setToolTip("Use \"csgo legacy\" folder or any folder inside it.");
-    ui->vmf_button->setToolTip("Does not need to be in a \"maps\" folder, one will be created then deleted afterwards if necessary.");
-    ui->usebsp_checkbox->setToolTip("This runs the map through a special vbsp process to generate clean map geometry from brushes, removing hidden faces and stitching up edges, making the CS2 version easier to work with in Hammer. It preserves world (vis) brushes and func_detail brushes for compatibility with Source 2. This parameter will also merge all func_instances in your map. Note that the final geometry will be triangulated, but cleaning it up is a fairly simple process, which will be explained in another guide.");
-    ui->usebsp_nomergeinstances_checkbox->setToolTip("Use this instead of -usebsp if you wish to both generate clean geo and also preserve func_instances. Note that this takes a little longer as it has to run through the import process twice. The final geometry will also be triangulated.");
-    ui->skipdeps_checkbox->setToolTip("Optional: skips importing all dependencies/content and only generates the vmap file(s). This provides a 'quick' import when iterating entities for example. Do not run with this if you are importing for the first time.");
-}
-
-void Importer::select_cs2_folder()
-{
-    QString path = QFileDialog::getExistingDirectory(this, "Select a folder:", "C:\\", QFileDialog::ShowDirsOnly);
+    QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
     QString gameinfo_path = QDir(path).filePath("game/csgo/gameinfo.gi");
@@ -157,32 +114,30 @@ void Importer::select_cs2_folder()
     }
 
     if (!valid) {
-        QMessageBox::critical(this, "Invalid CS2 Folder", "The selected folder is not a valid CS2 installation.\nPlease make sure to select a folder where game/csgo/gameinfo.gi contains 'game \"Counter-Strike 2\"'.");
-        QTimer::singleShot(0, this, &Importer::select_cs2_folder);
+        emit alertMessage("Invalid CS2 Folder", "The selected folder is not a valid CS2 installation.\nPlease make sure to select a folder where game/csgo/gameinfo.gi contains 'game \"Counter-Strike 2\"'.");
         return;
     }
 
     set_cs2_folder(path);
 }
 
-void Importer::set_cs2_folder(const QString& path)
+void Backend::set_cs2_folder(const QString& path)
 {
     if (!path.isEmpty() && path != "None") {
         cs2_basefolder = path;
-        ui->cs2_label->setText("Selected");
-        ui->cs2_label->setStyleSheet("background-color:rgb(0, 255, 0)");
+        emit cs2BasefolderChanged();
+        updateCanGo();
     }
 }
 
-void Importer::select_s1_folder()
+void Backend::select_s1_folder_dialog(const QUrl& url)
 {
-    QString path = QFileDialog::getExistingDirectory(this, "Select a folder:", "C:\\", QFileDialog::ShowDirsOnly);
+    QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
-    QString selected_game = ui->s1_game_combo->currentText();
     bool valid = false;
 
-    if (selected_game == "CSGO") {
+    if (s1_game_type == "csgo") {
         QString gameinfo_path_csgo = QDir(path).filePath("csgo/gameinfo.txt");
         QFile file_csgo(gameinfo_path_csgo);
 
@@ -192,23 +147,22 @@ void Importer::select_s1_folder()
             while (!in.atEnd()) {
                 if (regex.match(in.readLine()).hasMatch()) {
                     valid = true;
-                    s1_game_type = "csgo";
                     break;
                 }
             }
             file_csgo.close();
         }
-    } else if (selected_game == "CSS") {
+
+    } else if (s1_game_type == "css") {
         QString gameinfo_path_css = QDir(path).filePath("cstrike/gameinfo.txt");
         QFile file_css(gameinfo_path_css);
 
         if (file_css.exists() && file_css.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QTextStream in(&file_css);
-            QRegularExpression regex("^\\s*game\\s+\"Counter-Strike Source\"\\s*$");
+            QRegularExpression regex("^\\s*game\\s+\"Counter-Strike: Source\"\\s*$");
             while (!in.atEnd()) {
                 if (regex.match(in.readLine()).hasMatch()) {
                     valid = true;
-                    s1_game_type = "css";
                     break;
                 }
             }
@@ -217,110 +171,91 @@ void Importer::select_s1_folder()
     }
 
     if (!valid) {
-        if (selected_game == "CSGO") {
-            QMessageBox::critical(this, "Invalid Source 1 Folder", "The selected folder is not a valid CS:GO legacy installation.\nPlease make sure to select a folder where csgo/gameinfo.txt contains 'game \"Counter-Strike: Global Offensive\"'.");
-        } else {
-            QMessageBox::critical(this, "Invalid Source 1 Folder", "The selected folder is not a valid Counter-Strike Source installation.\nPlease make sure to select a folder where cstrike/gameinfo.txt contains 'game \"Counter-Strike Source\"'.");
-        }
-        QTimer::singleShot(0, this, &Importer::select_s1_folder);
+        emit alertMessage("Invalid Source 1 Folder", "The selected folder is not a valid CSGO/CSS installation.\nPlease make sure it is a \"csgo legacy\" or \"Counter-Strike Source\" directory containing the gameinfo.txt.");
         return;
     }
 
     set_s1_folder(path);
 }
 
-void Importer::set_s1_folder(const QString& path)
+void Backend::set_s1_folder(const QString& path)
 {
     if (!path.isEmpty() && path != "None") {
         s1game_basefolder = path;
-        ui->s1_label->setText("Selected");
-        ui->s1_label->setStyleSheet("background-color:rgb(0, 255, 0)");
+        emit s1gameBasefolderChanged();
+        updateCanGo();
     }
 }
 
-void Importer::select_vmf()
+void Backend::select_vmf_dialog(const QUrl& url)
 {
-    QString path = QFileDialog::getOpenFileName(this, "Select a VMF", vmf_default_path, "VMF files (*.vmf)");
+    QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
     bsp_file.clear();
+    emit bspFileChanged();
+
     QFileInfo fileInfo(path);
     map_name = fileInfo.baseName();
     content_folder = fileInfo.absolutePath();
+    vmf_default_path = content_folder;
+    emit vmfDefaultPathUrlChanged();
 
-    QString target_maps_dir = QDir(app_dir).filePath(QString("maps/%1/maps").arg(map_name));
-    QDir().mkpath(target_maps_dir);
+    emit contentFolderChanged();
 
-    QString target_vmf_path = QDir(target_maps_dir).filePath(fileInfo.fileName());
-
-    if (fileInfo.absoluteFilePath() != target_vmf_path) {
-        if (QFile::exists(target_vmf_path)) {
-            QFile::remove(target_vmf_path);
-        }
-        QFile::copy(fileInfo.absoluteFilePath(), target_vmf_path);
-    }
-
-    content_folder_to_save = content_folder;
-    content_folder = QDir(app_dir).filePath(QString("maps/%1").arg(map_name));
+    QString target_vmf_path = QDir(content_folder).filePath(QString("%1.vmf").arg(map_name));
     log("VMF set up at: " + target_vmf_path);
 
-    ui->map_label->setText("Selected");
-    ui->map_label->setStyleSheet("background-color:rgb(0, 255, 0)");
+    updateCanGo();
 }
 
-void Importer::select_bsp()
+void Backend::select_bsp_dialog(const QUrl& url)
 {
-    QString path = QFileDialog::getOpenFileName(this, "Select a BSP", vmf_default_path, "BSP files (*.bsp)");
+    QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
+    if (!java_installed) {
+        emit alertMessage("Java Missing", "Java is not installed. Cannot decompile BSP file.");
+        return;
+    }
+
     bsp_file = path;
+    emit bspFileChanged();
     QFileInfo fileInfo(path);
     map_name = fileInfo.baseName();
+    content_folder.clear();
     content_folder_to_save = fileInfo.absolutePath();
+    vmf_default_path = content_folder_to_save;
+    emit vmfDefaultPathUrlChanged();
+    emit contentFolderChanged();
 
-    ui->map_label->setText("Selected");
-    ui->map_label->setStyleSheet("background-color:rgb(0, 255, 0)");
+    updateCanGo();
 }
 
-void Importer::on_usebsp_toggled(bool checked)
-{
-    ui->usebsp_nomergeinstances_checkbox->setEnabled(checked);
-    if (!checked) {
-        ui->usebsp_nomergeinstances_checkbox->setChecked(false);
-    }
-}
-
-void Importer::on_usebsp_nomergeinstances_toggled(bool checked)
-{
-    if (checked) {
-        ui->usebsp_checkbox->setChecked(true);
-    }
-}
-
-void Importer::get_addon_name()
-{
-    addon_name = ui->addon_edit->text();
-}
-
-void Importer::get_launch_options()
+void Backend::get_launch_options()
 {
     QStringList options;
-    if (ui->usebsp_checkbox->isChecked()) {
-        if (ui->usebsp_nomergeinstances_checkbox->isChecked()) {
+    if (usebsp) {
+        if (usebsp_nomergeinstances) {
             options.append("-usebsp_nomergeinstances");
         } else {
             options.append("-usebsp");
         }
     }
-    if (ui->skipdeps_checkbox->isChecked()) options.append("-skipdeps");
+    if (skipdeps) options.append("-skipdeps");
     launch_options = options.join(" ");
 }
 
-void Importer::save_to_cfg()
+void Backend::updateCanGo()
 {
-    QString usebsp_state = ui->usebsp_checkbox->isChecked() ? "True" : "False";
-    QString nomerge_state = ui->usebsp_nomergeinstances_checkbox->isChecked() ? "True" : "False";
-    QString skipdeps_state = ui->skipdeps_checkbox->isChecked() ? "True" : "False";
+    emit canGoChanged();
+}
+
+void Backend::save_to_cfg()
+{
+    QString usebsp_state = usebsp ? "True" : "False";
+    QString nomerge_state = usebsp_nomergeinstances ? "True" : "False";
+    QString skipdeps_state = skipdeps ? "True" : "False";
 
     QString temp = QString("%1\n%2\n%3\n%4\n%5\n%6\n%7")
         .arg(usebsp_state)
@@ -339,7 +274,7 @@ void Importer::save_to_cfg()
     }
 }
 
-void Importer::load_from_cfg()
+void Backend::load_from_cfg()
 {
     QFile file("cs2importer.cfg");
     if (!file.exists()) {
@@ -360,62 +295,55 @@ void Importer::load_from_cfg()
 
         if (temp[0] == "True" || temp[0] == "False") {
             if (temp.size() >= 6) {
-                ui->usebsp_checkbox->setChecked(temp[0] == "True");
-                ui->usebsp_nomergeinstances_checkbox->setChecked(temp[1] == "True");
-                ui->usebsp_nomergeinstances_checkbox->setEnabled(temp[0] == "True");
-                ui->skipdeps_checkbox->setChecked(temp[2] == "True");
+                setUsebsp(temp[0] == "True");
+                setUsebspNomergeinstances(temp[1] == "True");
+                setSkipdeps(temp[2] == "True");
                 set_cs2_folder(temp[3]);
 
-                // For backward compatibility: if s1_game_type wasn't saved, try to infer it.
                 if (temp.size() >= 7) {
-                    s1_game_type = temp[6];
+                    set_s1_game_type(temp[6]);
                 } else {
-                    s1_game_type = "csgo"; // Assume CSGO for old configs
-                }
-
-                if (s1_game_type == "css") {
-                    ui->s1_game_combo->setCurrentText("CSS");
-                } else {
-                    ui->s1_game_combo->setCurrentText("CSGO");
+                    set_s1_game_type("csgo");
                 }
 
                 set_s1_folder(temp[4]);
                 vmf_default_path = temp[5];
+                emit vmfDefaultPathUrlChanged();
             }
         } else {
             if (temp.size() == 3) {
                 set_cs2_folder(temp[1]);
                 vmf_default_path = temp[2];
+                emit vmfDefaultPathUrlChanged();
             } else if (temp.size() >= 4) {
                 set_cs2_folder(temp[1]);
                 set_s1_folder(temp[2]);
                 vmf_default_path = temp[3];
+                emit vmfDefaultPathUrlChanged();
             }
         }
     }
 }
 
-void Importer::go()
+void Backend::go()
 {
-    ui->log_output->clear();
-
     if (cs2_basefolder.isEmpty()) {
-        QMessageBox::warning(this, "Validation Error", "CS2 folder not selected.");
+        emit alertMessage("Validation Error", "CS2 folder not selected.");
         return;
     }
     if (s1game_basefolder.isEmpty()) {
-        QMessageBox::warning(this, "Validation Error", "CSGO folder not selected.");
+        emit alertMessage("Validation Error", "CSGO/CSS folder not selected.");
         return;
     }
     if (bsp_file.isEmpty() && content_folder.isEmpty()) {
-        QMessageBox::warning(this, "Validation Error", "Please select a VMF or BSP file.");
+        emit alertMessage("Validation Error", "Please select a VMF or BSP file.");
         return;
     }
 
     try {
-        get_addon_name();
         if (addon_name.trimmed().isEmpty()) {
             addon_name = map_name;
+            emit addonNameChanged();
         }
 
         save_to_cfg();
@@ -450,7 +378,9 @@ void Importer::go()
         AppCore::cancel_import = false;
         AppCore::move_vpk_signatures(cs2_basefolder.toStdString(), vpk_signatures_moved);
 
-        ui->go_button->setEnabled(false);
+        is_going = true;
+        updateCanGo();
+
         log("Starting AppCore thread...");
 
         AppCore::Options opts;
@@ -462,9 +392,9 @@ void Importer::go()
         opts.bsp_file = bsp_file.toStdString();
         opts.app_dir = app_dir.toStdString();
         opts.addon_name = addon_name.toStdString();
-        opts.usebsp = ui->usebsp_checkbox->isChecked() && !ui->usebsp_nomergeinstances_checkbox->isChecked();
-        opts.usebsp_nomergeinstances = ui->usebsp_checkbox->isChecked() && ui->usebsp_nomergeinstances_checkbox->isChecked();
-        opts.skipdeps = ui->skipdeps_checkbox->isChecked();
+        opts.usebsp = usebsp && !usebsp_nomergeinstances;
+        opts.usebsp_nomergeinstances = usebsp && usebsp_nomergeinstances;
+        opts.skipdeps = skipdeps;
 
         opts.logger = [this](const std::string& msg) {
             QMetaObject::invokeMethod(this, "log", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdString(msg)));
@@ -514,7 +444,10 @@ void Importer::go()
                     AppCore::restore_vpk_signatures(cs2_basefolder.toStdString());
                     vpk_signatures_moved = false;
                 }
-                ui->go_button->setEnabled(true);
+
+                is_going = false;
+                updateCanGo();
+
                 if (success) {
                     log("MapImporter thread finished successfully.");
                 } else {
@@ -538,16 +471,15 @@ void Importer::go()
 
     } catch (const std::exception& e) {
         log(QString("Error: %1").arg(e.what()));
-        QMessageBox::critical(this, "Error", e.what());
+        emit alertMessage("Error", e.what());
     }
 }
 
-void Importer::closeEvent(QCloseEvent *event)
+void Backend::appAboutToQuit()
 {
     AppCore::cancel_all();
     if (vpk_signatures_moved && !cs2_basefolder.isEmpty()) {
         AppCore::restore_vpk_signatures(cs2_basefolder.toStdString());
         vpk_signatures_moved = false;
     }
-    event->accept();
 }

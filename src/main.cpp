@@ -1,11 +1,32 @@
-#include <QApplication>
+#include <QGuiApplication>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
+#include <QQuickStyle>
+#include <QIcon>
 #include "ui.h"
 
 int main(int argc, char *argv[])
 {
-    QApplication a(argc, argv);
+    // Enable high DPI scaling
 
-    Importer w;
-    w.show();
-    return a.exec();
+
+    QGuiApplication app(argc, argv);
+    app.setWindowIcon(QIcon(":/icons/icon.png")); // Optional if we had one
+    QQuickStyle::setStyle("Material");
+
+    Backend backend;
+    QObject::connect(&app, &QGuiApplication::aboutToQuit, &backend, &Backend::appAboutToQuit);
+
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("backendObject", &backend);
+
+    const QUrl url(QStringLiteral("qrc:/cs2importer/src/qml/main.qml"));
+    QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
+                     &app, [url](QObject *obj, const QUrl &objUrl) {
+        if (!obj && url == objUrl)
+            QCoreApplication::exit(-1);
+    }, Qt::QueuedConnection);
+    engine.load(url);
+
+    return app.exec();
 }
