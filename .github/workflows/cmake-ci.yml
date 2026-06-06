@@ -24,17 +24,17 @@ jobs:
         python-version: '3.x'
 
     - name: Install aqtinstall
-        run: pip install aqtinstall
+      run: pip install aqtinstall
 
     - name: Install Latest Qt 6.8.x
-        run: |
-          python -m aqt install-qt linux desktop "~6.8" linux_gcc_64 --outputdir ${{ github.workspace }}/Qt
+      run: |
+        python -m aqt install-qt linux desktop "~6.8" linux_gcc_64 --outputdir ${{ github.workspace }}/Qt
 
     - name: Setup Dynamic Environment Variables
-        run: |
-          QT_PATH=$(ls -d ${{ github.workspace }}/Qt/6.8.*/gcc_64)
-          echo "Qt6_DIR=$QT_PATH/lib/cmake/Qt6" >> $GITHUB_ENV
-          echo "$QT_PATH/bin" >> $GITHUB_PATH
+      run: |
+        QT_PATH=$(ls -d ${{ github.workspace }}/Qt/6.8.*/gcc_64)
+        echo "Qt6_DIR=$QT_PATH/lib/cmake/Qt6" >> $GITHUB_ENV
+        echo "$QT_PATH/bin" >> $GITHUB_PATH
 
     - name: Configure CMake
       run: cmake -B build -S .
