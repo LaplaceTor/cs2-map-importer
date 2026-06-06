@@ -29,6 +29,18 @@ if(WIN32)
         "Microsoft.WindowsAppSDK_2.1.3"
     )
     set_property(TARGET cs2importer PROPERTY VS_GLOBAL_TargetFrameworkMoniker "native,Version=v0.0")
+
+    # Enable Windows App SDK Self Contained/Bootstrap
+    set_property(TARGET cs2importer PROPERTY VS_GLOBAL_WindowsPackageType "None")
+    set_property(TARGET cs2importer PROPERTY VS_GLOBAL_WindowsAppSDKSelfContained "true")
 endif()
 
 target_include_directories(cs2importer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+if(WIN32)
+    # The WindowsAppSDK nuget package properties handle the linking automatically
+    # if we set WindowsPackageType and WindowsAppSDKSelfContained properties.
+    # Alternatively, we can explicitly link Microsoft.WindowsAppRuntime.Bootstrap.lib
+    # but the NuGet target properties are the recommended approach for CMake+WinAppSDK unpackaged apps.
+    target_link_libraries(cs2importer PRIVATE "Microsoft.WindowsAppRuntime.Bootstrap.lib")
+endif()

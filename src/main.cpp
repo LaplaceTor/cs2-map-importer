@@ -6,13 +6,9 @@
 #include <MddBootstrap.h>
 #include "ui.h"
 
-using namespace winrt;
-using namespace Microsoft::UI::Xaml;
-using namespace Microsoft::UI::Dispatching;
-
-struct App : ApplicationT<App>
+struct App : winrt::Microsoft::UI::Xaml::ApplicationT<App>
 {
-    void OnLaunched(LaunchActivatedEventArgs const&)
+    void OnLaunched(winrt::Microsoft::UI::Xaml::LaunchActivatedEventArgs const&)
     {
         importer = std::make_unique<Importer>();
         importer->GetWindow().Activate();
@@ -23,21 +19,23 @@ private:
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, PSTR, int)
 {
-    HRESULT hr = MddBootstrapInitialize(WINDOWSAPPSDK_RELEASE_MAJORMINOR, WINDOWSAPPSDK_RELEASE_VERSION_SHORTTAG_W, WINDOWSAPPSDK_RUNTIME_VERSION_UINT64);
+    PACKAGE_VERSION version{};
+    version.Version = WINDOWSAPPSDK_RUNTIME_VERSION_UINT64;
+    HRESULT hr = MddBootstrapInitialize(WINDOWSAPPSDK_RELEASE_MAJORMINOR, WINDOWSAPPSDK_RELEASE_VERSION_SHORTTAG_W, version);
     if (FAILED(hr))
     {
         return 1;
     }
 
-    init_apartment(apartment_type::single_threaded);
+    winrt::init_apartment(winrt::apartment_type::single_threaded);
 
-    DispatcherQueueController dispatcherQueueController{ nullptr };
-    if (!DispatcherQueue::GetForCurrentThread()) {
-        dispatcherQueueController = DispatcherQueueController::CreateOnCurrentThread();
+    winrt::Microsoft::UI::Dispatching::DispatcherQueueController dispatcherQueueController{ nullptr };
+    if (!winrt::Microsoft::UI::Dispatching::DispatcherQueue::GetForCurrentThread()) {
+        dispatcherQueueController = winrt::Microsoft::UI::Dispatching::DispatcherQueueController::CreateOnCurrentThread();
     }
 
-    Application::Start([](auto&&) {
-        make<App>();
+    winrt::Microsoft::UI::Xaml::Application::Start([](auto&&) {
+        winrt::make<App>();
     });
 
     MddBootstrapShutdown();
