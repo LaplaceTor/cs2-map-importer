@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("backendObject", &backend);
 
-    const QUrl url(QStringLiteral("qrc:/cs2importer/src/qml/main.qml"));
+    const QUrl url(QStringLiteral("qrc:/qt/qml/cs2importer/src/qml/main.qml"));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
                      &app, [url](QObject *obj, const QUrl &objUrl) {
         if (!obj && url == objUrl)

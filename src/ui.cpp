@@ -198,12 +198,26 @@ void Backend::select_vmf_dialog(const QUrl& url)
     QFileInfo fileInfo(path);
     map_name = fileInfo.baseName();
     content_folder = fileInfo.absolutePath();
-    vmf_default_path = content_folder;
+
+    QString target_maps_dir = QDir(app_dir).filePath(QString("maps/%1/maps").arg(map_name));
+    QDir().mkpath(target_maps_dir);
+
+    QString target_vmf_path = QDir(target_maps_dir).filePath(fileInfo.fileName());
+
+    if (fileInfo.absoluteFilePath() != target_vmf_path) {
+        if (QFile::exists(target_vmf_path)) {
+            QFile::remove(target_vmf_path);
+        }
+        QFile::copy(fileInfo.absoluteFilePath(), target_vmf_path);
+    }
+
+    content_folder_to_save = content_folder;
+    content_folder = QDir(app_dir).filePath(QString("maps/%1").arg(map_name));
+    vmf_default_path = content_folder_to_save;
     emit vmfDefaultPathUrlChanged();
 
     emit contentFolderChanged();
 
-    QString target_vmf_path = QDir(content_folder).filePath(QString("%1.vmf").arg(map_name));
     log("VMF set up at: " + target_vmf_path);
 
     updateCanGo();
