@@ -109,7 +109,7 @@ std::vector<std::string> AppCore::extract_visgroups(const std::vector<std::strin
     remaining_lines = lines;
 
     if (visgroups_start_idx != -1) {
-        ptrdiff_t open_brackets = 0;
+        int open_brackets = 0;
         bool found_first_bracket = false;
         for (size_t i = visgroups_start_idx; i < lines.size(); ++i) {
             open_brackets += std::count(lines[i].begin(), lines[i].end(), '{');
@@ -119,14 +119,14 @@ std::vector<std::string> AppCore::extract_visgroups(const std::vector<std::strin
             }
 
             if (found_first_bracket && open_brackets == 0) {
-                visgroups_end_idx = (int)i;
+                visgroups_end_idx = i;
                 break;
             }
         }
 
         if (visgroups_end_idx != -1) {
             for (int i = visgroups_start_idx; i <= visgroups_end_idx; ++i) {
-                visgroups_lines.push_back(lines[(size_t)i]);
+                visgroups_lines.push_back(lines[i]);
             }
             remaining_lines.erase(remaining_lines.begin() + visgroups_start_idx, remaining_lines.begin() + visgroups_end_idx + 1);
         }
@@ -166,7 +166,7 @@ std::vector<std::string> AppCore::insert_required_blocks(const std::vector<std::
 
     if (!has_viewsettings) {
         std::string viewsettings_block = "viewsettings\n{\n\t\"bSnapToGrid\" \"1\"\n\t\"bShowGrid\" \"1\"\n\t\"bShowLogicalGrid\" \"0\"\n\t\"nGridSpacing\" \"64\"\n\t\"bShow3DGrid\" \"0\"\n}";
-        int insert_idx = (has_versioninfo ? 0 : 1) + (int)visgroups.size();
+        int insert_idx = (has_versioninfo ? 0 : 1) + visgroups.size();
         out_lines.insert(out_lines.begin() + insert_idx, viewsettings_block);
     }
 
@@ -181,7 +181,7 @@ std::vector<std::string> AppCore::insert_required_blocks(const std::vector<std::
 std::vector<std::string> AppCore::patch_dispinfo(const std::vector<std::string>& lines) {
     std::vector<std::string> out_lines;
     bool in_dispinfo = false;
-    ptrdiff_t open_brackets_disp = 0;
+    int open_brackets_disp = 0;
     bool in_dispinfo_bracket = false;
     bool has_offsets = false;
     bool has_offset_normals = false;

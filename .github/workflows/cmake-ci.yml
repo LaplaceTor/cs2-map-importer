@@ -45,7 +45,7 @@ jobs:
         Copy-Item build\Release\cs2importer.exe release\
         Copy-Item bspsrc\bspsrc.jar release\
 
-        Copy-Item -Path bin -Destination release\bin -Recurse -ErrorAction SilentlyContinue
+        Copy-Item -Path bin -Destination release\bin -Recurse
         cd release
         7z a cs2importer.zip *
 
