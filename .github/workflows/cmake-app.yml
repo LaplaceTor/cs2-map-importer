@@ -44,15 +44,8 @@ jobs:
         # The built executable is usually in build\Release\ on Windows MSVC
         Copy-Item build\Release\cs2importer.exe release\
         Copy-Item bspsrc\bspsrc.jar release\
-        # Deploy Qt dependencies next to the executable
-        windeployqt release\cs2importer.exe
 
-        # Remove unused Qt folders
-        Remove-Item -Path release\translations -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path release\iconengines -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path release\imageformats -Recurse -Force -ErrorAction SilentlyContinue
-
-        Copy-Item -Path bin -Destination release\bin -Recurse
+        Copy-Item -Path bin -Destination release\bin -Recurse -ErrorAction SilentlyContinue
         cd release
         7z a cs2importer.zip *
 

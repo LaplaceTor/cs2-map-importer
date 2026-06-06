@@ -28,6 +28,10 @@ endif()
 if(WIN32)
     set_property(TARGET cs2importer PROPERTY VS_PACKAGE_REFERENCES "Microsoft.Windows.CppWinRT_2.0.221121.5" "Microsoft.WindowsAppSDK_1.4.230913002")
 
+
+    # Workaround for MSBuild Sequence contains no elements bug
+    set_property(TARGET cs2importer PROPERTY VS_GLOBAL_TargetFramework "native")
+
     # We must enable exception handling to use C++/WinRT exceptions smoothly
     target_compile_options(cs2importer PRIVATE /EHsc)
 
