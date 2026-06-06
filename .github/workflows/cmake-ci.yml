@@ -18,25 +18,20 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
       with:
-        python-version: '3.x'
+        version: '6.*'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2022_64'
+        modules: 'qtshadertools'
 
-    - name: Install aqtinstall
-      run: pip install aqtinstall
+    - name: Configure CMake
+      run: cmake -B build -S .
 
-    - name: Install Latest Qt 6.8.x (Windows)
-      run: |
-        python -m aqt install-qt windows desktop "~6.8" win64_msvc2022_64 --outputdir ${{ github.workspace }}/Qt
-
-    - name: Configure and Build CMake (Single Step)
-      shell: powershell
-      run: |
-        $QtPath = (Get-Item "${{ github.workspace }}\Qt\6.8.*\win64_msvc2022_64").FullName
-        $Qt6Dir = "$QtPath\lib\cmake\Qt6"
-        cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$Qt6Dir"
-        cmake --build build --config Release
+    - name: Build with CMake
+      run: cmake --build build --config Release
 
     - name: Download bspsrc
       shell: pwsh
