@@ -25,7 +25,9 @@ jobs:
       run: cmake -B build -S .      
       
     - name: Restore NuGet Packages
-      run: nuget restore build/cs2importer.sln
+      run: |
+        if (Test-Path build/packages.lock.json) { Remove-Item build/packages.lock.json }
+        nuget restore build/cs2importer.sln
       
     - name: Build with CMake
       run: cmake --build build --config Release
