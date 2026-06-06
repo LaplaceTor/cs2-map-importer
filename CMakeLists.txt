@@ -24,29 +24,40 @@ else()
 endif()
 
 if(WIN32)
+    # 1. Use VS_PACKAGE_REFERENCES to handle headers and general build props
     set_property(TARGET cs2importer PROPERTY VS_PACKAGE_REFERENCES 
         "Microsoft.Windows.CppWinRT_3.0.260520.1" 
         "Microsoft.WindowsAppSDK_2.1.3"
     )
 
+    # 2. Prevent the "Sequence contains no elements" NuGet error
     set_property(TARGET cs2importer PROPERTY VS_GLOBAL_TargetFrameworkMoniker "native,Version=v0.0")
 
+    # 3. Determine Architecture
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         set(WIN_ARCH "win10-x64")
     else()
         set(WIN_ARCH "win10-x86")
     endif()
 
-    if(DEFINED ENV{USERPROFILE})
+    # 4. robustly find the NuGet root (Handles GitHub Actions override)
+    if(DEFINED ENV{NUGET_PACKAGES})
+        set(NUGET_ROOT "$ENV{NUGET_PACKAGES}")
+    elseif(DEFINED ENV{USERPROFILE})
         set(NUGET_ROOT "$ENV{USERPROFILE}/.nuget/packages")
     else()
-        set(NUGET_ROOT "C:/Users/runneradmin/.nuget/packages") # Fallback for GitHub Actions
+        set(NUGET_ROOT "C:/Users/runneradmin/.nuget/packages")
     endif()
 
-    set(BOOTSTRAP_LIB_PATH "${NUGET_ROOT}/microsoft.windowsappsdk/2.1.3/build/native/lib/${WIN_ARCH}")
+    # 5. FIX: Point to 'lib/' directly, NOT 'build/native/lib/'
+    set(BOOTSTRAP_LIB_PATH "${NUGET_ROOT}/microsoft.windowsappsdk/2.1.3/lib/${WIN_ARCH}")
+
+    # 6. Debugging: Print the path to the build log so you can see it in GitHub Actions
+    message(STATUS "Searching for Bootstrap lib at: ${BOOTSTRAP_LIB_PATH}")
 
     target_link_directories(cs2importer PRIVATE "${BOOTSTRAP_LIB_PATH}")
 
+    # 7. Link the library (Ensure the name matches the file in that directory)
     target_link_libraries(cs2importer PRIVATE Microsoft.WindowsAppRuntime.Bootstrap.lib)
 endif()
 
