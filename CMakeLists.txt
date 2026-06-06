@@ -33,13 +33,6 @@ if(WIN32)
     # 2. Prevent the "Sequence contains no elements" NuGet error
     set_property(TARGET cs2importer PROPERTY VS_GLOBAL_TargetFrameworkMoniker "native,Version=v0.0")
 
-    # 3. Determine Architecture
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(WIN_ARCH "win10-x64")
-    else()
-        set(WIN_ARCH "win10-x86")
-    endif()
-
     # 4. robustly find the NuGet root (Handles GitHub Actions override)
     if(DEFINED ENV{NUGET_PACKAGES})
         set(NUGET_ROOT "$ENV{NUGET_PACKAGES}")
@@ -49,11 +42,7 @@ if(WIN32)
         set(NUGET_ROOT "C:/Users/runneradmin/.nuget/packages")
     endif()
 
-    # 5. FIX: Point to 'lib/' directly, NOT 'build/native/lib/'
-    set(BOOTSTRAP_LIB_PATH "${NUGET_ROOT}/microsoft.windowsappsdk/2.1.3/lib/${WIN_ARCH}")
-
-    # 6. Debugging: Print the path to the build log so you can see it in GitHub Actions
-    message(STATUS "Searching for Bootstrap lib at: ${BOOTSTRAP_LIB_PATH}")
+    set(BOOTSTRAP_LIB_PATH "${NUGET_ROOT}/microsoft.windowsappsdk/2.1.3/")
 
     target_link_directories(cs2importer PRIVATE "${BOOTSTRAP_LIB_PATH}")
 
