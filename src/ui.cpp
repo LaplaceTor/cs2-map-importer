@@ -11,6 +11,8 @@
 #include <iomanip>
 #include <sstream>
 
+#undef FindText
+
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Microsoft.UI.Xaml.h>
@@ -21,6 +23,7 @@
 #include <winrt/Windows.UI.Text.h>
 #include <winrt/Microsoft.UI.h>
 #include <winrt/Microsoft.UI.Windowing.h>
+#include <winrt/Microsoft.UI.Dispatching.h>
 #include <microsoft.ui.xaml.window.h>
 #include <algorithm>
 #include <cctype>
@@ -31,6 +34,10 @@ using namespace Microsoft::UI::Xaml;
 using namespace Microsoft::UI::Xaml::Controls;
 using namespace Microsoft::UI::Xaml::Media;
 using namespace Windows::Foundation;
+
+static bool get_checked(const IReference<bool>& ref) {
+    return ref ? ref.Value() : false;
+}
 
 static std::string my_to_string(const hstring& hstr) {
     int size_needed = WideCharToMultiByte(CP_UTF8, 0, hstr.c_str(), (int)hstr.size(), NULL, 0, NULL, NULL);
@@ -89,7 +96,7 @@ Importer::Importer()
     load_from_cfg();
 
     // Initial state
-    usebsp_nomergeinstances_checkbox.IsEnabled(usebsp_checkbox.IsChecked().value_or(false));
+    usebsp_nomergeinstances_checkbox.IsEnabled(get_checked(usebsp_checkbox.IsChecked()));
 
     window.Closed([this](IInspectable const&, WindowEventArgs const& args) {
         AppCore::cancel_all();
@@ -553,14 +560,14 @@ void Importer::get_addon_name()
 void Importer::get_launch_options()
 {
     std::vector<std::string> options;
-    if (usebsp_checkbox.IsChecked().value_or(false)) {
-        if (usebsp_nomergeinstances_checkbox.IsChecked().value_or(false)) {
+    if (get_checked(usebsp_checkbox.IsChecked())) {
+        if (get_checked(usebsp_nomergeinstances_checkbox.IsChecked())) {
             options.push_back("-usebsp_nomergeinstances");
         } else {
             options.push_back("-usebsp");
         }
     }
-    if (skipdeps_checkbox.IsChecked().value_or(false)) options.push_back("-skipdeps");
+    if (get_checked(skipdeps_checkbox.IsChecked())) options.push_back("-skipdeps");
 
     launch_options.clear();
     for(size_t i=0; i<options.size(); ++i) {
@@ -570,9 +577,9 @@ void Importer::get_launch_options()
 
 void Importer::save_to_cfg()
 {
-    std::string usebsp_state = usebsp_checkbox.IsChecked().value_or(false) ? "True" : "False";
-    std::string nomerge_state = usebsp_nomergeinstances_checkbox.IsChecked().value_or(false) ? "True" : "False";
-    std::string skipdeps_state = skipdeps_checkbox.IsChecked().value_or(false) ? "True" : "False";
+    std::string usebsp_state = get_checked(usebsp_checkbox.IsChecked()) ? "True" : "False";
+    std::string nomerge_state = get_checked(usebsp_nomergeinstances_checkbox.IsChecked()) ? "True" : "False";
+    std::string skipdeps_state = get_checked(skipdeps_checkbox.IsChecked()) ? "True" : "False";
 
     std::ostringstream out;
     out << usebsp_state << "\n"
@@ -680,7 +687,12 @@ void Importer::go()
 
         auto now = std::chrono::system_clock::now();
         std::time_t now_time = std::chrono::system_clock::to_time_t(now);
-        std::tm bt = *std::localtime(&now_time);
+        std::tm bt;
+#if defined(_WIN32)
+        localtime_s(&bt, &now_time);
+#else
+        localtime_r(&now_time, &bt);
+#endif
         std::ostringstream time_oss;
         time_oss << std::put_time(&bt, "%Y-%m-%d_%H-%M-%S");
 
@@ -714,9 +726,9 @@ void Importer::go()
         opts.bsp_file = bsp_file;
         opts.app_dir = app_dir;
         opts.addon_name = addon_name;
-        opts.usebsp = usebsp_checkbox.IsChecked().value_or(false) && !usebsp_nomergeinstances_checkbox.IsChecked().value_or(false);
-        opts.usebsp_nomergeinstances = usebsp_checkbox.IsChecked().value_or(false) && usebsp_nomergeinstances_checkbox.IsChecked().value_or(false);
-        opts.skipdeps = skipdeps_checkbox.IsChecked().value_or(false);
+        opts.usebsp = get_checked(usebsp_checkbox.IsChecked()) && !get_checked(usebsp_nomergeinstances_checkbox.IsChecked());
+        opts.usebsp_nomergeinstances = get_checked(usebsp_checkbox.IsChecked()) && get_checked(usebsp_nomergeinstances_checkbox.IsChecked());
+        opts.skipdeps = get_checked(skipdeps_checkbox.IsChecked());
 
         opts.logger = [this](const std::string& msg) {
             log(msg);

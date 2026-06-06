@@ -100,7 +100,7 @@ std::vector<std::string> AppCore::extract_visgroups(const std::vector<std::strin
         }
 
         if (trimmed == "visgroups" && visgroups_start_idx == -1) {
-            visgroups_start_idx = i;
+            visgroups_start_idx = static_cast<int>(i);
             break;
         }
     }
@@ -112,14 +112,14 @@ std::vector<std::string> AppCore::extract_visgroups(const std::vector<std::strin
         int open_brackets = 0;
         bool found_first_bracket = false;
         for (size_t i = visgroups_start_idx; i < lines.size(); ++i) {
-            open_brackets += std::count(lines[i].begin(), lines[i].end(), '{');
-            open_brackets -= std::count(lines[i].begin(), lines[i].end(), '}');
+            open_brackets += static_cast<int>(std::count(lines[i].begin(), lines[i].end(), '{'));
+            open_brackets -= static_cast<int>(std::count(lines[i].begin(), lines[i].end(), '}'));
             if (lines[i].find('{') != std::string::npos) {
                 found_first_bracket = true;
             }
 
             if (found_first_bracket && open_brackets == 0) {
-                visgroups_end_idx = i;
+                visgroups_end_idx = static_cast<int>(i);
                 break;
             }
         }
@@ -166,7 +166,7 @@ std::vector<std::string> AppCore::insert_required_blocks(const std::vector<std::
 
     if (!has_viewsettings) {
         std::string viewsettings_block = "viewsettings\n{\n\t\"bSnapToGrid\" \"1\"\n\t\"bShowGrid\" \"1\"\n\t\"bShowLogicalGrid\" \"0\"\n\t\"nGridSpacing\" \"64\"\n\t\"bShow3DGrid\" \"0\"\n}";
-        int insert_idx = (has_versioninfo ? 0 : 1) + visgroups.size();
+        int insert_idx = (has_versioninfo ? 0 : 1) + static_cast<int>(visgroups.size());
         out_lines.insert(out_lines.begin() + insert_idx, viewsettings_block);
     }
 
@@ -203,8 +203,8 @@ std::vector<std::string> AppCore::patch_dispinfo(const std::vector<std::string>&
         }
 
         if (in_dispinfo) {
-            open_brackets_disp += std::count(l.begin(), l.end(), '{');
-            open_brackets_disp -= std::count(l.begin(), l.end(), '}');
+            open_brackets_disp += static_cast<int>(std::count(l.begin(), l.end(), '{'));
+            open_brackets_disp -= static_cast<int>(std::count(l.begin(), l.end(), '}'));
             if (!in_dispinfo_bracket && l.find('{') != std::string::npos) {
                 in_dispinfo_bracket = true;
             }
