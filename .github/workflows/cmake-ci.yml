@@ -22,7 +22,7 @@ jobs:
       uses: NuGet/setup-nuget@v2
       
     - name: Restore NuGet Packages
-      run: nuget restore build/cs2importer.sln
+      run: nuget restore build/cs2importer.slnx
       
     - name: Configure CMake
       run: cmake -B build -S .
