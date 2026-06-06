@@ -23,15 +23,27 @@ else()
     add_executable(cs2importer ${SOURCES})
 endif()
 
-# We need C++/WinRT and WinUI 3 dependencies, usually added via NuGet in VS or through Windows SDKs
-# CMake supports VS_PACKAGE_REFERENCES to pull NuGet packages into the generated vcxproj
 if(WIN32)
-    set_property(TARGET cs2importer PROPERTY VS_PACKAGE_REFERENCES "Microsoft.Windows.CppWinRT_3.0.260520.1" "Microsoft.WindowsAppSDK_2.1.3")
+    set_property(TARGET cs2importer PROPERTY VS_PACKAGE_REFERENCES 
+        "Microsoft.Windows.CppWinRT_3.0.260520.1" 
+        "Microsoft.WindowsAppSDK_2.1.3"
+    )
 
-    # Workaround for MSBuild Sequence contains no elements bug
-    set_property(TARGET cs2importer PROPERTY VS_GLOBAL_TargetFrameworkMoniker "native,Version=v0.0")  
-    # We must enable exception handling to use C++/WinRT exceptions smoothly
-    target_compile_options(cs2importer PRIVATE /EHsc)
+    set_property(TARGET cs2importer PROPERTY VS_GLOBAL_TargetFrameworkMoniker "native,Version=v0.0")
+
+    set(WIN_ARCH "win10-x64")
+
+    if(DEFINED ENV{USERPROFILE})
+        set(NUGET_ROOT "$ENV{USERPROFILE}/.nuget/packages")
+    else()
+        set(NUGET_ROOT "C:/Users/runneradmin/.nuget/packages") # Fallback for GitHub Actions
+    endif()
+
+    set(BOOTSTRAP_LIB_PATH "${NUGET_ROOT}/microsoft.windowsappsdk/2.1.3/build/native/lib/${WIN_ARCH}")
+
+    target_link_directories(cs2importer PRIVATE "${BOOTSTRAP_LIB_PATH}")
+
+    target_link_libraries(cs2importer PRIVATE Microsoft.WindowsAppRuntime.Bootstrap.lib)
 endif()
 
 target_include_directories(cs2importer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
