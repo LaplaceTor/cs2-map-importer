@@ -25,7 +25,7 @@ jobs:
       run: cmake -B build -S .      
       
     - name: Restore NuGet Packages
-      run: nuget restore build/cs2importer.slnx
+      run: nuget restore build/cs2importer.sln
       
     - name: Build with CMake
       run: cmake --build build --config Release
