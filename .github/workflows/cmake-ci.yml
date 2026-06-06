@@ -18,17 +18,20 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Qt
-      uses: jurplel/install-qt-action@v3
-      with:
-        version: '5.15.2'
-        host: 'windows'
-        target: 'desktop'
-        arch: 'win64_msvc2019_64'
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v2
+
+    - name: Install Windows App SDK
+      run: |
+        nuget install Microsoft.WindowsAppSDK -Version 2.1.3
 
     - name: Configure CMake
-      run: cmake -B build -S .
-
+      run: cmake -B build -S .      
+      
+    - name: Restore Nuget
+      run: |
+        nuget restore build/cs2importer.sln
+      
     - name: Build with CMake
       run: cmake --build build --config Release
 
@@ -42,12 +45,9 @@ jobs:
       shell: pwsh
       run: |
         mkdir release
-        Copy-Item build\Release\cs2importer.exe release\
+        Copy-Item -Path build\Release\* -Destination release\ -Recurse
         Copy-Item bspsrc\bspsrc.jar release\
-
         Copy-Item -Path bin -Destination release\bin -Recurse
-        cd release
-        7z a cs2importer.zip *
 
     - name: Get commit SHA
       id: vars
@@ -59,4 +59,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: CS2-Importer-Dev-${{ steps.vars.outputs.sha_short }}
-        path: release/cs2importer.zip
+        path: release

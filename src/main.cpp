@@ -23,7 +23,7 @@ private:
 int WINAPI WinMain(HINSTANCE, HINSTANCE, PSTR, int)
 {
     // Initialize the Windows App SDK bootstrap for unpackaged apps
-    const UINT32 majorMinorVersion = 0x00010004; // Windows App SDK 1.4
+    const UINT32 majorMinorVersion = 0x00020001; // Windows App SDK 2.1
     PCWSTR versionTag = L"";
     const PACKAGE_VERSION minVersion{};
     HRESULT hr = MddBootstrapInitialize2(majorMinorVersion, versionTag, minVersion, MddBootstrapInitializeOptions_OnNoMatch_ShowUI);
