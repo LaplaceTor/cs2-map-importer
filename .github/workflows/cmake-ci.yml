@@ -46,6 +46,13 @@ jobs:
       run: |
         mkdir release
         Copy-Item build\Release\cs2importer.exe release\
+
+        # Copy WinUI 3 and other necessary DLLs and assets
+        if (Test-Path build\Release\*.dll) { Copy-Item build\Release\*.dll release\ }
+        if (Test-Path build\Release\*.pri) { Copy-Item build\Release\*.pri release\ }
+        if (Test-Path build\Release\*.xbf) { Copy-Item build\Release\*.xbf release\ }
+        if (Test-Path build\Release\*.pak) { Copy-Item build\Release\*.pak release\ }
+
         Copy-Item bspsrc\bspsrc.jar release\
 
         Copy-Item -Path bin -Destination release\bin -Recurse
