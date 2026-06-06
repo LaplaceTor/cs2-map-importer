@@ -23,7 +23,7 @@ jobs:
         host: 'windows'
         target: 'desktop'
         arch: 'win64_msvc2022_64'
-        modules: 'qtdeclarative qtshadertools'
+        modules: 'qtshadertools'
 
     - name: Configure CMake
       run: cmake -B build -S .
