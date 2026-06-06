@@ -20,15 +20,13 @@ jobs:
 
     - name: Setup NuGet
       uses: NuGet/setup-nuget@v2
-      
+
     - name: Configure CMake
-      run: cmake -B build -S .      
-      
-    - name: Clear NuGet Cache and Restore
-      run: |
-        nuget locals all -clear
-        nuget restore build/cs2importer.sln -Verbosity detailed
-      
+      run: cmake -B build -S .
+
+    - name: Restore NuGet Packages
+      run: nuget restore build/cs2importer.slnx
+
     - name: Build with CMake
       run: cmake --build build --config Release
 
