@@ -24,16 +24,12 @@ else()
 endif()
 
 if(WIN32)
+    # 1. 声明包引用和原生目标框架（保持不变，解决最开始的 NuGet 错误）
     set_property(TARGET cs2importer PROPERTY VS_PACKAGE_REFERENCES 
         "Microsoft.Windows.CppWinRT_3.0.260520.1" 
         "Microsoft.WindowsAppSDK_2.1.3"
     )
     set_property(TARGET cs2importer PROPERTY VS_GLOBAL_TargetFrameworkMoniker "native,Version=v0.0")
-
-    # Enable Windows App SDK Self Contained/Bootstrap
-    set_property(TARGET cs2importer PROPERTY VS_GLOBAL_WindowsPackageType "None")
-    set_property(TARGET cs2importer PROPERTY VS_GLOBAL_WindowsAppSDKSelfContained "true")
-endif()
 
 target_include_directories(cs2importer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
