@@ -45,10 +45,8 @@ jobs:
       shell: pwsh
       run: |
         mkdir release
-        Copy-Item build\Release\ release\
-
+        Copy-Item -Path build\Release\* -Destination release\ -Recurse
         Copy-Item bspsrc\bspsrc.jar release\
-
         Copy-Item -Path bin -Destination release\bin -Recurse
 
     - name: Get commit SHA
