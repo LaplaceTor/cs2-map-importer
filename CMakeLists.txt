@@ -26,11 +26,7 @@ endif()
 # We need C++/WinRT and WinUI 3 dependencies, usually added via NuGet in VS or through Windows SDKs
 # CMake supports VS_PACKAGE_REFERENCES to pull NuGet packages into the generated vcxproj
 if(WIN32)
-    set_property(TARGET cs2importer PROPERTY VS_PACKAGE_REFERENCES "Microsoft.Windows.CppWinRT_2.0.221121.5" "Microsoft.WindowsAppSDK_1.4.230913002")
-
-
-    # Workaround for MSBuild Sequence contains no elements bug
-    set_property(TARGET cs2importer PROPERTY VS_GLOBAL_TargetFramework "native")
+    set_property(TARGET cs2importer PROPERTY VS_PACKAGE_REFERENCES "Microsoft.Windows.CppWinRT_3.0.260520.1" "Microsoft.WindowsAppSDK_2.1.3")
 
     # We must enable exception handling to use C++/WinRT exceptions smoothly
     target_compile_options(cs2importer PRIVATE /EHsc)
