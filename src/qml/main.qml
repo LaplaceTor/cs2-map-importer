@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Controls.Material
 import QtQuick.Layouts
 import QtQuick.Dialogs
 import cs2importer 1.0 // Ensure our C++ module is imported if needed, but we might pass context property
@@ -11,7 +10,6 @@ ApplicationWindow {
     height: 700
     visible: true
     title: "CS2 Importer"
-    Material.theme: Material.Dark
 
     // Property to bind the backend object
     property var backend: backendObject
@@ -163,7 +161,7 @@ ApplicationWindow {
             Rectangle {
                 Layout.fillWidth: true
                 height: 1
-                color: Material.dividerColor
+                color: "#555555"
             }
 
             // Addon edit
@@ -213,8 +211,10 @@ ApplicationWindow {
                     text: "GO!"
                     enabled: backend.can_go
                     Layout.alignment: Qt.AlignVCenter
-                    Material.background: Material.Green
-                    Material.foreground: "white"
+                    palette.button: "#4CAF50"
+                    palette.buttonText: "white"
+                    palette.highlight: "#4CAF50"
+                    palette.highlightedText: "white"
                     font.bold: true
                     onClicked: backend.go()
                 }
@@ -229,7 +229,7 @@ ApplicationWindow {
                 readOnly: true
                 background: Rectangle {
                     color: "black"
-                    border.color: Material.dividerColor
+                    border.color: "#555555"
                 }
                 color: "white"
                 font.family: "monospace"
