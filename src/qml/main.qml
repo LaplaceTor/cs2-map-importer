@@ -22,7 +22,16 @@ ApplicationWindow {
     Connections {
         target: backend
         function onLogMessage(msg) {
-            logOutput.append(msg)
+            // Very simple HTML escape to ensure < and > don't mess up RichText
+            var safeMsg = msg.replace(/&/g, "&amp;")
+                             .replace(/</g, "&lt;")
+                             .replace(/>/g, "&gt;");
+
+            // Highlight errors in red
+            if (safeMsg.indexOf("ERROR") !== -1) {
+                safeMsg = "<font color='red'>" + safeMsg + "</font>";
+            }
+            logOutput.append(safeMsg)
         }
         function onAlertMessage(title, msg) {
             messageDialog.title = title
@@ -105,23 +114,14 @@ ApplicationWindow {
                 spacing: 15
 
                 // Source 1 Game Box
-                Rectangle {
-                    Layout.preferredWidth: 150
+                GroupBox {
+                    title: "SOURCE 1 GAME"
+                    Layout.preferredWidth: 160
                     Layout.preferredHeight: 180
-                    border.color: "black"
-                    border.width: 3
-                    color: "transparent"
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 10
                         spacing: 10
-
-                        Label {
-                            text: "SOURCE 1 GAME"
-                            Layout.alignment: Qt.AlignHCenter
-                            font.pixelSize: 14
-                        }
 
                         ComboBox {
                             id: s1GameCombo
@@ -161,23 +161,14 @@ ApplicationWindow {
                 }
 
                 // Counter Strike 2 Box
-                Rectangle {
-                    Layout.preferredWidth: 150
+                GroupBox {
+                    title: "Counter Strike 2"
+                    Layout.preferredWidth: 160
                     Layout.preferredHeight: 180
-                    border.color: "black"
-                    border.width: 3
-                    color: "transparent"
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 10
                         spacing: 10
-
-                        Label {
-                            text: "Counter Strike 2"
-                            Layout.alignment: Qt.AlignHCenter
-                            font.pixelSize: 14
-                        }
 
                         Button {
                             id: cs2FolderButton
@@ -208,28 +199,19 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 spacing: 15
 
-                Rectangle {
-                    Layout.preferredWidth: 150
-                    Layout.preferredHeight: 50
-                    border.color: "black"
-                    border.width: 3
-                    color: "transparent"
-
-                    Button {
-                        anchors.fill: parent
-                        anchors.margins: 3
-                        text: selectedMapFileName
-                        background: Rectangle { color: "transparent" }
-                        contentItem: Text {
-                            text: parent.text
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            elide: Text.ElideMiddle
-                        }
-                        onClicked: {
-                            mapFileDialog.currentFolder = backend.vmf_default_path_url
-                            mapFileDialog.open()
-                        }
+                Button {
+                    Layout.preferredWidth: 160
+                    Layout.preferredHeight: 40
+                    text: selectedMapFileName
+                    contentItem: Text {
+                        text: parent.text
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideMiddle
+                    }
+                    onClicked: {
+                        mapFileDialog.currentFolder = backend.vmf_default_path_url
+                        mapFileDialog.open()
                     }
                 }
 
@@ -239,24 +221,15 @@ ApplicationWindow {
                     Layout.alignment: Qt.AlignVCenter
                 }
 
-                Rectangle {
-                    Layout.preferredWidth: 150
-                    Layout.preferredHeight: 50
-                    border.color: "black"
-                    border.width: 3
-                    color: "transparent"
-
-                    TextField {
-                        id: addonEdit
-                        anchors.fill: parent
-                        anchors.margins: 3
-                        placeholderText: "s2 addon name"
-                        text: backend.addon_name
-                        onTextChanged: backend.addon_name = text
-                        background: Rectangle { color: "transparent" }
-                        horizontalAlignment: TextInput.AlignHCenter
-                        verticalAlignment: TextInput.AlignVCenter
-                    }
+                TextField {
+                    id: addonEdit
+                    Layout.preferredWidth: 160
+                    Layout.preferredHeight: 40
+                    placeholderText: "s2 addon name"
+                    text: backend.addon_name
+                    onTextChanged: backend.addon_name = text
+                    horizontalAlignment: TextInput.AlignHCenter
+                    verticalAlignment: TextInput.AlignVCenter
                 }
             }
 
@@ -275,12 +248,6 @@ ApplicationWindow {
                     font.bold: true
                 }
 
-                background: Rectangle {
-                    border.color: "black"
-                    border.width: 3
-                    color: parent.pressed ? "#e0e0e0" : "transparent"
-                }
-
                 onClicked: {
                     logOutput.clear()
                     backend.go()
@@ -288,24 +255,14 @@ ApplicationWindow {
             }
 
             // Row 4: OPTIONS
-            Rectangle {
+            GroupBox {
+                title: "OPTIONS"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                border.color: "black"
-                border.width: 3
-                color: "transparent"
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 10
                     spacing: 5
-
-                    Label {
-                        text: "OPTIONS"
-                        Layout.alignment: Qt.AlignHCenter
-                        font.pixelSize: 14
-                        font.bold: true
-                    }
 
                     CheckBox {
                         id: useBspCheckbox
@@ -366,7 +323,8 @@ ApplicationWindow {
                         color: "white"
                         font.family: "monospace"
                         wrapMode: TextArea.Wrap
-                        background: Rectangle { color: "transparent" }
+                        textFormat: Text.RichText
+                        background: Rectangle { color: "black" }
                     }
                 }
             }
