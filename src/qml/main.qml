@@ -8,13 +8,16 @@ ApplicationWindow {
     id: window
     width: 900
     height: 700
+    minimumWidth: 900
+    maximumWidth: 900
+    minimumHeight: 700
+    maximumHeight: 700
     visible: true
     title: "CS2 Importer"
 
     // Property to bind the backend object
     property var backend: backendObject
     property string selectedMapFileName: "vmf/bsp name"
-    property bool logVisible: true
 
     Connections {
         target: backend
@@ -278,7 +281,10 @@ ApplicationWindow {
                     color: parent.pressed ? "#e0e0e0" : "transparent"
                 }
 
-                onClicked: backend.go()
+                onClicked: {
+                    logOutput.clear()
+                    backend.go()
+                }
             }
 
             // Row 4: OPTIONS
@@ -337,22 +343,10 @@ ApplicationWindow {
             Layout.fillHeight: true
             spacing: 5
 
-            Button {
-                text: logVisible ? "HIDE" : "SHOW"
-                Layout.alignment: Qt.AlignLeft
-
-                background: Rectangle {
-                    border.color: "black"
-                    border.width: 2
-                    color: parent.pressed ? "#e0e0e0" : "transparent"
-                }
-                contentItem: Text {
-                    text: parent.text
-                    font.bold: true
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-                onClicked: logVisible = !logVisible
+            Label {
+                text: "LOG"
+                font.bold: true
+                Layout.alignment: Qt.AlignHCenter
             }
 
             Rectangle {
@@ -361,7 +355,6 @@ ApplicationWindow {
                 color: "black"
                 border.color: "black"
                 border.width: 3
-                visible: logVisible
 
                 ScrollView {
                     anchors.fill: parent
@@ -376,11 +369,6 @@ ApplicationWindow {
                         background: Rectangle { color: "transparent" }
                     }
                 }
-            }
-
-            Item {
-                Layout.fillHeight: true
-                visible: !logVisible
             }
         }
     }
