@@ -2,17 +2,19 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
-import cs2importer 1.0 // Ensure our C++ module is imported if needed, but we might pass context property
+import cs2importer 1.0
 
 ApplicationWindow {
     id: window
-    width: 600
+    width: 900
     height: 700
     visible: true
     title: "CS2 Importer"
 
     // Property to bind the backend object
     property var backend: backendObject
+    property string selectedMapFileName: "vmf/bsp name"
+    property bool logVisible: true
 
     Connections {
         target: backend
@@ -23,6 +25,27 @@ ApplicationWindow {
             messageDialog.title = title
             messageDialog.text = msg
             messageDialog.open()
+        }
+        function onCs2BasefolderChanged() {
+            if (backend.cs2_basefolder !== "") {
+                cs2FolderButton.text = backend.cs2_basefolder
+            } else {
+                cs2FolderButton.text = "Press to select game folder"
+            }
+        }
+        function onS1gameBasefolderChanged() {
+            if (backend.s1game_basefolder !== "") {
+                s1FolderButton.text = backend.s1game_basefolder
+            } else {
+                s1FolderButton.text = "Press to select game folder"
+            }
+        }
+        function onS1GameTypeChanged() {
+            if (backend.s1game_basefolder === "") {
+                s1FolderButton.text = "Press to select game folder"
+            } else {
+                s1FolderButton.text = backend.s1game_basefolder
+            }
         }
     }
 
@@ -40,17 +63,19 @@ ApplicationWindow {
     }
 
     FileDialog {
-        id: vmfFileDialog
-        title: "Select VMF"
-        nameFilters: ["VMF files (*.vmf)"]
-        onAccepted: backend.select_vmf_dialog(selectedFile)
-    }
-
-    FileDialog {
-        id: bspFileDialog
-        title: "Select BSP"
-        nameFilters: ["BSP files (*.bsp)"]
-        onAccepted: backend.select_bsp_dialog(selectedFile)
+        id: mapFileDialog
+        title: "Select VMF or BSP"
+        nameFilters: ["Map files (*.vmf *.bsp)"]
+        onAccepted: {
+            let path = selectedFile.toString()
+            let fileName = path.substring(path.lastIndexOf('/') + 1)
+            selectedMapFileName = fileName
+            if (path.endsWith(".vmf")) {
+                backend.select_vmf_dialog(selectedFile)
+            } else if (path.endsWith(".bsp")) {
+                backend.select_bsp_dialog(selectedFile)
+            }
+        }
     }
 
     MessageDialog {
@@ -59,129 +84,226 @@ ApplicationWindow {
         buttons: MessageDialog.Ok
     }
 
-    ScrollView {
+    RowLayout {
         anchors.fill: parent
-        anchors.margins: 10
-        contentWidth: availableWidth
+        anchors.margins: 15
+        spacing: 15
 
+        // Left Column
         ColumnLayout {
-            width: parent.width
-            spacing: 15
+            Layout.fillHeight: true
+            Layout.preferredWidth: 400
+            Layout.maximumWidth: 400
+            spacing: 20
 
-            // CS2 selection row
+            // Row 1: Folders
             RowLayout {
                 Layout.fillWidth: true
-                Button {
-                    text: "Select CS2 folder"
-                    ToolTip.text: "Use \"Counter-Strike Global Offensive\" folder or any folder inside it."
-                    ToolTip.visible: hovered
-                    onClicked: cs2FolderDialog.open()
-                }
-                Label {
-                    text: backend.cs2_basefolder === "" ? "Not selected" : "Selected"
-                    color: backend.cs2_basefolder === "" ? "red" : "lime"
-                    Layout.fillWidth: true
-                    horizontalAlignment: Text.AlignHCenter
-                    background: Rectangle {
-                        color: "transparent"
-                        border.color: parent.color
-                        border.width: 1
+                spacing: 15
+
+                // Source 1 Game Box
+                Rectangle {
+                    Layout.preferredWidth: 150
+                    Layout.preferredHeight: 180
+                    border.color: "black"
+                    border.width: 3
+                    color: "transparent"
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 10
+
+                        Label {
+                            text: "SOURCE 1 GAME"
+                            Layout.alignment: Qt.AlignHCenter
+                            font.pixelSize: 14
+                        }
+
+                        ComboBox {
+                            id: s1GameCombo
+                            model: ["CSGO", "CSS"]
+                            currentIndex: backend.s1_game_type === "css" ? 1 : 0
+                            Layout.fillWidth: true
+                            onActivated: backend.set_s1_game_type(currentText.toLowerCase())
+                        }
+
+                        Button {
+                            id: s1FolderButton
+                            text: backend.s1game_basefolder === "" ? "Press to select game folder" : backend.s1game_basefolder
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            contentItem: Text {
+                                text: parent.text
+                                wrapMode: Text.WrapAnywhere
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideRight
+                            }
+                            onClicked: s1FolderDialog.open()
+                        }
+
+                        Button {
+                            text: "validate"
+                            Layout.fillWidth: true
+                            onClicked: backend.validate_s1()
+                        }
                     }
                 }
-                Button {
-                    text: "Validate CS2"
-                    onClicked: backend.validate_cs2()
+
+                Label {
+                    text: "➡"
+                    font.pixelSize: 40
+                    Layout.alignment: Qt.AlignVCenter
+                }
+
+                // Counter Strike 2 Box
+                Rectangle {
+                    Layout.preferredWidth: 150
+                    Layout.preferredHeight: 180
+                    border.color: "black"
+                    border.width: 3
+                    color: "transparent"
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 10
+
+                        Label {
+                            text: "Counter Strike 2"
+                            Layout.alignment: Qt.AlignHCenter
+                            font.pixelSize: 14
+                        }
+
+                        Button {
+                            id: cs2FolderButton
+                            text: backend.cs2_basefolder === "" ? "Press to select game folder" : backend.cs2_basefolder
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            contentItem: Text {
+                                text: parent.text
+                                wrapMode: Text.WrapAnywhere
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideRight
+                            }
+                            onClicked: cs2FolderDialog.open()
+                        }
+
+                        Button {
+                            text: "validate"
+                            Layout.fillWidth: true
+                            onClicked: backend.validate_cs2()
+                        }
+                    }
                 }
             }
 
-            // S1 selection row
+            // Row 2: Maps and Addon
             RowLayout {
                 Layout.fillWidth: true
-                ComboBox {
-                    id: s1GameCombo
-                    model: ["CSGO", "CSS"]
-                    currentIndex: backend.s1_game_type === "css" ? 1 : 0
-                    onActivated: backend.set_s1_game_type(currentText.toLowerCase())
-                }
-                Button {
-                    text: "Select Source 1 game folder"
-                    ToolTip.text: "Use \"csgo legacy\" folder or any folder inside it."
-                    ToolTip.visible: hovered
-                    onClicked: s1FolderDialog.open()
-                }
-                Label {
-                    text: backend.s1game_basefolder === "" ? "Not selected" : "Selected"
-                    color: backend.s1game_basefolder === "" ? "red" : "lime"
-                    Layout.fillWidth: true
-                    horizontalAlignment: Text.AlignHCenter
-                    background: Rectangle {
-                        color: "transparent"
-                        border.color: parent.color
-                        border.width: 1
-                    }
-                }
-                Button {
-                    text: "Validate Source 1 Game"
-                    onClicked: backend.validate_s1()
-                }
-            }
+                spacing: 15
 
-            // Map selection row
-            RowLayout {
-                Layout.fillWidth: true
-                Button {
-                    text: "Select VMF"
-                    ToolTip.text: "Does not need to be in a \"maps\" folder, one will be created then deleted afterwards if necessary."
-                    ToolTip.visible: hovered
-                    onClicked: {
-                        vmfFileDialog.currentFolder = backend.vmf_default_path_url
-                        vmfFileDialog.open()
+                Rectangle {
+                    Layout.preferredWidth: 150
+                    Layout.preferredHeight: 50
+                    border.color: "black"
+                    border.width: 3
+                    color: "transparent"
+
+                    Button {
+                        anchors.fill: parent
+                        anchors.margins: 3
+                        text: selectedMapFileName
+                        background: Rectangle { color: "transparent" }
+                        contentItem: Text {
+                            text: parent.text
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            elide: Text.ElideMiddle
+                        }
+                        onClicked: {
+                            mapFileDialog.currentFolder = backend.vmf_default_path_url
+                            mapFileDialog.open()
+                        }
                     }
                 }
-                Button {
-                    text: "Select BSP"
-                    onClicked: {
-                        bspFileDialog.currentFolder = backend.vmf_default_path_url
-                        bspFileDialog.open()
-                    }
-                }
+
                 Label {
-                    text: (backend.bsp_file === "" && backend.content_folder === "") ? "Not selected" : "Selected"
-                    color: (backend.bsp_file === "" && backend.content_folder === "") ? "red" : "lime"
-                    Layout.fillWidth: true
-                    horizontalAlignment: Text.AlignHCenter
-                    background: Rectangle {
-                        color: "transparent"
-                        border.color: parent.color
-                        border.width: 1
+                    text: "➡"
+                    font.pixelSize: 40
+                    Layout.alignment: Qt.AlignVCenter
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: 150
+                    Layout.preferredHeight: 50
+                    border.color: "black"
+                    border.width: 3
+                    color: "transparent"
+
+                    TextField {
+                        id: addonEdit
+                        anchors.fill: parent
+                        anchors.margins: 3
+                        placeholderText: "s2 addon name"
+                        text: backend.addon_name
+                        onTextChanged: backend.addon_name = text
+                        background: Rectangle { color: "transparent" }
+                        horizontalAlignment: TextInput.AlignHCenter
+                        verticalAlignment: TextInput.AlignVCenter
                     }
                 }
             }
 
+            // Row 3: START Button
+            Button {
+                id: goButton
+                text: "START"
+                enabled: backend.can_go
+                Layout.fillWidth: true
+                Layout.preferredHeight: 40
+
+                contentItem: Text {
+                    text: parent.text
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    font.bold: true
+                }
+
+                background: Rectangle {
+                    border.color: "black"
+                    border.width: 3
+                    color: parent.pressed ? "#e0e0e0" : "transparent"
+                }
+
+                onClicked: backend.go()
+            }
+
+            // Row 4: OPTIONS
             Rectangle {
                 Layout.fillWidth: true
-                height: 1
-                color: "#555555"
-            }
-
-            // Addon edit
-            TextField {
-                id: addonEdit
-                Layout.fillWidth: true
-                placeholderText: "Enter addon name:"
-                text: backend.addon_name
-                onTextChanged: backend.addon_name = text
-            }
-
-            // Checkboxes and GO button
-            RowLayout {
-                Layout.fillWidth: true
+                Layout.fillHeight: true
+                border.color: "black"
+                border.width: 3
+                color: "transparent"
 
                 ColumnLayout {
-                    Layout.fillWidth: true
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 5
+
+                    Label {
+                        text: "OPTIONS"
+                        Layout.alignment: Qt.AlignHCenter
+                        font.pixelSize: 14
+                        font.bold: true
+                    }
+
                     CheckBox {
                         id: useBspCheckbox
-                        text: "clean unecessary faces in source 2 way"
+                        text: "Clean unnecessary faces"
                         checked: backend.usebsp
                         onCheckedChanged: backend.usebsp = checked
                         ToolTip.text: "This runs the map through a special vbsp process to generate clean map geometry from brushes..."
@@ -189,7 +311,7 @@ ApplicationWindow {
                     }
                     CheckBox {
                         id: nomergeInstancesCheckbox
-                        text: "keep instances"
+                        text: "Keep instances"
                         checked: backend.usebsp_nomergeinstances
                         enabled: useBspCheckbox.checked
                         onCheckedChanged: backend.usebsp_nomergeinstances = checked
@@ -198,42 +320,67 @@ ApplicationWindow {
                     }
                     CheckBox {
                         id: skipDepsCheckbox
-                        text: "Skip references import"
+                        text: "skip references import"
                         checked: backend.skipdeps
                         onCheckedChanged: backend.skipdeps = checked
                         ToolTip.text: "Optional: skips importing all dependencies/content and only generates the vmap file(s)..."
                         ToolTip.visible: hovered
                     }
+                    Item { Layout.fillHeight: true } // Spacer
                 }
+            }
+        }
 
-                Button {
-                    id: goButton
-                    text: "GO!"
-                    enabled: backend.can_go
-                    Layout.alignment: Qt.AlignVCenter
-                    palette.button: "#4CAF50"
-                    palette.buttonText: "white"
-                    palette.highlight: "#4CAF50"
-                    palette.highlightedText: "white"
+        // Right Column (Log Area)
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: 5
+
+            Button {
+                text: logVisible ? "HIDE" : "SHOW"
+                Layout.alignment: Qt.AlignLeft
+
+                background: Rectangle {
+                    border.color: "black"
+                    border.width: 2
+                    color: parent.pressed ? "#e0e0e0" : "transparent"
+                }
+                contentItem: Text {
+                    text: parent.text
                     font.bold: true
-                    onClicked: backend.go()
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                onClicked: logVisible = !logVisible
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                color: "black"
+                border.color: "black"
+                border.width: 3
+                visible: logVisible
+
+                ScrollView {
+                    anchors.fill: parent
+                    anchors.margins: 5
+
+                    TextArea {
+                        id: logOutput
+                        readOnly: true
+                        color: "white"
+                        font.family: "monospace"
+                        wrapMode: TextArea.Wrap
+                        background: Rectangle { color: "transparent" }
+                    }
                 }
             }
 
-            // Log Output
-            TextArea {
-                id: logOutput
-                Layout.fillWidth: true
+            Item {
                 Layout.fillHeight: true
-                Layout.minimumHeight: 300
-                readOnly: true
-                background: Rectangle {
-                    color: "black"
-                    border.color: "#555555"
-                }
-                color: "white"
-                font.family: "monospace"
-                wrapMode: TextArea.Wrap
+                visible: !logVisible
             }
         }
     }
