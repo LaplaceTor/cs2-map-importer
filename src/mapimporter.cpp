@@ -251,7 +251,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
     fw << "}\n";
     fw.close();
 
-    std::string importRefsCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\"  -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game " + m_options.s1gamename + " -usefilelist \"" + temp_refs + "\"";
+    std::string importRefsCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\"  -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo " + " -usefilelist \"" + temp_refs + "\"";
     AppCore::run_command_sync(importRefsCmd, m_log);
 
     std::set<std::string> global2UVMaterials;
@@ -274,7 +274,7 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
         pos = outName.rfind(".vmt");
         if (pos != std::string::npos) outName.replace(pos, 4, ".vmat");
 
-        std::string resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -game " + m_options.s1gamename + " \"" + outName + "\"";
+        std::string resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -game csgo" + " \"" + outName + "\"";
         AppCore::run_command_sync(resCompCmd, m_log);
     }
 
@@ -299,16 +299,16 @@ void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
 
         std::string resCompCmd;
         if (bForceCompile) {
-            resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -f -game " + m_options.s1gamename + " \"" + outName + "\"";
+            resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -f -game csgo " + " \"" + outName + "\"";
         } else {
-            resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -game " + m_options.s1gamename + " \"" + outName + "\"";
+            resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -game csgo " + " \"" + outName + "\"";
         }
         AppCore::run_command_sync(resCompCmd, m_log);
     }
 }
 
 void MapImporter::ImportAndCompileMapRefs(const std::string& refsFile) {
-    std::string importcmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\"  -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game " + m_options.s1gamename + " -usefilelist \"" + refsFile + "\"";
+    std::string importcmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\"  -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo " + " -usefilelist \"" + refsFile + "\"";
     AppCore::run_command_sync(importcmd, m_log);
 
     auto refs = ReadTextFile(refsFile);
@@ -333,7 +333,7 @@ void MapImporter::ImportAndCompileMapRefs(const std::string& refsFile) {
     writeFile << newList;
     writeFile.close();
 
-    std::string compilercmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -game " + m_options.s1gamename + " -f -filelist \"" + tmpFile + "\"";
+    std::string compilercmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -game csgo " + " -f -filelist \"" + tmpFile + "\"";
     AppCore::run_command_sync(compilercmd, m_log);
 }
 
@@ -346,7 +346,7 @@ bool MapImporter::Run() {
 
     std::string mapImportCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\"  -retail -nop4 -nop4sync " + usebspStr;
     if (!nomergeinstancesStr.empty()) mapImportCmd += " " + nomergeinstancesStr;
-    mapImportCmd += " -src1gameinfodir \"" + m_options.s1gamedir + "\" -src1contentdir \"" + m_options.s1contentdir + "\" -s2addon \"" + m_options.s2addonname + "\" -game " + m_options.s1gamename + " maps\\" + m_options.mapname + ".vmf";
+    mapImportCmd += " -src1gameinfodir \"" + m_options.s1gamedir + "\" -src1contentdir \"" + m_options.s1contentdir + "\" -s2addon \"" + m_options.s2addonname + "\" -game csgo" + " maps\\" + m_options.mapname + ".vmf";
 
     AppCore::run_command_sync(mapImportCmd, m_log);
 

@@ -159,7 +159,7 @@ void Backend::select_s1_folder_dialog(const QUrl& url)
 
         if (file_css.exists() && file_css.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QTextStream in(&file_css);
-            QRegularExpression regex("^\\s*game\\s+\"Counter-Strike: Source\"\\s*$");
+            QRegularExpression regex("^\\s*game\\s+\"Counter-Strike Source\"\\s*$");
             while (!in.atEnd()) {
                 if (regex.match(in.readLine()).hasMatch()) {
                     valid = true;

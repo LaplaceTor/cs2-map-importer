@@ -26,12 +26,14 @@ ApplicationWindow {
                              .replace(/</g, "&lt;")
                              .replace(/>/g, "&gt;");
 
-            // Highlight errors in red
+            // Highlight
             if (safeMsg.indexOf("ERROR") !== -1) {
                 safeMsg = "<font color='red'>" + safeMsg + "</font>";
             }else if(safeMsg.indexOf("Skip") !== -1) {
                 safeMsg = "<font color='yellow'>" + safeMsg + "</font>";
             }else if(safeMsg.indexOf("Unable") !== -1) {
+                safeMsg = "<font color='yellow'>" + safeMsg + "</font>";
+            }else if(safeMsg.indexOf("WARN") !== -1) {
                 safeMsg = "<font color='yellow'>" + safeMsg + "</font>";
             }
             logOutput.append(safeMsg)
