@@ -1,86 +1,72 @@
-#include "appcore.h"
-#include <filesystem>
-#include <iostream>
-#include <fstream>
-#include <regex>
-#include <memory>
 #include <stdexcept>
-#include <array>
+#include "appcore.h"
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QTextStream>
+#include <QProcess>
+#include <QRegularExpression>
+#include <QCoreApplication>
+#include <QByteArray>
 
-namespace fs = std::filesystem;
+QAtomicInt AppCore::cancel_import(0);
 
 bool AppCore::check_java() {
-    std::string cmd = "java -version 2>&1";
-    std::unique_ptr<FILE, int(*)(FILE*)> pipe(POPEN(cmd.c_str(), "r"), PCLOSE);
-    if (!pipe) return false;
-
-    char buffer[128];
-    std::string output;
-    while (fgets(buffer, sizeof(buffer), pipe.get()) != nullptr) {
-        output += buffer;
-    }
-    return output.find("version") != std::string::npos;
+    QProcess process;
+    process.start("java", QStringList() << "-version");
+    process.waitForFinished();
+    QByteArray output = process.readAllStandardError() + process.readAllStandardOutput();
+    return output.contains("version");
 }
 
-void AppCore::move_vpk_signatures(const std::string& cs2_basefolder, bool& vpk_signatures_moved) {
-    if (cs2_basefolder.empty()) return;
+void AppCore::move_vpk_signatures(const QString& cs2_basefolder, bool& vpk_signatures_moved) {
+    if (cs2_basefolder.isEmpty()) return;
 
-    fs::path bin_folder = fs::path(cs2_basefolder) / "game" / "bin" / "win64";
-    fs::path vpk_path = bin_folder / "vpk.signatures";
-    fs::path temp_folder = bin_folder / "temp";
-    fs::path temp_vpk_path = temp_folder / "vpk.signatures";
+    QString bin_folder = QDir(cs2_basefolder).filePath("game/bin/win64");
+    QString vpk_path = QDir(bin_folder).filePath("vpk.signatures");
+    QString temp_folder = QDir(bin_folder).filePath("temp");
+    QString temp_vpk_path = QDir(temp_folder).filePath("vpk.signatures");
 
-    if (fs::exists(vpk_path)) {
-        if (!fs::exists(temp_folder)) {
-            fs::create_directories(temp_folder);
+    if (QFile::exists(vpk_path)) {
+        if (!QDir(bin_folder).exists("temp")) {
+            QDir(bin_folder).mkdir("temp");
         }
-        if (fs::exists(temp_vpk_path)) {
-            fs::remove(temp_vpk_path);
+        if (QFile::exists(temp_vpk_path)) {
+            QFile::remove(temp_vpk_path);
         }
-        fs::rename(vpk_path, temp_vpk_path);
+        QFile::rename(vpk_path, temp_vpk_path);
         vpk_signatures_moved = true;
     }
 }
 
-void AppCore::restore_vpk_signatures(const std::string& cs2_basefolder) {
-    if (cs2_basefolder.empty()) return;
+void AppCore::restore_vpk_signatures(const QString& cs2_basefolder) {
+    if (cs2_basefolder.isEmpty()) return;
 
-    fs::path bin_folder = fs::path(cs2_basefolder) / "game" / "bin" / "win64";
-    fs::path vpk_path = bin_folder / "vpk.signatures";
-    fs::path temp_vpk_path = bin_folder / "temp" / "vpk.signatures";
+    QString bin_folder = QDir(cs2_basefolder).filePath("game/bin/win64");
+    QString vpk_path = QDir(bin_folder).filePath("vpk.signatures");
+    QString temp_vpk_path = QDir(bin_folder).filePath("temp/vpk.signatures");
 
-    if (fs::exists(temp_vpk_path)) {
-        if (fs::exists(vpk_path)) {
-            fs::remove(vpk_path);
+    if (QFile::exists(temp_vpk_path)) {
+        if (QFile::exists(vpk_path)) {
+            QFile::remove(vpk_path);
         }
-        fs::rename(temp_vpk_path, vpk_path);
+        QFile::rename(temp_vpk_path, vpk_path);
     }
 }
-
-std::atomic<bool> AppCore::cancel_import{false};
-#ifdef _WIN32
-std::atomic<HANDLE> AppCore::current_child_process{nullptr};
-#endif
 
 void AppCore::cancel_all() {
-    cancel_import = true;
-#ifdef _WIN32
-    HANDLE hProc = current_child_process.load();
-    if (hProc) {
-        TerminateProcess(hProc, 1);
-    }
-#endif
+    cancel_import = 1;
 }
 
-std::string AppCore::parse_mapversion(const std::vector<std::string>& lines, bool& found) {
-    std::string mapversion = "2";
+QString AppCore::parse_mapversion(const QStringList& lines, bool& found) {
+    QString mapversion = "2";
     found = false;
-    std::regex mapversion_regex("^\\s*\"mapversion\"\\s+\"([^\"]+)\"");
+    QRegularExpression mapversion_regex("^\\s*\"mapversion\"\\s+\"([^\"]+)\"");
 
-    for (const auto& line : lines) {
-        std::smatch match;
-        if (std::regex_search(line, match, mapversion_regex)) {
-            mapversion = match[1].str();
+    for (const QString& line : lines) {
+        QRegularExpressionMatch match = mapversion_regex.match(line);
+        if (match.hasMatch()) {
+            mapversion = match.captured(1);
             found = true;
             break;
         }
@@ -88,33 +74,28 @@ std::string AppCore::parse_mapversion(const std::vector<std::string>& lines, boo
     return mapversion;
 }
 
-std::vector<std::string> AppCore::extract_visgroups(const std::vector<std::string>& lines, std::vector<std::string>& remaining_lines) {
+QStringList AppCore::extract_visgroups(const QStringList& lines, QStringList& remaining_lines) {
     int visgroups_start_idx = -1;
     int visgroups_end_idx = -1;
 
-    for (size_t i = 0; i < lines.size(); ++i) {
-        std::string trimmed = lines[i];
-        trimmed.erase(0, trimmed.find_first_not_of(" \t\r\n"));
-        if (!trimmed.empty()) {
-            trimmed.erase(trimmed.find_last_not_of(" \t\r\n") + 1);
-        }
-
+    for (int i = 0; i < lines.size(); ++i) {
+        QString trimmed = lines[i].trimmed();
         if (trimmed == "visgroups" && visgroups_start_idx == -1) {
             visgroups_start_idx = i;
             break;
         }
     }
 
-    std::vector<std::string> visgroups_lines;
+    QStringList visgroups_lines;
     remaining_lines = lines;
 
     if (visgroups_start_idx != -1) {
         int open_brackets = 0;
         bool found_first_bracket = false;
-        for (size_t i = visgroups_start_idx; i < lines.size(); ++i) {
-            open_brackets += std::count(lines[i].begin(), lines[i].end(), '{');
-            open_brackets -= std::count(lines[i].begin(), lines[i].end(), '}');
-            if (lines[i].find('{') != std::string::npos) {
+        for (int i = visgroups_start_idx; i < lines.size(); ++i) {
+            open_brackets += lines[i].count('{');
+            open_brackets -= lines[i].count('}');
+            if (lines[i].contains('{')) {
                 found_first_bracket = true;
             }
 
@@ -126,7 +107,7 @@ std::vector<std::string> AppCore::extract_visgroups(const std::vector<std::strin
 
         if (visgroups_end_idx != -1) {
             for (int i = visgroups_start_idx; i <= visgroups_end_idx; ++i) {
-                visgroups_lines.push_back(lines[i]);
+                visgroups_lines.append(lines[i]);
             }
             remaining_lines.erase(remaining_lines.begin() + visgroups_start_idx, remaining_lines.begin() + visgroups_end_idx + 1);
         }
@@ -135,64 +116,57 @@ std::vector<std::string> AppCore::extract_visgroups(const std::vector<std::strin
     return visgroups_lines;
 }
 
-std::vector<std::string> AppCore::insert_required_blocks(const std::vector<std::string>& lines, const std::string& mapversion, const std::vector<std::string>& visgroups) {
+QStringList AppCore::insert_required_blocks(const QStringList& lines, const QString& mapversion, const QStringList& visgroups) {
     bool has_versioninfo = false;
     bool has_viewsettings = false;
     bool has_cordon = false;
 
-    for (size_t i = 0; i < lines.size(); ++i) {
-        std::string trimmed = lines[i];
-        trimmed.erase(0, trimmed.find_first_not_of(" \t\r\n"));
-        if (!trimmed.empty()) {
-            trimmed.erase(trimmed.find_last_not_of(" \t\r\n") + 1);
-        }
-
+    for (int i = 0; i < lines.size(); ++i) {
+        QString trimmed = lines[i].trimmed();
         if (trimmed == "versioninfo") has_versioninfo = true;
         if (trimmed == "viewsettings") has_viewsettings = true;
         if (trimmed == "cordon") has_cordon = true;
     }
 
-    std::vector<std::string> out_lines = lines;
+    QStringList out_lines = lines;
 
     if (!has_versioninfo) {
-        std::string versioninfo_block = "versioninfo\n{\n\t\"editorversion\" \"400\"\n\t\"editorbuild\" \"9999\"\n\t\"mapversion\" \"" + mapversion + "\"\n\t\"formatversion\" \"100\"\n\t\"prefab\" \"0\"\n}";
-        out_lines.insert(out_lines.begin(), versioninfo_block);
+        QString versioninfo_block = "versioninfo\n{\n\t\"editorversion\" \"400\"\n\t\"editorbuild\" \"9999\"\n\t\"mapversion\" \"" + mapversion + "\"\n\t\"formatversion\" \"100\"\n\t\"prefab\" \"0\"\n}";
+        out_lines.insert(0, versioninfo_block);
     }
 
-    if (!visgroups.empty()) {
+    if (!visgroups.isEmpty()) {
         int insert_idx = has_versioninfo ? 0 : 1;
-        out_lines.insert(out_lines.begin() + insert_idx, visgroups.begin(), visgroups.end());
+        for (int i = 0; i < visgroups.size(); ++i) {
+            out_lines.insert(insert_idx + i, visgroups[i]);
+        }
     }
 
     if (!has_viewsettings) {
-        std::string viewsettings_block = "viewsettings\n{\n\t\"bSnapToGrid\" \"1\"\n\t\"bShowGrid\" \"1\"\n\t\"bShowLogicalGrid\" \"0\"\n\t\"nGridSpacing\" \"64\"\n\t\"bShow3DGrid\" \"0\"\n}";
+        QString viewsettings_block = "viewsettings\n{\n\t\"bSnapToGrid\" \"1\"\n\t\"bShowGrid\" \"1\"\n\t\"bShowLogicalGrid\" \"0\"\n\t\"nGridSpacing\" \"64\"\n\t\"bShow3DGrid\" \"0\"\n}";
         int insert_idx = (has_versioninfo ? 0 : 1) + visgroups.size();
-        out_lines.insert(out_lines.begin() + insert_idx, viewsettings_block);
+        out_lines.insert(insert_idx, viewsettings_block);
     }
 
     if (!has_cordon) {
-        std::string cordon_block = "cordon\n{\n\t\"mins\" \"(-1024 -1024 -1024)\"\n\t\"maxs\" \"(1024 1024 1024)\"\n\t\"active\" \"0\"\n}";
-        out_lines.push_back(cordon_block);
+        QString cordon_block = "cordon\n{\n\t\"mins\" \"(-1024 -1024 -1024)\"\n\t\"maxs\" \"(1024 1024 1024)\"\n\t\"active\" \"0\"\n}";
+        out_lines.append(cordon_block);
     }
 
     return out_lines;
 }
 
-std::vector<std::string> AppCore::patch_dispinfo(const std::vector<std::string>& lines) {
-    std::vector<std::string> out_lines;
+QStringList AppCore::patch_dispinfo(const QStringList& lines) {
+    QStringList out_lines;
     bool in_dispinfo = false;
     int open_brackets_disp = 0;
     bool in_dispinfo_bracket = false;
     bool has_offsets = false;
     bool has_offset_normals = false;
 
-    for (size_t i = 0; i < lines.size(); ++i) {
-        std::string l = lines[i];
-        std::string trimmed = l;
-        trimmed.erase(0, trimmed.find_first_not_of(" \t\r\n"));
-        if (!trimmed.empty()) {
-            trimmed.erase(trimmed.find_last_not_of(" \t\r\n") + 1);
-        }
+    for (int i = 0; i < lines.size(); ++i) {
+        QString l = lines[i];
+        QString trimmed = l.trimmed();
 
         if (trimmed == "dispinfo") {
             in_dispinfo = true;
@@ -203,9 +177,9 @@ std::vector<std::string> AppCore::patch_dispinfo(const std::vector<std::string>&
         }
 
         if (in_dispinfo) {
-            open_brackets_disp += std::count(l.begin(), l.end(), '{');
-            open_brackets_disp -= std::count(l.begin(), l.end(), '}');
-            if (!in_dispinfo_bracket && l.find('{') != std::string::npos) {
+            open_brackets_disp += l.count('{');
+            open_brackets_disp -= l.count('}');
+            if (!in_dispinfo_bracket && l.contains('{')) {
                 in_dispinfo_bracket = true;
             }
 
@@ -222,14 +196,17 @@ std::vector<std::string> AppCore::patch_dispinfo(const std::vector<std::string>&
         }
 
         if (in_dispinfo && trimmed == "alphas" && (!has_offsets || !has_offset_normals)) {
-            size_t first_non_space = l.find_first_not_of(" \t");
-            std::string indent = "";
-            if (first_non_space != std::string::npos) {
-                indent = l.substr(0, first_non_space);
+            QString indent = "";
+            for (int j = 0; j < l.size(); ++j) {
+                if (l[j] == ' ' || l[j] == '\t') {
+                    indent += l[j];
+                } else {
+                    break;
+                }
             }
 
             if (!has_offsets) {
-                std::string offsets_block =
+                QString offsets_block =
                     indent + "offsets\n" +
                     indent + "{\n" +
                     indent + "\t\"row0\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
@@ -242,11 +219,11 @@ std::vector<std::string> AppCore::patch_dispinfo(const std::vector<std::string>&
                     indent + "\t\"row7\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
                     indent + "\t\"row8\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
                     indent + "}";
-                out_lines.push_back(offsets_block);
+                out_lines.append(offsets_block);
             }
 
             if (!has_offset_normals) {
-                std::string offset_normals_block =
+                QString offset_normals_block =
                     indent + "offset_normals\n" +
                     indent + "{\n" +
                     indent + "\t\"row0\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
@@ -259,218 +236,199 @@ std::vector<std::string> AppCore::patch_dispinfo(const std::vector<std::string>&
                     indent + "\t\"row7\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
                     indent + "\t\"row8\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
                     indent + "}";
-                out_lines.push_back(offset_normals_block);
+                out_lines.append(offset_normals_block);
             }
         }
 
-        out_lines.push_back(l);
+        out_lines.append(l);
     }
 
     return out_lines;
 }
 
-void AppCore::fix_vmf_from_bsp(const std::string& vmf_path, LogCallback log) {
-    if (!fs::exists(vmf_path)) return;
+void AppCore::fix_vmf_from_bsp(const QString& vmf_path, LogCallback log) {
+    if (!QFile::exists(vmf_path)) return;
 
-    std::ifstream infile(vmf_path);
-    if (!infile.is_open()) return;
+    QFile infile(vmf_path);
+    if (!infile.open(QIODevice::ReadOnly | QIODevice::Text)) return;
 
-    std::vector<std::string> lines;
-    std::string line;
-
-    while (std::getline(infile, line)) {
-        lines.push_back(line);
+    QStringList lines;
+    QTextStream in(&infile);
+    while (!in.atEnd()) {
+        lines.append(in.readLine());
     }
     infile.close();
 
     bool mapversion_found = false;
-    std::string mapversion = parse_mapversion(lines, mapversion_found);
+    QString mapversion = parse_mapversion(lines, mapversion_found);
 
     if (!mapversion_found) {
         log("No mapversion found in VMF. Aborting fix.");
         return;
     }
 
-    std::vector<std::string> remaining_lines;
-    std::vector<std::string> visgroups_lines = extract_visgroups(lines, remaining_lines);
+    QStringList remaining_lines;
+    QStringList visgroups_lines = extract_visgroups(lines, remaining_lines);
 
-    if (visgroups_lines.empty()) {
+    if (visgroups_lines.isEmpty()) {
         log("No visgroups block found in VMF. Aborting fix.");
         return;
     }
 
-    std::vector<std::string> structured_lines = insert_required_blocks(remaining_lines, mapversion, visgroups_lines);
-    std::vector<std::string> out_lines = patch_dispinfo(structured_lines);
+    QStringList structured_lines = insert_required_blocks(remaining_lines, mapversion, visgroups_lines);
+    QStringList out_lines = patch_dispinfo(structured_lines);
 
-    std::ofstream outfile(vmf_path);
-    if (outfile.is_open()) {
-        for (const auto& l : out_lines) {
-            outfile << l << "\n";
+    QFile outfile(vmf_path);
+    if (outfile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&outfile);
+        for (const QString& l : out_lines) {
+            out << l << "\n";
         }
+        outfile.close();
     }
 }
 
-int AppCore::run_command_sync(const std::string& cmd, LogCallback logger) {
+int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
     if (cancel_import) return -1;
     if (logger) logger(cmd);
-#ifdef _WIN32
-    SECURITY_ATTRIBUTES saAttr;
-    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
-    saAttr.bInheritHandle = TRUE;
-    saAttr.lpSecurityDescriptor = NULL;
-    HANDLE hChildStd_OUT_Rd = NULL;
-    HANDLE hChildStd_OUT_Wr = NULL;
-    if (!CreatePipe(&hChildStd_OUT_Rd, &hChildStd_OUT_Wr, &saAttr, 0)) {
-        if (logger) logger("Failed to create pipe.");
-        return -1;
-    }
-    if (!SetHandleInformation(hChildStd_OUT_Rd, HANDLE_FLAG_INHERIT, 0)) {
-        if (logger) logger("Failed to set handle information.");
-        CloseHandle(hChildStd_OUT_Rd);
-        CloseHandle(hChildStd_OUT_Wr);
-        return -1;
-    }
-    PROCESS_INFORMATION piProcInfo;
-    ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
-    STARTUPINFOA siStartInfo;
-    ZeroMemory(&siStartInfo, sizeof(STARTUPINFOA));
-    siStartInfo.cb = sizeof(STARTUPINFOA);
-    siStartInfo.hStdError = hChildStd_OUT_Wr;
-    siStartInfo.hStdOutput = hChildStd_OUT_Wr;
-    siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
-    // Use CREATE_NO_WINDOW to hide the console window
-    std::string writableCmd = cmd;
-    BOOL bSuccess = CreateProcessA(
-        NULL,
-        writableCmd.data(),
-        NULL,
-        NULL,
-        TRUE,
-        CREATE_NO_WINDOW,
-        NULL,
-        NULL,
-        &siStartInfo,
-        &piProcInfo
-    );
-    current_child_process = piProcInfo.hProcess;
-    if (!bSuccess) {
-        if (logger) logger("Failed to run command.");
-        CloseHandle(hChildStd_OUT_Rd);
-        CloseHandle(hChildStd_OUT_Wr);
-        return -1;
-    }
-    CloseHandle(hChildStd_OUT_Wr);
-    DWORD dwRead;
-    CHAR chBuf[4096];
-    std::string outputBuffer = "";
-    while (true) {
-        bSuccess = ReadFile(hChildStd_OUT_Rd, chBuf, sizeof(chBuf) - 1, &dwRead, NULL);
-        if (!bSuccess || dwRead == 0) break;
-        chBuf[dwRead] = '\0';
-        outputBuffer += chBuf;
-        size_t pos;
-        while ((pos = outputBuffer.find('\n')) != std::string::npos) {
-            std::string line_out = outputBuffer.substr(0, pos);
-            if (!line_out.empty() && line_out.back() == '\r') line_out.pop_back();
-            if (logger) logger(line_out);
-            outputBuffer.erase(0, pos + 1);
-        }
-    }
-    if (!outputBuffer.empty()) {
-        if (!outputBuffer.empty() && outputBuffer.back() == '\r') outputBuffer.pop_back();
-        if (logger) logger(outputBuffer);
-    }
-    CloseHandle(hChildStd_OUT_Rd);
-    DWORD exitCode;
-    WaitForSingleObject(piProcInfo.hProcess, INFINITE);
-    GetExitCodeProcess(piProcInfo.hProcess, &exitCode);
 
-    current_child_process = nullptr;
-    CloseHandle(piProcInfo.hProcess);
-    CloseHandle(piProcInfo.hThread);
-    return exitCode;
-#else
-    std::unique_ptr<FILE, int(*)(FILE*)> pipe(POPEN(cmd.c_str(), "r"), PCLOSE);
-    if (!pipe) {
-        if (logger) logger("Failed to run command.");
-        return -1;
+    QProcess process;
+    process.setProcessChannelMode(QProcess::MergedChannels);
+
+    process.setProgram("cmd.exe");
+    process.setNativeArguments("/c " + cmd);
+    process.start();
+
+    while (process.waitForReadyRead(100) || process.state() != QProcess::NotRunning) {
+        if (cancel_import) {
+            process.kill();
+            return -1;
+        }
+        QByteArray output = process.readAll();
+        if (!output.isEmpty()) {
+            QString outStr(output);
+            QStringList lines = outStr.split('\n');
+            for (const QString& line : lines) {
+                QString l = line;
+                if (l.endsWith('\r')) l.chop(1);
+                if (!l.isEmpty() && logger) {
+                    logger(l);
+                }
+            }
+        }
+        QCoreApplication::processEvents();
     }
-    std::array<char, 128> buffer;
-    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-        std::string output = buffer.data();
-        if (!output.empty() && output.back() == '\n') output.pop_back();
-        if (!output.empty() && output.back() == '\r') output.pop_back();
-        if (!output.empty()) {
-             if (logger) logger(output);
+
+    QByteArray output = process.readAll();
+    if (!output.isEmpty()) {
+        QString outStr(output);
+        QStringList lines = outStr.split('\n');
+        for (const QString& line : lines) {
+            QString l = line;
+            if (l.endsWith('\r')) l.chop(1);
+            if (!l.isEmpty() && logger) {
+                logger(l);
+            }
         }
     }
-    return PCLOSE(pipe.release());
-#endif
+
+    return process.exitCode();
+}
+
+bool copyDirectoryRecursively(const QString &sourceDir, const QString &destinationDir) {
+    QDir source(sourceDir);
+    if (!source.exists()) {
+        return false;
+    }
+
+    QDir destination(destinationDir);
+    if (!destination.exists()) {
+        destination.mkpath(destinationDir);
+    }
+
+    bool success = true;
+
+    QStringList files = source.entryList(QDir::Files);
+    for (const QString &file : files) {
+        QString srcPath = source.filePath(file);
+        QString dstPath = destination.filePath(file);
+        if (QFile::exists(dstPath)) {
+            QFile::remove(dstPath);
+        }
+        if (!QFile::copy(srcPath, dstPath)) {
+            success = false;
+        }
+    }
+
+    QStringList dirs = source.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &dir : dirs) {
+        QString srcPath = source.filePath(dir);
+        QString dstPath = destination.filePath(dir);
+        if (!copyDirectoryRecursively(srcPath, dstPath)) {
+            success = false;
+        }
+    }
+
+    return success;
 }
 
 void AppCore::process_bsp(Options& options) {
     if (cancel_import) return;
-    fs::path app_dir = options.app_dir;
-    fs::path maps_dir = app_dir / "maps";
-    fs::create_directories(maps_dir);
+    QString app_dir = options.app_dir;
+    QString maps_dir = QDir(app_dir).filePath("maps");
+    QDir().mkpath(maps_dir);
 
-    fs::path vmf_dest = maps_dir / (options.map_name + ".vmf");
-    fs::path bspsrc_jar = app_dir / "bspsrc.jar";
+    QString vmf_dest = QDir(maps_dir).filePath(options.map_name + ".vmf");
+    QString bspsrc_jar = QDir(app_dir).filePath("bspsrc.jar");
 
-    if (!fs::exists(bspsrc_jar)) {
-        throw std::runtime_error("Could not find bspsrc.jar at " + bspsrc_jar.string());
+    if (!QFile::exists(bspsrc_jar)) {
+        throw std::runtime_error("Could not find bspsrc.jar at " + bspsrc_jar.toStdString());
     }
 
     options.logger("Decompiling BSP: " + options.bsp_file);
 
-    std::string decomp_cmd = "java -jar \"" + bspsrc_jar.string() + "\" \"" + options.bsp_file + "\" -o \"" + vmf_dest.string() + "\" --unpack_embedded";
+    QString decomp_cmd = "java -jar \"" + bspsrc_jar + "\" \"" + options.bsp_file + "\" -o \"" + vmf_dest + "\" --unpack_embedded";
     int ret = run_command_sync(decomp_cmd, options.logger);
     if (cancel_import) return;
     if (ret != 0) {
         throw std::runtime_error("BSP Decompilation failed.");
     }
 
-    fs::path unpacked_dir;
-    std::vector<fs::path> possible_locations = {
-        fs::current_path() / options.map_name,
-        app_dir / options.map_name,
-        fs::path(options.bsp_file).parent_path() / options.map_name,
-        maps_dir / options.map_name
+    QString unpacked_dir;
+    QStringList possible_locations = {
+        QDir::current().filePath(options.map_name),
+        QDir(app_dir).filePath(options.map_name),
+        QFileInfo(options.bsp_file).absoluteDir().filePath(options.map_name),
+        QDir(maps_dir).filePath(options.map_name)
     };
 
-    for (const auto& loc : possible_locations) {
-        if (fs::exists(loc) && fs::is_directory(loc)) {
+    for (const QString& loc : possible_locations) {
+        if (QDir(loc).exists()) {
             unpacked_dir = loc;
             break;
         }
     }
 
-    fs::path target_unpacked_dir = maps_dir / options.map_name;
-    if (!unpacked_dir.empty()) {
-        options.logger("Found unpacked files at " + unpacked_dir.string());
+    QString target_unpacked_dir = QDir(maps_dir).filePath(options.map_name);
+    if (!unpacked_dir.isEmpty()) {
+        options.logger("Found unpacked files at " + unpacked_dir);
 
         if (unpacked_dir != target_unpacked_dir) {
-            if (fs::exists(target_unpacked_dir)) {
-                fs::remove_all(target_unpacked_dir);
+            if (QDir(target_unpacked_dir).exists()) {
+                QDir(target_unpacked_dir).removeRecursively();
             }
-            std::error_code ec;
-            fs::rename(unpacked_dir, target_unpacked_dir, ec);
-            if (!ec) {
-                options.logger("Moved unpacked directory to " + target_unpacked_dir.string());
+            if (QDir().rename(unpacked_dir, target_unpacked_dir)) {
+                options.logger("Moved unpacked directory to " + target_unpacked_dir);
             } else {
-                options.logger("Failed to rename unpacked directory to " + target_unpacked_dir.string() + ". Attempting recursive copy...");
-                std::error_code copy_ec;
-                fs::copy(unpacked_dir, target_unpacked_dir, fs::copy_options::recursive | fs::copy_options::overwrite_existing, copy_ec);
-                if (!copy_ec) {
-                    std::error_code remove_ec;
-                    fs::remove_all(unpacked_dir, remove_ec);
-                    if (!remove_ec) {
+                options.logger("Failed to rename unpacked directory to " + target_unpacked_dir + ". Attempting recursive copy...");
+                if (copyDirectoryRecursively(unpacked_dir, target_unpacked_dir)) {
+                    if (QDir(unpacked_dir).removeRecursively()) {
                         options.logger("Successfully copied and removed original unpacked directory.");
                     } else {
-                        options.logger("Successfully copied but failed to remove original unpacked directory: " + unpacked_dir.string());
+                        options.logger("Successfully copied but failed to remove original unpacked directory: " + unpacked_dir);
                     }
                 } else {
-                    options.logger("Failed to copy unpacked directory: " + copy_ec.message());
+                    options.logger("Failed to copy unpacked directory.");
                 }
             }
         }
@@ -478,45 +436,43 @@ void AppCore::process_bsp(Options& options) {
         options.logger("Could not find unpacked embedded files directory '" + options.map_name + "'");
     }
 
-    fix_vmf_from_bsp(vmf_dest.string(), options.logger);
+    fix_vmf_from_bsp(vmf_dest, options.logger);
     if (cancel_import) return;
 
-    fs::path target_maps_dir = app_dir / "maps" / options.map_name / "maps";
-    fs::create_directories(target_maps_dir);
-    fs::path final_vmf_dest = target_maps_dir / (options.map_name + ".vmf");
+    QString target_maps_dir = QDir(app_dir).filePath("maps/" + options.map_name + "/maps");
+    QDir().mkpath(target_maps_dir);
+    QString final_vmf_dest = QDir(target_maps_dir).filePath(options.map_name + ".vmf");
 
-    if (fs::exists(final_vmf_dest)) {
-        fs::remove(final_vmf_dest);
+    if (QFile::exists(final_vmf_dest)) {
+        QFile::remove(final_vmf_dest);
     }
 
-    std::error_code ec;
-    fs::rename(vmf_dest, final_vmf_dest, ec);
-    if (!ec) {
-        options.logger("Moved VMF to: " + final_vmf_dest.string());
+    if (QFile::rename(vmf_dest, final_vmf_dest)) {
+        options.logger("Moved VMF to: " + final_vmf_dest);
     } else {
-        options.logger("Failed to move VMF to: " + final_vmf_dest.string());
+        options.logger("Failed to move VMF to: " + final_vmf_dest);
     }
 
-    options.content_folder = (app_dir / "maps" / options.map_name).string();
-    options.logger("Decompiled and prepared at: " + final_vmf_dest.string());
+    options.content_folder = QDir(app_dir).filePath("maps/" + options.map_name);
+    options.logger("Decompiled and prepared at: " + final_vmf_dest);
 
     // Copy materials and models to s1gamedir
-    std::string s1_subfolder = (options.s1_game_type == "css") ? "cstrike" : "csgo";
-    fs::path s1gamedir = fs::path(options.s1game_basefolder) / s1_subfolder;
+    QString s1_subfolder = (options.s1_game_type == "css") ? "cstrike" : "csgo";
+    QString s1gamedir = QDir(options.s1game_basefolder).filePath(s1_subfolder);
 
-    if (fs::exists(target_unpacked_dir)) {
-        fs::path src_materials = target_unpacked_dir / "materials";
-        fs::path dest_materials = s1gamedir / "materials";
-        if (fs::exists(src_materials) && fs::is_directory(src_materials)) {
-            options.logger("Copying materials to " + dest_materials.string());
-            fs::copy(src_materials, dest_materials, fs::copy_options::recursive | fs::copy_options::overwrite_existing);
+    if (QDir(target_unpacked_dir).exists()) {
+        QString src_materials = QDir(target_unpacked_dir).filePath("materials");
+        QString dest_materials = QDir(s1gamedir).filePath("materials");
+        if (QDir(src_materials).exists()) {
+            options.logger("Copying materials to " + dest_materials);
+            copyDirectoryRecursively(src_materials, dest_materials);
         }
 
-        fs::path src_models = target_unpacked_dir / "models";
-        fs::path dest_models = s1gamedir / "models";
-        if (fs::exists(src_models) && fs::is_directory(src_models)) {
-            options.logger("Copying models to " + dest_models.string());
-            fs::copy(src_models, dest_models, fs::copy_options::recursive | fs::copy_options::overwrite_existing);
+        QString src_models = QDir(target_unpacked_dir).filePath("models");
+        QString dest_models = QDir(s1gamedir).filePath("models");
+        if (QDir(src_models).exists()) {
+            options.logger("Copying models to " + dest_models);
+            copyDirectoryRecursively(src_models, dest_models);
         }
     }
 }

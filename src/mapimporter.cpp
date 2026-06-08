@@ -1,129 +1,146 @@
 #include "mapimporter.h"
 #include "appcore.h"
-#include <fstream>
-#include <filesystem>
-#include <iostream>
-#include <sstream>
-#include <algorithm>
-#include <cstdio>
-#include <array>
-#include <memory>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QTextStream>
+#include <QRegularExpression>
 
-namespace fs = std::filesystem;
-
-static std::string CleanRefPath(std::string input) {
-    size_t filePos = input.find("\"file\"");
-    if (filePos != std::string::npos) {
-        input = input.substr(filePos + 6);
+static QString CleanRefPath(QString input) {
+    int filePos = input.indexOf("\"file\"");
+    if (filePos != -1) {
+        input = input.mid(filePos + 6);
     }
-    size_t start = input.find_first_not_of(" \t\"");
-    if (start != std::string::npos) {
-        input = input.substr(start);
+
+    QRegularExpression reLeading("^\\s*\"");
+    QRegularExpressionMatch matchLeading = reLeading.match(input);
+    if (matchLeading.hasMatch()) {
+        input = input.mid(matchLeading.capturedLength());
     } else {
-        return "";
+        int start = input.indexOf(QRegularExpression("[^ \\t]"));
+        if (start != -1) {
+            input = input.mid(start);
+        } else {
+            return "";
+        }
     }
-    size_t end = input.find_last_not_of(" \t\"");
-    if (end != std::string::npos) {
-        input = input.substr(0, end + 1);
+
+    QRegularExpression reTrailing("\"\\s*$");
+    QRegularExpressionMatch matchTrailing = reTrailing.match(input);
+    if (matchTrailing.hasMatch()) {
+        input = input.left(input.length() - matchTrailing.capturedLength());
+    } else {
+        int end = input.lastIndexOf(QRegularExpression("[^ \\t]"));
+        if (end != -1) {
+            input = input.left(end + 1);
+        }
     }
+
     if (input == "importfilelist" || input == "{" || input == "}") return "";
     return input;
 }
 
-void MapImporter::Log(const std::string& msg) {
+void MapImporter::Log(const QString& msg) {
     if (m_log) m_log(msg);
 }
 
-std::vector<std::string> MapImporter::ReadTextFile(const std::string& filepath) {
-    std::vector<std::string> lines;
-    std::ifstream file(filepath);
-    if (file.is_open()) {
-        std::string line;
-        while (std::getline(file, line)) {
-            if (!line.empty() && line.back() == '\r') line.pop_back();
-            lines.push_back(line);
+QStringList MapImporter::ReadTextFile(const QString& filepath) {
+    QStringList lines;
+    QFile file(filepath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&file);
+        while (!in.atEnd()) {
+            QString line = in.readLine();
+            if (!line.isEmpty() && line.endsWith('\r')) {
+                line.chop(1);
+            }
+            lines.append(line);
         }
     }
     return lines;
 }
 
-void MapImporter::EnsureFileWritable(const std::string& filepath) {
-    fs::path p(filepath);
-    if (fs::exists(p)) {
-        fs::permissions(p, fs::perms::owner_write | fs::perms::group_write | fs::perms::others_write, fs::perm_options::add);
+void MapImporter::EnsureFileWritable(const QString& filepath) {
+    QFileInfo p(filepath);
+    if (p.exists()) {
+        QFile::setPermissions(filepath, QFileDevice::WriteOwner | QFileDevice::WriteUser | QFileDevice::WriteGroup | QFileDevice::WriteOther | QFile::permissions(filepath));
     } else {
-        if (p.has_parent_path() && !fs::exists(p.parent_path())) {
-            fs::create_directories(p.parent_path());
+        QDir dir = p.dir();
+        if (!dir.exists()) {
+            dir.mkpath(".");
         }
     }
 }
 
-void MapImporter::StripMDLsFromRefs(const std::string& filename) {
-    auto refs = ReadTextFile(filename);
-    std::vector<std::string> mdls;
-    std::vector<std::string> others;
+void MapImporter::StripMDLsFromRefs(const QString& filename) {
+    QStringList refs = ReadTextFile(filename);
+    QStringList mdls;
+    QStringList others;
 
-    for (const auto& ref : refs) {
-        if (ref.empty()) continue;
-        std::string cleanedRef = CleanRefPath(ref);
-        if (cleanedRef.empty()) continue;
-        std::string lowerRef = cleanedRef;
-        std::transform(lowerRef.begin(), lowerRef.end(), lowerRef.begin(), ::tolower);
-        if (lowerRef.find(".mdl") != std::string::npos) {
-            mdls.push_back(cleanedRef);
+    for (const QString& ref : refs) {
+        if (ref.isEmpty()) continue;
+        QString cleanedRef = CleanRefPath(ref);
+        if (cleanedRef.isEmpty()) continue;
+        QString lowerRef = cleanedRef.toLower();
+        if (lowerRef.contains(".mdl")) {
+            mdls.append(cleanedRef);
         } else {
-            others.push_back(cleanedRef);
+            others.append(cleanedRef);
         }
     }
 
-    std::string mdlfilename = filename;
-    size_t pos = mdlfilename.rfind("_refs.txt");
-    if (pos != std::string::npos) mdlfilename.replace(pos, 9, "_mdl_lst.txt");
+    QString mdlfilename = filename;
+    int pos = mdlfilename.lastIndexOf("_refs.txt");
+    if (pos != -1) mdlfilename.replace(pos, 9, "_mdl_lst.txt");
 
     EnsureFileWritable(mdlfilename);
-    std::ofstream mdlFile(mdlfilename);
-    mdlFile << "importfilelist\n{\n";
-    for (const auto& m : mdls) mdlFile << "\t\"file\"\t\"" << m << "\"\n";
-    mdlFile << "}\n";
+    QFile mdlFile(mdlfilename);
+    if (mdlFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&mdlFile);
+        out << "importfilelist\n{\n";
+        for (const QString& m : mdls) out << "\t\"file\"\t\"" << m << "\"\n";
+        out << "}\n";
+    }
 
-    std::string refsfilename = filename;
-    pos = refsfilename.rfind("_refs.txt");
-    if (pos != std::string::npos) refsfilename.replace(pos, 9, "_new_refs.txt");
+    QString refsfilename = filename;
+    pos = refsfilename.lastIndexOf("_refs.txt");
+    if (pos != -1) refsfilename.replace(pos, 9, "_new_refs.txt");
 
     EnsureFileWritable(refsfilename);
-    std::ofstream refFile(refsfilename);
-    refFile << "importfilelist\n{\n";
-    for (const auto& o : others) refFile << "\t\"file\"\t\"" << o << "\"\n";
-    refFile << "}\n";
+    QFile refFile(refsfilename);
+    if (refFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&refFile);
+        out << "importfilelist\n{\n";
+        for (const QString& o : others) out << "\t\"file\"\t\"" << o << "\"\n";
+        out << "}\n";
+    }
 }
 
-void MapImporter::ForceUV2ForVMAT(const std::string& mtlfile) {
-    std::string vmat = mtlfile;
-    size_t pos = vmat.rfind(".vmt");
-    if (pos != std::string::npos) vmat.replace(pos, 4, ".vmat");
+void MapImporter::ForceUV2ForVMAT(const QString& mtlfile) {
+    QString vmat = mtlfile;
+    int pos = vmat.lastIndexOf(".vmt");
+    if (pos != -1) vmat.replace(pos, 4, ".vmat");
 
-    std::string vmatfilename = m_options.s2contentdir + "\\" + vmat;
-    if (!fs::exists(vmatfilename)) return;
+    QString vmatfilename = m_options.s2contentdir + "\\" + vmat;
+    if (!QFile::exists(vmatfilename)) return;
 
-    auto lines = ReadTextFile(vmatfilename);
+    QStringList lines = ReadTextFile(vmatfilename);
     EnsureFileWritable(vmatfilename);
 
     bool added = false;
-    for (size_t i = 0; i < lines.size(); ++i) {
-        std::string txt = lines[i];
-        std::string lowerTxt = txt;
-        std::transform(lowerTxt.begin(), lowerTxt.end(), lowerTxt.begin(), ::tolower);
+    for (int i = 0; i < lines.size(); ++i) {
+        QString txt = lines[i];
+        QString lowerTxt = txt.toLower();
 
-        size_t start = lowerTxt.find_first_not_of(" \t");
-        if (start != std::string::npos && lowerTxt.substr(start).find("\"shader\"") == 0) {
+        int start = lowerTxt.indexOf(QRegularExpression("[^ \\t]"));
+        if (start != -1 && lowerTxt.mid(start).startsWith("\"shader\"")) {
             if (i + 1 < lines.size()) {
-                std::string txtNext = lines[i+1];
-                std::string lowerNext = txtNext;
-                std::transform(lowerNext.begin(), lowerNext.end(), lowerNext.begin(), ::tolower);
+                QString txtNext = lines[i+1];
+                QString lowerNext = txtNext.toLower();
 
-                size_t startNext = lowerNext.find_first_not_of(" \t");
-                if (startNext == std::string::npos || lowerNext.substr(startNext).find("\"f_force_uv2\"") != 0) {
-                    lines.insert(lines.begin() + i + 1, "\t\"F_FORCE_UV2\" \"1\"");
+                int startNext = lowerNext.indexOf(QRegularExpression("[^ \\t]"));
+                if (startNext == -1 || !lowerNext.mid(startNext).startsWith("\"f_force_uv2\"")) {
+                    lines.insert(i + 1, "\t\"F_FORCE_UV2\" \"1\"");
                     added = true;
                     break;
                 }
@@ -133,41 +150,43 @@ void MapImporter::ForceUV2ForVMAT(const std::string& mtlfile) {
 
     if (added) {
         Log("Added F_FORCE_UV2 to " + vmatfilename);
-        std::ofstream file(vmatfilename);
-        for (const auto& l : lines) file << l << "\n";
+        QFile file(vmatfilename);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&file);
+            for (const QString& l : lines) out << l << "\n";
+        }
     }
 }
 
-bool MapImporter::Force2UVsIfRequired(const std::string& refsName, std::set<std::string>& global2UVMaterials, std::string& global2UVMaterialsFilepath) {
-    std::set<std::string> uvsUpdated;
-    std::string meshinfofilename = refsName;
-    size_t pos = meshinfofilename.rfind("_refs.txt");
-    if (pos != std::string::npos) meshinfofilename.replace(pos, 9, "_refs/mesh/meshinfo.txt");
+bool MapImporter::Force2UVsIfRequired(const QString& refsName, QSet<QString>& global2UVMaterials, QString& global2UVMaterialsFilepath) {
+    QSet<QString> uvsUpdated;
+    QString meshinfofilename = refsName;
+    int pos = meshinfofilename.lastIndexOf("_refs.txt");
+    if (pos != -1) meshinfofilename.replace(pos, 9, "_refs/mesh/meshinfo.txt");
 
-    std::replace(meshinfofilename.begin(), meshinfofilename.end(), '/', '\\');
+    meshinfofilename.replace('/', '\\');
 
-    if (!fs::exists(meshinfofilename)) return false;
+    if (!QFile::exists(meshinfofilename)) return false;
 
-    auto meshinfo = ReadTextFile(meshinfofilename);
-    std::string meshstring;
-    for (const auto& l : meshinfo) meshstring += l;
+    QStringList meshinfo = ReadTextFile(meshinfofilename);
+    QString meshstring = meshinfo.join("");
 
     bool b2UV = false;
-    if (!fs::exists(refsName)) return false;
+    if (!QFile::exists(refsName)) return false;
 
-    auto refsList = ReadTextFile(refsName);
+    QStringList refsList = ReadTextFile(refsName);
     int numuvs = 1; // Simplistic parsing
-    if (meshstring.find("'numuvs': 2") != std::string::npos || meshstring.find("\"numuvs\": 2") != std::string::npos) {
+    if (meshstring.contains("'numuvs': 2") || meshstring.contains("\"numuvs\": 2")) {
         numuvs = 2;
     }
 
-    for (const auto& refLine : refsList) {
+    for (const QString& refLine : refsList) {
         if (AppCore::cancel_import) return false;
-        std::string mtlfile = CleanRefPath(refLine);
-        if (mtlfile.empty()) continue;
-        if (uvsUpdated.count(mtlfile)) continue;
+        QString mtlfile = CleanRefPath(refLine);
+        if (mtlfile.isEmpty()) continue;
+        if (uvsUpdated.contains(mtlfile)) continue;
 
-        if (global2UVMaterials.count(mtlfile)) {
+        if (global2UVMaterials.contains(mtlfile)) {
             b2UV = true;
             uvsUpdated.insert(mtlfile);
         } else {
@@ -177,8 +196,12 @@ bool MapImporter::Force2UVsIfRequired(const std::string& refsName, std::set<std:
                 uvsUpdated.insert(mtlfile);
 
                 global2UVMaterials.insert(mtlfile);
-                std::ofstream ofs(global2UVMaterialsFilepath, std::ios::app);
-                ofs << mtlfile << "\n";
+
+                QFile ofs(global2UVMaterialsFilepath);
+                if (ofs.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+                    QTextStream out(&ofs);
+                    out << mtlfile << "\n";
+                }
 
                 ForceUV2ForVMAT(mtlfile);
             }
@@ -187,153 +210,157 @@ bool MapImporter::Force2UVsIfRequired(const std::string& refsName, std::set<std:
     return b2UV;
 }
 
-void MapImporter::ImportAndCompileMapMDLs(const std::string& filename) {
-    auto mdlfiles = ReadTextFile(filename);
-    if (mdlfiles.empty()) {
+void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
+    QStringList mdlfiles = ReadTextFile(filename);
+    if (mdlfiles.isEmpty()) {
         Log("No MDLs to import");
         return;
     }
 
     Log("Importing models");
     Log("--------------------------------");
-    for (const auto& x : mdlfiles) {
-        if (x.empty() || x[0] == '-') continue;
+    for (const QString& x : mdlfiles) {
+        if (x.isEmpty() || x.startsWith('-')) continue;
         Log(x);
     }
     Log("--------------------------------");
 
-    std::vector<std::string> force2UVList;
-    std::set<std::string> mdlmtls;
-    std::string extraoptions = "";
+    QStringList force2UVList;
+    QSet<QString> mdlmtls;
+    QString extraoptions = "";
 
-    for (const auto& m : mdlfiles) {
+    for (const QString& m : mdlfiles) {
         if (AppCore::cancel_import) return;
-        if (m.empty()) continue;
-        if (m[0] == '-') {
+        if (m.isEmpty()) continue;
+        if (m.startsWith('-')) {
             if (m == "-" || m == "-nooptions") extraoptions = "";
             else extraoptions = m;
         } else {
-            std::string mdlfile = CleanRefPath(m);
-            if (mdlfile.empty()) continue;
-            std::replace(mdlfile.begin(), mdlfile.end(), '/', '\\');
+            QString mdlfile = CleanRefPath(m);
+            if (mdlfile.isEmpty()) continue;
+            mdlfile.replace('/', '\\');
 
-            std::string infile = mdlfile;
-            std::string outName = m_options.s2contentdir + "\\" + mdlfile;
-            size_t pos = outName.rfind(".mdl");
-            if (pos != std::string::npos) outName.replace(pos, 4, ".vmdl");
+            QString infile = mdlfile;
+            QString outName = m_options.s2contentdir + "\\" + mdlfile;
+            int pos = outName.lastIndexOf(".mdl");
+            if (pos != -1) outName.replace(pos, 4, ".vmdl");
 
-            std::string refsName = m_options.s2contentdir + "\\" + mdlfile;
-            pos = refsName.rfind(".mdl");
-            if (pos != std::string::npos) refsName.replace(pos, 4, "_refs.txt");
+            QString refsName = m_options.s2contentdir + "\\" + mdlfile;
+            pos = refsName.lastIndexOf(".mdl");
+            if (pos != -1) refsName.replace(pos, 4, "_refs.txt");
 
-            std::string importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\cs_mdl_import.exe\"  -nop4 " + extraoptions + " -i \"" + m_options.s1gamedir + "\" -o \"" + m_options.s2contentdir + "\" \"" + infile + "\"";
+            QString importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\cs_mdl_import.exe\" -nop4 " + extraoptions + " -i \"" + m_options.s1gamedir + "\" -o \"" + m_options.s2contentdir + "\" \"" + infile + "\"";
             AppCore::run_command_sync(importCmd, m_log);
 
-            if (fs::exists(refsName)) {
-                auto refs = ReadTextFile(refsName);
-                for (const auto& ref : refs) {
-                    std::string cleanedRef = CleanRefPath(ref);
-                    if (!cleanedRef.empty()) mdlmtls.insert(cleanedRef);
+            if (QFile::exists(refsName)) {
+                QStringList refs = ReadTextFile(refsName);
+                for (const QString& ref : refs) {
+                    QString cleanedRef = CleanRefPath(ref);
+                    if (!cleanedRef.isEmpty()) mdlmtls.insert(cleanedRef);
                 }
-                force2UVList.push_back(refsName);
+                force2UVList.append(refsName);
             }
         }
     }
 
-    std::string temp_refs = filename;
-    size_t pos = temp_refs.rfind("mdl_lst");
-    if (pos != std::string::npos) temp_refs.replace(pos, 7, "mtl_lst");
+    QString temp_refs = filename;
+    int pos = temp_refs.lastIndexOf("mdl_lst");
+    if (pos != -1) temp_refs.replace(pos, 7, "mtl_lst");
 
     EnsureFileWritable(temp_refs);
-    std::ofstream fw(temp_refs);
-    fw << "importfilelist\n{\n";
-    for (const auto& mtl : mdlmtls) fw << "\t\"file\"\t\"" << mtl << "\"\n";
-    fw << "}\n";
-    fw.close();
+    QFile fw(temp_refs);
+    if (fw.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&fw);
+        out << "importfilelist\n{\n";
+        for (const QString& mtl : mdlmtls) out << "\t\"file\"\t\"" << mtl << "\"\n";
+        out << "}\n";
+    }
 
-    std::string importRefsCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\"  -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo " + " -usefilelist \"" + temp_refs + "\"";
+    QString importRefsCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo -usefilelist \"" + temp_refs + "\"";
     AppCore::run_command_sync(importRefsCmd, m_log);
 
-    std::set<std::string> global2UVMaterials;
-    std::string global2UVMaterialFilepath = "source1import_2uvmateriallist.txt";
-    if (fs::exists(global2UVMaterialFilepath)) {
-        auto force2UVListFile = ReadTextFile(global2UVMaterialFilepath);
-        for (const auto& mtl : force2UVListFile) {
+    QSet<QString> global2UVMaterials;
+    QString global2UVMaterialFilepath = "source1import_2uvmateriallist.txt";
+    if (QFile::exists(global2UVMaterialFilepath)) {
+        QStringList force2UVListFile = ReadTextFile(global2UVMaterialFilepath);
+        for (const QString& mtl : force2UVListFile) {
             global2UVMaterials.insert(mtl);
             ForceUV2ForVMAT(mtl);
         }
     }
     EnsureFileWritable(global2UVMaterialFilepath);
 
-    for (const auto& mtlfile : mdlmtls) {
+    for (const QString& mtlfile : mdlmtls) {
         if (AppCore::cancel_import) return;
-        if (mtlfile.empty() || mtlfile[0] == '-') continue;
-        std::string mtl = mtlfile;
-        std::replace(mtl.begin(), mtl.end(), '/', '\\');
-        std::string outName = m_options.s2contentdir + "\\" + mtl;
-        pos = outName.rfind(".vmt");
-        if (pos != std::string::npos) outName.replace(pos, 4, ".vmat");
+        if (mtlfile.isEmpty() || mtlfile.startsWith('-')) continue;
+        QString mtl = mtlfile;
+        mtl.replace('/', '\\');
+        QString outName = m_options.s2contentdir + "\\" + mtl;
+        pos = outName.lastIndexOf(".vmt");
+        if (pos != -1) outName.replace(pos, 4, ".vmat");
 
-        std::string resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -game csgo" + " \"" + outName + "\"";
+        QString resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + outName + "\"";
         AppCore::run_command_sync(resCompCmd, m_log);
     }
 
-    for (const auto& m : mdlfiles) {
+    for (const QString& m : mdlfiles) {
         if (AppCore::cancel_import) return;
-        if (m.empty() || m[0] == '-') continue;
-        std::string mdlfile = CleanRefPath(m);
-        if (mdlfile.empty()) continue;
-        std::replace(mdlfile.begin(), mdlfile.end(), '/', '\\');
+        if (m.isEmpty() || m.startsWith('-')) continue;
+        QString mdlfile = CleanRefPath(m);
+        if (mdlfile.isEmpty()) continue;
+        mdlfile.replace('/', '\\');
 
-        std::string outName = m_options.s2contentdir + "\\" + mdlfile;
-        pos = outName.rfind(".mdl");
-        if (pos != std::string::npos) outName.replace(pos, 4, ".vmdl");
+        QString outName = m_options.s2contentdir + "\\" + mdlfile;
+        pos = outName.lastIndexOf(".mdl");
+        if (pos != -1) outName.replace(pos, 4, ".vmdl");
 
-        if (!fs::exists(outName)) continue;
+        if (!QFile::exists(outName)) continue;
 
-        std::string refsName = m_options.s2contentdir + "\\" + mdlfile;
-        pos = refsName.rfind(".mdl");
-        if (pos != std::string::npos) refsName.replace(pos, 4, "_refs.txt");
+        QString refsName = m_options.s2contentdir + "\\" + mdlfile;
+        pos = refsName.lastIndexOf(".mdl");
+        if (pos != -1) refsName.replace(pos, 4, "_refs.txt");
 
         bool bForceCompile = Force2UVsIfRequired(refsName, global2UVMaterials, global2UVMaterialFilepath);
 
-        std::string resCompCmd;
+        QString resCompCmd;
         if (bForceCompile) {
-            resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -f -game csgo " + " \"" + outName + "\"";
+            resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -f -game csgo \"" + outName + "\"";
         } else {
-            resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -game csgo " + " \"" + outName + "\"";
+            resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + outName + "\"";
         }
         AppCore::run_command_sync(resCompCmd, m_log);
     }
 }
 
-void MapImporter::ImportAndCompileMapRefs(const std::string& refsFile) {
-    std::string importcmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\"  -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo " + " -usefilelist \"" + refsFile + "\"";
+void MapImporter::ImportAndCompileMapRefs(const QString& refsFile) {
+    QString importcmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo -usefilelist \"" + refsFile + "\"";
     AppCore::run_command_sync(importcmd, m_log);
 
-    auto refs = ReadTextFile(refsFile);
-    std::string newList = "";
+    QStringList refs = ReadTextFile(refsFile);
+    QString newList = "";
 
-    for (const auto& line : refs) {
+    for (const QString& line : refs) {
         if (AppCore::cancel_import) return;
-        std::string cleanedRef = CleanRefPath(line);
-        if (!cleanedRef.empty()) {
-            std::string modLine = cleanedRef;
-            size_t pos = modLine.rfind(".vmt");
-            if (pos != std::string::npos) modLine.replace(pos, 4, ".vmat");
-            std::replace(modLine.begin(), modLine.end(), ' ', '_');
-            std::replace(modLine.begin(), modLine.end(), '/', '\\');
+        QString cleanedRef = CleanRefPath(line);
+        if (!cleanedRef.isEmpty()) {
+            QString modLine = cleanedRef;
+            int pos = modLine.lastIndexOf(".vmt");
+            if (pos != -1) modLine.replace(pos, 4, ".vmat");
+            modLine.replace(' ', '_');
+            modLine.replace('/', '\\');
             newList += m_options.s2contentdir + "\\" + modLine + "\n";
         }
     }
 
-    std::string tmpFile = m_options.s2contentdir + "\\maps\\" + m_options.mapname + "_compile_new_refs.txt";
+    QString tmpFile = m_options.s2contentdir + "\\maps\\" + m_options.mapname + "_compile_new_refs.txt";
     EnsureFileWritable(tmpFile);
-    std::ofstream writeFile(tmpFile);
-    writeFile << newList;
-    writeFile.close();
+    QFile writeFile(tmpFile);
+    if (writeFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&writeFile);
+        out << newList;
+    }
 
-    std::string compilercmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\"  -retail -nop4 -game csgo " + " -f -filelist \"" + tmpFile + "\"";
+    QString compilercmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo -f -filelist \"" + tmpFile + "\"";
     AppCore::run_command_sync(compilercmd, m_log);
 }
 
@@ -341,18 +368,18 @@ bool MapImporter::Run() {
     if (AppCore::cancel_import) return false;
     Log("Starting Map Import process via C++.");
 
-    std::string usebspStr = m_options.usebsp ? "-usebsp" : "";
-    std::string nomergeinstancesStr = m_options.usebsp_nomergeinstances ? "-usebsp_nomergeinstances" : "";
+    QString usebspStr = m_options.usebsp ? "-usebsp" : "";
+    QString nomergeinstancesStr = m_options.usebsp_nomergeinstances ? "-usebsp_nomergeinstances" : "";
 
-    std::string mapImportCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\"  -retail -nop4 -nop4sync " + usebspStr;
-    if (!nomergeinstancesStr.empty()) mapImportCmd += " " + nomergeinstancesStr;
-    mapImportCmd += " -src1gameinfodir \"" + m_options.s1gamedir + "\" -src1contentdir \"" + m_options.s1contentdir + "\" -s2addon \"" + m_options.s2addonname + "\" -game csgo" + " maps\\" + m_options.mapname + ".vmf";
+    QString mapImportCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync " + usebspStr;
+    if (!nomergeinstancesStr.isEmpty()) mapImportCmd += " " + nomergeinstancesStr;
+    mapImportCmd += " -src1gameinfodir \"" + m_options.s1gamedir + "\" -src1contentdir \"" + m_options.s1contentdir + "\" -s2addon \"" + m_options.s2addonname + "\" -game csgo maps\\" + m_options.mapname + ".vmf";
 
     AppCore::run_command_sync(mapImportCmd, m_log);
 
-    std::string m_mapname = m_options.mapname;
-    size_t pos = m_mapname.find("instances");
-    if (pos != std::string::npos) {
+    QString m_mapname = m_options.mapname;
+    int pos = m_mapname.indexOf("instances");
+    if (pos != -1) {
         m_mapname.replace(pos, 9, "prefabs");
     }
 
