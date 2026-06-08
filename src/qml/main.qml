@@ -132,6 +132,7 @@ ApplicationWindow {
                             id: s1GameCombo
                             model: ["CSGO", "CSS"]
                             Layout.fillWidth: true
+                            Component.onCompleted: currentIndex = backend.s1_game_type === "css" ? 1 : 0
                             onActivated: backend.set_s1_game_type(currentText.toLowerCase())
                         }
 

@@ -28,7 +28,7 @@ public:
     ~Backend();
 
     QString getCs2Basefolder() const { return cs2_basefolder; }
-    QString getS1gameBasefolder() const { return s1game_basefolder; }
+    QString getS1gameBasefolder() const { return s1_game_type == "css" ? cssgamedir : csgogamedir; }
     QString getS1GameType() const { return s1_game_type; }
     QString getVmfDefaultPathUrl() const { return QUrl::fromLocalFile(vmf_default_path).toString(); }
     QString getBspFile() const { return bsp_file; }
@@ -37,15 +37,15 @@ public:
     void setAddonName(const QString& name) { if(addon_name != name) { addon_name = name; emit addonNameChanged(); updateCanGo(); } }
 
     bool getUsebsp() const { return usebsp; }
-    void setUsebsp(bool val) { if(usebsp != val) { usebsp = val; emit usebspChanged(); if(!usebsp) setUsebspNomergeinstances(false); get_launch_options(); } }
+    void setUsebsp(bool val) { if(usebsp != val) { usebsp = val; emit usebspChanged(); if(!usebsp) setUsebspNomergeinstances(false); get_launch_options(); save_to_cfg(); } }
 
     bool getUsebspNomergeinstances() const { return usebsp_nomergeinstances; }
-    void setUsebspNomergeinstances(bool val) { if(usebsp_nomergeinstances != val) { usebsp_nomergeinstances = val; emit usebspNomergeinstancesChanged(); if(usebsp_nomergeinstances) setUsebsp(true); get_launch_options(); } }
+    void setUsebspNomergeinstances(bool val) { if(usebsp_nomergeinstances != val) { usebsp_nomergeinstances = val; emit usebspNomergeinstancesChanged(); if(usebsp_nomergeinstances) setUsebsp(true); get_launch_options(); save_to_cfg(); } }
 
     bool getSkipdeps() const { return skipdeps; }
-    void setSkipdeps(bool val) { if(skipdeps != val) { skipdeps = val; emit skipdepsChanged(); get_launch_options(); } }
+    void setSkipdeps(bool val) { if(skipdeps != val) { skipdeps = val; emit skipdepsChanged(); get_launch_options(); save_to_cfg(); } }
 
-    bool getCanGo() const { return !cs2_basefolder.isEmpty() && !s1game_basefolder.isEmpty() && (!bsp_file.isEmpty() || !content_folder.isEmpty()) && !is_going; }
+    bool getCanGo() const { return !cs2_basefolder.isEmpty() && !getS1gameBasefolder().isEmpty() && (!bsp_file.isEmpty() || !content_folder.isEmpty()) && !is_going; }
 
     void appAboutToQuit();
 
@@ -81,7 +81,8 @@ private:
     bool java_installed;
     QString vmf_default_path;
     QString cs2_basefolder;
-    QString s1game_basefolder;
+    QString csgogamedir;
+    QString cssgamedir;
     QString s1_game_type; // "csgo" or "css"
     QString content_folder;
     QString content_folder_to_save;

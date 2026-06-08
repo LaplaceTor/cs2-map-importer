@@ -13,6 +13,7 @@
 #include <QTimer>
 #include <QDateTime>
 #include <QFileInfo>
+#include <QSettings>
 
 Backend::Backend(QObject *parent) :
     QObject(parent),
@@ -85,10 +86,10 @@ void Backend::set_s1_game_type(const QString& type)
 {
     if (s1_game_type != type) {
         s1_game_type = type;
-        s1game_basefolder.clear();
         emit s1gameBasefolderChanged();
         emit s1GameTypeChanged();
         updateCanGo();
+        save_to_cfg();
     }
 }
 
@@ -127,6 +128,7 @@ void Backend::set_cs2_folder(const QString& path)
         cs2_basefolder = path;
         emit cs2BasefolderChanged();
         updateCanGo();
+        save_to_cfg();
     }
 }
 
@@ -181,9 +183,14 @@ void Backend::select_s1_folder_dialog(const QUrl& url)
 void Backend::set_s1_folder(const QString& path)
 {
     if (!path.isEmpty() && path != "None") {
-        s1game_basefolder = path;
+        if (s1_game_type == "css") {
+            cssgamedir = path;
+        } else {
+            csgogamedir = path;
+        }
         emit s1gameBasefolderChanged();
         updateCanGo();
+        save_to_cfg();
     }
 }
 
@@ -267,76 +274,59 @@ void Backend::updateCanGo()
 
 void Backend::save_to_cfg()
 {
-    QString usebsp_state = usebsp ? "True" : "False";
-    QString nomerge_state = usebsp_nomergeinstances ? "True" : "False";
-    QString skipdeps_state = skipdeps ? "True" : "False";
-
-    QString temp = QString("%1\n%2\n%3\n%4\n%5\n%6\n%7")
-        .arg(usebsp_state)
-        .arg(nomerge_state)
-        .arg(skipdeps_state)
-        .arg(cs2_basefolder)
-        .arg(s1game_basefolder)
-        .arg(content_folder_to_save)
-        .arg(s1_game_type);
-
-    QFile file("cs2importer.cfg");
-    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QTextStream out(&file);
-        out << temp;
-        file.close();
-    }
+    QSettings settings("cs2importer.cfg", QSettings::IniFormat);
+    settings.setValue("usebsp", usebsp);
+    settings.setValue("usebsp_nomergeinstances", usebsp_nomergeinstances);
+    settings.setValue("skipdeps", skipdeps);
+    settings.setValue("cs2_basefolder", cs2_basefolder);
+    settings.setValue("csgogamedir", csgogamedir);
+    settings.setValue("cssgamedir", cssgamedir);
+    settings.setValue("content_folder_to_save", content_folder_to_save);
+    settings.setValue("s1_game_type", s1_game_type);
 }
 
 void Backend::load_from_cfg()
 {
-    QFile file("cs2importer.cfg");
-    if (!file.exists()) {
-        file.open(QIODevice::WriteOnly);
-        file.close();
+    QSettings settings("cs2importer.cfg", QSettings::IniFormat);
+
+    // Check if all necessary parameters are present
+    if (!settings.contains("usebsp") ||
+        !settings.contains("usebsp_nomergeinstances") ||
+        !settings.contains("skipdeps") ||
+        !settings.contains("cs2_basefolder") ||
+        !settings.contains("csgogamedir") ||
+        !settings.contains("cssgamedir") ||
+        !settings.contains("content_folder_to_save") ||
+        !settings.contains("s1_game_type")) {
+        // Not all parameters found (could be missing file, or older format). Rewrite with defaults.
+        save_to_cfg();
         return;
     }
 
-    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QTextStream in(&file);
-        QStringList temp;
-        while (!in.atEnd()) {
-            temp.append(in.readLine().trimmed());
-        }
-        file.close();
+    usebsp = settings.value("usebsp").toBool();
+    usebsp_nomergeinstances = settings.value("usebsp_nomergeinstances").toBool();
+    skipdeps = settings.value("skipdeps").toBool();
+    cs2_basefolder = settings.value("cs2_basefolder").toString();
+    csgogamedir = settings.value("csgogamedir").toString();
+    cssgamedir = settings.value("cssgamedir").toString();
+    content_folder_to_save = settings.value("content_folder_to_save").toString();
+    vmf_default_path = content_folder_to_save;
+    s1_game_type = settings.value("s1_game_type").toString();
 
-        if (temp.isEmpty()) return;
-
-        if (temp[0] == "True" || temp[0] == "False") {
-            if (temp.size() >= 6) {
-                setUsebsp(temp[0] == "True");
-                setUsebspNomergeinstances(temp[1] == "True");
-                setSkipdeps(temp[2] == "True");
-                set_cs2_folder(temp[3]);
-
-                if (temp.size() >= 7) {
-                    set_s1_game_type(temp[6]);
-                } else {
-                    set_s1_game_type("csgo");
-                }
-
-                set_s1_folder(temp[4]);
-                vmf_default_path = temp[5];
-                emit vmfDefaultPathUrlChanged();
-            }
-        } else {
-            if (temp.size() == 3) {
-                set_cs2_folder(temp[1]);
-                vmf_default_path = temp[2];
-                emit vmfDefaultPathUrlChanged();
-            } else if (temp.size() >= 4) {
-                set_cs2_folder(temp[1]);
-                set_s1_folder(temp[2]);
-                vmf_default_path = temp[3];
-                emit vmfDefaultPathUrlChanged();
-            }
-        }
+    if (s1_game_type != "csgo" && s1_game_type != "css") {
+        s1_game_type = "csgo";
     }
+
+    emit cs2BasefolderChanged();
+    emit s1gameBasefolderChanged();
+    emit s1GameTypeChanged();
+    emit vmfDefaultPathUrlChanged();
+    emit usebspChanged();
+    emit usebspNomergeinstancesChanged();
+    emit skipdepsChanged();
+
+    updateCanGo();
+    get_launch_options();
 }
 
 void Backend::go()
@@ -345,7 +335,7 @@ void Backend::go()
         emit alertMessage("Validation Error", "CS2 folder not selected.");
         return;
     }
-    if (s1game_basefolder.isEmpty()) {
+    if (getS1gameBasefolder().isEmpty()) {
         emit alertMessage("Validation Error", "CSGO/CSS folder not selected.");
         return;
     }
@@ -399,7 +389,7 @@ void Backend::go()
 
         AppCore::Options opts;
         opts.cs2_basefolder = cs2_basefolder.replace("/", "\\").toStdString();
-        opts.s1game_basefolder = s1game_basefolder.toStdString();
+        opts.s1game_basefolder = getS1gameBasefolder().toStdString();
         opts.s1_game_type = s1_game_type.toStdString();
         opts.content_folder = content_folder.toStdString();
         opts.map_name = map_name.toStdString();
