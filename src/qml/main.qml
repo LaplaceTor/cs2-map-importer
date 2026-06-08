@@ -2,22 +2,21 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
-import cs2importer 1.0
 
 ApplicationWindow {
     id: window
-    width: 900
-    height: 700
-    minimumWidth: 900
-    maximumWidth: 900
-    minimumHeight: 700
-    maximumHeight: 700
+    width: 1024
+    height: 768
+    minimumWidth: 1024
+    maximumWidth: 1024
+    minimumHeight: 768
+    maximumHeight: 768
     visible: true
-    title: "CS2 Importer"
+    title: "CS2 IMPORTER"
 
     // Property to bind the backend object
     property var backend: backendObject
-    property string selectedMapFileName: "vmf/bsp name"
+    property string selectedMapFileName: "Select VMF/BSP"
 
     Connections {
         target: backend
@@ -30,6 +29,10 @@ ApplicationWindow {
             // Highlight errors in red
             if (safeMsg.indexOf("ERROR") !== -1) {
                 safeMsg = "<font color='red'>" + safeMsg + "</font>";
+            }else if(safeMsg.indexOf("Skip") !== -1) {
+                safeMsg = "<font color='yellow'>" + safeMsg + "</font>";
+            }else if(safeMsg.indexOf("Unable") !== -1) {
+                safeMsg = "<font color='yellow'>" + safeMsg + "</font>";
             }
             logOutput.append(safeMsg)
         }
@@ -42,19 +45,19 @@ ApplicationWindow {
             if (backend.cs2_basefolder !== "") {
                 cs2FolderButton.text = backend.cs2_basefolder
             } else {
-                cs2FolderButton.text = "Press to select game folder"
+                cs2FolderButton.text = "Press to Select Game Folder"
             }
         }
         function onS1gameBasefolderChanged() {
             if (backend.s1game_basefolder !== "") {
                 s1FolderButton.text = backend.s1game_basefolder
             } else {
-                s1FolderButton.text = "Press to select game folder"
+                s1FolderButton.text = "Press to Select Game Folder"
             }
         }
         function onS1GameTypeChanged() {
             if (backend.s1game_basefolder === "") {
-                s1FolderButton.text = "Press to select game folder"
+                s1FolderButton.text = "Press to Select Game Folder"
             } else {
                 s1FolderButton.text = backend.s1game_basefolder
             }
@@ -70,7 +73,7 @@ ApplicationWindow {
 
     FolderDialog {
         id: s1FolderDialog
-        title: "Select Source 1 game folder"
+        title: "Select Source 1 Game Folder"
         onAccepted: backend.select_s1_folder_dialog(selectedFolder)
     }
 
@@ -115,8 +118,8 @@ ApplicationWindow {
 
                 // Source 1 Game Box
                 GroupBox {
-                    title: "SOURCE 1 GAME"
-                    Layout.preferredWidth: 160
+                    title: "Source 1 Game"
+                    Layout.preferredWidth: 165
                     Layout.preferredHeight: 180
 
                     ColumnLayout {
@@ -126,28 +129,26 @@ ApplicationWindow {
                         ComboBox {
                             id: s1GameCombo
                             model: ["CSGO", "CSS"]
-                            currentIndex: backend.s1_game_type === "css" ? 1 : 0
                             Layout.fillWidth: true
                             onActivated: backend.set_s1_game_type(currentText.toLowerCase())
                         }
 
                         Button {
                             id: s1FolderButton
-                            text: backend.s1game_basefolder === "" ? "Press to select game folder" : backend.s1game_basefolder
+                            text: backend.s1game_basefolder === "" ? "Press to Select Game Folder" : backend.s1game_basefolder
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             contentItem: Text {
                                 text: parent.text
-                                wrapMode: Text.WrapAnywhere
+                                wrapMode: Text.WordWrap
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
-                                elide: Text.ElideRight
                             }
                             onClicked: s1FolderDialog.open()
                         }
 
                         Button {
-                            text: "validate"
+                            text: "Validate"
                             Layout.fillWidth: true
                             onClicked: backend.validate_s1()
                         }
@@ -163,7 +164,7 @@ ApplicationWindow {
                 // Counter Strike 2 Box
                 GroupBox {
                     title: "Counter Strike 2"
-                    Layout.preferredWidth: 160
+                    Layout.preferredWidth: 165
                     Layout.preferredHeight: 180
 
                     ColumnLayout {
@@ -172,21 +173,20 @@ ApplicationWindow {
 
                         Button {
                             id: cs2FolderButton
-                            text: backend.cs2_basefolder === "" ? "Press to select game folder" : backend.cs2_basefolder
+                            text: backend.cs2_basefolder === "" ? "Press to Select Game Folder" : backend.cs2_basefolder
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             contentItem: Text {
                                 text: parent.text
-                                wrapMode: Text.WrapAnywhere
+                                wrapMode: Text.WordWrap
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
-                                elide: Text.ElideRight
                             }
                             onClicked: cs2FolderDialog.open()
                         }
 
                         Button {
-                            text: "validate"
+                            text: "Validate"
                             Layout.fillWidth: true
                             onClicked: backend.validate_cs2()
                         }
@@ -200,7 +200,7 @@ ApplicationWindow {
                 spacing: 15
 
                 Button {
-                    Layout.preferredWidth: 160
+                    Layout.preferredWidth: 165
                     Layout.preferredHeight: 40
                     text: selectedMapFileName
                     contentItem: Text {
@@ -223,9 +223,9 @@ ApplicationWindow {
 
                 TextField {
                     id: addonEdit
-                    Layout.preferredWidth: 160
+                    Layout.preferredWidth: 165
                     Layout.preferredHeight: 40
-                    placeholderText: "s2 addon name"
+                    placeholderText: "Addon Name in CS2"
                     text: backend.addon_name
                     onTextChanged: backend.addon_name = text
                     horizontalAlignment: TextInput.AlignHCenter
@@ -256,17 +256,22 @@ ApplicationWindow {
 
             // Row 4: OPTIONS
             GroupBox {
-                title: "OPTIONS"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
                 ColumnLayout {
+                    Label {
+                        text: "OPTIONS"
+                        font.bold: true
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+
                     anchors.fill: parent
                     spacing: 5
 
                     CheckBox {
                         id: useBspCheckbox
-                        text: "Clean unnecessary faces"
+                        text: "Clean Unnecessary Faces"
                         checked: backend.usebsp
                         onCheckedChanged: backend.usebsp = checked
                         ToolTip.text: "This runs the map through a special vbsp process to generate clean map geometry from brushes..."
@@ -274,7 +279,7 @@ ApplicationWindow {
                     }
                     CheckBox {
                         id: nomergeInstancesCheckbox
-                        text: "Keep instances"
+                        text: "Keep Instances' Faces"
                         checked: backend.usebsp_nomergeinstances
                         enabled: useBspCheckbox.checked
                         onCheckedChanged: backend.usebsp_nomergeinstances = checked
@@ -283,7 +288,7 @@ ApplicationWindow {
                     }
                     CheckBox {
                         id: skipDepsCheckbox
-                        text: "skip references import"
+                        text: "Skip References Import"
                         checked: backend.skipdeps
                         onCheckedChanged: backend.skipdeps = checked
                         ToolTip.text: "Optional: skips importing all dependencies/content and only generates the vmap file(s)..."
