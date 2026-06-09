@@ -295,8 +295,12 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
     QProcess process;
     process.setProcessChannelMode(QProcess::MergedChannels);
 
+    // In QProcess, if we use setNativeArguments, cmd.exe requires the whole string after /c to be quoted if there are inner quotes.
+    // However, a simpler cross-platform way is to use QProcess's own parsing if we avoid cmd.exe.
+    // Since we need it to behave like CreateProcess, we can just start the command natively if we are not using pipes.
+    // For safety with cmd.exe, it expects /c ""command" "arg1" "arg2"". So we wrap in quotes.
     process.setProgram("cmd.exe");
-    process.setNativeArguments("/c " + cmd);
+    process.setNativeArguments("/S /C \"" + cmd + "\"");
     process.start();
 
     while (process.waitForReadyRead(100) || process.state() != QProcess::NotRunning) {
@@ -316,7 +320,7 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
                 }
             }
         }
-        QCoreApplication::processEvents();
+
     }
 
     QByteArray output = process.readAll();
