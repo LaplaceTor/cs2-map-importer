@@ -319,9 +319,8 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
                 lineBuffer.clear();
             } else {
                 lineBuffer += c;
-                // If we reach the point where the process pauses to wait for input
-                if (!answeredPrompt && lineBuffer.endsWith("Are you sure you want to continue? ('y')")) {
-                        logger(lineBuffer);
+                if (!answeredPrompt && lineBuffer.contains("Are you sure you want to continue? ('y')")) {
+                    logger(lineBuffer);
                     lineBuffer.clear();
                     process.write("y\n");
                     answeredPrompt = true;
