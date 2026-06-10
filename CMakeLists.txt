@@ -28,7 +28,7 @@ if(WIN32)
 endif()
 
 qt_add_qml_module(cs2importer
-    URI cs2importer_qml
+    URI cs2importer
     VERSION 1.0
     QML_FILES
         src/qml/main.qml

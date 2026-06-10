@@ -306,6 +306,11 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
     process.setArguments({"--client", serverName, cmd});
     process.start();
 
+    if (!process.waitForStarted()) {
+        if (logger) logger("Failed to start client wrapper process: " + process.errorString());
+        return -1;
+    }
+
     if (!server.waitForNewConnection(10000)) {
         if (logger) logger("Timeout waiting for client connection.");
         process.kill();

@@ -36,6 +36,16 @@ int run_client(int argc, char *argv[]) {
     process.setArguments({"/c", cmd});
 #endif
 
+    QObject::connect(&process, &QProcess::errorOccurred, [&](QProcess::ProcessError error) {
+        QString errorMsg = "Process error occurred: " + process.errorString() + "\n";
+        socket.write(errorMsg.toUtf8());
+        socket.flush();
+        socket.waitForBytesWritten(3000);
+        socket.disconnectFromServer();
+        socket.waitForDisconnected(1000);
+        app.exit(1);
+    });
+
     process.start();
 
     QString lineBuffer;
