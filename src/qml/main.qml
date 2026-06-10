@@ -151,7 +151,7 @@ ApplicationWindow {
                         }
 
                         Button {
-                            text: "Validate"
+                            text: "Validate Game File"
                             Layout.fillWidth: true
                             onClicked: backend.validate_s1()
                         }
@@ -189,7 +189,7 @@ ApplicationWindow {
                         }
 
                         Button {
-                            text: "Validate"
+                            text: "Validate Game File"
                             Layout.fillWidth: true
                             onClicked: backend.validate_cs2()
                         }
