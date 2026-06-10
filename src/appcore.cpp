@@ -306,6 +306,29 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
 #endif
     process.start();
 
+    QString lineBuffer;
+    bool answeredPrompt = false;
+
+    auto processOutput = [&](const QString& outStr) {
+        for (QChar c : outStr) {
+            if (c == '\n') {
+                if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
+                if (!lineBuffer.isEmpty() && logger) {
+                    logger(lineBuffer);
+                }
+                lineBuffer.clear();
+            } else {
+                lineBuffer += c;
+                if (!answeredPrompt && lineBuffer.contains("Are you sure you want to continue? ('y')")) {
+                    logger(lineBuffer);
+                    lineBuffer.clear();
+                    process.write("y\n");
+                    answeredPrompt = true;
+                }
+            }
+        }
+    };
+
     while (process.waitForReadyRead(100) || process.state() != QProcess::NotRunning) {
         if (cancel_import) {
             process.kill();
@@ -313,30 +336,18 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
         }
         QByteArray output = process.readAll();
         if (!output.isEmpty()) {
-            QString outStr(output);
-            QStringList lines = outStr.split('\n');
-            for (const QString& line : lines) {
-                QString l = line;
-                if (l.endsWith('\r')) l.chop(1);
-                if (!l.isEmpty() && logger) {
-                    logger(l);
-                }
-            }
+            processOutput(QString(output));
         }
-
     }
 
     QByteArray output = process.readAll();
     if (!output.isEmpty()) {
-        QString outStr(output);
-        QStringList lines = outStr.split('\n');
-        for (const QString& line : lines) {
-            QString l = line;
-            if (l.endsWith('\r')) l.chop(1);
-            if (!l.isEmpty() && logger) {
-                logger(l);
-            }
-        }
+        processOutput(QString(output));
+    }
+
+    if (!lineBuffer.isEmpty() && logger) {
+        if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
+        logger(lineBuffer);
     }
 
     return process.exitCode();
