@@ -320,12 +320,8 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
             } else {
                 lineBuffer += c;
                 // If we reach the point where the process pauses to wait for input
-                if (!answeredPrompt && lineBuffer.endsWith("The source 2 mod expects to ")) {
-                    // Manually complete the line in the logger so the user sees the full warning
-                    QString fullWarning = "The source 2 mod expects to be imported from a gameinfo.txt in csgo.\nYou have specified a gameinfo.txt in cstrike. Are you sure you want to continue? ('y')";
-                    if (logger) {
-                        logger(fullWarning);
-                    }
+                if (!answeredPrompt && lineBuffer.endsWith("Are you sure you want to continue? ('y')")) {
+                        logger(lineBuffer);
                     lineBuffer.clear();
                     process.write("y\n");
                     answeredPrompt = true;
