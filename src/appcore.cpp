@@ -314,6 +314,9 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
         QByteArray output = process.readAll();
         if (!output.isEmpty()) {
             QString outStr(output);
+            if (outStr.contains("Are you sure you want to continue? ('y')")) {
+                process.write("y\n");
+            }
             QStringList lines = outStr.split('\n');
             for (const QString& line : lines) {
                 QString l = line;
@@ -329,6 +332,9 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
     QByteArray output = process.readAll();
     if (!output.isEmpty()) {
         QString outStr(output);
+        if (outStr.contains("Are you sure you want to continue? ('y')")) {
+            process.write("y\n");
+        }
         QStringList lines = outStr.split('\n');
         for (const QString& line : lines) {
             QString l = line;
