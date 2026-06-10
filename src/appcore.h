@@ -4,6 +4,19 @@
 #include <QStringList>
 #include <functional>
 #include <QAtomicInt>
+#include <QException>
+
+class AppException : public QException {
+public:
+    explicit AppException(const QString& msg) : msg_(msg) {}
+
+    void raise() const override { throw *this; }
+    AppException *clone() const override { return new AppException(*this); }
+
+    QString message() const { return msg_; }
+private:
+    QString msg_;
+};
 
 class AppCore {
 public:
