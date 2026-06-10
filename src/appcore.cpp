@@ -306,6 +306,34 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
 #endif
     process.start();
 
+    QString lineBuffer;
+    bool answeredPrompt = false;
+
+    auto processOutput = [&](const QString& outStr) {
+        for (QChar c : outStr) {
+            if (c == '\n') {
+                if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
+                if (!lineBuffer.isEmpty() && logger) {
+                    logger(lineBuffer);
+                }
+                lineBuffer.clear();
+            } else {
+                lineBuffer += c;
+                // If we reach the point where the process pauses to wait for input
+                if (!answeredPrompt && lineBuffer.endsWith("The source 2 mod expects to ")) {
+                    // Manually complete the line in the logger so the user sees the full warning
+                    QString fullWarning = "The source 2 mod expects to be imported from a gameinfo.txt in csgo.\nYou have specified a gameinfo.txt in cstrike. Are you sure you want to continue? ('y')";
+                    if (logger) {
+                        logger(fullWarning);
+                    }
+                    lineBuffer.clear();
+                    process.write("y\n");
+                    answeredPrompt = true;
+                }
+            }
+        }
+    };
+
     while (process.waitForReadyRead(100) || process.state() != QProcess::NotRunning) {
         if (cancel_import) {
             process.kill();
@@ -313,36 +341,18 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
         }
         QByteArray output = process.readAll();
         if (!output.isEmpty()) {
-            QString outStr(output);
-            if (outStr.contains("Are you sure you want to continue? ('y')")) {
-                process.write("y\n");
-            }
-            QStringList lines = outStr.split('\n');
-            for (const QString& line : lines) {
-                QString l = line;
-                if (l.endsWith('\r')) l.chop(1);
-                if (!l.isEmpty() && logger) {
-                    logger(l);
-                }
-            }
+            processOutput(QString(output));
         }
-
     }
 
     QByteArray output = process.readAll();
     if (!output.isEmpty()) {
-        QString outStr(output);
-        if (outStr.contains("Are you sure you want to continue? ('y')")) {
-            process.write("y\n");
-        }
-        QStringList lines = outStr.split('\n');
-        for (const QString& line : lines) {
-            QString l = line;
-            if (l.endsWith('\r')) l.chop(1);
-            if (!l.isEmpty() && logger) {
-                logger(l);
-            }
-        }
+        processOutput(QString(output));
+    }
+
+    if (!lineBuffer.isEmpty() && logger) {
+        if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
+        logger(lineBuffer);
     }
 
     return process.exitCode();
