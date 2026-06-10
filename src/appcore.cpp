@@ -306,27 +306,17 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
 #endif
     process.start();
 
-    QString lineBuffer;
     bool answeredPrompt = false;
 
     auto processOutput = [&](const QString& outStr) {
-        for (QChar c : outStr) {
-            if (c == '\n') {
-                if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
-                if (!lineBuffer.isEmpty() && logger) {
-                    logger(lineBuffer);
-                }
-                lineBuffer.clear();
-            } else {
-                lineBuffer += c;
-                // If we reach the point where the process pauses to wait for input
-                if (!answeredPrompt && lineBuffer.endsWith("Are you sure you want to continue? ('y')")) {
-                        logger(lineBuffer);
-                    lineBuffer.clear();
-                    process.write("y\n");
-                    answeredPrompt = true;
-                }
-            }
+        if (logger && !outStr.isEmpty()) {
+            logger(outStr);
+        }
+
+        // If we reach the point where the process pauses to wait for input
+        if (!answeredPrompt && outStr.contains("Are you sure you want to continue? ('y')")) {
+            process.write("y\n");
+            answeredPrompt = true;
         }
     };
 
@@ -344,11 +334,6 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
     QByteArray output = process.readAll();
     if (!output.isEmpty()) {
         processOutput(QString(output));
-    }
-
-    if (!lineBuffer.isEmpty() && logger) {
-        if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
-        logger(lineBuffer);
     }
 
     return process.exitCode();
