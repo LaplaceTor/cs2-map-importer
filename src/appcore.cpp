@@ -314,7 +314,7 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
         }
 
         // If we reach the point where the process pauses to wait for input
-        if (!answeredPrompt && outStr.contains("Are you sure you want to continue? ('y')")) {
+        if (!answeredPrompt && outStr.contains("The source 2 mod expects to")) {
             process.write("y\n");
             answeredPrompt = true;
         }
