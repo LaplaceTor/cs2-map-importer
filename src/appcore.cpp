@@ -7,6 +7,9 @@
 #include <QRegularExpression>
 #include <QCoreApplication>
 #include <QByteArray>
+#include <QLocalServer>
+#include <QLocalSocket>
+#include <QUuid>
 
 QAtomicInt AppCore::cancel_import(0);
 
@@ -291,23 +294,27 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
     if (cancel_import) return -1;
     if (logger) logger(cmd);
 
-    QProcess process;
-    process.setProcessChannelMode(QProcess::MergedChannels);
+    QString serverName = "cs2importer_" + QUuid::createUuid().toString(QUuid::WithoutBraces);
+    QLocalServer server;
+    if (!server.listen(serverName)) {
+        if (logger) logger("Failed to start local server for command output streaming.");
+        return -1;
+    }
 
-    // In QProcess, if we use setNativeArguments, cmd.exe requires the whole string after /c to be quoted if there are inner quotes.
-    // However, a simpler cross-platform way is to use QProcess's own parsing if we avoid cmd.exe.
-    // Since we need it to behave like CreateProcess, we can just start the command natively if we are not using pipes.
-    // For safety with cmd.exe, it expects /c ""command" "arg1" "arg2"". So we wrap in quotes.
-    process.setProgram("cmd.exe");
-#ifdef Q_OS_WIN
-    process.setNativeArguments("/S /C \"" + cmd + "\"");
-#else
-    process.setArguments({"/c", cmd});
-#endif
+    QProcess process;
+    process.setProgram(QCoreApplication::applicationFilePath());
+    process.setArguments({"--client", serverName, cmd});
     process.start();
 
+    if (!server.waitForNewConnection(10000)) {
+        if (logger) logger("Timeout waiting for client connection.");
+        process.kill();
+        return -1;
+    }
+
+    QLocalSocket *clientConnection = server.nextPendingConnection();
+
     QString lineBuffer;
-    bool answeredPrompt = false;
 
     auto processOutput = [&](const QString& outStr) {
         for (QChar c : outStr) {
@@ -319,35 +326,39 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
                 lineBuffer.clear();
             } else {
                 lineBuffer += c;
-                if (!answeredPrompt && lineBuffer.contains("Are you sure you want to continue? ('y')")) {
-                    logger(lineBuffer);
-                    lineBuffer.clear();
-                    process.write("y\n");
-                    answeredPrompt = true;
-                }
             }
         }
     };
 
-    while (process.waitForReadyRead(100) || process.state() != QProcess::NotRunning) {
+    while (clientConnection->state() == QLocalSocket::ConnectedState) {
         if (cancel_import) {
             process.kill();
+            clientConnection->disconnectFromServer();
             return -1;
         }
-        QByteArray output = process.readAll();
-        if (!output.isEmpty()) {
-            processOutput(QString(output));
+
+        if (clientConnection->waitForReadyRead(100)) {
+            QByteArray output = clientConnection->readAll();
+            if (!output.isEmpty()) {
+                processOutput(QString(output));
+            }
         }
     }
 
-    QByteArray output = process.readAll();
-    if (!output.isEmpty()) {
-        processOutput(QString(output));
+    QByteArray finalOutput = clientConnection->readAll();
+    if (!finalOutput.isEmpty()) {
+        processOutput(QString(finalOutput));
     }
 
     if (!lineBuffer.isEmpty() && logger) {
         if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
         logger(lineBuffer);
+    }
+
+    clientConnection->deleteLater();
+
+    if (process.state() != QProcess::NotRunning) {
+        process.waitForFinished();
     }
 
     return process.exitCode();
