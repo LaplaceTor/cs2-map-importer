@@ -1,4 +1,3 @@
-#include <stdexcept>
 #include "appcore.h"
 #include <QDir>
 #include <QFile>
@@ -300,7 +299,11 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
     // Since we need it to behave like CreateProcess, we can just start the command natively if we are not using pipes.
     // For safety with cmd.exe, it expects /c ""command" "arg1" "arg2"". So we wrap in quotes.
     process.setProgram("cmd.exe");
+#ifdef Q_OS_WIN
     process.setNativeArguments("/S /C \"" + cmd + "\"");
+#else
+    process.setArguments({"/c", cmd});
+#endif
     process.start();
 
     while (process.waitForReadyRead(100) || process.state() != QProcess::NotRunning) {
@@ -386,7 +389,7 @@ void AppCore::process_bsp(Options& options) {
     QString bspsrc_jar = QDir(app_dir).filePath("bspsrc.jar");
 
     if (!QFile::exists(bspsrc_jar)) {
-        throw std::runtime_error("Could not find bspsrc.jar at " + bspsrc_jar.toStdString());
+        throw AppException("Could not find bspsrc.jar at " + bspsrc_jar);
     }
 
     options.logger("Decompiling BSP: " + options.bsp_file);
@@ -395,7 +398,7 @@ void AppCore::process_bsp(Options& options) {
     int ret = run_command_sync(decomp_cmd, options.logger);
     if (cancel_import) return;
     if (ret != 0) {
-        throw std::runtime_error("BSP Decompilation failed.");
+        throw AppException("BSP Decompilation failed.");
     }
 
     QString unpacked_dir;

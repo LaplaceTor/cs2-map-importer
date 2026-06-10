@@ -1,4 +1,3 @@
-#include <stdexcept>
 #include "ui.h"
 #include "mapimporter.h"
 #include "appcore.h"
@@ -411,7 +410,7 @@ void Backend::go()
             try {
                 if (!opts.bsp_file.isEmpty()) {
                     if (!AppCore::check_java()) {
-                        throw std::runtime_error("Java is not installed. Cannot decompile BSP file.");
+                        throw AppException("Java is not installed. Cannot decompile BSP file.");
                     }
                     AppCore::process_bsp(opts);
                 }
@@ -440,8 +439,8 @@ void Backend::go()
                 MapImporter importer(mapOpts, opts.logger);
                 success = importer.Run();
 
-            } catch (const std::exception& e) {
-                opts.logger(QString("Error: ") + e.what());
+            } catch (const AppException& e) {
+                opts.logger(QString("Error: ") + e.message());
                 success = false;
             }
 
@@ -477,9 +476,9 @@ void Backend::go()
         connect(workerThread, &QThread::finished, workerThread, &QObject::deleteLater);
         workerThread->start();
 
-    } catch (const std::exception& e) {
-        log(QString("Error: %1").arg(e.what()));
-        emit alertMessage("Error", e.what());
+    } catch (const AppException& e) {
+        log(QString("Error: %1").arg(e.message()));
+        emit alertMessage("Error", e.message());
     }
 }
 
