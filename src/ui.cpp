@@ -1,8 +1,8 @@
+#include <stdexcept>
 #include "ui.h"
 #include "mapimporter.h"
 #include "appcore.h"
 
-#include <thread>
 #include <QDir>
 #include <QFile>
 #include <QTextStream>
@@ -14,6 +14,7 @@
 #include <QDateTime>
 #include <QFileInfo>
 #include <QSettings>
+#include <QThread>
 
 Backend::Backend(QObject *parent) :
     QObject(parent),
@@ -379,8 +380,8 @@ void Backend::go()
             log_file = nullptr;
         }
 
-        AppCore::cancel_import = false;
-        AppCore::move_vpk_signatures(cs2_basefolder.toStdString(), vpk_signatures_moved);
+        AppCore::cancel_import = 0;
+        AppCore::move_vpk_signatures(cs2_basefolder, vpk_signatures_moved);
 
         is_going = true;
         updateCanGo();
@@ -388,26 +389,27 @@ void Backend::go()
         log("Starting AppCore thread...");
 
         AppCore::Options opts;
-        opts.cs2_basefolder = cs2_basefolder.replace("/", "\\").toStdString();
-        opts.s1game_basefolder = getS1gameBasefolder().toStdString();
-        opts.s1_game_type = s1_game_type.toStdString();
-        opts.content_folder = content_folder.toStdString();
-        opts.map_name = map_name.toStdString();
-        opts.bsp_file = bsp_file.toStdString();
-        opts.app_dir = app_dir.toStdString();
-        opts.addon_name = addon_name.toStdString();
+        opts.cs2_basefolder = cs2_basefolder;
+        opts.cs2_basefolder.replace("/", "\\");
+        opts.s1game_basefolder = getS1gameBasefolder();
+        opts.s1_game_type = s1_game_type;
+        opts.content_folder = content_folder;
+        opts.map_name = map_name;
+        opts.bsp_file = bsp_file;
+        opts.app_dir = app_dir;
+        opts.addon_name = addon_name;
         opts.usebsp = usebsp && !usebsp_nomergeinstances;
         opts.usebsp_nomergeinstances = usebsp && usebsp_nomergeinstances;
         opts.skipdeps = skipdeps;
 
-        opts.logger = [this](const std::string& msg) {
-            QMetaObject::invokeMethod(this, "log", Qt::QueuedConnection, Q_ARG(QString, QString::fromStdString(msg)));
+        opts.logger = [this](const QString& msg) {
+            QMetaObject::invokeMethod(this, "log", Qt::QueuedConnection, Q_ARG(QString, msg));
         };
 
-        std::thread([this, opts]() mutable {
+        QThread* workerThread = QThread::create([this, opts]() mutable {
             bool success = true;
             try {
-                if (!opts.bsp_file.empty()) {
+                if (!opts.bsp_file.isEmpty()) {
                     if (!AppCore::check_java()) {
                         throw std::runtime_error("Java is not installed. Cannot decompile BSP file.");
                     }
@@ -415,16 +417,16 @@ void Backend::go()
                 }
 
                 MapImporter::Options mapOpts;
-                std::string s1_subfolder = opts.s1_game_type == "css" ? "cstrike" : "csgo";
+                QString s1_subfolder = opts.s1_game_type == "css" ? "cstrike" : "csgo";
 
-                std::string s1gamedir = opts.s1game_basefolder + "\\" + s1_subfolder;
-                for (size_t i = 0; i < s1gamedir.length(); ++i) if (s1gamedir[i] == '/') s1gamedir[i] = '\\';
+                QString s1gamedir = opts.s1game_basefolder + "\\" + s1_subfolder;
+                s1gamedir.replace('/', '\\');
                 mapOpts.s1gamedir = s1gamedir;
 
                 mapOpts.s1gamename = opts.s1_game_type == "css" ? "css" : "csgo";
 
-                std::string contentdir = opts.content_folder;
-                for (size_t i = 0; i < contentdir.length(); ++i) if (contentdir[i] == '/') contentdir[i] = '\\';
+                QString contentdir = opts.content_folder;
+                contentdir.replace('/', '\\');
                 mapOpts.s1contentdir = contentdir;
 
                 mapOpts.s2addonname = opts.addon_name;
@@ -439,13 +441,13 @@ void Backend::go()
                 success = importer.Run();
 
             } catch (const std::exception& e) {
-                opts.logger(std::string("Error: ") + e.what());
+                opts.logger(QString("Error: ") + e.what());
                 success = false;
             }
 
             QMetaObject::invokeMethod(this, [this, success]() {
                 if (vpk_signatures_moved && !cs2_basefolder.isEmpty()) {
-                    AppCore::restore_vpk_signatures(cs2_basefolder.toStdString());
+                    AppCore::restore_vpk_signatures(cs2_basefolder);
                     vpk_signatures_moved = false;
                 }
 
@@ -470,8 +472,10 @@ void Backend::go()
                     log_file = nullptr;
                 }
             }, Qt::QueuedConnection);
+        });
 
-        }).detach();
+        connect(workerThread, &QThread::finished, workerThread, &QObject::deleteLater);
+        workerThread->start();
 
     } catch (const std::exception& e) {
         log(QString("Error: %1").arg(e.what()));
@@ -483,7 +487,7 @@ void Backend::appAboutToQuit()
 {
     AppCore::cancel_all();
     if (vpk_signatures_moved && !cs2_basefolder.isEmpty()) {
-        AppCore::restore_vpk_signatures(cs2_basefolder.toStdString());
+        AppCore::restore_vpk_signatures(cs2_basefolder);
         vpk_signatures_moved = false;
     }
 }
