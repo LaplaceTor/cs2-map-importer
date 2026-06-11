@@ -292,7 +292,6 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
     if (logger) logger(cmd);
 
     QProcess process;
-    process.setProcessChannelMode(QProcess::MergedChannels);
 
     // In QProcess, if we use setNativeArguments, cmd.exe requires the whole string after /c to be quoted if there are inner quotes.
     // However, a simpler cross-platform way is to use QProcess's own parsing if we avoid cmd.exe.
@@ -306,27 +305,37 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
 #endif
     process.start();
 
-    QString lineBuffer;
+    QByteArray buffer;
     bool answeredPrompt = false;
+    const QByteArray promptStr = "Are you sure you want to continue? ('y')";
 
-    auto processOutput = [&](const QString& outStr) {
-        for (QChar c : outStr) {
-            if (c == '\n') {
-                if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
-                if (!lineBuffer.isEmpty() && logger) {
-                    logger(lineBuffer);
-                }
-                lineBuffer.clear();
-            } else {
-                lineBuffer += c;
-                // If we reach the point where the process pauses to wait for input
-                if (!answeredPrompt && lineBuffer.endsWith("Are you sure you want to continue? ('y')")) {
-                        logger(lineBuffer);
-                    lineBuffer.clear();
-                    process.write("y\n");
-                    answeredPrompt = true;
-                }
+    auto processOutput = [&]() {
+        QByteArray newData = process.readAllStandardOutput() + process.readAllStandardError();
+        if (newData.isEmpty()) return;
+
+        buffer.append(newData);
+
+        int newlineIndex;
+        while ((newlineIndex = buffer.indexOf('\n')) != -1) {
+            QByteArray line = buffer.left(newlineIndex);
+            buffer.remove(0, newlineIndex + 1);
+
+            if (line.endsWith('\r')) {
+                line.chop(1);
             }
+
+            if (!line.isEmpty() && logger) {
+                logger(QString(line));
+            }
+        }
+
+        if (!answeredPrompt && buffer.endsWith(promptStr)) {
+            if (logger) {
+                logger(QString(buffer));
+            }
+            buffer.clear();
+            process.write("y\n");
+            answeredPrompt = true;
         }
     };
 
@@ -335,20 +344,16 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
             process.kill();
             return -1;
         }
-        QByteArray output = process.readAll();
-        if (!output.isEmpty()) {
-            processOutput(QString(output));
+        processOutput();
+    }
+
+    processOutput();
+
+    if (!buffer.isEmpty() && logger) {
+        if (buffer.endsWith('\r')) {
+            buffer.chop(1);
         }
-    }
-
-    QByteArray output = process.readAll();
-    if (!output.isEmpty()) {
-        processOutput(QString(output));
-    }
-
-    if (!lineBuffer.isEmpty() && logger) {
-        if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
-        logger(lineBuffer);
+        logger(QString(buffer));
     }
 
     return process.exitCode();
