@@ -43,9 +43,9 @@ jobs:
       shell: pwsh
       run: |
         mkdir release
-        Copy-Item build\Release\cs2importer.exe release\
+        Copy-Item build\Release\cs2importer_app.exe release\
         Copy-Item bspsrc\bspsrc.jar release\
-        windeployqt --qmldir src/qml release\cs2importer.exe
+        windeployqt --qmldir src/qml release\cs2importer_app.exe
 
         Remove-Item -Path release\translations -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -Path release\iconengines -Recurse -Force -ErrorAction SilentlyContinue
