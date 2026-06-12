@@ -93,10 +93,9 @@ void Backend::set_s1_game_type(const QString& type)
     }
 }
 
-void Backend::select_cs2_folder_dialog(const QUrl& url)
+bool Backend::is_valid_cs2(const QString& path)
 {
-    QString path = url.toLocalFile();
-    if (path.isEmpty()) return;
+    if (path.isEmpty()) return false;
 
     QString gameinfo_path = QDir(path).filePath("game/csgo/gameinfo.gi");
     QFile file(gameinfo_path);
@@ -113,8 +112,15 @@ void Backend::select_cs2_folder_dialog(const QUrl& url)
         }
         file.close();
     }
+    return valid;
+}
 
-    if (!valid) {
+void Backend::select_cs2_folder_dialog(const QUrl& url)
+{
+    QString path = url.toLocalFile();
+    if (path.isEmpty()) return;
+
+    if (!is_valid_cs2(path)) {
         emit alertMessage("Invalid CS2 Folder", "The selected folder is not a valid CS2 installation.\nPlease make sure to select a folder where game/csgo/gameinfo.gi contains 'game \"Counter-Strike 2\"'.");
         return;
     }
@@ -132,14 +138,13 @@ void Backend::set_cs2_folder(const QString& path)
     }
 }
 
-void Backend::select_s1_folder_dialog(const QUrl& url)
+bool Backend::is_valid_s1(const QString& path, const QString& type)
 {
-    QString path = url.toLocalFile();
-    if (path.isEmpty()) return;
+    if (path.isEmpty()) return false;
 
     bool valid = false;
 
-    if (s1_game_type == "csgo") {
+    if (type == "csgo") {
         QString gameinfo_path_csgo = QDir(path).filePath("csgo/gameinfo.txt");
         QFile file_csgo(gameinfo_path_csgo);
 
@@ -155,7 +160,7 @@ void Backend::select_s1_folder_dialog(const QUrl& url)
             file_csgo.close();
         }
 
-    } else if (s1_game_type == "css") {
+    } else if (type == "css") {
         QString gameinfo_path_css = QDir(path).filePath("cstrike/gameinfo.txt");
         QFile file_css(gameinfo_path_css);
 
@@ -172,12 +177,151 @@ void Backend::select_s1_folder_dialog(const QUrl& url)
         }
     }
 
-    if (!valid) {
+    return valid;
+}
+
+void Backend::select_s1_folder_dialog(const QUrl& url)
+{
+    QString path = url.toLocalFile();
+    if (path.isEmpty()) return;
+
+    if (!is_valid_s1(path, s1_game_type)) {
         emit alertMessage("Invalid Source 1 Folder", "The selected folder is not a valid CSGO/CSS installation.\nPlease make sure it is a \"csgo legacy\" or \"Counter-Strike Source\" directory containing the gameinfo.txt.");
         return;
     }
 
     set_s1_folder(path);
+}
+
+void Backend::auto_detect_paths()
+{
+    QString steam_path;
+#ifdef Q_OS_WIN
+    QSettings regSteam("HKEY_LOCAL_MACHINE\\SOFTWARE\\Valve\\Steam", QSettings::NativeFormat);
+    steam_path = regSteam.value("InstallPath").toString();
+    if (steam_path.isEmpty()) {
+        QSettings regSteam64("HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Valve\\Steam", QSettings::NativeFormat);
+        steam_path = regSteam64.value("InstallPath").toString();
+    }
+#endif
+
+    if (steam_path.isEmpty()) return;
+
+    QString library_vdf = QDir(steam_path).filePath("steamapps/libraryfolders.vdf");
+    QFile vdf_file(library_vdf);
+    if (!vdf_file.exists() || !vdf_file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return;
+    }
+
+    QTextStream in(&vdf_file);
+    QString content = in.readAll();
+    vdf_file.close();
+
+    struct LibraryData {
+        QString path;
+        QList<QString> apps;
+    };
+    QList<LibraryData> libraries;
+
+    QString current_path;
+    QList<QString> current_apps;
+    bool in_apps = false;
+
+    QTextStream in2(&content);
+    while (!in2.atEnd()) {
+        QString line = in2.readLine().trimmed();
+        if (line.isEmpty()) continue;
+
+        if (line.startsWith("\"path\"")) {
+            QRegularExpression re("\"path\"\\s+\"([^\"]+)\"");
+            QRegularExpressionMatch match = re.match(line);
+            if (match.hasMatch()) {
+                if (!current_path.isEmpty()) {
+                    libraries.append({current_path, current_apps});
+                    current_apps.clear();
+                }
+                current_path = match.captured(1);
+                current_path.replace("\\\\", "/");
+                current_path.replace("\\", "/");
+                in_apps = false;
+            }
+        } else if (line == "\"apps\"") {
+            in_apps = true;
+        } else if (in_apps && line == "}") {
+            in_apps = false;
+        } else if (in_apps && line.startsWith("\"")) {
+            QRegularExpression re("\"(\\d+)\"");
+            QRegularExpressionMatch match = re.match(line);
+            if (match.hasMatch()) {
+                current_apps.append(match.captured(1));
+            }
+        }
+    }
+    if (!current_path.isEmpty()) {
+        libraries.append({current_path, current_apps});
+    }
+
+    QString found_cs2_dir;
+    QString found_csgo_legacy_dir;
+    QString found_csgo_cs2_dir;
+    QString found_css_dir;
+
+    for (const auto& lib : libraries) {
+        QString base_lib = lib.path;
+        QString common_dir = QDir(base_lib).filePath("steamapps/common");
+
+        if (lib.apps.contains("730")) {
+            QString cs2_candidate = QDir(common_dir).filePath("Counter-Strike Global Offensive");
+            if (is_valid_cs2(cs2_candidate)) {
+                found_cs2_dir = cs2_candidate;
+            }
+            if (is_valid_s1(cs2_candidate, "csgo")) {
+                found_csgo_cs2_dir = cs2_candidate;
+            }
+        }
+
+        if (lib.apps.contains("4465480")) {
+            QString csgo_legacy_candidate = QDir(common_dir).filePath("csgo legacy");
+            if (is_valid_s1(csgo_legacy_candidate, "csgo")) {
+                found_csgo_legacy_dir = csgo_legacy_candidate;
+            }
+        }
+
+        if (lib.apps.contains("240")) {
+            QString css_candidate = QDir(common_dir).filePath("Counter-Strike Source");
+            if (is_valid_s1(css_candidate, "css")) {
+                found_css_dir = css_candidate;
+            }
+        }
+    }
+
+    bool updated = false;
+
+    if (cs2_basefolder.isEmpty() && !found_cs2_dir.isEmpty()) {
+        cs2_basefolder = found_cs2_dir;
+        emit cs2BasefolderChanged();
+        updated = true;
+    }
+
+    if (cssgamedir.isEmpty() && !found_css_dir.isEmpty()) {
+        cssgamedir = found_css_dir;
+        updated = true;
+    }
+
+    if (csgogamedir.isEmpty()) {
+        if (!found_csgo_legacy_dir.isEmpty()) {
+            csgogamedir = found_csgo_legacy_dir;
+            updated = true;
+        } else if (!found_csgo_cs2_dir.isEmpty()) {
+            csgogamedir = found_csgo_cs2_dir;
+            updated = true;
+        }
+    }
+
+    if (updated) {
+        updateCanGo();
+        emit s1gameBasefolderChanged();
+    }
 }
 
 void Backend::set_s1_folder(const QString& path)
@@ -316,6 +460,8 @@ void Backend::load_from_cfg()
     if (s1_game_type != "csgo" && s1_game_type != "css") {
         s1_game_type = "csgo";
     }
+
+    auto_detect_paths();
 
     emit cs2BasefolderChanged();
     emit s1gameBasefolderChanged();

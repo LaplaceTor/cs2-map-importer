@@ -106,6 +106,10 @@ private:
     void save_to_cfg();
     void get_launch_options();
     void updateCanGo();
+
+    bool is_valid_cs2(const QString& path);
+    bool is_valid_s1(const QString& path, const QString& type);
+    void auto_detect_paths();
 };
 
 #endif // UI_H
