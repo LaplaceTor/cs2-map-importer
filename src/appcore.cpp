@@ -308,6 +308,8 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
 
     QString lineBuffer;
     bool answeredPrompt = false;
+    bool isSource1Import = cmd.contains("source1import.exe");
+    bool checkingPrompt = false;
 
     auto processOutput = [&](const QString& outStr) {
         for (QChar c : outStr) {
@@ -316,16 +318,16 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
                 if (!lineBuffer.isEmpty() && logger) {
                     logger(lineBuffer);
                 }
+                if (isSource1Import && !answeredPrompt) {
+                    if (lineBuffer.contains("Adding Search Path")) {
+                        checkingPrompt = true;
+                    } else if (lineBuffer.contains("Building file list...")) {
+                        checkingPrompt = false;
+                    }
+                }
                 lineBuffer.clear();
             } else {
                 lineBuffer += c;
-                // If we reach the point where the process pauses to wait for input
-                if (!answeredPrompt && lineBuffer.endsWith("Are you sure you want to continue? ('y')")) {
-                        logger(lineBuffer);
-                    lineBuffer.clear();
-                    process.write("y\n");
-                    answeredPrompt = true;
-                }
             }
         }
     };
@@ -338,6 +340,14 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
         QByteArray output = process.readAll();
         if (!output.isEmpty()) {
             processOutput(QString(output));
+        } else {
+            // Timed out waiting for output
+            if (isSource1Import && !answeredPrompt && checkingPrompt && process.state() == QProcess::Running) {
+                // We're likely stuck at the invisible "Are you sure you want to continue?" prompt
+                process.write("y\n");
+                answeredPrompt = true;
+                checkingPrompt = false; // Stop checking
+            }
         }
     }
 
