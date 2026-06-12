@@ -1,7 +1,8 @@
 name: Build CMake Release
 
 on:
-  workflow_dispatch:
+  push: 
+    branches: main
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -17,12 +18,13 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Install Qt
-      uses: jurplel/install-qt-action@v3
+      uses: jurplel/install-qt-action@v4
       with:
-        version: '5.15.2'
+        version: '6.8.*'
         host: 'windows'
         target: 'desktop'
-        arch: 'win64_msvc2019_64'
+        arch: 'win64_msvc2022_64'
+        modules: 'qtshadertools'
 
     - name: Configure CMake
       run: cmake -B build -S .
@@ -45,7 +47,7 @@ jobs:
         Copy-Item build\Release\cs2importer.exe release\
         Copy-Item bspsrc\bspsrc.jar release\
         # Deploy Qt dependencies next to the executable
-        windeployqt release\cs2importer.exe
+        windeployqt --qmldir src/qml release\cs2importer.exe
 
         # Remove unused Qt folders
         Remove-Item -Path release\translations -Recurse -Force -ErrorAction SilentlyContinue
