@@ -321,6 +321,7 @@ void Backend::auto_detect_paths()
     if (updated) {
         updateCanGo();
         emit s1gameBasefolderChanged();
+        save_to_cfg();
     }
 }
 
