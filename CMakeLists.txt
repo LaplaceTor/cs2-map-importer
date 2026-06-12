@@ -21,10 +21,10 @@ set(SOURCES
     src/mapimporter.h
 )
 
-qt_add_executable(cs2importer_app MANUAL_FINALIZATION ${SOURCES})
+qt_add_executable(cs2importer MANUAL_FINALIZATION ${SOURCES})
 
 if(WIN32)
-    set_property(TARGET cs2importer_app PROPERTY WIN32_EXECUTABLE TRUE)
+    set_property(TARGET cs2importer PROPERTY WIN32_EXECUTABLE TRUE)
 endif()
 
 qt_add_qml_module(cs2importer
@@ -34,9 +34,9 @@ qt_add_qml_module(cs2importer
         src/qml/main.qml
 )
 
-target_link_libraries(cs2importer_app PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2)
+target_link_libraries(cs2importer PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2)
 
-target_include_directories(cs2importer_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(cs2importer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-qt_import_qml_plugins(cs2importer_app)
-qt_finalize_executable(cs2importer_app)
+qt_import_qml_plugins(cs2importer)
+qt_finalize_executable(cs2importer)
