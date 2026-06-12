@@ -43,27 +43,6 @@ ApplicationWindow {
             messageDialog.text = msg
             messageDialog.open()
         }
-        function onCs2BasefolderChanged() {
-            if (backend.cs2_basefolder !== "") {
-                cs2FolderButton.text = backend.cs2_basefolder
-            } else {
-                cs2FolderButton.text = "Press to Select Game Folder"
-            }
-        }
-        function onS1gameBasefolderChanged() {
-            if (backend.s1game_basefolder !== "") {
-                s1FolderButton.text = backend.s1game_basefolder
-            } else {
-                s1FolderButton.text = "Press to Select Game Folder"
-            }
-        }
-        function onS1GameTypeChanged() {
-            if (backend.s1game_basefolder === "") {
-                s1FolderButton.text = "Press to Select Game Folder"
-            } else {
-                s1FolderButton.text = backend.s1game_basefolder
-            }
-        }
     }
 
     // Dialogs
