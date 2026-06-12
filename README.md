@@ -1,12 +1,12 @@
 # CS2 Map Importer
 
-A user-friendly tool with a Graphical User Interface (GUI) to import maps from Source 1 (CS:GO / Counter-Strike: Source legacy) into Counter-Strike 2 (Source 2). The tools provided by Valve for importing maps aren't very user-friendly, so this program was created to streamline the process.
+A user-friendly tool with a Graphical User Interface (GUI) to import maps from Source 1 (CS:GO / Counter-Strike: Source) into Counter-Strike 2 (Source 2). The tools provided by Valve for importing maps aren't very user-friendly, so this program was created to streamline the process.
 
-This project was previously a Python program (forked from sarim's importer) but has now been fully rewritten as a standalone C++ Qt application.
+This project was previously a Python program (forked from sarim's importer) but has now been fully rewritten as a standalone C++ application with a modern QML-based UI.
 
 ## Features
 
-- **GUI Interface:** Easy-to-use graphical interface built with Qt5.
+- **Modern GUI:** Clean, easy-to-use graphical interface built with Qt6 and QML.
 - **Direct Import:** Import maps directly from `.vmf` files.
 - **Automatic Decompilation:** Select a `.bsp` file as input, and it will automatically decompile it using `bspsrc` (requires Java) and prepare it for import.
 - **VMF Patching:** Automatically fixes `dispinfo` blocks and inserts missing required structural elements (e.g., `versioninfo`, `viewsettings`, `cordon`) in decompiled `.vmf` files.
@@ -20,7 +20,7 @@ This project was previously a Python program (forked from sarim's importer) but 
 To build and run this program, you will need:
 - **C++17** compatible compiler
 - **CMake** (version 3.10 or higher)
-- **Qt5** (Core and Widgets modules)
+- **Qt6** (Core, Gui, Qml, Quick, QuickControls2 modules)
 - **Java** (Required only if you intend to decompile `.bsp` files)
 
 ## Build Instructions
