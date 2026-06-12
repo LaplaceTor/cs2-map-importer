@@ -43,10 +43,10 @@ jobs:
       run: |
         mkdir release
         # The built executable is usually in build\Release\ on Windows MSVC
-        Copy-Item build\Release\cs2importer_app.exe release\
+        Copy-Item build\Release\cs2importer.exe release\
         Copy-Item bspsrc\bspsrc.jar release\
         # Deploy Qt dependencies next to the executable
-        windeployqt --qmldir src/qml release\cs2importer_app.exe
+        windeployqt --qmldir src/qml release\cs2importer.exe
 
         # Remove unused Qt folders
         Remove-Item -Path release\translations -Recurse -Force -ErrorAction SilentlyContinue
