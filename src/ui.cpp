@@ -434,32 +434,28 @@ void Backend::load_from_cfg()
 {
     QSettings settings("cs2importer.cfg", QSettings::IniFormat);
 
-    // Check if all necessary parameters are present
-    if (!settings.contains("usebsp") ||
-        !settings.contains("usebsp_nomergeinstances") ||
-        !settings.contains("skipdeps") ||
-        !settings.contains("cs2_basefolder") ||
-        !settings.contains("csgogamedir") ||
-        !settings.contains("cssgamedir") ||
-        !settings.contains("content_folder_to_save") ||
-        !settings.contains("s1_game_type")) {
-        // Not all parameters found (could be missing file, or older format). Rewrite with defaults.
-        save_to_cfg();
-        return;
-    }
-
-    usebsp = settings.value("usebsp").toBool();
-    usebsp_nomergeinstances = settings.value("usebsp_nomergeinstances").toBool();
-    skipdeps = settings.value("skipdeps").toBool();
-    cs2_basefolder = settings.value("cs2_basefolder").toString();
-    csgogamedir = settings.value("csgogamedir").toString();
-    cssgamedir = settings.value("cssgamedir").toString();
-    content_folder_to_save = settings.value("content_folder_to_save").toString();
+    usebsp = settings.value("usebsp", true).toBool();
+    usebsp_nomergeinstances = settings.value("usebsp_nomergeinstances", false).toBool();
+    skipdeps = settings.value("skipdeps", false).toBool();
+    cs2_basefolder = settings.value("cs2_basefolder", "").toString();
+    csgogamedir = settings.value("csgogamedir", "").toString();
+    cssgamedir = settings.value("cssgamedir", "").toString();
+    content_folder_to_save = settings.value("content_folder_to_save", "C:\\").toString();
     vmf_default_path = content_folder_to_save;
-    s1_game_type = settings.value("s1_game_type").toString();
+    s1_game_type = settings.value("s1_game_type", "csgo").toString();
 
     if (s1_game_type != "csgo" && s1_game_type != "css") {
         s1_game_type = "csgo";
+    }
+
+    if (!cs2_basefolder.isEmpty() && !is_valid_cs2(cs2_basefolder)) {
+        cs2_basefolder = "";
+    }
+    if (!csgogamedir.isEmpty() && !is_valid_s1(csgogamedir, "csgo")) {
+        csgogamedir = "";
+    }
+    if (!cssgamedir.isEmpty() && !is_valid_s1(cssgamedir, "css")) {
+        cssgamedir = "";
     }
 
     auto_detect_paths();

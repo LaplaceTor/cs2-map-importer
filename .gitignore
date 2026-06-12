@@ -9,3 +9,4 @@ build_dir/
 _build/
 build_test/
 .qt/
+mybuild/
