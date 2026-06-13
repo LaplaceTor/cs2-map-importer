@@ -370,6 +370,9 @@ void Backend::select_vmf_dialog(const QUrl& url)
 
     emit contentFolderChanged();
 
+    addon_name = "";
+    emit addonNameChanged();
+
     log("VMF set up at: " + target_vmf_path);
 
     updateCanGo();
@@ -395,6 +398,9 @@ void Backend::select_bsp_dialog(const QUrl& url)
     emit vmfDefaultPathUrlChanged();
     emit contentFolderChanged();
 
+    addon_name = "";
+    emit addonNameChanged();
+
     updateCanGo();
 }
 
@@ -415,6 +421,7 @@ void Backend::get_launch_options()
 void Backend::updateCanGo()
 {
     emit canGoChanged();
+    emit isGoingChanged();
 }
 
 void Backend::save_to_cfg()
@@ -472,7 +479,7 @@ void Backend::load_from_cfg()
     get_launch_options();
 }
 
-void Backend::go()
+void Backend::start()
 {
     if (cs2_basefolder.isEmpty()) {
         emit alertMessage("Validation Error", "CS2 folder not selected.");
@@ -485,6 +492,12 @@ void Backend::go()
     if (bsp_file.isEmpty() && content_folder.isEmpty()) {
         emit alertMessage("Validation Error", "Please select a VMF or BSP file.");
         return;
+    }
+    if (usebsp || usebsp_nomergeinstances) {
+        if (csgogamedir.isEmpty() || !is_valid_s1(csgogamedir, "csgo")) {
+            emit alertMessage("Error", "You need to install CSGO for map geo import!");
+            return;
+        }
     }
 
     try {
@@ -534,6 +547,7 @@ void Backend::go()
         opts.cs2_basefolder = cs2_basefolder;
         opts.cs2_basefolder.replace("/", "\\");
         opts.s1game_basefolder = getS1gameBasefolder();
+        opts.csgogamedir = csgogamedir;
         opts.s1_game_type = s1_game_type;
         opts.content_folder = content_folder;
         opts.map_name = map_name;
@@ -564,6 +578,10 @@ void Backend::go()
                 QString s1gamedir = opts.s1game_basefolder + "\\" + s1_subfolder;
                 s1gamedir.replace('/', '\\');
                 mapOpts.s1gamedir = s1gamedir;
+
+                QString csgogamedir_path = opts.csgogamedir + "\\csgo";
+                csgogamedir_path.replace('/', '\\');
+                mapOpts.csgogamedir = csgogamedir_path;
 
                 mapOpts.s1gamename = opts.s1_game_type == "css" ? "css" : "csgo";
 
@@ -622,6 +640,14 @@ void Backend::go()
     } catch (const AppException& e) {
         log(QString("Error: %1").arg(e.message()));
         emit alertMessage("Error", e.message());
+    }
+}
+
+void Backend::stop()
+{
+    if (is_going) {
+        log("Cancelling import...");
+        AppCore::cancel_all();
     }
 }
 

@@ -10,6 +10,7 @@ class MapImporter {
 public:
     struct Options {
         QString s1gamedir;
+        QString csgogamedir;
         QString s1gamename;
         QString s1contentdir;
         QString s2addonname;

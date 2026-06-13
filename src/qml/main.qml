@@ -215,24 +215,48 @@ ApplicationWindow {
                 }
             }
 
-            // Row 3: START Button
-            Button {
-                id: goButton
-                text: "START"
-                enabled: backend.can_go
+            // Row 3: START and STOP Buttons
+            RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 40
+                spacing: 15
 
-                contentItem: Text {
-                    text: parent.text
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    font.bold: true
+                Button {
+                    id: goButton
+                    text: "START"
+                    enabled: backend.can_go && !backend.is_going
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+
+                    contentItem: Text {
+                        text: parent.text
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.bold: true
+                    }
+
+                    onClicked: {
+                        logOutput.clear()
+                        backend.start()
+                    }
                 }
 
-                onClicked: {
-                    logOutput.clear()
-                    backend.go()
+                Button {
+                    id: stopButton
+                    text: "STOP"
+                    enabled: backend.is_going
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+
+                    contentItem: Text {
+                        text: parent.text
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.bold: true
+                    }
+
+                    onClicked: {
+                        backend.stop()
+                    }
                 }
             }
 
