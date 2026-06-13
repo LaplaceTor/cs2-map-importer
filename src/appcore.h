@@ -25,6 +25,7 @@ public:
     struct Options {
         QString cs2_basefolder;
         QString s1game_basefolder;
+        QString csgogamedir;
         QString s1_game_type; // "css" or "csgo"
         QString content_folder;
         QString map_name;

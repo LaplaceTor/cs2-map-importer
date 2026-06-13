@@ -22,6 +22,7 @@ class Backend : public QObject
     Q_PROPERTY(bool usebsp_nomergeinstances READ getUsebspNomergeinstances WRITE setUsebspNomergeinstances NOTIFY usebspNomergeinstancesChanged)
     Q_PROPERTY(bool skipdeps READ getSkipdeps WRITE setSkipdeps NOTIFY skipdepsChanged)
     Q_PROPERTY(bool can_go READ getCanGo NOTIFY canGoChanged)
+    Q_PROPERTY(bool is_going READ getIsGoing NOTIFY isGoingChanged)
 
 public:
     explicit Backend(QObject *parent = nullptr);
@@ -46,6 +47,7 @@ public:
     void setSkipdeps(bool val) { if(skipdeps != val) { skipdeps = val; emit skipdepsChanged(); get_launch_options(); save_to_cfg(); } }
 
     bool getCanGo() const { return !cs2_basefolder.isEmpty() && !getS1gameBasefolder().isEmpty() && (!bsp_file.isEmpty() || !content_folder.isEmpty()) && !is_going; }
+    bool getIsGoing() const { return is_going; }
 
     void appAboutToQuit();
 
@@ -58,7 +60,8 @@ public slots:
     void validate_cs2();
     void validate_s1();
     void set_s1_game_type(const QString& type);
-    void go();
+    void start();
+    void stop();
 
 signals:
     void cs2BasefolderChanged();
@@ -72,6 +75,7 @@ signals:
     void usebspNomergeinstancesChanged();
     void skipdepsChanged();
     void canGoChanged();
+    void isGoingChanged();
 
     void logMessage(const QString& msg);
     void alertMessage(const QString& title, const QString& msg);
