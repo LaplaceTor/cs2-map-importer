@@ -45,7 +45,6 @@ jobs:
         mkdir release
         # The built executable is usually in build\Release\ on Windows MSVC
         Copy-Item build\Release\cs2importer.exe release\
-        Copy-Item bspsrc\bspsrc.jar release\
         # Deploy Qt dependencies next to the executable
         windeployqt --qmldir src/qml release\cs2importer.exe
 
@@ -55,6 +54,7 @@ jobs:
         Remove-Item -Path release\imageformats -Recurse -Force -ErrorAction SilentlyContinue
 
         Copy-Item -Path bin -Destination release\bin -Recurse
+        Copy-Item bspsrc\bspsrc.jar release\bin\
         cd release
         7z a cs2importer.zip *
 
