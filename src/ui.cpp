@@ -27,6 +27,9 @@ Backend::Backend(QObject *parent) :
     log_stream(nullptr)
 
 {
+    Miscellaneous::global_logger = [this](const QString& msg) {
+        QMetaObject::invokeMethod(this, "log_internal", Qt::QueuedConnection, Q_ARG(QString, msg));
+    };
     app_dir = QCoreApplication::applicationDirPath();
 
     Miscellaneous::log("Initializing CS2 Importer...");
