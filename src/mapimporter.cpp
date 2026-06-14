@@ -251,7 +251,10 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
                 QStringList refs = ReadTextFile(refsName);
                 for (const QString& ref : refs) {
                     QString cleanedRef = CleanRefPath(ref);
-                    if (!cleanedRef.isEmpty()) mdlmtls.insert(cleanedRef);
+                    if (!cleanedRef.isEmpty()) {
+                        cleanedRef.replace('\\', '/');
+                        mdlmtls.insert(cleanedRef);
+                    }
                 }
                 force2UVList.append(refsName);
             }
@@ -267,7 +270,11 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     if (fw.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream out(&fw);
         out << "importfilelist\n{\n";
-        for (const QString& mtl : mdlmtls) out << "\t\"file\"\t\"" << mtl << "\"\n";
+        for (const QString& mtl : mdlmtls) {
+            QString formattedMtl = mtl;
+            formattedMtl.replace('\\', '/');
+            out << "\t\"file\"\t\"" << formattedMtl << "\"\n";
+        }
         out << "}\n";
     }
 

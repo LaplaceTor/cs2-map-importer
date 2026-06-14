@@ -28,14 +28,6 @@ Backend::Backend(QObject *parent) :
 
 {
     app_dir = QCoreApplication::applicationDirPath();
-    
-    Miscellaneous::global_logger = [this](const QString& msg) {
-        emit logMessage(msg);
-        if (log_stream) {
-            *log_stream << msg << "\n";
-            log_stream->flush();
-        }
-    };
 
     Miscellaneous::log("Initializing CS2 Importer...");
 
