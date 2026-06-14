@@ -1,5 +1,5 @@
 #include "mapimporter.h"
-#include "appcore.h"
+#include "miscellaneous.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -38,10 +38,6 @@ static QString CleanRefPath(QString input) {
 
     if (input == "importfilelist" || input == "{" || input == "}") return "";
     return input;
-}
-
-void MapImporter::Log(const QString& msg) {
-    if (m_log) m_log(msg);
 }
 
 QStringList MapImporter::ReadTextFile(const QString& filepath) {
@@ -149,7 +145,7 @@ void MapImporter::ForceUV2ForVMAT(const QString& mtlfile) {
     }
 
     if (added) {
-        Log("Added F_FORCE_UV2 to " + vmatfilename);
+        Miscellaneous::log("Added F_FORCE_UV2 to " + vmatfilename);
         QFile file(vmatfilename);
         if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
             QTextStream out(&file);
@@ -181,7 +177,7 @@ bool MapImporter::Force2UVsIfRequired(const QString& refsName, QSet<QString>& gl
     }
 
     for (const QString& refLine : refsList) {
-        if (AppCore::cancel_import) return false;
+        if (Miscellaneous::cancel_import) return false;
         QString mtlfile = CleanRefPath(refLine);
         if (mtlfile.isEmpty()) continue;
         if (uvsUpdated.contains(mtlfile)) continue;
@@ -192,7 +188,7 @@ bool MapImporter::Force2UVsIfRequired(const QString& refsName, QSet<QString>& gl
         } else {
             if (numuvs == 2) {
                 b2UV = true;
-                Log("Adding F_FORCE_UV2 to mtls imported from " + refsName + "...");
+                Miscellaneous::log("Adding F_FORCE_UV2 to mtls imported from " + refsName + "...");
                 uvsUpdated.insert(mtlfile);
 
                 global2UVMaterials.insert(mtlfile);
@@ -213,24 +209,24 @@ bool MapImporter::Force2UVsIfRequired(const QString& refsName, QSet<QString>& gl
 void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     QStringList mdlfiles = ReadTextFile(filename);
     if (mdlfiles.isEmpty()) {
-        Log("No MDLs to import");
+        Miscellaneous::log("No MDLs to import");
         return;
     }
 
-    Log("Importing models");
-    Log("--------------------------------");
+    Miscellaneous::log("Importing models");
+    Miscellaneous::log("--------------------------------");
     for (const QString& x : mdlfiles) {
         if (x.isEmpty() || x.startsWith('-')) continue;
-        Log(x);
+        Miscellaneous::log(x);
     }
-    Log("--------------------------------");
+    Miscellaneous::log("--------------------------------");
 
     QStringList force2UVList;
     QSet<QString> mdlmtls;
     QString extraoptions = "";
 
     for (const QString& m : mdlfiles) {
-        if (AppCore::cancel_import) return;
+        if (Miscellaneous::cancel_import) return;
         if (m.isEmpty()) continue;
         if (m.startsWith('-')) {
             if (m == "-" || m == "-nooptions") extraoptions = "";
@@ -250,7 +246,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
             if (pos != -1) refsName.replace(pos, 4, "_refs.txt");
 
             QString importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\cs_mdl_import.exe\" -nop4 " + extraoptions + " -i \"" + m_options.s1gamedir + "\" -o \"" + m_options.s2contentdir + "\" \"" + infile + "\"";
-            AppCore::run_command_sync(importCmd, m_log);
+            Miscellaneous::run_command_sync(importCmd);
 
             if (QFile::exists(refsName)) {
                 QStringList refs = ReadTextFile(refsName);
@@ -277,7 +273,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     }
 
     QString importRefsCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo -usefilelist \"" + temp_refs + "\"";
-    AppCore::run_command_sync(importRefsCmd, m_log);
+    Miscellaneous::run_command_sync(importRefsCmd);
 
     QSet<QString> global2UVMaterials;
     QString global2UVMaterialFilepath = "source1import_2uvmateriallist.txt";
@@ -291,7 +287,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     EnsureFileWritable(global2UVMaterialFilepath);
 
     for (const QString& mtlfile : mdlmtls) {
-        if (AppCore::cancel_import) return;
+        if (Miscellaneous::cancel_import) return;
         if (mtlfile.isEmpty() || mtlfile.startsWith('-')) continue;
         QString mtl = mtlfile;
         mtl.replace('/', '\\');
@@ -300,11 +296,11 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         if (pos != -1) outName.replace(pos, 4, ".vmat");
 
         QString resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + outName + "\"";
-        AppCore::run_command_sync(resCompCmd, m_log);
+        Miscellaneous::run_command_sync(resCompCmd);
     }
 
     for (const QString& m : mdlfiles) {
-        if (AppCore::cancel_import) return;
+        if (Miscellaneous::cancel_import) return;
         if (m.isEmpty() || m.startsWith('-')) continue;
         QString mdlfile = CleanRefPath(m);
         if (mdlfile.isEmpty()) continue;
@@ -328,19 +324,19 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         } else {
             resCompCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + outName + "\"";
         }
-        AppCore::run_command_sync(resCompCmd, m_log);
+        Miscellaneous::run_command_sync(resCompCmd);
     }
 }
 
 void MapImporter::ImportAndCompileMapRefs(const QString& refsFile) {
     QString importcmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo -usefilelist \"" + refsFile + "\"";
-    AppCore::run_command_sync(importcmd, m_log);
+    Miscellaneous::run_command_sync(importcmd);
 
     QStringList refs = ReadTextFile(refsFile);
     QString newList = "";
 
     for (const QString& line : refs) {
-        if (AppCore::cancel_import) return;
+        if (Miscellaneous::cancel_import) return;
         QString cleanedRef = CleanRefPath(line);
         if (!cleanedRef.isEmpty()) {
             QString modLine = cleanedRef;
@@ -361,12 +357,12 @@ void MapImporter::ImportAndCompileMapRefs(const QString& refsFile) {
     }
 
     QString compilercmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo -f -filelist \"" + tmpFile + "\"";
-    AppCore::run_command_sync(compilercmd, m_log);
+    Miscellaneous::run_command_sync(compilercmd);
 }
 
 bool MapImporter::Run() {
-    if (AppCore::cancel_import) return false;
-    Log("Starting Map Import process via C++.");
+    if (Miscellaneous::cancel_import) return false;
+    Miscellaneous::log("Starting Map Import process via C++.");
 
     QString usebspStr = m_options.usebsp ? "-usebsp" : "";
     QString nomergeinstancesStr = m_options.usebsp_nomergeinstances ? "-usebsp_nomergeinstances" : "";
@@ -381,7 +377,7 @@ bool MapImporter::Run() {
 
     mapImportCmd += " -src1gameinfodir \"" + target_s1gamedir + "\" -src1contentdir \"" + m_options.s1contentdir + "\" -s2addon \"" + m_options.s2addonname + "\" -game csgo maps\\" + m_options.mapname + ".vmf";
 
-    AppCore::run_command_sync(mapImportCmd, m_log);
+    Miscellaneous::run_command_sync(mapImportCmd);
 
     QString m_mapname = m_options.mapname;
     int pos = m_mapname.indexOf("instances");
@@ -394,9 +390,9 @@ bool MapImporter::Run() {
         ImportAndCompileMapMDLs(m_options.s2contentdir + "\\maps\\" + m_mapname + "_mdl_lst.txt");
         ImportAndCompileMapRefs(m_options.s2contentdir + "\\maps\\" + m_mapname + "_new_refs.txt");
 
-        AppCore::run_command_sync(mapImportCmd, m_log);
+        Miscellaneous::run_command_sync(mapImportCmd);
     }
 
-    Log("Import process complete.");
+    Miscellaneous::log("Import process complete.");
     return true;
 }

@@ -15,8 +15,8 @@ set(SOURCES
     src/main.cpp
     src/ui.cpp
     src/ui.h
-    src/appcore.cpp
-    src/appcore.h
+    src/miscellaneous.cpp
+    src/miscellaneous.h
     src/vmf_bsp_process.cpp
     src/vmf_bsp_process.h
     src/mapimporter.cpp

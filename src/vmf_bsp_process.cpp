@@ -196,7 +196,7 @@ QStringList VmfBspProcess::patch_dispinfo(const QStringList& lines) {
     return out_lines;
 }
 
-void VmfBspProcess::fix_special_targetnames(const QString& vmf_path, AppCore::LogCallback log) {
+void VmfBspProcess::fix_special_targetnames(const QString& vmf_path) {
     if (!QFile::exists(vmf_path)) return;
 
     QFile infile(vmf_path);
@@ -221,7 +221,7 @@ void VmfBspProcess::fix_special_targetnames(const QString& vmf_path, AppCore::Lo
         return; // Nothing to do
     }
 
-    log("Found special targetnames in VMF. Fixing...");
+    Miscellaneous::log("Found special targetnames in VMF. Fixing...");
 
     // Find the last entity block
     int last_entity_idx = -1;
@@ -276,7 +276,7 @@ void VmfBspProcess::fix_special_targetnames(const QString& vmf_path, AppCore::Lo
     }
 }
 
-void VmfBspProcess::fix_vmf_from_bsp(const QString& vmf_path, AppCore::LogCallback log) {
+void VmfBspProcess::fix_vmf_from_bsp(const QString& vmf_path) {
     if (!QFile::exists(vmf_path)) return;
 
     QFile infile(vmf_path);
@@ -293,7 +293,7 @@ void VmfBspProcess::fix_vmf_from_bsp(const QString& vmf_path, AppCore::LogCallba
     QString mapversion = parse_mapversion(lines, mapversion_found);
 
     if (!mapversion_found) {
-        log("No mapversion found in VMF. Aborting fix.");
+        Miscellaneous::log("No mapversion found in VMF. Aborting fix.");
         return;
     }
 
@@ -301,7 +301,7 @@ void VmfBspProcess::fix_vmf_from_bsp(const QString& vmf_path, AppCore::LogCallba
     QStringList visgroups_lines = extract_visgroups(lines, remaining_lines);
 
     if (visgroups_lines.isEmpty()) {
-        log("No visgroups block found in VMF. Aborting fix.");
+        Miscellaneous::log("No visgroups block found in VMF. Aborting fix.");
         return;
     }
 
@@ -319,8 +319,8 @@ void VmfBspProcess::fix_vmf_from_bsp(const QString& vmf_path, AppCore::LogCallba
 }
 
 
-void VmfBspProcess::process_bsp(AppCore::Options& options) {
-    if (AppCore::cancel_import) return;
+void VmfBspProcess::process_bsp(Miscellaneous::Options& options) {
+    if (Miscellaneous::cancel_import) return;
     QString app_dir = options.app_dir;
     QString maps_dir = QDir(app_dir).filePath("maps");
     QDir().mkpath(maps_dir);
@@ -332,11 +332,11 @@ void VmfBspProcess::process_bsp(AppCore::Options& options) {
         throw AppException("Could not find bspsrc.jar at " + bspsrc_jar);
     }
 
-    options.logger("Decompiling BSP: " + options.bsp_file);
+    Miscellaneous::log("Decompiling BSP: " + options.bsp_file);
 
     QString decomp_cmd = "java -jar \"" + bspsrc_jar + "\" \"" + options.bsp_file + "\" -o \"" + vmf_dest + "\" --unpack_embedded";
-    int ret = AppCore::run_command_sync(decomp_cmd, options.logger);
-    if (AppCore::cancel_import) return;
+    int ret = Miscellaneous::run_command_sync(decomp_cmd);
+    if (Miscellaneous::cancel_import) return;
     if (ret != 0) {
         throw AppException("BSP Decompilation failed.");
     }
@@ -358,33 +358,33 @@ void VmfBspProcess::process_bsp(AppCore::Options& options) {
 
     QString target_unpacked_dir = QDir(maps_dir).filePath(options.map_name);
     if (!unpacked_dir.isEmpty()) {
-        options.logger("Found unpacked files at " + unpacked_dir);
+        Miscellaneous::log("Found unpacked files at " + unpacked_dir);
 
         if (unpacked_dir != target_unpacked_dir) {
             if (QDir(target_unpacked_dir).exists()) {
                 QDir(target_unpacked_dir).removeRecursively();
             }
             if (QDir().rename(unpacked_dir, target_unpacked_dir)) {
-                options.logger("Moved unpacked directory to " + target_unpacked_dir);
+                Miscellaneous::log("Moved unpacked directory to " + target_unpacked_dir);
             } else {
-                options.logger("Failed to rename unpacked directory to " + target_unpacked_dir + ". Attempting recursive copy...");
+                Miscellaneous::log("Failed to rename unpacked directory to " + target_unpacked_dir + ". Attempting recursive copy...");
                 if (copyDirectoryRecursively(unpacked_dir, target_unpacked_dir)) {
                     if (QDir(unpacked_dir).removeRecursively()) {
-                        options.logger("Successfully copied and removed original unpacked directory.");
+                        Miscellaneous::log("Successfully copied and removed original unpacked directory.");
                     } else {
-                        options.logger("Successfully copied but failed to remove original unpacked directory: " + unpacked_dir);
+                        Miscellaneous::log("Successfully copied but failed to remove original unpacked directory: " + unpacked_dir);
                     }
                 } else {
-                    options.logger("Failed to copy unpacked directory.");
+                    Miscellaneous::log("Failed to copy unpacked directory.");
                 }
             }
         }
     } else {
-        options.logger("Could not find unpacked embedded files directory '" + options.map_name + "'");
+        Miscellaneous::log("Could not find unpacked embedded files directory '" + options.map_name + "'");
     }
 
-    fix_vmf_from_bsp(vmf_dest, options.logger);
-    if (AppCore::cancel_import) return;
+    fix_vmf_from_bsp(vmf_dest);
+    if (Miscellaneous::cancel_import) return;
 
     QString target_maps_dir = QDir(app_dir).filePath("maps/" + options.map_name + "/maps");
     QDir().mkpath(target_maps_dir);
@@ -395,13 +395,13 @@ void VmfBspProcess::process_bsp(AppCore::Options& options) {
     }
 
     if (QFile::rename(vmf_dest, final_vmf_dest)) {
-        options.logger("Moved VMF to: " + final_vmf_dest);
+        Miscellaneous::log("Moved VMF to: " + final_vmf_dest);
     } else {
-        options.logger("Failed to move VMF to: " + final_vmf_dest);
+        Miscellaneous::log("Failed to move VMF to: " + final_vmf_dest);
     }
 
     options.content_folder = QDir(app_dir).filePath("maps/" + options.map_name);
-    options.logger("Decompiled and prepared at: " + final_vmf_dest);
+    Miscellaneous::log("Decompiled and prepared at: " + final_vmf_dest);
 
     // Copy materials and models to s1gamedir
     QString s1_subfolder = (options.s1_game_type == "css") ? "cstrike" : "csgo";
@@ -411,14 +411,14 @@ void VmfBspProcess::process_bsp(AppCore::Options& options) {
         QString src_materials = QDir(target_unpacked_dir).filePath("materials");
         QString dest_materials = QDir(s1gamedir).filePath("materials");
         if (QDir(src_materials).exists()) {
-            options.logger("Copying materials to " + dest_materials);
+            Miscellaneous::log("Copying materials to " + dest_materials);
             copyDirectoryRecursively(src_materials, dest_materials);
         }
 
         QString src_models = QDir(target_unpacked_dir).filePath("models");
         QString dest_models = QDir(s1gamedir).filePath("models");
         if (QDir(src_models).exists()) {
-            options.logger("Copying models to " + dest_models);
+            Miscellaneous::log("Copying models to " + dest_models);
             copyDirectoryRecursively(src_models, dest_models);
         }
     }
