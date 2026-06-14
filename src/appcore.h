@@ -41,22 +41,18 @@ public:
     };
 
     static bool check_java();
-    static void fix_vmf_from_bsp(const QString& vmf_path, LogCallback log);
-    static void fix_special_targetnames(const QString& vmf_path, LogCallback log);
     static void move_vpk_signatures(const QString& cs2_basefolder, bool& vpk_signatures_moved);
     static void restore_vpk_signatures(const QString& cs2_basefolder);
 
     // Decompiles the BSP, moves unpacked files, and moves materials/models folders into s1gamedir
-    static void process_bsp(Options& options);
 
     static int run_command_sync(const QString& cmd, LogCallback logger);
     static void cancel_all();
 
     static QAtomicInt cancel_import;
 
+
 private:
-    static QString parse_mapversion(const QStringList& lines, bool& found);
-    static QStringList extract_visgroups(const QStringList& lines, QStringList& remaining_lines);
-    static QStringList insert_required_blocks(const QStringList& lines, const QString& mapversion, const QStringList& visgroups);
-    static QStringList patch_dispinfo(const QStringList& lines);
 };
+
+bool copyDirectoryRecursively(const QString &sourceDir, const QString &destinationDir);
