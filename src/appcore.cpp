@@ -245,6 +245,86 @@ QStringList AppCore::patch_dispinfo(const QStringList& lines) {
     return out_lines;
 }
 
+void AppCore::fix_special_targetnames(const QString& vmf_path, LogCallback log) {
+    if (!QFile::exists(vmf_path)) return;
+
+    QFile infile(vmf_path);
+    if (!infile.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+
+    QStringList lines;
+    QTextStream in(&infile);
+    bool has_activator = false;
+    bool has_self = false;
+    bool has_caller = false;
+
+    while (!in.atEnd()) {
+        QString line = in.readLine();
+        lines.append(line);
+        if (line.contains("!activator")) has_activator = true;
+        if (line.contains("!self")) has_self = true;
+        if (line.contains("!caller")) has_caller = true;
+    }
+    infile.close();
+
+    if (!has_activator && !has_self && !has_caller) {
+        return; // Nothing to do
+    }
+
+    log("Found special targetnames in VMF. Fixing...");
+
+    // Find the last entity block
+    int last_entity_idx = -1;
+    for (int i = 0; i < lines.size(); ++i) {
+        if (lines[i].trimmed() == "entity") {
+            last_entity_idx = i;
+        }
+    }
+
+    int max_id = 0;
+    if (last_entity_idx != -1) {
+        QRegularExpression id_regex("\"id\"\\s+\"(\\d+)\"");
+        for (int i = last_entity_idx; i < lines.size(); ++i) {
+            QRegularExpressionMatch match = id_regex.match(lines[i]);
+            if (match.hasMatch()) {
+                int id = match.captured(1).toInt();
+                if (id > max_id) max_id = id;
+            }
+        }
+    } else {
+        // If no entity found, default max_id to 100000
+        max_id = 100000;
+    }
+
+    QStringList entities_to_add;
+    if (has_activator) entities_to_add.append("!activator");
+    if (has_self) entities_to_add.append("!self");
+    if (has_caller) entities_to_add.append("!caller");
+
+    for (const QString& targetname : entities_to_add) {
+        max_id++;
+        QString entity_block =
+            "entity\n"
+            "{\n"
+            "\t\"id\" \"" + QString::number(max_id) + "\"\n"
+            "\t\"classname\" \"info_target\"\n"
+            "\t\"angles\" \"0 0 0\"\n"
+            "\t\"spawnflags\" \"0\"\n"
+            "\t\"targetname\" \"" + targetname + "\"\n"
+            "\t\"origin\" \"0 0 0\"\n"
+            "}";
+        lines.append(entity_block);
+    }
+
+    QFile outfile(vmf_path);
+    if (outfile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&outfile);
+        for (const QString& l : lines) {
+            out << l << "\n";
+        }
+        outfile.close();
+    }
+}
+
 void AppCore::fix_vmf_from_bsp(const QString& vmf_path, LogCallback log) {
     if (!QFile::exists(vmf_path)) return;
 
