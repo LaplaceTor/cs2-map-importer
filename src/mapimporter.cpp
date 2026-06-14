@@ -97,6 +97,7 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
         out << "importfilelist\n{\n";
         for (const QString& m : mdls) out << "\t\"file\"\t\"" << m << "\"\n";
         out << "}\n";
+        mdlFile.close();
     }
 
     QString refsfilename = filename;
@@ -110,6 +111,7 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
         out << "importfilelist\n{\n";
         for (const QString& o : others) out << "\t\"file\"\t\"" << o << "\"\n";
         out << "}\n";
+        refFile.close();
     }
 }
 
@@ -151,6 +153,7 @@ void MapImporter::ForceUV2ForVMAT(const QString& mtlfile) {
         if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
             QTextStream out(&file);
             for (const QString& l : lines) out << l << "\n";
+            file.close();
         }
     }
 }
@@ -198,6 +201,7 @@ bool MapImporter::Force2UVsIfRequired(const QString& refsName, QSet<QString>& gl
                 if (ofs.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
                     QTextStream out(&ofs);
                     out << mtlfile << "\n";
+                    ofs.close();
                 }
             }
         }
@@ -276,6 +280,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
             out << "\t\"file\"\t\"" << formattedMtl << "\"\n";
         }
         out << "}\n";
+        fw.close();
     }
 
     QString importRefsCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo -usefilelist \"" + temp_refs + "\"";
@@ -385,6 +390,7 @@ void MapImporter::ImportAndCompileMapRefs(const QString& refsFile) {
     if (writeFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream out(&writeFile);
         out << newList;
+        writeFile.close();
     }
 
     QString compilercmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo -f -filelist \"" + tmpFile + "\"";
