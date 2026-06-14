@@ -5,6 +5,7 @@
 #include <QFileInfo>
 #include <QTextStream>
 #include <QRegularExpression>
+#include <QMap>
 
 static QString CleanRefPath(QString input) {
     int filePos = input.indexOf("\"file\"");
@@ -198,8 +199,6 @@ bool MapImporter::Force2UVsIfRequired(const QString& refsName, QSet<QString>& gl
                     QTextStream out(&ofs);
                     out << mtlfile << "\n";
                 }
-
-                ForceUV2ForVMAT(mtlfile);
             }
         }
     }
@@ -281,10 +280,39 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         QStringList force2UVListFile = ReadTextFile(global2UVMaterialFilepath);
         for (const QString& mtl : force2UVListFile) {
             global2UVMaterials.insert(mtl);
-            ForceUV2ForVMAT(mtl);
         }
     }
     EnsureFileWritable(global2UVMaterialFilepath);
+
+    QMap<QString, bool> mdlForceCompile;
+
+    for (const QString& m : mdlfiles) {
+        if (Miscellaneous::cancel_import) return;
+        if (m.isEmpty() || m.startsWith('-')) continue;
+        QString mdlfile = CleanRefPath(m);
+        if (mdlfile.isEmpty()) continue;
+        mdlfile.replace('/', '\\');
+
+        QString outName = m_options.s2contentdir + "\\" + mdlfile;
+        pos = outName.lastIndexOf(".mdl");
+        if (pos != -1) outName.replace(pos, 4, ".vmdl");
+
+        if (!QFile::exists(outName)) continue;
+
+        QString refsName = m_options.s2contentdir + "\\" + mdlfile;
+        pos = refsName.lastIndexOf(".mdl");
+        if (pos != -1) refsName.replace(pos, 4, "_refs.txt");
+
+        bool bForceCompile = Force2UVsIfRequired(refsName, global2UVMaterials, global2UVMaterialFilepath);
+        mdlForceCompile[m] = bForceCompile;
+    }
+
+    if (QFile::exists(global2UVMaterialFilepath)) {
+        QStringList force2UVListFile = ReadTextFile(global2UVMaterialFilepath);
+        for (const QString& mtl : force2UVListFile) {
+            ForceUV2ForVMAT(mtl);
+        }
+    }
 
     for (const QString& mtlfile : mdlmtls) {
         if (Miscellaneous::cancel_import) return;
@@ -312,11 +340,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
 
         if (!QFile::exists(outName)) continue;
 
-        QString refsName = m_options.s2contentdir + "\\" + mdlfile;
-        pos = refsName.lastIndexOf(".mdl");
-        if (pos != -1) refsName.replace(pos, 4, "_refs.txt");
-
-        bool bForceCompile = Force2UVsIfRequired(refsName, global2UVMaterials, global2UVMaterialFilepath);
+        bool bForceCompile = mdlForceCompile.value(m, false);
 
         QString resCompCmd;
         if (bForceCompile) {
