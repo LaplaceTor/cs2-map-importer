@@ -27,9 +27,6 @@ Backend::Backend(QObject *parent) :
     log_stream(nullptr)
 
 {
-    Miscellaneous::global_logger = [this](const QString& msg) {
-        QMetaObject::invokeMethod(this, "log_internal", Qt::QueuedConnection, Q_ARG(QString, msg));
-    };
     app_dir = QCoreApplication::applicationDirPath();
 
     Miscellaneous::log("Initializing CS2 Importer...");
@@ -59,16 +56,6 @@ Backend::~Backend()
         }
         delete log_file;
         log_file = nullptr;
-    }
-}
-
-void Backend::log_internal(const QString& message)
-{
-    emit logMessage(message);
-
-    if (log_stream && log_file && log_file->isOpen()) {
-        *log_stream << message << "\n";
-        log_stream->flush();
     }
 }
 

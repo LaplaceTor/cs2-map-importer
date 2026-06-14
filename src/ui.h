@@ -52,7 +52,6 @@ public:
     void appAboutToQuit();
 
 public slots:
-    void log_internal(const QString& message);
     void select_cs2_folder_dialog(const QUrl& url);
     void select_s1_folder_dialog(const QUrl& url);
     void select_vmf_dialog(const QUrl& url);
