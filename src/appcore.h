@@ -42,6 +42,7 @@ public:
 
     static bool check_java();
     static void fix_vmf_from_bsp(const QString& vmf_path, LogCallback log);
+    static void fix_special_targetnames(const QString& vmf_path, LogCallback log);
     static void move_vpk_signatures(const QString& cs2_basefolder, bool& vpk_signatures_moved);
     static void restore_vpk_signatures(const QString& cs2_basefolder);
 

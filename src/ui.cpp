@@ -572,6 +572,9 @@ void Backend::start()
                     AppCore::process_bsp(opts);
                 }
 
+                QString target_vmf_path = QDir(opts.app_dir).filePath("maps/" + opts.map_name + "/maps/" + opts.map_name + ".vmf");
+                AppCore::fix_special_targetnames(target_vmf_path, opts.logger);
+
                 MapImporter::Options mapOpts;
                 QString s1_subfolder = opts.s1_game_type == "css" ? "cstrike" : "csgo";
 
