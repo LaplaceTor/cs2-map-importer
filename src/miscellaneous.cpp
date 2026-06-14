@@ -1,4 +1,4 @@
-#include "appcore.h"
+#include "miscellaneous.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -8,9 +8,16 @@
 #include <QCoreApplication>
 #include <QByteArray>
 
-QAtomicInt AppCore::cancel_import(0);
+QAtomicInt Miscellaneous::cancel_import(0);
+Miscellaneous::LogCallback Miscellaneous::global_logger = nullptr;
 
-bool AppCore::check_java() {
+void Miscellaneous::log(const QString& msg) {
+    if (global_logger) {
+        global_logger(msg);
+    }
+}
+
+bool Miscellaneous::check_java() {
     QProcess process;
     process.start("java", QStringList() << "-version");
     process.waitForFinished();
@@ -18,7 +25,7 @@ bool AppCore::check_java() {
     return output.contains("version");
 }
 
-void AppCore::move_vpk_signatures(const QString& cs2_basefolder, bool& vpk_signatures_moved) {
+void Miscellaneous::move_vpk_signatures(const QString& cs2_basefolder, bool& vpk_signatures_moved) {
     if (cs2_basefolder.isEmpty()) return;
 
     QString bin_folder = QDir(cs2_basefolder).filePath("game/bin/win64");
@@ -38,7 +45,7 @@ void AppCore::move_vpk_signatures(const QString& cs2_basefolder, bool& vpk_signa
     }
 }
 
-void AppCore::restore_vpk_signatures(const QString& cs2_basefolder) {
+void Miscellaneous::restore_vpk_signatures(const QString& cs2_basefolder) {
     if (cs2_basefolder.isEmpty()) return;
 
     QString bin_folder = QDir(cs2_basefolder).filePath("game/bin/win64");
@@ -53,15 +60,15 @@ void AppCore::restore_vpk_signatures(const QString& cs2_basefolder) {
     }
 }
 
-void AppCore::cancel_all() {
+void Miscellaneous::cancel_all() {
     cancel_import = 1;
 }
 
 
 
-int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
+int Miscellaneous::run_command_sync(const QString& cmd) {
     if (cancel_import) return -1;
-    if (logger) logger(cmd);
+    Miscellaneous::log(cmd);
 
     QProcess process;
     process.setProcessChannelMode(QProcess::MergedChannels);
@@ -87,8 +94,8 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
         for (QChar c : outStr) {
             if (c == '\n') {
                 if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
-                if (!lineBuffer.isEmpty() && logger) {
-                    logger(lineBuffer);
+                if (!lineBuffer.isEmpty()) {
+                    Miscellaneous::log(lineBuffer);
                 }
                 if (isSource1Import && !answeredPrompt) {
                     if (lineBuffer.contains("Adding Search Path")) {
@@ -128,9 +135,9 @@ int AppCore::run_command_sync(const QString& cmd, LogCallback logger) {
         processOutput(QString(output));
     }
 
-    if (!lineBuffer.isEmpty() && logger) {
+    if (!lineBuffer.isEmpty()) {
         if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
-        logger(lineBuffer);
+        Miscellaneous::log(lineBuffer);
     }
 
     return process.exitCode();

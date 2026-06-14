@@ -1,15 +1,15 @@
 #pragma once
 
-#include "appcore.h"
+#include "miscellaneous.h"
 #include <QStringList>
 
 class VmfBspProcess {
 public:
     // Decompiles the BSP, moves unpacked files, and moves materials/models folders into s1gamedir
-    static void process_bsp(AppCore::Options& options);
+    static void process_bsp(Miscellaneous::Options& options);
 
-    static void fix_vmf_from_bsp(const QString& vmf_path, AppCore::LogCallback log);
-    static void fix_special_targetnames(const QString& vmf_path, AppCore::LogCallback log);
+    static void fix_vmf_from_bsp(const QString& vmf_path);
+    static void fix_special_targetnames(const QString& vmf_path);
 
 private:
     static QString parse_mapversion(const QStringList& lines, bool& found);

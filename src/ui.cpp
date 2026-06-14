@@ -1,7 +1,7 @@
 #include "vmf_bsp_process.h"
 #include "ui.h"
 #include "mapimporter.h"
-#include "appcore.h"
+#include "miscellaneous.h"
 
 #include <QDir>
 #include <QFile>
@@ -27,21 +27,24 @@ Backend::Backend(QObject *parent) :
     log_stream(nullptr)
 
 {
+    Miscellaneous::global_logger = [this](const QString& msg) {
+        QMetaObject::invokeMethod(this, "log_internal", Qt::QueuedConnection, Q_ARG(QString, msg));
+    };
     app_dir = QCoreApplication::applicationDirPath();
 
-    log("Initializing CS2 Importer...");
+    Miscellaneous::log("Initializing CS2 Importer...");
 
-    java_installed = AppCore::check_java();
+    java_installed = Miscellaneous::check_java();
 
     get_launch_options();
 
     if (!java_installed) {
-        log("Warning: Java is missing. BSP decompilation disabled.");
+        Miscellaneous::log("Warning: Java is missing. BSP decompilation disabled.");
     }
 
     load_from_cfg();
 
-    log("Initializing CS2 Importer... Finished");
+    Miscellaneous::log("Initializing CS2 Importer... Finished");
 }
 
 Backend::~Backend()
@@ -59,7 +62,7 @@ Backend::~Backend()
     }
 }
 
-void Backend::log(const QString& message)
+void Backend::log_internal(const QString& message)
 {
     emit logMessage(message);
 
@@ -374,7 +377,7 @@ void Backend::select_vmf_dialog(const QUrl& url)
     addon_name = "";
     emit addonNameChanged();
 
-    log("VMF set up at: " + target_vmf_path);
+    Miscellaneous::log("VMF set up at: " + target_vmf_path);
 
     updateCanGo();
 }
@@ -536,15 +539,15 @@ void Backend::start()
             log_file = nullptr;
         }
 
-        AppCore::cancel_import = 0;
-        AppCore::move_vpk_signatures(cs2_basefolder, vpk_signatures_moved);
+        Miscellaneous::cancel_import = 0;
+        Miscellaneous::move_vpk_signatures(cs2_basefolder, vpk_signatures_moved);
 
         is_going = true;
         updateCanGo();
 
-        log("Starting AppCore thread...");
+        Miscellaneous::log("Starting Miscellaneous thread...");
 
-        AppCore::Options opts;
+        Miscellaneous::Options opts;
         opts.cs2_basefolder = cs2_basefolder;
         opts.cs2_basefolder.replace("/", "\\");
         opts.s1game_basefolder = getS1gameBasefolder();
@@ -559,22 +562,18 @@ void Backend::start()
         opts.usebsp_nomergeinstances = usebsp && usebsp_nomergeinstances;
         opts.skipdeps = skipdeps;
 
-        opts.logger = [this](const QString& msg) {
-            QMetaObject::invokeMethod(this, "log", Qt::QueuedConnection, Q_ARG(QString, msg));
-        };
-
         QThread* workerThread = QThread::create([this, opts]() mutable {
             bool success = true;
             try {
                 if (!opts.bsp_file.isEmpty()) {
-                    if (!AppCore::check_java()) {
+                    if (!Miscellaneous::check_java()) {
                         throw AppException("Java is not installed. Cannot decompile BSP file.");
                     }
                     VmfBspProcess::process_bsp(opts);
                 }
 
                 QString target_vmf_path = QDir(opts.app_dir).filePath("maps/" + opts.map_name + "/maps/" + opts.map_name + ".vmf");
-                VmfBspProcess::fix_special_targetnames(target_vmf_path, opts.logger);
+                VmfBspProcess::fix_special_targetnames(target_vmf_path);
 
                 MapImporter::Options mapOpts;
                 QString s1_subfolder = opts.s1_game_type == "css" ? "cstrike" : "csgo";
@@ -601,17 +600,17 @@ void Backend::start()
                 mapOpts.skipdeps = opts.skipdeps;
                 mapOpts.cs2_basefolder = opts.cs2_basefolder;
 
-                MapImporter importer(mapOpts, opts.logger);
+                MapImporter importer(mapOpts);
                 success = importer.Run();
 
             } catch (const AppException& e) {
-                opts.logger(QString("Error: ") + e.message());
+                Miscellaneous::log(QString("Error: ") + e.message());
                 success = false;
             }
 
             QMetaObject::invokeMethod(this, [this, success]() {
                 if (vpk_signatures_moved && !cs2_basefolder.isEmpty()) {
-                    AppCore::restore_vpk_signatures(cs2_basefolder);
+                    Miscellaneous::restore_vpk_signatures(cs2_basefolder);
                     vpk_signatures_moved = false;
                 }
 
@@ -619,9 +618,9 @@ void Backend::start()
                 updateCanGo();
 
                 if (success) {
-                    log("MapImporter thread finished successfully.");
+                    Miscellaneous::log("MapImporter thread finished successfully.");
                 } else {
-                    log("MapImporter thread finished with errors.");
+                    Miscellaneous::log("MapImporter thread finished with errors.");
                 }
 
                 if (log_stream) {
@@ -642,7 +641,7 @@ void Backend::start()
         workerThread->start();
 
     } catch (const AppException& e) {
-        log(QString("Error: %1").arg(e.message()));
+        Miscellaneous::log(QString("Error: %1").arg(e.message()));
         emit alertMessage("Error", e.message());
     }
 }
@@ -650,16 +649,16 @@ void Backend::start()
 void Backend::stop()
 {
     if (is_going) {
-        log("Cancelling import...");
-        AppCore::cancel_all();
+        Miscellaneous::log("Cancelling import...");
+        Miscellaneous::cancel_all();
     }
 }
 
 void Backend::appAboutToQuit()
 {
-    AppCore::cancel_all();
+    Miscellaneous::cancel_all();
     if (vpk_signatures_moved && !cs2_basefolder.isEmpty()) {
-        AppCore::restore_vpk_signatures(cs2_basefolder);
+        Miscellaneous::restore_vpk_signatures(cs2_basefolder);
         vpk_signatures_moved = false;
     }
 }

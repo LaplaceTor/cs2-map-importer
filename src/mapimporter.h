@@ -23,16 +23,14 @@ public:
         QString cs2_basefolder; // to get the binaries
     };
 
-    MapImporter(const Options& options, std::function<void(const QString&)> logCallback)
-        : m_options(options), m_log(logCallback) {}
+    MapImporter(const Options& options)
+        : m_options(options) {}
 
     bool Run();
 
 private:
     Options m_options;
-    std::function<void(const QString&)> m_log;
 
-    void Log(const QString& msg);
 
     QStringList ReadTextFile(const QString& filepath);
     void EnsureFileWritable(const QString& filepath);

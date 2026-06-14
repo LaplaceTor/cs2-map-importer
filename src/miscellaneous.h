@@ -18,7 +18,7 @@ private:
     QString msg_;
 };
 
-class AppCore {
+class Miscellaneous {
 public:
     using LogCallback = std::function<void(const QString&)>;
 
@@ -37,8 +37,10 @@ public:
         bool usebsp_nomergeinstances;
         bool skipdeps;
 
-        LogCallback logger;
     };
+
+    static LogCallback global_logger;
+    static void log(const QString& msg);
 
     static bool check_java();
     static void move_vpk_signatures(const QString& cs2_basefolder, bool& vpk_signatures_moved);
@@ -46,7 +48,7 @@ public:
 
     // Decompiles the BSP, moves unpacked files, and moves materials/models folders into s1gamedir
 
-    static int run_command_sync(const QString& cmd, LogCallback logger);
+    static int run_command_sync(const QString& cmd);
     static void cancel_all();
 
     static QAtomicInt cancel_import;
