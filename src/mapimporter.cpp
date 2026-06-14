@@ -5,6 +5,7 @@
 #include <QFileInfo>
 #include <QTextStream>
 #include <QRegularExpression>
+#include <QMap>
 
 static QString CleanRefPath(QString input) {
     int filePos = input.indexOf("\"file\"");
@@ -96,6 +97,7 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
         out << "importfilelist\n{\n";
         for (const QString& m : mdls) out << "\t\"file\"\t\"" << m << "\"\n";
         out << "}\n";
+        mdlFile.close();
     }
 
     QString refsfilename = filename;
@@ -109,6 +111,7 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
         out << "importfilelist\n{\n";
         for (const QString& o : others) out << "\t\"file\"\t\"" << o << "\"\n";
         out << "}\n";
+        refFile.close();
     }
 }
 
@@ -150,6 +153,7 @@ void MapImporter::ForceUV2ForVMAT(const QString& mtlfile) {
         if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
             QTextStream out(&file);
             for (const QString& l : lines) out << l << "\n";
+            file.close();
         }
     }
 }
@@ -197,9 +201,8 @@ bool MapImporter::Force2UVsIfRequired(const QString& refsName, QSet<QString>& gl
                 if (ofs.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
                     QTextStream out(&ofs);
                     out << mtlfile << "\n";
+                    ofs.close();
                 }
-
-                ForceUV2ForVMAT(mtlfile);
             }
         }
     }
@@ -252,7 +255,10 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
                 QStringList refs = ReadTextFile(refsName);
                 for (const QString& ref : refs) {
                     QString cleanedRef = CleanRefPath(ref);
-                    if (!cleanedRef.isEmpty()) mdlmtls.insert(cleanedRef);
+                    if (!cleanedRef.isEmpty()) {
+                        cleanedRef.replace('\\', '/');
+                        mdlmtls.insert(cleanedRef);
+                    }
                 }
                 force2UVList.append(refsName);
             }
@@ -268,8 +274,13 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     if (fw.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream out(&fw);
         out << "importfilelist\n{\n";
-        for (const QString& mtl : mdlmtls) out << "\t\"file\"\t\"" << mtl << "\"\n";
+        for (const QString& mtl : mdlmtls) {
+            QString formattedMtl = mtl;
+            formattedMtl.replace('\\', '/');
+            out << "\t\"file\"\t\"" << formattedMtl << "\"\n";
+        }
         out << "}\n";
+        fw.close();
     }
 
     QString importRefsCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo -usefilelist \"" + temp_refs + "\"";
@@ -281,10 +292,39 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         QStringList force2UVListFile = ReadTextFile(global2UVMaterialFilepath);
         for (const QString& mtl : force2UVListFile) {
             global2UVMaterials.insert(mtl);
-            ForceUV2ForVMAT(mtl);
         }
     }
     EnsureFileWritable(global2UVMaterialFilepath);
+
+    QMap<QString, bool> mdlForceCompile;
+
+    for (const QString& m : mdlfiles) {
+        if (Miscellaneous::cancel_import) return;
+        if (m.isEmpty() || m.startsWith('-')) continue;
+        QString mdlfile = CleanRefPath(m);
+        if (mdlfile.isEmpty()) continue;
+        mdlfile.replace('/', '\\');
+
+        QString outName = m_options.s2contentdir + "\\" + mdlfile;
+        pos = outName.lastIndexOf(".mdl");
+        if (pos != -1) outName.replace(pos, 4, ".vmdl");
+
+        if (!QFile::exists(outName)) continue;
+
+        QString refsName = m_options.s2contentdir + "\\" + mdlfile;
+        pos = refsName.lastIndexOf(".mdl");
+        if (pos != -1) refsName.replace(pos, 4, "_refs.txt");
+
+        bool bForceCompile = Force2UVsIfRequired(refsName, global2UVMaterials, global2UVMaterialFilepath);
+        mdlForceCompile[m] = bForceCompile;
+    }
+
+    if (QFile::exists(global2UVMaterialFilepath)) {
+        QStringList force2UVListFile = ReadTextFile(global2UVMaterialFilepath);
+        for (const QString& mtl : force2UVListFile) {
+            ForceUV2ForVMAT(mtl);
+        }
+    }
 
     for (const QString& mtlfile : mdlmtls) {
         if (Miscellaneous::cancel_import) return;
@@ -312,11 +352,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
 
         if (!QFile::exists(outName)) continue;
 
-        QString refsName = m_options.s2contentdir + "\\" + mdlfile;
-        pos = refsName.lastIndexOf(".mdl");
-        if (pos != -1) refsName.replace(pos, 4, "_refs.txt");
-
-        bool bForceCompile = Force2UVsIfRequired(refsName, global2UVMaterials, global2UVMaterialFilepath);
+        bool bForceCompile = mdlForceCompile.value(m, false);
 
         QString resCompCmd;
         if (bForceCompile) {
@@ -354,6 +390,7 @@ void MapImporter::ImportAndCompileMapRefs(const QString& refsFile) {
     if (writeFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream out(&writeFile);
         out << newList;
+        writeFile.close();
     }
 
     QString compilercmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo -f -filelist \"" + tmpFile + "\"";
