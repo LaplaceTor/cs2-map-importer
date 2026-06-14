@@ -326,7 +326,7 @@ void VmfBspProcess::process_bsp(AppCore::Options& options) {
     QDir().mkpath(maps_dir);
 
     QString vmf_dest = QDir(maps_dir).filePath(options.map_name + ".vmf");
-    QString bspsrc_jar = QDir(app_dir).filePath("bspsrc.jar");
+    QString bspsrc_jar = QDir(app_dir).filePath("bin/bspsrc.jar");
 
     if (!QFile::exists(bspsrc_jar)) {
         throw AppException("Could not find bspsrc.jar at " + bspsrc_jar);

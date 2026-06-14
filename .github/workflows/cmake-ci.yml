@@ -44,7 +44,6 @@ jobs:
       run: |
         mkdir release
         Copy-Item build\Release\cs2importer.exe release\
-        Copy-Item bspsrc\bspsrc.jar release\
         windeployqt --qmldir src/qml release\cs2importer.exe
 
         Remove-Item -Path release\translations -Recurse -Force -ErrorAction SilentlyContinue
@@ -52,6 +51,7 @@ jobs:
         Remove-Item -Path release\imageformats -Recurse -Force -ErrorAction SilentlyContinue
 
         Copy-Item -Path bin -Destination release\bin -Recurse
+        Copy-Item bspsrc\bspsrc.jar release\bin\
         cd release
         7z a cs2importer.zip *
 
