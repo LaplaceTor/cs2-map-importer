@@ -29,19 +29,19 @@ Backend::Backend(QObject *parent) :
 {
     app_dir = QCoreApplication::applicationDirPath();
 
-    log("Initializing CS2 Importer...");
+    Miscellaneous::log("Initializing CS2 Importer...");
 
     java_installed = Miscellaneous::check_java();
 
     get_launch_options();
 
     if (!java_installed) {
-        log("Warning: Java is missing. BSP decompilation disabled.");
+        Miscellaneous::log("Warning: Java is missing. BSP decompilation disabled.");
     }
 
     load_from_cfg();
 
-    log("Initializing CS2 Importer... Finished");
+    Miscellaneous::log("Initializing CS2 Importer... Finished");
 }
 
 Backend::~Backend()
@@ -59,7 +59,7 @@ Backend::~Backend()
     }
 }
 
-void Backend::log(const QString& message)
+void Backend::log_internal(const QString& message)
 {
     emit logMessage(message);
 
@@ -374,7 +374,7 @@ void Backend::select_vmf_dialog(const QUrl& url)
     addon_name = "";
     emit addonNameChanged();
 
-    log("VMF set up at: " + target_vmf_path);
+    Miscellaneous::log("VMF set up at: " + target_vmf_path);
 
     updateCanGo();
 }
@@ -542,7 +542,7 @@ void Backend::start()
         is_going = true;
         updateCanGo();
 
-        log("Starting Miscellaneous thread...");
+        Miscellaneous::log("Starting Miscellaneous thread...");
 
         Miscellaneous::Options opts;
         opts.cs2_basefolder = cs2_basefolder;
@@ -558,10 +558,6 @@ void Backend::start()
         opts.usebsp = usebsp && !usebsp_nomergeinstances;
         opts.usebsp_nomergeinstances = usebsp && usebsp_nomergeinstances;
         opts.skipdeps = skipdeps;
-
-        Miscellaneous::global_logger = [this](const QString& msg) {
-            QMetaObject::invokeMethod(this, "log", Qt::QueuedConnection, Q_ARG(QString, msg));
-        };
 
         QThread* workerThread = QThread::create([this, opts]() mutable {
             bool success = true;
@@ -619,9 +615,9 @@ void Backend::start()
                 updateCanGo();
 
                 if (success) {
-                    log("MapImporter thread finished successfully.");
+                    Miscellaneous::log("MapImporter thread finished successfully.");
                 } else {
-                    log("MapImporter thread finished with errors.");
+                    Miscellaneous::log("MapImporter thread finished with errors.");
                 }
 
                 if (log_stream) {
@@ -642,7 +638,7 @@ void Backend::start()
         workerThread->start();
 
     } catch (const AppException& e) {
-        log(QString("Error: %1").arg(e.message()));
+        Miscellaneous::log(QString("Error: %1").arg(e.message()));
         emit alertMessage("Error", e.message());
     }
 }
@@ -650,7 +646,7 @@ void Backend::start()
 void Backend::stop()
 {
     if (is_going) {
-        log("Cancelling import...");
+        Miscellaneous::log("Cancelling import...");
         Miscellaneous::cancel_all();
     }
 }
