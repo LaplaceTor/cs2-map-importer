@@ -39,6 +39,13 @@ jobs:
         Expand-Archive -Path bspsrc.zip -DestinationPath bspsrc
         # It will be placed next to the built executable later
 
+    - name: Download vpkeditcli
+      shell: pwsh
+      run: |
+        Invoke-WebRequest -Uri "https://github.com/craftablescience/VPKEdit/releases/latest/download/VPKEdit-Windows-Standalone-Compatibility-msvc-Release.zip" -OutFile "vpkedit.zip"
+        Expand-Archive -Path vpkedit.zip -DestinationPath vpkedit
+        Copy-Item vpkedit\vpkeditcli.exe bin\
+
     - name: Prepare Release Artifacts
       shell: pwsh
       run: |

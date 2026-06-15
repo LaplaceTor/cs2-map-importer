@@ -38,6 +38,13 @@ jobs:
       run: |
         Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip" -OutFile "bspsrc.zip"
         Expand-Archive -Path bspsrc.zip -DestinationPath bspsrc
+    
+    - name: Download vpkeditcli
+      shell: pwsh
+      run: |
+        Invoke-WebRequest -Uri "https://github.com/craftablescience/VPKEdit/releases/latest/download/VPKEdit-Windows-Standalone-Compatibility-msvc-Release.zip" -OutFile "vpkedit.zip"
+        Expand-Archive -Path vpkedit.zip -DestinationPath vpkedit
+        Copy-Item vpkedit\vpkeditcli.exe bin\
 
     - name: Prepare Artifacts
       shell: pwsh
