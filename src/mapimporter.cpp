@@ -120,11 +120,14 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
 }
 
 void MapImporter::ExtractFromVPK(const QString& filepath) {
+    QFileInfo fi(filepath);
+    QString expectedBase = fi.baseName();
     QString vpkName = (m_options.s1gamename == "css") ? "cstrike_pak_dir.vpk" : "pak01_dir.vpk";
     QString vpkPath = QDir(m_options.s1gamedir).filePath(vpkName);
     vpkPath.replace('/', '\\');
 
     QString cmd = "\"bin\\vpkeditcli.exe --file-tree \"" + vpkPath + "\" | find \"" + expectedBase + "\"\"";
+    Miscellaneous::run_command_sync(cmd);
 }
 
 void MapImporter::ForceUV2ForVMAT(const QString& mtlfile) {
