@@ -81,6 +81,10 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
         QString lowerRef = cleanedRef.toLower();
         if (lowerRef.contains(".mdl")) {
             mdls.append(cleanedRef);
+            QString fullPath = QDir(m_options.s1gamedir).filePath(cleanedRef);
+            if (!QFileInfo::exists(fullPath)) {
+                ExtractFromVPK(cleanedRef);
+            }
         } else {
             others.append(cleanedRef);
         }
@@ -113,6 +117,14 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
         out << "}\n";
         refFile.close();
     }
+}
+
+void MapImporter::ExtractFromVPK(const QString& filepath) {
+    QString vpkName = (m_options.s1gamename == "css") ? "cstrike_pak_dir.vpk" : "pak01_dir.vpk";
+    QString vpkPath = QDir(m_options.s1gamedir).filePath(vpkName);
+    vpkPath.replace('/', '\\');
+
+    QString cmd = "\"bin\\vpkeditcli.exe --file-tree \"" + vpkPath + "\" | find \"" + expectedBase + "\"\"";
 }
 
 void MapImporter::ForceUV2ForVMAT(const QString& mtlfile) {
