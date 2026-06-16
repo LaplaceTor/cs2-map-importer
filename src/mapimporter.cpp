@@ -81,7 +81,7 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
         QString lowerRef = cleanedRef.toLower();
         if (lowerRef.contains(".mdl")) {
             mdls.append(cleanedRef);
-            QString fullPath = QDir(m_options.s1gamedir).filePath(cleanedRef);
+            QString fullPath = QDir(m_options.s1contentdir).filePath(cleanedRef);
             if (!QFileInfo::exists(fullPath)) {
                 ExtractFromVPK(cleanedRef);
             }
@@ -121,14 +121,35 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
 
 void MapImporter::ExtractFromVPK(const QString& filepath) {
     QFileInfo fi(filepath);
-    QString expectedBase = fi.baseName();
+    QString basePath = fi.path() + "/" + fi.baseName();
     QString vpkName = (m_options.s1gamename == "css") ? "cstrike_pak_dir.vpk" : "pak01_dir.vpk";
     QString vpkPath = QDir(m_options.s1gamedir).filePath(vpkName);
-    vpkPath.replace('/', '\\');
+    QString contentPath = QDir(m_options.s1contentdir).filePath(filepath);
+    QString outPath = QDir(m_options.s1gamedir).filePath(filepath);
 
-    QString cmd = "\"bin\\vpkeditcli.exe --file-tree \"" + vpkPath + "\" | find \"" + expectedBase + "\"\"";
+    QString cmd = "\"bin\\vpkeditcli.exe\" -e \"" + filepath + "\" \"" + vpkPath + "\" -o \"" + contentPath + "\"";
+    cmd = cmd.replace("/", "\\");
     Miscellaneous::run_command_sync(cmd);
+
+    if (QFile::exists(contentPath)) {
+        QFile::copy(contentPath, outPath);
+        
+        QStringList extlist = {"vvd","phy","sw.vtx","dx80.vtx","dx90.vtx","ani"};
+        for (const QString& ext : extlist) {
+            QString target = basePath + "." + ext;
+            contentPath = QDir(m_options.s1contentdir).filePath(target);
+            cmd = "\"bin\\vpkeditcli.exe\" -e \"" + target + "\" \"" + vpkPath + "\" -o \"" + contentPath + "\"";
+            cmd = cmd.replace("/", "\\");
+            Miscellaneous::run_command_sync(cmd);
+
+            outPath = QDir(m_options.s1gamedir).filePath(target);
+            if (QFile::exists(contentPath)) {
+                QFile::copy(contentPath, outPath);
+            }
+        }
+    }
 }
+
 
 void MapImporter::ForceUV2ForVMAT(const QString& mtlfile) {
     QString vmat = mtlfile;
