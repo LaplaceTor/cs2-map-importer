@@ -133,7 +133,7 @@ void MapImporter::ExtractFromVPK(const QString& filepath) {
 
     if (QFile::exists(contentPath)) {
         QFile::copy(contentPath, outPath);
-        
+
         QStringList extlist = {"vvd","phy","sw.vtx","dx80.vtx","dx90.vtx","ani"};
         for (const QString& ext : extlist) {
             QString target = basePath + "." + ext;
@@ -433,6 +433,11 @@ void MapImporter::ImportAndCompileMapRefs(const QString& refsFile) {
     Miscellaneous::run_command_sync(compilercmd);
 }
 
+void MapImporter::ImportParticles(){
+    
+}
+
+
 bool MapImporter::Run() {
     if (Miscellaneous::cancel_import) return false;
     Miscellaneous::log("Starting Map Import process via C++.");
@@ -462,7 +467,7 @@ bool MapImporter::Run() {
         StripMDLsFromRefs(m_options.s2contentdir + "\\maps\\" + m_mapname + "_refs.txt");
         ImportAndCompileMapMDLs(m_options.s2contentdir + "\\maps\\" + m_mapname + "_mdl_lst.txt");
         ImportAndCompileMapRefs(m_options.s2contentdir + "\\maps\\" + m_mapname + "_new_refs.txt");
-
+        ImportParticles();
         Miscellaneous::run_command_sync(mapImportCmd);
     }
 

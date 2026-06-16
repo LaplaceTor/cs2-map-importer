@@ -41,6 +41,7 @@ private:
     bool Force2UVsIfRequired(const QString& refsName, QSet<QString>& global2UVMaterials, QString& global2UVMaterialsFilepath);
     void ImportAndCompileMapMDLs(const QString& filename);
     void ImportAndCompileMapRefs(const QString& refsFile);
+    void ImportParticles();
 };
 
 #endif // MAPIMPORTER_H
