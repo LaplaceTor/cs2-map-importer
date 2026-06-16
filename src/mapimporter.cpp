@@ -434,7 +434,37 @@ void MapImporter::ImportAndCompileMapRefs(const QString& refsFile) {
 }
 
 void MapImporter::ImportParticles(){
-    
+    QDir mapsDir(m_options.s1contentdir + "\\maps");
+    if (!mapsDir.exists()) {
+        return;
+    }
+
+    QStringList nameFilters;
+    nameFilters << "*_particles.txt";
+    QFileInfoList particleFiles = mapsDir.entryInfoList(nameFilters, QDir::Files);
+
+    if (particleFiles.isEmpty()) {
+        return;
+    }
+
+    Miscellaneous::log("Importing particles...");
+
+    for (const QFileInfo& fileInfo : particleFiles) {
+        if (Miscellaneous::cancel_import) return;
+
+        QStringList lines = ReadTextFile(fileInfo.absoluteFilePath());
+        for (const QString& line : lines) {
+            if (Miscellaneous::cancel_import) return;
+
+            QString cleanedPath = CleanRefPath(line);
+            if (cleanedPath.isEmpty()) continue;
+
+            cleanedPath.replace('/', '\\');
+
+            QString importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo \"" + m_options.s1gamedir + "\\" + cleanedPath + "\"";
+            Miscellaneous::run_command_sync(importCmd);
+        }
+    }
 }
 
 
