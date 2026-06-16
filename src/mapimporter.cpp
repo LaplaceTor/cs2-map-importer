@@ -133,7 +133,7 @@ void MapImporter::ExtractFromVPK(const QString& filepath) {
 
     if (QFile::exists(contentPath)) {
         QFile::copy(contentPath, outPath);
-        
+
         QStringList extlist = {"vvd","phy","sw.vtx","dx80.vtx","dx90.vtx","ani"};
         for (const QString& ext : extlist) {
             QString target = basePath + "." + ext;
@@ -433,6 +433,41 @@ void MapImporter::ImportAndCompileMapRefs(const QString& refsFile) {
     Miscellaneous::run_command_sync(compilercmd);
 }
 
+void MapImporter::ImportParticles(){
+    QDir mapsDir(m_options.s1contentdir + "\\maps");
+    if (!mapsDir.exists()) {
+        return;
+    }
+
+    QStringList nameFilters;
+    nameFilters << "*_particles.txt";
+    QFileInfoList particleFiles = mapsDir.entryInfoList(nameFilters, QDir::Files);
+
+    if (particleFiles.isEmpty()) {
+        return;
+    }
+
+    Miscellaneous::log("Importing particles...");
+
+    for (const QFileInfo& fileInfo : particleFiles) {
+        if (Miscellaneous::cancel_import) return;
+
+        QStringList lines = ReadTextFile(fileInfo.absoluteFilePath());
+        for (const QString& line : lines) {
+            if (Miscellaneous::cancel_import) return;
+
+            QString cleanedPath = CleanRefPath(line);
+            if (cleanedPath.isEmpty()) continue;
+
+            cleanedPath.replace('/', '\\');
+
+            QString importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo \"" + m_options.s1gamedir + "\\" + cleanedPath + "\"";
+            Miscellaneous::run_command_sync(importCmd);
+        }
+    }
+}
+
+
 bool MapImporter::Run() {
     if (Miscellaneous::cancel_import) return false;
     Miscellaneous::log("Starting Map Import process via C++.");
@@ -462,7 +497,7 @@ bool MapImporter::Run() {
         StripMDLsFromRefs(m_options.s2contentdir + "\\maps\\" + m_mapname + "_refs.txt");
         ImportAndCompileMapMDLs(m_options.s2contentdir + "\\maps\\" + m_mapname + "_mdl_lst.txt");
         ImportAndCompileMapRefs(m_options.s2contentdir + "\\maps\\" + m_mapname + "_new_refs.txt");
-
+        ImportParticles();
         Miscellaneous::run_command_sync(mapImportCmd);
     }
 

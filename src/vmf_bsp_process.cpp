@@ -421,5 +421,12 @@ void VmfBspProcess::process_bsp(Miscellaneous::Options& options) {
             Miscellaneous::log("Copying models to " + dest_models);
             copyDirectoryRecursively(src_models, dest_models);
         }
+
+        QString src_particles = QDir(target_unpacked_dir).filePath("particles");
+        QString dest_particles = QDir(s1gamedir).filePath("particles");
+        if (QDir(src_particles).exists()) {
+            Miscellaneous::log("Copying particles to " + dest_particles);
+            copyDirectoryRecursively(src_particles, dest_particles);
+        }
     }
 }
