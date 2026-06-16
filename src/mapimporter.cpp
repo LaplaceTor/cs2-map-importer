@@ -434,24 +434,36 @@ void MapImporter::ImportAndCompileMapRefs(const QString& refsFile) {
 }
 
 void MapImporter::ImportParticles(){
-    QString particlesListFile = m_options.s1contentdir + "\\maps\\" + m_options.mapname + "_particles.txt";
-    if (!QFile::exists(particlesListFile)) {
+    QDir mapsDir(m_options.s1contentdir + "\\maps");
+    if (!mapsDir.exists()) {
+        return;
+    }
+
+    QStringList nameFilters;
+    nameFilters << "*_particles.txt";
+    QFileInfoList particleFiles = mapsDir.entryInfoList(nameFilters, QDir::Files);
+
+    if (particleFiles.isEmpty()) {
         return;
     }
 
     Miscellaneous::log("Importing particles...");
 
-    QStringList lines = ReadTextFile(particlesListFile);
-    for (const QString& line : lines) {
+    for (const QFileInfo& fileInfo : particleFiles) {
         if (Miscellaneous::cancel_import) return;
 
-        QString cleanedPath = CleanRefPath(line);
-        if (cleanedPath.isEmpty()) continue;
+        QStringList lines = ReadTextFile(fileInfo.absoluteFilePath());
+        for (const QString& line : lines) {
+            if (Miscellaneous::cancel_import) return;
 
-        cleanedPath.replace('/', '\\');
+            QString cleanedPath = CleanRefPath(line);
+            if (cleanedPath.isEmpty()) continue;
 
-        QString importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo \"" + m_options.s1gamedir + "\\" + cleanedPath + "\"";
-        Miscellaneous::run_command_sync(importCmd);
+            cleanedPath.replace('/', '\\');
+
+            QString importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo \"" + m_options.s1gamedir + "\\" + cleanedPath + "\"";
+            Miscellaneous::run_command_sync(importCmd);
+        }
     }
 }
 
