@@ -1,6 +1,7 @@
 #include "mapimporter.h"
 #include "miscellaneous.h"
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QTextStream>
@@ -434,7 +435,26 @@ void MapImporter::ImportAndCompileMapRefs(const QString& refsFile) {
 }
 
 void MapImporter::ImportParticles(){
-    
+    QString particlesDirStr = m_options.s1contentdir + "\\particles";
+    QDir particlesDir(particlesDirStr);
+
+    if (!particlesDir.exists()) {
+        return;
+    }
+
+    Miscellaneous::log("Importing particles...");
+
+    QDirIterator it(particlesDirStr, QStringList() << "*.pcf", QDir::Files, QDirIterator::Subdirectories);
+    while (it.hasNext()) {
+        if (Miscellaneous::cancel_import) return;
+        it.next();
+        QString filePath = it.filePath();
+        QString relativePath = particlesDir.relativeFilePath(filePath);
+        relativePath.replace('/', '\\');
+
+        QString importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo \"" + m_options.s1gamedir + "\\particles\\" + relativePath + "\"";
+        Miscellaneous::run_command_sync(importCmd);
+    }
 }
 
 
