@@ -456,7 +456,13 @@ void MapImporter::ImportParticles(){
         for (const QString& line : lines) {
             if (Miscellaneous::cancel_import) return;
 
-            QString cleanedPath = CleanRefPath(line);
+            QString trimmedLine = line.trimmed();
+            if (!trimmedLine.startsWith("file", Qt::CaseInsensitive)) continue;
+
+            QString cleanedPath = trimmedLine.mid(4).trimmed();
+            if (cleanedPath.startsWith('"') && cleanedPath.endsWith('"')) {
+                cleanedPath = cleanedPath.mid(1, cleanedPath.length() - 2);
+            }
             if (cleanedPath.isEmpty()) continue;
 
             cleanedPath.replace('/', '\\');
