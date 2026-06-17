@@ -518,7 +518,7 @@ void MapImporter::ImportParticles(){
     }
 }
 
-void MapImporter::ImportSounds(const QString& target_mapname) {
+void MapImporter::ImportSounds() {
     QDir scriptsDir(m_options.s1contentdir + "\\scripts");
     if (!scriptsDir.exists()) {
         return;
@@ -545,11 +545,8 @@ void MapImporter::ImportSounds(const QString& target_mapname) {
                 QRegularExpressionMatch match = waveRegex.match(line);
                 if (match.hasMatch()) {
                     QString wavePath = match.captured(1);
+                    wavePath = "sound/" + wavePath;
                     wavePath.replace("\\", "/");
-
-                    if (!wavePath.startsWith("sound/", Qt::CaseInsensitive)) {
-                        wavePath = "sound/" + wavePath;
-                    }
 
                     uniqueSounds.insert(wavePath);
                 }
@@ -557,7 +554,7 @@ void MapImporter::ImportSounds(const QString& target_mapname) {
         }
 
         if (!uniqueSounds.isEmpty()) {
-            QString soundListFile = m_options.s2contentdir + "\\maps\\" + target_mapname + "_sound_list.txt";
+            QString soundListFile = m_options.s2contentdir + "\\maps\\" + m_options.mapname + "_sound_list.txt";
             EnsureFileWritable(soundListFile);
             QFile writeFile(soundListFile);
             if (writeFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -618,7 +615,7 @@ bool MapImporter::Run() {
         ImportAndCompileMapMDLs(m_options.s2contentdir + "\\maps\\" + m_mapname + "_mdl_lst.txt");
         ImportAndCompileMapRefs(m_options.s2contentdir + "\\maps\\" + m_mapname + "_new_refs.txt");
         ImportParticles();
-        ImportSounds(m_mapname);
+        ImportSounds();
         Miscellaneous::run_command_sync(mapImportCmd);
     }
 

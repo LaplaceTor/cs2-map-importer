@@ -44,7 +44,7 @@ private:
     void ImportAndCompileMapMDLs(const QString& filename);
     void ImportAndCompileMapRefs(const QString& refsFile);
     void ImportParticles();
-    void ImportSounds(const QString& target_mapname);
+    void ImportSounds();
 };
 
 #endif // MAPIMPORTER_H
