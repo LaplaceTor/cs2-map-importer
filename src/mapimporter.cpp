@@ -83,7 +83,7 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
             mdls.append(cleanedRef);
             QString fullPath = QDir(m_options.s1contentdir).filePath(cleanedRef);
             if (!QFileInfo::exists(fullPath)) {
-                ExtractFromVPK(cleanedRef);
+                ExtractModelFromVPK(cleanedRef);
             }
         } else {
             others.append(cleanedRef);
@@ -119,7 +119,7 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
     }
 }
 
-void MapImporter::ExtractFromVPK(const QString& filepath) {
+void MapImporter::ExtractModelFromVPK(const QString& filepath) {
     QFileInfo fi(filepath);
     QString basePath = fi.path() + "/" + fi.baseName();
     QString vpkName = (m_options.s1gamename == "css") ? "cstrike_pak_dir.vpk" : "pak01_dir.vpk";
@@ -147,6 +147,21 @@ void MapImporter::ExtractFromVPK(const QString& filepath) {
                 QFile::copy(contentPath, outPath);
             }
         }
+    }
+}
+
+void MapImporter::ExtractParticleFromVPK(const QString& filepath) {
+    QString vpkName = (m_options.s1gamename == "css") ? "cstrike_pak_dir.vpk" : "pak01_dir.vpk";
+    QString vpkPath = QDir(m_options.s1gamedir).filePath(vpkName);
+    QString contentPath = QDir(m_options.s1contentdir).filePath(filepath);
+    QString outPath = QDir(m_options.s1gamedir).filePath(filepath);
+
+    QString cmd = "\"bin\\vpkeditcli.exe\" -e \"" + filepath + "\" \"" + vpkPath + "\" -o \"" + contentPath + "\"";
+    cmd = cmd.replace("/", "\\");
+    Miscellaneous::run_command_sync(cmd);
+
+    if (QFile::exists(contentPath)) {
+        QFile::copy(contentPath, outPath);
     }
 }
 
@@ -465,9 +480,15 @@ void MapImporter::ImportParticles(){
             }
             if (cleanedPath.isEmpty()) continue;
 
-            cleanedPath.replace('/', '\\');
+            QString fullPath = QDir(m_options.s1contentdir).filePath(cleanedPath).replace('/', '\\');
 
-            QString importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo \"" + m_options.s1gamedir + "\\" + cleanedPath + "\"";
+            if(!QDir(fullPath).exists()){
+                ExtractParticleFromVPK(cleanedPath);
+                if(!QDir(fullPath).exists()) continue;
+            }
+
+            cleanedPath.replace('/', '\\');
+            QString importCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + m_options.s1gamedir + "\" -s2addon " + m_options.s2addonname + " -game csgo \"" + cleanedPath + "\"";
             Miscellaneous::run_command_sync(importCmd);
         }
     }
