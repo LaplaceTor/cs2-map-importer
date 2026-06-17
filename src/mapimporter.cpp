@@ -533,7 +533,7 @@ void MapImporter::ImportSounds(const QString& target_mapname) {
 
         QSet<QString> uniqueSounds;
 
-        QRegularExpression waveRegex("\"wave\"\\s+\"([^\"]+)\"");
+        QRegularExpression waveRegex("\"wave\"\\s+\"([^\"]+)\"", QRegularExpression::CaseInsensitiveOption);
 
         for (const QFileInfo& fileInfo : soundscapeFiles) {
             if (Miscellaneous::cancel_import) return;
