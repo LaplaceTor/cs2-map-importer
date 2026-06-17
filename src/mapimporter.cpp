@@ -161,10 +161,34 @@ void MapImporter::ExtractParticleFromVPK(const QString& filepath) {
     Miscellaneous::run_command_sync(cmd);
 
     if (QFile::exists(contentPath)) {
+        QFileInfo fi(outPath);
+        QDir().mkpath(fi.absolutePath());
+        if (QFile::exists(outPath)) {
+            QFile::remove(outPath);
+        }
         QFile::copy(contentPath, outPath);
     }
 }
 
+void MapImporter::ExtractSoundFromVPK(const QString& filepath) {
+    QString vpkName = (m_options.s1gamename == "css") ? "cstrike_pak_dir.vpk" : "pak01_dir.vpk";
+    QString vpkPath = QDir(m_options.s1gamedir).filePath(vpkName);
+    QString contentPath = QDir(m_options.s1contentdir).filePath(filepath);
+    QString outPath = QDir(m_options.s1gamedir).filePath(filepath);
+
+    QString cmd = "\"bin\\vpkeditcli.exe\" -e \"" + filepath + "\" \"" + vpkPath + "\" -o \"" + contentPath + "\"";
+    cmd = cmd.replace("/", "\\");
+    Miscellaneous::run_command_sync(cmd);
+
+    if (QFile::exists(contentPath)) {
+        QFileInfo fi(outPath);
+        QDir().mkpath(fi.absolutePath());
+        if (QFile::exists(outPath)) {
+            QFile::remove(outPath);
+        }
+        QFile::copy(contentPath, outPath);
+    }
+}
 
 void MapImporter::ForceUV2ForVMAT(const QString& mtlfile) {
     QString vmat = mtlfile;
@@ -494,6 +518,75 @@ void MapImporter::ImportParticles(){
     }
 }
 
+void MapImporter::ImportSounds(const QString& target_mapname) {
+    QDir scriptsDir(m_options.s1contentdir + "\\scripts");
+    if (!scriptsDir.exists()) {
+        return;
+    }
+
+    QStringList nameFilters;
+    nameFilters << "soundscapes_*.txt";
+    QFileInfoList soundscapeFiles = scriptsDir.entryInfoList(nameFilters, QDir::Files);
+
+    if (!soundscapeFiles.isEmpty()) {
+        Miscellaneous::log("Importing sounds...");
+
+        QSet<QString> uniqueSounds;
+
+        QRegularExpression waveRegex("\"wave\"\\s+\"([^\"]+)\"");
+
+        for (const QFileInfo& fileInfo : soundscapeFiles) {
+            if (Miscellaneous::cancel_import) return;
+
+            QStringList lines = ReadTextFile(fileInfo.absoluteFilePath());
+            for (const QString& line : lines) {
+                if (Miscellaneous::cancel_import) return;
+
+                QRegularExpressionMatch match = waveRegex.match(line);
+                if (match.hasMatch()) {
+                    QString wavePath = match.captured(1);
+                    wavePath.replace("\\", "/");
+
+                    if (!wavePath.startsWith("sound/", Qt::CaseInsensitive)) {
+                        wavePath = "sound/" + wavePath;
+                    }
+
+                    uniqueSounds.insert(wavePath);
+                }
+            }
+        }
+
+        if (!uniqueSounds.isEmpty()) {
+            QString soundListFile = m_options.s2contentdir + "\\maps\\" + target_mapname + "_sound_list.txt";
+            EnsureFileWritable(soundListFile);
+            QFile writeFile(soundListFile);
+            if (writeFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream out(&writeFile);
+                for (const QString& sound : uniqueSounds) {
+                    out << sound << "\n";
+                }
+                writeFile.close();
+            }
+
+            for (const QString& sound : uniqueSounds) {
+                if (Miscellaneous::cancel_import) return;
+
+                QString fullPath = QDir(m_options.s1contentdir).filePath(sound);
+
+                if (!QFile::exists(fullPath)) {
+                    ExtractSoundFromVPK(sound);
+                }
+            }
+        }
+    }
+
+    QString sourceSoundDir = m_options.s1contentdir + "\\sound";
+    QString destSoundDir = m_options.s2contentdir + "\\sounds";
+
+    if (QDir(sourceSoundDir).exists()) {
+        copyDirectoryRecursively(sourceSoundDir, destSoundDir);
+    }
+}
 
 bool MapImporter::Run() {
     if (Miscellaneous::cancel_import) return false;
@@ -525,6 +618,7 @@ bool MapImporter::Run() {
         ImportAndCompileMapMDLs(m_options.s2contentdir + "\\maps\\" + m_mapname + "_mdl_lst.txt");
         ImportAndCompileMapRefs(m_options.s2contentdir + "\\maps\\" + m_mapname + "_new_refs.txt");
         ImportParticles();
+        ImportSounds(m_mapname);
         Miscellaneous::run_command_sync(mapImportCmd);
     }
 
