@@ -480,11 +480,11 @@ void MapImporter::ImportParticles(){
             }
             if (cleanedPath.isEmpty()) continue;
 
-            QString fullPath = QDir(m_options.s1contentdir).filePath(cleanedPath).replace('/', '\\');
-
-            if(!QDir(fullPath).exists()){
+            QString fullPath = QDir(m_options.s1contentdir).filePath(cleanedPath);
+            
+            if(!QFile::exists(fullPath)){
                 ExtractParticleFromVPK(cleanedPath);
-                if(!QDir(fullPath).exists()) continue;
+                if(!QFile::exists(fullPath)) continue;
             }
 
             cleanedPath.replace('/', '\\');
