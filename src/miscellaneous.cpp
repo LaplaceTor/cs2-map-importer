@@ -86,9 +86,7 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
     process.start();
 
     QString lineBuffer;
-    bool answeredPrompt = false;
     bool isSource1Import = cmd.contains("source1import.exe");
-    bool checkingPrompt = false;
 
     auto processOutput = [&](const QString& outStr) {
         for (QChar c : outStr) {
@@ -97,13 +95,6 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
                 if (!lineBuffer.isEmpty()) {
                     Miscellaneous::log(lineBuffer);
                 }
-                if (isSource1Import && !answeredPrompt) {
-                    if (lineBuffer.contains("Adding Search Path")) {
-                        checkingPrompt = true;
-                    } else if (lineBuffer.contains("Building file list...")) {
-                        checkingPrompt = false;
-                    }
-                }
                 lineBuffer.clear();
             } else {
                 lineBuffer += c;
@@ -111,7 +102,7 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
         }
     };
 
-    while (process.waitForReadyRead(100) || process.state() != QProcess::NotRunning) {
+    while (process.waitForReadyRead(10000) || process.state() != QProcess::NotRunning) {
         if (cancel_import) {
             process.kill();
             return -1;
@@ -121,11 +112,9 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
             processOutput(QString(output));
         } else {
             // Timed out waiting for output
-            if (isSource1Import && !answeredPrompt && checkingPrompt && process.state() == QProcess::Running) {
+            if (isSource1Import && process.state() == QProcess::Running) {
                 // We're likely stuck at the invisible "Are you sure you want to continue?" prompt
                 process.write("y\n");
-                answeredPrompt = true;
-                checkingPrompt = false; // Stop checking
             }
         }
     }

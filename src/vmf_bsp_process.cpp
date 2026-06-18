@@ -334,53 +334,30 @@ void VmfBspProcess::process_bsp(Miscellaneous::Options& options) {
 
     Miscellaneous::log("Decompiling BSP: " + options.bsp_file);
 
-    QString decomp_cmd = "java -jar \"" + bspsrc_jar + "\" \"" + options.bsp_file + "\" -o \"" + vmf_dest + "\" --unpack_embedded";
+    QString decomp_cmd = "java -jar \"" + bspsrc_jar + "\" \"" + options.bsp_file + "\" -o \"" + vmf_dest + "\"";
     int ret = Miscellaneous::run_command_sync(decomp_cmd);
     if (Miscellaneous::cancel_import) return;
     if (ret != 0) {
         throw AppException("BSP Decompilation failed.");
     }
 
-    QString unpacked_dir;
-    QStringList possible_locations = {
-        QDir::current().filePath(options.map_name),
-        QDir(app_dir).filePath(options.map_name),
-        QFileInfo(options.bsp_file).absoluteDir().filePath(options.map_name),
-        QDir(maps_dir).filePath(options.map_name)
-    };
-
-    for (const QString& loc : possible_locations) {
-        if (QDir(loc).exists()) {
-            unpacked_dir = loc;
-            break;
-        }
-    }
-
     QString target_unpacked_dir = QDir(maps_dir).filePath(options.map_name);
-    if (!unpacked_dir.isEmpty()) {
-        Miscellaneous::log("Found unpacked files at " + unpacked_dir);
 
-        if (unpacked_dir != target_unpacked_dir) {
-            if (QDir(target_unpacked_dir).exists()) {
-                QDir(target_unpacked_dir).removeRecursively();
-            }
-            if (QDir().rename(unpacked_dir, target_unpacked_dir)) {
-                Miscellaneous::log("Moved unpacked directory to " + target_unpacked_dir);
-            } else {
-                Miscellaneous::log("Failed to rename unpacked directory to " + target_unpacked_dir + ". Attempting recursive copy...");
-                if (copyDirectoryRecursively(unpacked_dir, target_unpacked_dir)) {
-                    if (QDir(unpacked_dir).removeRecursively()) {
-                        Miscellaneous::log("Successfully copied and removed original unpacked directory.");
-                    } else {
-                        Miscellaneous::log("Successfully copied but failed to remove original unpacked directory: " + unpacked_dir);
-                    }
-                } else {
-                    Miscellaneous::log("Failed to copy unpacked directory.");
-                }
-            }
-        }
+    QString vpkeditcli_exe = QDir(app_dir).filePath("bin/vpkeditcli.exe");
+#ifdef Q_OS_WIN
+    vpkeditcli_exe = QDir::toNativeSeparators(vpkeditcli_exe);
+#endif
+    if (!QFile::exists(vpkeditcli_exe)) {
+        Miscellaneous::log("Warning: Could not find vpkeditcli.exe at " + vpkeditcli_exe);
     } else {
-        Miscellaneous::log("Could not find unpacked embedded files directory '" + options.map_name + "'");
+        Miscellaneous::log("Extracting embedded files using vpkeditcli...");
+        QString vpk_cmd = "\"" + vpkeditcli_exe + "\" -e \"/\" -o \"" + maps_dir + "\" \"" + options.bsp_file + "\"";
+        int vpk_ret = Miscellaneous::run_command_sync(vpk_cmd);
+        if (vpk_ret != 0) {
+            Miscellaneous::log("Warning: vpkeditcli failed to extract embedded files.");
+        } else {
+            Miscellaneous::log("Successfully extracted embedded files to " + target_unpacked_dir);
+        }
     }
 
     fix_vmf_from_bsp(vmf_dest);
@@ -404,7 +381,14 @@ void VmfBspProcess::process_bsp(Miscellaneous::Options& options) {
     Miscellaneous::log("Decompiled and prepared at: " + final_vmf_dest);
 
     // Copy materials and models to s1gamedir
-    QString s1_subfolder = (options.s1_game_type == "css") ? "cstrike" : "csgo";
+    QString s1_subfolder = "csgo";
+    if (options.s1_game_type == "css") s1_subfolder = "cstrike";
+    else if (options.s1_game_type == "hl2") s1_subfolder = "hl2";
+    else if (options.s1_game_type == "l4d") s1_subfolder = "left4dead";
+    else if (options.s1_game_type == "l4d2") s1_subfolder = "left4dead2";
+    else if (options.s1_game_type == "portal") s1_subfolder = "portal";
+    else if (options.s1_game_type == "portal2") s1_subfolder = "portal2";
+    else if (options.s1_game_type == "tf2") s1_subfolder = "tf";
     QString s1gamedir = QDir(options.s1game_basefolder).filePath(s1_subfolder);
 
     if (QDir(target_unpacked_dir).exists()) {
