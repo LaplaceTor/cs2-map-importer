@@ -160,8 +160,6 @@ void SoundscapeImport::ImportSoundscapes(MapImporter* importer, const MapImporte
         return;
     }
 
-    Miscellaneous::log("Importing sounds...");
-
     for (const QFileInfo& fileInfo : soundscapeFiles) {
         if (Miscellaneous::cancel_import) return;
 

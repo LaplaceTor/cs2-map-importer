@@ -520,6 +520,8 @@ void MapImporter::ImportParticles(){
 }
 
 void MapImporter::ImportSounds() {
+    Miscellaneous::log("Importing sounds...");
+    
     QSet<QString> uniqueSounds;
     SoundscapeImport::ImportSoundscapes(this, m_options, uniqueSounds);
 
