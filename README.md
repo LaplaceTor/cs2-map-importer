@@ -7,11 +7,10 @@ This project was previously a Python program (forked from sarim's importer) but 
 ## Features
 
 - **Modern GUI:** Clean, easy-to-use graphical interface built with Qt6 and QML.
-- **Direct Import:** Import maps directly from `.vmf` files.
 - **Automatic Decompilation:** Select a `.bsp` file as input, and it will automatically decompile it using `bspsrc` (requires Java) and prepare it for import.
 - **VMF Patching:** Automatically fixes `dispinfo` blocks and inserts missing required structural elements (e.g., `versioninfo`, `viewsettings`, `cordon`) in decompiled `.vmf` files.
 - **VPK Signature Check Disabling:** Automatically moves and restores `vpk.signatures` during the import process.
-- **Legacy Support:** Supports both CS:GO and CS:Source legacy folders.
+- **Multi Source 1 Game Support:** Supports all source 1 game.
 - **Import Options:** Includes options like `-usebsp`, `-usebsp_nomergeinstances` (for better geometry importing), and `-skipdeps` (to skip importing dependencies for quicker iterations).
 - **Log Output:** Built-in console log output and automated log file generation.
 
@@ -39,12 +38,12 @@ On Windows, the CMake configuration will create a GUI application without a cons
 ## Usage
 
 1. Launch `cs2importer`.
-2. Select your **Counter-Strike 2** folder (ensure it contains `game/csgo/gameinfo.gi` with `Counter-Strike 2`).
-3. Select your **Source 1** folder (CS:GO or CSS).
+2. Select your **Counter-Strike 2** folder.
+3. Select your **Source 1** folder
 4. Choose whether to import a **VMF** file or a **BSP** file.
 5. Provide an Addon Name (defaults to the map name).
 6. Configure any additional launch options (`-usebsp`, `-usebsp_nomergeinstances`, `-skipdeps`).
-7. Click **GO!** to start the import process. The log output will show the progress.
+7. Click **START** to start the import process. The log output will show the progress.
 
 ## Historical Context
 

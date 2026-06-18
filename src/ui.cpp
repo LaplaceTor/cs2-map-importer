@@ -33,6 +33,7 @@ Backend::Backend(QObject *parent) :
         emit logMessage(msg);
         if (log_stream) {
             *log_stream << msg << "\n";
+            log_stream->flush();
         }
     };
 
