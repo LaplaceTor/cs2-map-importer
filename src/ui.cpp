@@ -161,7 +161,7 @@ bool Backend::is_valid_s1(const QString& path, const QString& type)
 
         if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QTextStream in(&file);
-            QRegularExpression regex("^\\s*game\\s+\"" + QRegularExpression::escape(game_name) + "\"\\s*$");
+            QRegularExpression regex("^\\s*game\\s+\"" + QRegularExpression::escape(game_name) + "\"");
             while (!in.atEnd()) {
                 if (regex.match(in.readLine()).hasMatch()) {
                     valid = true;
