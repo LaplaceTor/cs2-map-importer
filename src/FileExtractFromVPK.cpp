@@ -14,6 +14,52 @@ static QStringList GetVpkList(const MapImporter::Options& options) {
             "hl2/hl2_misc_dir.vpk",
             "hl2/hl2_sound_vo_english_dir.vpk"
         };
+    } else if (options.s1gamename == "hl2") {
+        return {
+            "hl2/hl2_sound_vo_english_dir.vpk",
+            "hl2/hl2_pak_dir.vpk",
+            "hl2/hl2_textures_dir.vpk",
+            "hl2/hl2_sound_misc_dir.vpk",
+            "hl2/hl2_misc_dir.vpk"
+        };
+    } else if (options.s1gamename == "l4d") {
+        return {
+            "left4dead/pak01_dir.vpk",
+            "left4dead_dlc3/pak01_dir.vpk"
+        };
+    } else if (options.s1gamename == "l4d2") {
+        return {
+            "left4dead2/pak01_dir.vpk",
+            "left4dead2_dlc1/pak01_dir.vpk",
+            "left4dead2_dlc2/pak01_dir.vpk",
+            "left4dead2_dlc3/pak01_dir.vpk",
+            "update/pak01_dir.vpk"
+        };
+    } else if (options.s1gamename == "portal") {
+        return {
+            "portal/portal_pak_dir.vpk",
+            "hl2/hl2_sound_vo_english_dir.vpk",
+            "hl2/hl2_textures_dir.vpk",
+            "hl2/hl2_sound_misc_dir.vpk",
+            "hl2/hl2_misc_dir.vpk"
+        };
+    } else if (options.s1gamename == "portal2") {
+        return {
+            "portal2/pak01_dir.vpk",
+            "portal2_dlc1/pak01_dir.vpk",
+            "portal2_dlc2/pak01_dir.vpk"
+        };
+    } else if (options.s1gamename == "tf2") {
+        return {
+            "tf/tf2_textures_dir.vpk",
+            "tf/tf2_sound_vo_english_dir.vpk",
+            "tf/tf2_sound_misc_dir.vpk",
+            "tf/tf2_misc_dir.vpk",
+            "hl2/hl2_sound_vo_english_dir.vpk",
+            "hl2/hl2_textures_dir.vpk",
+            "hl2/hl2_sound_misc_dir.vpk",
+            "hl2/hl2_misc_dir.vpk"
+        };
     } else {
         return { "csgo/pak01_dir.vpk" };
     }

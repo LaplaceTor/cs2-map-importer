@@ -29,7 +29,16 @@ public:
     ~Backend();
 
     QString getCs2Basefolder() const { return cs2_basefolder; }
-    QString getS1gameBasefolder() const { return s1_game_type == "css" ? cssgamedir : csgogamedir; }
+    QString getS1gameBasefolder() const {
+        if (s1_game_type == "css") return cssgamedir;
+        if (s1_game_type == "hl2") return hl2gamedir;
+        if (s1_game_type == "l4d") return l4dgamedir;
+        if (s1_game_type == "l4d2") return l4d2gamedir;
+        if (s1_game_type == "portal") return portalgamedir;
+        if (s1_game_type == "portal2") return portal2gamedir;
+        if (s1_game_type == "tf2") return tf2gamedir;
+        return csgogamedir;
+    }
     QString getS1GameType() const { return s1_game_type; }
     QString getVmfDefaultPathUrl() const { return QUrl::fromLocalFile(vmf_default_path).toString(); }
     QString getBspFile() const { return bsp_file; }
@@ -86,7 +95,13 @@ private:
     QString cs2_basefolder;
     QString csgogamedir;
     QString cssgamedir;
-    QString s1_game_type; // "csgo" or "css"
+    QString hl2gamedir;
+    QString l4dgamedir;
+    QString l4d2gamedir;
+    QString portalgamedir;
+    QString portal2gamedir;
+    QString tf2gamedir;
+    QString s1_game_type; // "csgo", "css", etc.
     QString content_folder;
     QString content_folder_to_save;
     QString addon_name;
