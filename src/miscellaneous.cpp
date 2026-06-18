@@ -87,6 +87,7 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
 
     QString lineBuffer;
     bool isSource1Import = cmd.contains("source1import.exe");
+    bool hasParseEparError = false;
 
     auto processOutput = [&](const QString& outStr) {
         for (QChar c : outStr) {
@@ -94,6 +95,9 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
                 if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
                 if (!lineBuffer.isEmpty()) {
                     Miscellaneous::log(lineBuffer);
+                    if (isSource1Import && lineBuffer.contains("ParseEpar: token too long")) {
+                        hasParseEparError = true;
+                    }
                 }
                 lineBuffer.clear();
             } else {
@@ -110,6 +114,11 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
         QByteArray output = process.readAll();
         if (!output.isEmpty()) {
             processOutput(QString(output));
+            if (hasParseEparError) {
+                process.kill();
+                Miscellaneous::cancel_all();
+                throw AppException("This map geometry is too bad to run the clean up faces process!");
+            }
         } else {
             // Timed out waiting for output
             if (isSource1Import && process.state() == QProcess::Running) {

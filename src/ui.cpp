@@ -743,6 +743,10 @@ void Backend::start()
             } catch (const AppException& e) {
                 Miscellaneous::log(QString("Error: ") + e.message());
                 success = false;
+                QString errMsg = e.message();
+                QMetaObject::invokeMethod(this, [this, errMsg]() {
+                    emit alertMessage("Error", errMsg);
+                }, Qt::QueuedConnection);
             }
 
             QMetaObject::invokeMethod(this, [this, success]() {
