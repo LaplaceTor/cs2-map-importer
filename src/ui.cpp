@@ -90,6 +90,8 @@ void Backend::validate_s1()
         QDesktopServices::openUrl(QUrl("steam://validate/620"));
     } else if (s1_game_type == "tf2") {
         QDesktopServices::openUrl(QUrl("steam://validate/440"));
+    } else if (s1_game_type == "gmod") {
+        QDesktopServices::openUrl(QUrl("steam://validate/4000"));
     }
 }
 
@@ -188,6 +190,8 @@ bool Backend::is_valid_s1(const QString& path, const QString& type)
         check_gameinfo("portal2", "PORTAL 2");
     } else if (type == "tf2") {
         check_gameinfo("tf", "Team Fortress 2");
+    } else if (type == "gmod") {
+        check_gameinfo("garrysmod", "Garry's Mod");
     }
 
     return valid;
@@ -284,6 +288,7 @@ void Backend::auto_detect_paths()
     QString found_portal_dir;
     QString found_portal2_dir;
     QString found_tf2_dir;
+    QString found_gmod_dir;
 
     for (const auto& lib : libraries) {
         QString base_lib = lib.path;
@@ -354,6 +359,13 @@ void Backend::auto_detect_paths()
                 found_tf2_dir = tf2_candidate;
             }
         }
+
+        if (lib.apps.contains("4000")) {
+            QString gmod_candidate = QDir(common_dir).filePath("GarrysMod");
+            if (is_valid_s1(gmod_candidate, "gmod")) {
+                found_gmod_dir = gmod_candidate;
+            }
+        }
     }
 
     bool updated = false;
@@ -409,6 +421,11 @@ void Backend::auto_detect_paths()
         updated = true;
     }
 
+    if (gmodgamedir.isEmpty() && !found_gmod_dir.isEmpty()) {
+        gmodgamedir = found_gmod_dir;
+        updated = true;
+    }
+
     if (updated) {
         updateCanGo();
         emit s1gameBasefolderChanged();
@@ -433,6 +450,8 @@ void Backend::set_s1_folder(const QString& path)
             portal2gamedir = path;
         } else if (s1_game_type == "tf2") {
             tf2gamedir = path;
+        } else if (s1_game_type == "gmod") {
+            gmodgamedir = path;
         } else {
             csgogamedir = path;
         }
@@ -542,6 +561,7 @@ void Backend::save_to_cfg()
     settings.setValue("portalgamedir", portalgamedir);
     settings.setValue("portal2gamedir", portal2gamedir);
     settings.setValue("tf2gamedir", tf2gamedir);
+    settings.setValue("gmodgamedir", gmodgamedir);
     settings.setValue("content_folder_to_save", content_folder_to_save);
     settings.setValue("s1_game_type", s1_game_type);
 }
@@ -562,11 +582,12 @@ void Backend::load_from_cfg()
     portalgamedir = settings.value("portalgamedir", "").toString();
     portal2gamedir = settings.value("portal2gamedir", "").toString();
     tf2gamedir = settings.value("tf2gamedir", "").toString();
+    gmodgamedir = settings.value("gmodgamedir", "").toString();
     content_folder_to_save = settings.value("content_folder_to_save", "C:\\").toString();
     vmf_default_path = content_folder_to_save;
     s1_game_type = settings.value("s1_game_type", "csgo").toString();
 
-    QStringList valid_games = {"csgo", "css", "hl2", "l4d", "l4d2", "portal", "portal2", "tf2"};
+    QStringList valid_games = {"csgo", "css", "hl2", "l4d", "l4d2", "portal", "portal2", "tf2", "gmod"};
     if (!valid_games.contains(s1_game_type)) {
         s1_game_type = "csgo";
     }
@@ -597,6 +618,9 @@ void Backend::load_from_cfg()
     }
     if (!tf2gamedir.isEmpty() && !is_valid_s1(tf2gamedir, "tf2")) {
         tf2gamedir = "";
+    }
+    if (!gmodgamedir.isEmpty() && !is_valid_s1(gmodgamedir, "gmod")) {
+        gmodgamedir = "";
     }
 
     auto_detect_paths();
@@ -714,6 +738,7 @@ void Backend::start()
                 else if (opts.s1_game_type == "portal") s1_subfolder = "portal";
                 else if (opts.s1_game_type == "portal2") s1_subfolder = "portal2";
                 else if (opts.s1_game_type == "tf2") s1_subfolder = "tf";
+                else if (opts.s1_game_type == "gmod") s1_subfolder = "garrysmod";
 
                 QString s1gamedir = opts.s1game_basefolder + "\\" + s1_subfolder;
                 s1gamedir.replace('/', '\\');
