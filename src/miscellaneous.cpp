@@ -7,6 +7,8 @@
 #include <QRegularExpression>
 #include <QCoreApplication>
 #include <QByteArray>
+#include <QEventLoop>
+#include <QTimer>
 
 QAtomicInt Miscellaneous::cancel_import(0);
 Miscellaneous::LogCallback Miscellaneous::global_logger = nullptr;
@@ -91,8 +93,15 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
     bool checkingPrompt = false;
 
     auto processOutput = [&](const QString& outStr) {
-        for (QChar c : outStr) {
-            if (c == '\n') {
+        int i = 0;
+        int len = outStr.length();
+        while (i < len) {
+            int nextNewline = outStr.indexOf('\n', i);
+            if (nextNewline == -1) {
+                lineBuffer += outStr.mid(i);
+                break;
+            } else {
+                lineBuffer += outStr.mid(i, nextNewline - i);
                 if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
                 if (!lineBuffer.isEmpty()) {
                     Miscellaneous::log(lineBuffer);
@@ -105,34 +114,47 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
                     }
                 }
                 lineBuffer.clear();
-            } else {
-                lineBuffer += c;
+                i = nextNewline + 1;
             }
         }
     };
 
-    while (process.waitForReadyRead(100) || process.state() != QProcess::NotRunning) {
-        if (cancel_import) {
-            process.kill();
-            return -1;
-        }
+    QEventLoop loop;
+
+    QObject::connect(&process, &QProcess::readyRead, [&]() {
         QByteArray output = process.readAll();
         if (!output.isEmpty()) {
-            processOutput(QString(output));
-        } else {
-            // Timed out waiting for output
-            if (isSource1Import && !answeredPrompt && checkingPrompt && process.state() == QProcess::Running) {
-                // We're likely stuck at the invisible "Are you sure you want to continue?" prompt
-                process.write("y\n");
-                answeredPrompt = true;
-                checkingPrompt = false; // Stop checking
-            }
+            processOutput(QString::fromLocal8Bit(output));
         }
+    });
+
+    QObject::connect(&process, &QProcess::finished, &loop, &QEventLoop::quit);
+
+    // Timer to handle cancellation and prompts
+    QTimer timer;
+    QObject::connect(&timer, &QTimer::timeout, [&]() {
+        if (cancel_import) {
+            process.kill();
+            loop.quit();
+            return;
+        }
+        if (isSource1Import && !answeredPrompt && checkingPrompt && process.state() == QProcess::Running) {
+            // We're likely stuck at the invisible "Are you sure you want to continue?" prompt
+            process.write("y\n");
+            answeredPrompt = true;
+            checkingPrompt = false; // Stop checking
+        }
+    });
+    timer.start(100);
+
+    // If the process is already finished (e.g. failed to start or finished very fast)
+    if (process.state() == QProcess::Running || process.state() == QProcess::Starting) {
+        loop.exec();
     }
 
     QByteArray output = process.readAll();
     if (!output.isEmpty()) {
-        processOutput(QString(output));
+        processOutput(QString::fromLocal8Bit(output));
     }
 
     if (!lineBuffer.isEmpty()) {
