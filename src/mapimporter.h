@@ -21,7 +21,7 @@ public:
         bool skipdeps;
 
         QString cs2_basefolder; // to get the binaries
-    };
+            };
 
     MapImporter(const Options& options)
         : m_options(options) {}
