@@ -21,6 +21,8 @@ set(SOURCES
     src/vmf_bsp_process.h
     src/mapimporter.cpp
     src/mapimporter.h
+    src/soundscapeimport.cpp
+    src/soundscapeimport.h
 )
 
 qt_add_executable(cs2importer MANUAL_FINALIZATION ${SOURCES})
