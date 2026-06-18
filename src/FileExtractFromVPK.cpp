@@ -60,6 +60,14 @@ static QStringList GetVpkList(const MapImporter::Options& options) {
             "hl2/hl2_sound_misc_dir.vpk",
             "hl2/hl2_misc_dir.vpk"
         };
+    } else if (options.s1gamename == "gmod") {
+        return {
+            "garrysmod/garrysmod_dir.vpk",
+            "sourceengine/hl2_textures_dir.vpk",
+            "sourceengine/hl2_sound_vo_english_dir.vpk",
+            "sourceengine/hl2_sound_misc_dir.vpk",
+            "sourceengine/hl2_misc_dir.vpk"
+        };
     } else {
         return { "csgo/pak01_dir.vpk" };
     }

@@ -389,6 +389,7 @@ void VmfBspProcess::process_bsp(Miscellaneous::Options& options) {
     else if (options.s1_game_type == "portal") s1_subfolder = "portal";
     else if (options.s1_game_type == "portal2") s1_subfolder = "portal2";
     else if (options.s1_game_type == "tf2") s1_subfolder = "tf";
+    else if (options.s1_game_type == "gmod") s1_subfolder = "garrysmod";
     QString s1gamedir = QDir(options.s1game_basefolder).filePath(s1_subfolder);
 
     if (QDir(target_unpacked_dir).exists()) {

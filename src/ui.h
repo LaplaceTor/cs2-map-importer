@@ -37,6 +37,7 @@ public:
         if (s1_game_type == "portal") return portalgamedir;
         if (s1_game_type == "portal2") return portal2gamedir;
         if (s1_game_type == "tf2") return tf2gamedir;
+        if (s1_game_type == "gmod") return gmodgamedir;
         return csgogamedir;
     }
     QString getS1GameType() const { return s1_game_type; }
@@ -101,6 +102,7 @@ private:
     QString portalgamedir;
     QString portal2gamedir;
     QString tf2gamedir;
+    QString gmodgamedir;
     QString s1_game_type; // "csgo", "css", etc.
     QString content_folder;
     QString content_folder_to_save;

@@ -109,7 +109,7 @@ ApplicationWindow {
 
                         ComboBox {
                             id: s1GameCombo
-                            model: ["CSGO", "CSS", "HL2", "L4D", "L4D2", "Portal", "Portal2", "TF2"]
+                            model: ["CSGO", "CSS", "HL2", "L4D", "L4D2", "Portal", "Portal2", "TF2", "GMod"]
                             Layout.fillWidth: true
                             Component.onCompleted: {
                                 let type = backend.s1_game_type.toLowerCase();
@@ -120,6 +120,7 @@ ApplicationWindow {
                                 else if (type === "portal") currentIndex = 5;
                                 else if (type === "portal2") currentIndex = 6;
                                 else if (type === "tf2") currentIndex = 7;
+                                else if (type === "gmod") currentIndex = 8;
                                 else currentIndex = 0;
                             }
                             onActivated: backend.set_s1_game_type(currentText.toLowerCase())
