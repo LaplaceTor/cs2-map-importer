@@ -1,5 +1,6 @@
 #include "mapimporter.h"
 #include "miscellaneous.h"
+#include "soundscapeimport.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -519,60 +520,30 @@ void MapImporter::ImportParticles(){
 }
 
 void MapImporter::ImportSounds() {
-    QDir scriptsDir(m_options.s1contentdir + "\\scripts");
-    if (!scriptsDir.exists()) {
-        return;
-    }
+    Miscellaneous::log("Importing sounds...");
+    
+    QSet<QString> uniqueSounds;
+    SoundscapeImport::ImportSoundscapes(this, m_options, uniqueSounds);
 
-    QStringList nameFilters;
-    nameFilters << "soundscapes_*.txt";
-    QFileInfoList soundscapeFiles = scriptsDir.entryInfoList(nameFilters, QDir::Files);
-
-    if (!soundscapeFiles.isEmpty()) {
-        Miscellaneous::log("Importing sounds...");
-
-        QSet<QString> uniqueSounds;
-
-        QRegularExpression waveRegex("\"wave\"\\s+\"([^\"]+)\"", QRegularExpression::CaseInsensitiveOption);
-
-        for (const QFileInfo& fileInfo : soundscapeFiles) {
-            if (Miscellaneous::cancel_import) return;
-
-            QStringList lines = ReadTextFile(fileInfo.absoluteFilePath());
-            for (const QString& line : lines) {
-                if (Miscellaneous::cancel_import) return;
-
-                QRegularExpressionMatch match = waveRegex.match(line);
-                if (match.hasMatch()) {
-                    QString wavePath = match.captured(1);
-                    wavePath = "sound/" + wavePath;
-                    wavePath.replace("\\", "/");
-
-                    uniqueSounds.insert(wavePath);
-                }
+    if (!uniqueSounds.isEmpty()) {
+        QString soundListFile = m_options.s2contentdir + "\\maps\\" + m_options.mapname + "_sound_list.txt";
+        EnsureFileWritable(soundListFile);
+        QFile writeFile(soundListFile);
+        if (writeFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&writeFile);
+            for (const QString& sound : uniqueSounds) {
+                out << sound << "\n";
             }
+            writeFile.close();
         }
 
-        if (!uniqueSounds.isEmpty()) {
-            QString soundListFile = m_options.s2contentdir + "\\maps\\" + m_options.mapname + "_sound_list.txt";
-            EnsureFileWritable(soundListFile);
-            QFile writeFile(soundListFile);
-            if (writeFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                QTextStream out(&writeFile);
-                for (const QString& sound : uniqueSounds) {
-                    out << sound << "\n";
-                }
-                writeFile.close();
-            }
+        for (const QString& sound : uniqueSounds) {
+            if (Miscellaneous::cancel_import) return;
 
-            for (const QString& sound : uniqueSounds) {
-                if (Miscellaneous::cancel_import) return;
+            QString fullPath = QDir(m_options.s1contentdir).filePath(sound);
 
-                QString fullPath = QDir(m_options.s1contentdir).filePath(sound);
-
-                if (!QFile::exists(fullPath)) {
-                    ExtractSoundFromVPK(sound);
-                }
+            if (!QFile::exists(fullPath)) {
+                ExtractSoundFromVPK(sound);
             }
         }
     }

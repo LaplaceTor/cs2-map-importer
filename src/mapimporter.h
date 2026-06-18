@@ -45,6 +45,8 @@ private:
     void ImportAndCompileMapRefs(const QString& refsFile);
     void ImportParticles();
     void ImportSounds();
+
+    friend class SoundscapeImport;
 };
 
 #endif // MAPIMPORTER_H
