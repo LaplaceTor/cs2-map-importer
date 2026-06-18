@@ -290,7 +290,7 @@ ApplicationWindow {
                         text: "Clean Unnecessary Faces"
                         checked: backend.usebsp
                         onCheckedChanged: backend.usebsp = checked
-                        ToolTip.text: "This runs the map through a special vbsp process to generate clean map geometry from brushes..."
+                        ToolTip.text: "This runs the map through a special vbsp process to generate clean map geometry from brushes"
                         ToolTip.visible: hovered
                     }
                     CheckBox {
@@ -299,7 +299,7 @@ ApplicationWindow {
                         checked: backend.usebsp_nomergeinstances
                         enabled: useBspCheckbox.checked
                         onCheckedChanged: backend.usebsp_nomergeinstances = checked
-                        ToolTip.text: "Use this instead of -usebsp if you wish to both generate clean geo and also preserve func_instances..."
+                        ToolTip.text: "if you wish to both generate clean geo and also preserve func_instances got merge in"
                         ToolTip.visible: hovered
                     }
                     CheckBox {
@@ -307,7 +307,7 @@ ApplicationWindow {
                         text: "Skip References Import"
                         checked: backend.skipdeps
                         onCheckedChanged: backend.skipdeps = checked
-                        ToolTip.text: "Optional: skips importing all dependencies/content and only generates the vmap file(s)..."
+                        ToolTip.text: "Optional: skips importing all dependencies/content and only generates the vmap file(s)"
                         ToolTip.visible: hovered
                     }
                     Item { Layout.fillHeight: true } // Spacer
