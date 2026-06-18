@@ -165,6 +165,10 @@ void SoundscapeImport::ImportSoundscapes(MapImporter* importer, const MapImporte
     for (const QFileInfo& fileInfo : soundscapeFiles) {
         if (Miscellaneous::cancel_import) return;
 
+        if (fileInfo.fileName().toLower() == "soundscapes_manifest.txt") {
+            continue;
+        }
+
         QStringList lines = importer->ReadTextFile(fileInfo.absoluteFilePath());
         QStringList tokens = TokenizeVDF(lines);
         int index = 0;
