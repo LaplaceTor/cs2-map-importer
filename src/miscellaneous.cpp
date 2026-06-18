@@ -9,6 +9,7 @@
 #include <QByteArray>
 #include <QEventLoop>
 #include <QTimer>
+#include <QTemporaryFile>
 
 QAtomicInt Miscellaneous::cancel_import(0);
 Miscellaneous::LogCallback Miscellaneous::global_logger = nullptr;
@@ -72,13 +73,19 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
     if (cancel_import) return -1;
     Miscellaneous::log(cmd);
 
+    QTemporaryFile tempLogFile;
+    tempLogFile.setAutoRemove(false);
+    if (!tempLogFile.open()) {
+        Miscellaneous::log("Failed to create temporary log file.");
+        return -1;
+    }
+    QString tempLogFilePath = tempLogFile.fileName();
+    tempLogFile.close();
+
     QProcess process;
     process.setProcessChannelMode(QProcess::MergedChannels);
+    process.setStandardOutputFile(tempLogFilePath, QIODevice::Append);
 
-    // In QProcess, if we use setNativeArguments, cmd.exe requires the whole string after /c to be quoted if there are inner quotes.
-    // However, a simpler cross-platform way is to use QProcess's own parsing if we avoid cmd.exe.
-    // Since we need it to behave like CreateProcess, we can just start the command natively if we are not using pipes.
-    // For safety with cmd.exe, it expects /c ""command" "arg1" "arg2"". So we wrap in quotes.
     process.setProgram("cmd.exe");
 #ifdef Q_OS_WIN
     process.setNativeArguments("/S /C \"" + cmd + "\"");
@@ -119,18 +126,14 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
         }
     };
 
+    QFile fileReader(tempLogFilePath);
+    if (!fileReader.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        Miscellaneous::log("Failed to open temp log file for reading.");
+    }
+    QTextStream inStream(&fileReader);
+
     QEventLoop loop;
 
-    QObject::connect(&process, &QProcess::readyRead, [&]() {
-        QByteArray output = process.readAll();
-        if (!output.isEmpty()) {
-            processOutput(QString::fromLocal8Bit(output));
-        }
-    });
-
-    QObject::connect(&process, &QProcess::finished, &loop, &QEventLoop::quit);
-
-    // Timer to handle cancellation and prompts
     QTimer timer;
     QObject::connect(&timer, &QTimer::timeout, [&]() {
         if (cancel_import) {
@@ -138,6 +141,15 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
             loop.quit();
             return;
         }
+
+        // Read newly appended data from the file
+        if (fileReader.isOpen()) {
+            QString newOutput = inStream.readAll();
+            if (!newOutput.isEmpty()) {
+                processOutput(newOutput);
+            }
+        }
+
         if (isSource1Import && !answeredPrompt && checkingPrompt && process.state() == QProcess::Running) {
             // We're likely stuck at the invisible "Are you sure you want to continue?" prompt
             process.write("y\n");
@@ -147,19 +159,29 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
     });
     timer.start(100);
 
-    // If the process is already finished (e.g. failed to start or finished very fast)
+    QObject::connect(&process, &QProcess::finished, &loop, &QEventLoop::quit);
+
     if (process.state() == QProcess::Running || process.state() == QProcess::Starting) {
         loop.exec();
     }
 
-    QByteArray output = process.readAll();
-    if (!output.isEmpty()) {
-        processOutput(QString::fromLocal8Bit(output));
+    timer.stop();
+
+    if (fileReader.isOpen()) {
+        QString newOutput = inStream.readAll();
+        if (!newOutput.isEmpty()) {
+            processOutput(newOutput);
+        }
+        fileReader.close();
     }
 
     if (!lineBuffer.isEmpty()) {
         if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
         Miscellaneous::log(lineBuffer);
+    }
+
+    if (QFile::exists(tempLogFilePath)) {
+        QFile::remove(tempLogFilePath);
     }
 
     return process.exitCode();

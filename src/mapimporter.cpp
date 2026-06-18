@@ -496,7 +496,10 @@ bool MapImporter::Run() {
     QString mapImportCmd = "\"" + m_options.cs2_basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync " + usebspStr;
     if (!nomergeinstancesStr.isEmpty()) mapImportCmd += " " + nomergeinstancesStr;
 
-    QString target_s1gamedir = m_options.csgogamedir;
+    QString target_s1gamedir = m_options.s1gamedir;
+    if (m_options.usebsp || m_options.usebsp_nomergeinstances) {
+        target_s1gamedir = m_options.csgogamedir;
+    }
 
     mapImportCmd += " -src1gameinfodir \"" + target_s1gamedir + "\" -src1contentdir \"" + m_options.s1contentdir + "\" -s2addon \"" + m_options.s2addonname + "\" -game csgo maps\\" + m_options.mapname + ".vmf";
 
