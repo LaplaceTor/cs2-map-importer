@@ -1,6 +1,7 @@
 #include "mapimporter.h"
 #include "miscellaneous.h"
 #include "soundscapeimport.h"
+#include "FileExtractFromVPK.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -84,7 +85,7 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
             mdls.append(cleanedRef);
             QString fullPath = QDir(m_options.s1contentdir).filePath(cleanedRef);
             if (!QFileInfo::exists(fullPath)) {
-                ExtractModelFromVPK(cleanedRef);
+                FileExtractFromVPK::ExtractModelFromVPK(cleanedRef, m_options);
             }
         } else {
             others.append(cleanedRef);
@@ -120,74 +121,6 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
     }
 }
 
-void MapImporter::ExtractModelFromVPK(const QString& filepath) {
-    QFileInfo fi(filepath);
-    QString basePath = fi.path() + "/" + fi.baseName();
-    QString vpkName = (m_options.s1gamename == "css") ? "cstrike_pak_dir.vpk" : "pak01_dir.vpk";
-    QString vpkPath = QDir(m_options.s1gamedir).filePath(vpkName);
-    QString contentPath = QDir(m_options.s1contentdir).filePath(filepath);
-    QString outPath = QDir(m_options.s1gamedir).filePath(filepath);
-
-    QString cmd = "\"bin\\vpkeditcli.exe\" -e \"" + filepath + "\" \"" + vpkPath + "\" -o \"" + contentPath + "\"";
-    cmd = cmd.replace("/", "\\");
-    Miscellaneous::run_command_sync(cmd);
-
-    if (QFile::exists(contentPath)) {
-        QFile::copy(contentPath, outPath);
-
-        QStringList extlist = {"vvd","phy","sw.vtx","dx80.vtx","dx90.vtx","ani"};
-        for (const QString& ext : extlist) {
-            QString target = basePath + "." + ext;
-            contentPath = QDir(m_options.s1contentdir).filePath(target);
-            cmd = "\"bin\\vpkeditcli.exe\" -e \"" + target + "\" \"" + vpkPath + "\" -o \"" + contentPath + "\"";
-            cmd = cmd.replace("/", "\\");
-            Miscellaneous::run_command_sync(cmd);
-
-            outPath = QDir(m_options.s1gamedir).filePath(target);
-            if (QFile::exists(contentPath)) {
-                QFile::copy(contentPath, outPath);
-            }
-        }
-    }
-}
-
-void MapImporter::ExtractParticleFromVPK(const QString& filepath) {
-    QString vpkName = (m_options.s1gamename == "css") ? "cstrike_pak_dir.vpk" : "pak01_dir.vpk";
-    QString vpkPath = QDir(m_options.s1gamedir).filePath(vpkName);
-    QString contentPath = QDir(m_options.s1contentdir).filePath(filepath);
-    QString outPath = QDir(m_options.s1gamedir).filePath(filepath);
-
-    QString cmd = "\"bin\\vpkeditcli.exe\" -e \"" + filepath + "\" \"" + vpkPath + "\" -o \"" + contentPath + "\"";
-    cmd = cmd.replace("/", "\\");
-    Miscellaneous::run_command_sync(cmd);
-
-    if (QFile::exists(contentPath)) {
-        QFileInfo fi(outPath);
-        QDir().mkpath(fi.absolutePath());
-        if (QFile::exists(outPath)) {
-            QFile::remove(outPath);
-        }
-        QFile::copy(contentPath, outPath);
-    }
-}
-
-void MapImporter::ExtractSoundFromVPK(const QString& filepath) {
-    QString vpkName = (m_options.s1gamename == "css") ? "cstrike_pak_dir.vpk" : "pak01_dir.vpk";
-    QString vpkPath = QDir(m_options.s1gamedir).filePath(vpkName);
-    QString contentPath = QDir(m_options.s1contentdir).filePath(filepath);
-    QString outPath = QDir(m_options.s1gamedir).filePath(filepath);
-
-    QString cmd = "\"bin\\vpkeditcli.exe\" -e \"" + filepath + "\" \"" + vpkPath + "\" -o \"" + contentPath + "\"";
-    cmd = cmd.replace("/", "\\");
-    Miscellaneous::run_command_sync(cmd);
-
-    if (QFile::exists(contentPath)) {
-        QFileInfo fi(outPath);
-        QDir().mkpath(fi.absolutePath());
-        if (QFile::exists(outPath)) {
-            QFile::remove(outPath);
-        }
-        QFile::copy(contentPath, outPath);
     }
 }
 
@@ -508,7 +441,7 @@ void MapImporter::ImportParticles(){
             QString fullPath = QDir(m_options.s1contentdir).filePath(cleanedPath);
             
             if(!QFile::exists(fullPath)){
-                ExtractParticleFromVPK(cleanedPath);
+                FileExtractFromVPK::ExtractParticleFromVPK(cleanedPath, m_options);
                 if(!QFile::exists(fullPath)) continue;
             }
 
@@ -543,7 +476,7 @@ void MapImporter::ImportSounds() {
             QString fullPath = QDir(m_options.s1contentdir).filePath(sound);
 
             if (!QFile::exists(fullPath)) {
-                ExtractSoundFromVPK(sound);
+                FileExtractFromVPK::ExtractSoundFromVPK(sound, m_options);
             }
         }
     }

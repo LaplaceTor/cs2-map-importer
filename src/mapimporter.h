@@ -36,9 +36,6 @@ private:
     void EnsureFileWritable(const QString& filepath);
 
     void StripMDLsFromRefs(const QString& filename);
-    void ExtractModelFromVPK(const QString& filepath);
-    void ExtractParticleFromVPK(const QString& filepath);
-    void ExtractSoundFromVPK(const QString& filepath);
     void ForceUV2ForVMAT(const QString& mtlfile);
     bool Force2UVsIfRequired(const QString& refsName, QSet<QString>& global2UVMaterials, QString& global2UVMaterialsFilepath);
     void ImportAndCompileMapMDLs(const QString& filename);

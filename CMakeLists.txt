@@ -23,6 +23,8 @@ set(SOURCES
     src/mapimporter.h
     src/soundscapeimport.cpp
     src/soundscapeimport.h
+    src/FileExtractFromVPK.cpp
+    src/FileExtractFromVPK.h
 )
 
 qt_add_executable(cs2importer MANUAL_FINALIZATION ${SOURCES})
