@@ -6,9 +6,9 @@
 
 class FileExtractFromVPK {
 public:
-    static void ExtractModelFromVPK(const QString& filepath, const MapImporter::Options& options);
-    static void ExtractParticleFromVPK(const QString& filepath, const MapImporter::Options& options);
-    static void ExtractSoundFromVPK(const QString& filepath, const MapImporter::Options& options);
+    static void ExtractModel(const QString& filepath, const MapImporter::Options& options);
+    static void ExtractParticle(const QString& filepath, const MapImporter::Options& options);
+    static void ExtractSound(const QString& filepath, const MapImporter::Options& options);
 };
 
 #endif // FILEEXTRACTFROMVPK_H

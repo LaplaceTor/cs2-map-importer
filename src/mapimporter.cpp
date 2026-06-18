@@ -85,7 +85,7 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
             mdls.append(cleanedRef);
             QString fullPath = QDir(m_options.s1contentdir).filePath(cleanedRef);
             if (!QFileInfo::exists(fullPath)) {
-                FileExtractFromVPK::ExtractModelFromVPK(cleanedRef, m_options);
+                FileExtractFromVPK::ExtractModel(cleanedRef, m_options);
             }
         } else {
             others.append(cleanedRef);
@@ -118,9 +118,6 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
         for (const QString& o : others) out << "\t\"file\"\t\"" << o << "\"\n";
         out << "}\n";
         refFile.close();
-    }
-}
-
     }
 }
 
@@ -441,7 +438,7 @@ void MapImporter::ImportParticles(){
             QString fullPath = QDir(m_options.s1contentdir).filePath(cleanedPath);
             
             if(!QFile::exists(fullPath)){
-                FileExtractFromVPK::ExtractParticleFromVPK(cleanedPath, m_options);
+                FileExtractFromVPK::ExtractParticle(cleanedPath, m_options);
                 if(!QFile::exists(fullPath)) continue;
             }
 
@@ -476,7 +473,7 @@ void MapImporter::ImportSounds() {
             QString fullPath = QDir(m_options.s1contentdir).filePath(sound);
 
             if (!QFile::exists(fullPath)) {
-                FileExtractFromVPK::ExtractSoundFromVPK(sound, m_options);
+                FileExtractFromVPK::ExtractSound(sound, m_options);
             }
         }
     }

@@ -4,7 +4,7 @@
 #include <QFile>
 #include <QFileInfo>
 
-void FileExtractFromVPK::ExtractModelFromVPK(const QString& filepath, const MapImporter::Options& options) {
+void FileExtractFromVPK::ExtractModel(const QString& filepath, const MapImporter::Options& options) {
     QFileInfo fi(filepath);
     QString basePath = fi.path() + "/" + fi.baseName();
     QString vpkName = (options.s1gamename == "css") ? "cstrike_pak_dir.vpk" : "pak01_dir.vpk";
@@ -35,7 +35,7 @@ void FileExtractFromVPK::ExtractModelFromVPK(const QString& filepath, const MapI
     }
 }
 
-void FileExtractFromVPK::ExtractParticleFromVPK(const QString& filepath, const MapImporter::Options& options) {
+void FileExtractFromVPK::ExtractParticle(const QString& filepath, const MapImporter::Options& options) {
     QString vpkName = (options.s1gamename == "css") ? "cstrike_pak_dir.vpk" : "pak01_dir.vpk";
     QString vpkPath = QDir(options.s1gamedir).filePath(vpkName);
     QString contentPath = QDir(options.s1contentdir).filePath(filepath);
@@ -55,7 +55,7 @@ void FileExtractFromVPK::ExtractParticleFromVPK(const QString& filepath, const M
     }
 }
 
-void FileExtractFromVPK::ExtractSoundFromVPK(const QString& filepath, const MapImporter::Options& options) {
+void FileExtractFromVPK::ExtractSound(const QString& filepath, const MapImporter::Options& options) {
     QString vpkName = (options.s1gamename == "css") ? "cstrike_pak_dir.vpk" : "pak01_dir.vpk";
     QString vpkPath = QDir(options.s1gamedir).filePath(vpkName);
     QString contentPath = QDir(options.s1contentdir).filePath(filepath);
