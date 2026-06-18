@@ -78,6 +78,18 @@ void Backend::validate_s1()
         QDesktopServices::openUrl(QUrl("steam://validate/240"));
     } else if (s1_game_type == "csgo") {
         QDesktopServices::openUrl(QUrl("steam://validate/4465480"));
+    } else if (s1_game_type == "hl2") {
+        QDesktopServices::openUrl(QUrl("steam://validate/220"));
+    } else if (s1_game_type == "l4d") {
+        QDesktopServices::openUrl(QUrl("steam://validate/500"));
+    } else if (s1_game_type == "l4d2") {
+        QDesktopServices::openUrl(QUrl("steam://validate/550"));
+    } else if (s1_game_type == "portal") {
+        QDesktopServices::openUrl(QUrl("steam://validate/400"));
+    } else if (s1_game_type == "portal2") {
+        QDesktopServices::openUrl(QUrl("steam://validate/620"));
+    } else if (s1_game_type == "tf2") {
+        QDesktopServices::openUrl(QUrl("steam://validate/440"));
     }
 }
 
@@ -143,37 +155,39 @@ bool Backend::is_valid_s1(const QString& path, const QString& type)
 
     bool valid = false;
 
+    auto check_gameinfo = [&](const QString& folder, const QString& game_name) {
+        QString gameinfo_path = QDir(path).filePath(folder + "/gameinfo.txt");
+        QFile file(gameinfo_path);
+
+        if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&file);
+            QRegularExpression regex("^\\s*game\\s+\"" + QRegularExpression::escape(game_name) + "\"");
+            while (!in.atEnd()) {
+                if (regex.match(in.readLine()).hasMatch()) {
+                    valid = true;
+                    break;
+                }
+            }
+            file.close();
+        }
+    };
+
     if (type == "csgo") {
-        QString gameinfo_path_csgo = QDir(path).filePath("csgo/gameinfo.txt");
-        QFile file_csgo(gameinfo_path_csgo);
-
-        if (file_csgo.exists() && file_csgo.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            QTextStream in(&file_csgo);
-            QRegularExpression regex("^\\s*game\\s+\"Counter-Strike: Global Offensive\"\\s*$");
-            while (!in.atEnd()) {
-                if (regex.match(in.readLine()).hasMatch()) {
-                    valid = true;
-                    break;
-                }
-            }
-            file_csgo.close();
-        }
-
+        check_gameinfo("csgo", "Counter-Strike: Global Offensive");
     } else if (type == "css") {
-        QString gameinfo_path_css = QDir(path).filePath("cstrike/gameinfo.txt");
-        QFile file_css(gameinfo_path_css);
-
-        if (file_css.exists() && file_css.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            QTextStream in(&file_css);
-            QRegularExpression regex("^\\s*game\\s+\"Counter-Strike Source\"\\s*$");
-            while (!in.atEnd()) {
-                if (regex.match(in.readLine()).hasMatch()) {
-                    valid = true;
-                    break;
-                }
-            }
-            file_css.close();
-        }
+        check_gameinfo("cstrike", "Counter-Strike Source");
+    } else if (type == "hl2") {
+        check_gameinfo("hl2", "HALF-LIFE 2");
+    } else if (type == "l4d") {
+        check_gameinfo("left4dead", "Left 4 Dead");
+    } else if (type == "l4d2") {
+        check_gameinfo("left4dead2", "Left 4 Dead 2");
+    } else if (type == "portal") {
+        check_gameinfo("portal", "Portal");
+    } else if (type == "portal2") {
+        check_gameinfo("portal2", "PORTAL 2");
+    } else if (type == "tf2") {
+        check_gameinfo("tf", "Team Fortress 2");
     }
 
     return valid;
@@ -185,7 +199,7 @@ void Backend::select_s1_folder_dialog(const QUrl& url)
     if (path.isEmpty()) return;
 
     if (!is_valid_s1(path, s1_game_type)) {
-        emit alertMessage("Invalid Source 1 Folder", "The selected folder is not a valid CSGO/CSS installation.\nPlease make sure it is a \"csgo legacy\" or \"Counter-Strike Source\" directory containing the gameinfo.txt.");
+        emit alertMessage("Invalid Source 1 Folder", "The selected folder is not a valid installation for the selected game.\nPlease make sure it is the correct directory containing the gameinfo.txt.");
         return;
     }
 
@@ -264,6 +278,12 @@ void Backend::auto_detect_paths()
     QString found_csgo_legacy_dir;
     QString found_csgo_cs2_dir;
     QString found_css_dir;
+    QString found_hl2_dir;
+    QString found_l4d_dir;
+    QString found_l4d2_dir;
+    QString found_portal_dir;
+    QString found_portal2_dir;
+    QString found_tf2_dir;
 
     for (const auto& lib : libraries) {
         QString base_lib = lib.path;
@@ -292,6 +312,48 @@ void Backend::auto_detect_paths()
                 found_css_dir = css_candidate;
             }
         }
+
+        if (lib.apps.contains("220")) {
+            QString hl2_candidate = QDir(common_dir).filePath("Half-Life 2");
+            if (is_valid_s1(hl2_candidate, "hl2")) {
+                found_hl2_dir = hl2_candidate;
+            }
+        }
+
+        if (lib.apps.contains("500")) {
+            QString l4d_candidate = QDir(common_dir).filePath("Left 4 Dead");
+            if (is_valid_s1(l4d_candidate, "l4d")) {
+                found_l4d_dir = l4d_candidate;
+            }
+        }
+
+        if (lib.apps.contains("550")) {
+            QString l4d2_candidate = QDir(common_dir).filePath("Left 4 Dead 2");
+            if (is_valid_s1(l4d2_candidate, "l4d2")) {
+                found_l4d2_dir = l4d2_candidate;
+            }
+        }
+
+        if (lib.apps.contains("400")) {
+            QString portal_candidate = QDir(common_dir).filePath("Portal");
+            if (is_valid_s1(portal_candidate, "portal")) {
+                found_portal_dir = portal_candidate;
+            }
+        }
+
+        if (lib.apps.contains("620")) {
+            QString portal2_candidate = QDir(common_dir).filePath("Portal 2");
+            if (is_valid_s1(portal2_candidate, "portal2")) {
+                found_portal2_dir = portal2_candidate;
+            }
+        }
+
+        if (lib.apps.contains("440")) {
+            QString tf2_candidate = QDir(common_dir).filePath("Team Fortress 2");
+            if (is_valid_s1(tf2_candidate, "tf2")) {
+                found_tf2_dir = tf2_candidate;
+            }
+        }
     }
 
     bool updated = false;
@@ -317,6 +379,36 @@ void Backend::auto_detect_paths()
         }
     }
 
+    if (hl2gamedir.isEmpty() && !found_hl2_dir.isEmpty()) {
+        hl2gamedir = found_hl2_dir;
+        updated = true;
+    }
+
+    if (l4dgamedir.isEmpty() && !found_l4d_dir.isEmpty()) {
+        l4dgamedir = found_l4d_dir;
+        updated = true;
+    }
+
+    if (l4d2gamedir.isEmpty() && !found_l4d2_dir.isEmpty()) {
+        l4d2gamedir = found_l4d2_dir;
+        updated = true;
+    }
+
+    if (portalgamedir.isEmpty() && !found_portal_dir.isEmpty()) {
+        portalgamedir = found_portal_dir;
+        updated = true;
+    }
+
+    if (portal2gamedir.isEmpty() && !found_portal2_dir.isEmpty()) {
+        portal2gamedir = found_portal2_dir;
+        updated = true;
+    }
+
+    if (tf2gamedir.isEmpty() && !found_tf2_dir.isEmpty()) {
+        tf2gamedir = found_tf2_dir;
+        updated = true;
+    }
+
     if (updated) {
         updateCanGo();
         emit s1gameBasefolderChanged();
@@ -329,6 +421,18 @@ void Backend::set_s1_folder(const QString& path)
     if (!path.isEmpty() && path != "None") {
         if (s1_game_type == "css") {
             cssgamedir = path;
+        } else if (s1_game_type == "hl2") {
+            hl2gamedir = path;
+        } else if (s1_game_type == "l4d") {
+            l4dgamedir = path;
+        } else if (s1_game_type == "l4d2") {
+            l4d2gamedir = path;
+        } else if (s1_game_type == "portal") {
+            portalgamedir = path;
+        } else if (s1_game_type == "portal2") {
+            portal2gamedir = path;
+        } else if (s1_game_type == "tf2") {
+            tf2gamedir = path;
         } else {
             csgogamedir = path;
         }
@@ -432,6 +536,12 @@ void Backend::save_to_cfg()
     settings.setValue("cs2_basefolder", cs2_basefolder);
     settings.setValue("csgogamedir", csgogamedir);
     settings.setValue("cssgamedir", cssgamedir);
+    settings.setValue("hl2gamedir", hl2gamedir);
+    settings.setValue("l4dgamedir", l4dgamedir);
+    settings.setValue("l4d2gamedir", l4d2gamedir);
+    settings.setValue("portalgamedir", portalgamedir);
+    settings.setValue("portal2gamedir", portal2gamedir);
+    settings.setValue("tf2gamedir", tf2gamedir);
     settings.setValue("content_folder_to_save", content_folder_to_save);
     settings.setValue("s1_game_type", s1_game_type);
 }
@@ -446,11 +556,18 @@ void Backend::load_from_cfg()
     cs2_basefolder = settings.value("cs2_basefolder", "").toString();
     csgogamedir = settings.value("csgogamedir", "").toString();
     cssgamedir = settings.value("cssgamedir", "").toString();
+    hl2gamedir = settings.value("hl2gamedir", "").toString();
+    l4dgamedir = settings.value("l4dgamedir", "").toString();
+    l4d2gamedir = settings.value("l4d2gamedir", "").toString();
+    portalgamedir = settings.value("portalgamedir", "").toString();
+    portal2gamedir = settings.value("portal2gamedir", "").toString();
+    tf2gamedir = settings.value("tf2gamedir", "").toString();
     content_folder_to_save = settings.value("content_folder_to_save", "C:\\").toString();
     vmf_default_path = content_folder_to_save;
     s1_game_type = settings.value("s1_game_type", "csgo").toString();
 
-    if (s1_game_type != "csgo" && s1_game_type != "css") {
+    QStringList valid_games = {"csgo", "css", "hl2", "l4d", "l4d2", "portal", "portal2", "tf2"};
+    if (!valid_games.contains(s1_game_type)) {
         s1_game_type = "csgo";
     }
 
@@ -462,6 +579,24 @@ void Backend::load_from_cfg()
     }
     if (!cssgamedir.isEmpty() && !is_valid_s1(cssgamedir, "css")) {
         cssgamedir = "";
+    }
+    if (!hl2gamedir.isEmpty() && !is_valid_s1(hl2gamedir, "hl2")) {
+        hl2gamedir = "";
+    }
+    if (!l4dgamedir.isEmpty() && !is_valid_s1(l4dgamedir, "l4d")) {
+        l4dgamedir = "";
+    }
+    if (!l4d2gamedir.isEmpty() && !is_valid_s1(l4d2gamedir, "l4d2")) {
+        l4d2gamedir = "";
+    }
+    if (!portalgamedir.isEmpty() && !is_valid_s1(portalgamedir, "portal")) {
+        portalgamedir = "";
+    }
+    if (!portal2gamedir.isEmpty() && !is_valid_s1(portal2gamedir, "portal2")) {
+        portal2gamedir = "";
+    }
+    if (!tf2gamedir.isEmpty() && !is_valid_s1(tf2gamedir, "tf2")) {
+        tf2gamedir = "";
     }
 
     auto_detect_paths();
@@ -571,7 +706,14 @@ void Backend::start()
                 VmfBspProcess::fix_special_targetnames(target_vmf_path);
 
                 MapImporter::Options mapOpts;
-                QString s1_subfolder = opts.s1_game_type == "css" ? "cstrike" : "csgo";
+                QString s1_subfolder = "csgo";
+                if (opts.s1_game_type == "css") s1_subfolder = "cstrike";
+                else if (opts.s1_game_type == "hl2") s1_subfolder = "hl2";
+                else if (opts.s1_game_type == "l4d") s1_subfolder = "left4dead";
+                else if (opts.s1_game_type == "l4d2") s1_subfolder = "left4dead2";
+                else if (opts.s1_game_type == "portal") s1_subfolder = "portal";
+                else if (opts.s1_game_type == "portal2") s1_subfolder = "portal2";
+                else if (opts.s1_game_type == "tf2") s1_subfolder = "tf";
 
                 QString s1gamedir = opts.s1game_basefolder + "\\" + s1_subfolder;
                 s1gamedir.replace('/', '\\');
@@ -581,7 +723,7 @@ void Backend::start()
                 csgogamedir_path.replace('/', '\\');
                 mapOpts.csgogamedir = csgogamedir_path;
 
-                mapOpts.s1gamename = opts.s1_game_type == "css" ? "css" : "csgo";
+                mapOpts.s1gamename = opts.s1_game_type;
 
                 QString contentdir = opts.content_folder;
                 contentdir.replace('/', '\\');

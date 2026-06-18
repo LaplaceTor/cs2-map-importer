@@ -404,7 +404,14 @@ void VmfBspProcess::process_bsp(Miscellaneous::Options& options) {
     Miscellaneous::log("Decompiled and prepared at: " + final_vmf_dest);
 
     // Copy materials and models to s1gamedir
-    QString s1_subfolder = (options.s1_game_type == "css") ? "cstrike" : "csgo";
+    QString s1_subfolder = "csgo";
+    if (options.s1_game_type == "css") s1_subfolder = "cstrike";
+    else if (options.s1_game_type == "hl2") s1_subfolder = "hl2";
+    else if (options.s1_game_type == "l4d") s1_subfolder = "left4dead";
+    else if (options.s1_game_type == "l4d2") s1_subfolder = "left4dead2";
+    else if (options.s1_game_type == "portal") s1_subfolder = "portal";
+    else if (options.s1_game_type == "portal2") s1_subfolder = "portal2";
+    else if (options.s1_game_type == "tf2") s1_subfolder = "tf";
     QString s1gamedir = QDir(options.s1game_basefolder).filePath(s1_subfolder);
 
     if (QDir(target_unpacked_dir).exists()) {
