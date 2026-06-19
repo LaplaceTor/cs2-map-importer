@@ -11,8 +11,8 @@ This project was previously a Python program (forked from sarim's importer) but 
 - **VMF Patching:** Automatically fixes `dispinfo` blocks and inserts missing required structural elements (e.g., `versioninfo`, `viewsettings`, `cordon`) in decompiled `.vmf` files.
 - **VPK Signature Check Disabling:** Automatically moves and restores `vpk.signatures` during the import process.
 - **Source 1 Game Support:** Supports much a lot source 1 games.
-- **Log Output:** Built-in console log output and automated log file generation in log folder.
-- **Process File Backup:** All files process with this tool have backup in maps folder. 
+- **Log Output:** Built-in console log output and automated log file generation in logs folder.
+- **Process File Backup:** All files process with this tool would backup in maps folder. 
 
 ## Requirements
 
