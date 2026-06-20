@@ -1,6 +1,6 @@
 #pragma once
 
-#include "miscellaneous.h"
+#include "Miscellaneous.h"
 #include <QStringList>
 
 class VmfBspProcess {

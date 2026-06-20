@@ -13,7 +13,7 @@ public:
     void raise() const override { throw *this; }
     AppException *clone() const override { return new AppException(*this); }
 
-    QString message() const { return msg_; }
+    QString Message() const { return msg_; }
 private:
     QString msg_;
 };

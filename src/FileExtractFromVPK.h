@@ -2,7 +2,7 @@
 #define FILEEXTRACTFROMVPK_H
 
 #include <QString>
-#include "mapimporter.h"
+#include "MapImporter.h"
 
 class FileExtractFromVPK {
 public:

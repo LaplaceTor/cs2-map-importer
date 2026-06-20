@@ -1,6 +1,6 @@
-#include "mapimporter.h"
-#include "miscellaneous.h"
-#include "soundscapeimport.h"
+#include "MapImporter.h"
+#include "Miscellaneous.h"
+#include "SoundscapeImport.h"
 #include "FileExtractFromVPK.h"
 #include <QDir>
 #include <QFile>

@@ -12,17 +12,17 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(SOURCES
-    src/main.cpp
-    src/ui.cpp
-    src/ui.h
-    src/miscellaneous.cpp
-    src/miscellaneous.h
-    src/vmf_bsp_process.cpp
-    src/vmf_bsp_process.h
-    src/mapimporter.cpp
-    src/mapimporter.h
-    src/soundscapeimport.cpp
-    src/soundscapeimport.h
+    src/Main.cpp
+    src/Ui.cpp
+    src/Ui.h
+    src/Miscellaneous.cpp
+    src/Miscellaneous.h
+    src/VmfBspProcess.cpp
+    src/VmfBspProcess.h
+    src/MapImporter.cpp
+    src/MapImporter.h
+    src/SoundscapeImport.cpp
+    src/SoundscapeImport.h
     src/FileExtractFromVPK.cpp
     src/FileExtractFromVPK.h
 )

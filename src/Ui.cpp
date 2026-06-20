@@ -1,7 +1,7 @@
-#include "vmf_bsp_process.h"
-#include "ui.h"
-#include "mapimporter.h"
-#include "miscellaneous.h"
+#include "VmfBspProcess.h"
+#include "Ui.h"
+#include "MapImporter.h"
+#include "Miscellaneous.h"
 
 #include <QDir>
 #include <QFile>
@@ -666,9 +666,9 @@ void Backend::Start()
 
         SaveToCfg();
 
-        QString log_dir_path = QDir(app_dir).filePath("Log");
+        QString log_dir_path = QDir(app_dir).filePath("log");
         QDir().mkpath(log_dir_path);
-        QString log_filename = QString("%1_%2.Log")
+        QString log_filename = QString("%1_%2.log")
             .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss"))
             .arg(addon_name);
         QString log_file_path = QDir(log_dir_path).filePath(log_filename);
@@ -766,9 +766,9 @@ void Backend::Start()
                 success = importer.Run();
 
             } catch (const AppException& e) {
-                Miscellaneous::Log(QString("Error: ") + e.message());
+                Miscellaneous::Log(QString("Error: ") + e.Message());
                 success = false;
-                QString errMsg = e.message();
+                QString errMsg = e.Message();
                 QMetaObject::invokeMethod(this, [this, errMsg]() {
                     emit alertMessage("Error", errMsg);
                 }, Qt::QueuedConnection);
@@ -807,8 +807,8 @@ void Backend::Start()
         workerThread->start();
 
     } catch (const AppException& e) {
-        Miscellaneous::Log(QString("Error: %1").arg(e.message()));
-        emit alertMessage("Error", e.message());
+        Miscellaneous::Log(QString("Error: %1").arg(e.Message()));
+        emit alertMessage("Error", e.Message());
     }
 }
 

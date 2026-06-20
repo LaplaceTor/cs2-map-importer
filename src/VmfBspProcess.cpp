@@ -1,4 +1,4 @@
-#include "vmf_bsp_process.h"
+#include "VmfBspProcess.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>

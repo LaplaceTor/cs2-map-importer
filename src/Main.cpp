@@ -4,7 +4,7 @@
 #include <QQuickStyle>
 #include <QIcon>
 #include <QPalette>
-#include "ui.h"
+#include "Ui.h"
 
 int main(int argc, char *argv[])
 {

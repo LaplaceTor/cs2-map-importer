@@ -1,4 +1,4 @@
-#include "miscellaneous.h"
+#include "Miscellaneous.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
