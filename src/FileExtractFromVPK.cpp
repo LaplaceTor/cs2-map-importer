@@ -92,7 +92,7 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath, const MapImporter
 
         QString cmd = "\"bin\\vpkeditcli.exe\" -e \"" + filepath + "\" \"" + vpkPath + "\" -o \"" + contentPath + "\"";
         cmd = cmd.replace("/", "\\");
-        Miscellaneous::run_command_sync(cmd);
+        Miscellaneous::RunCommandSync(cmd);
 
         if (QFile::exists(contentPath)) {
             QFile::copy(contentPath, outPath);
@@ -113,7 +113,7 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath, const MapImporter
 
             QString cmd = "\"bin\\vpkeditcli.exe\" -e \"" + target + "\" \"" + foundVpkPath + "\" -o \"" + contentPath + "\"";
             cmd = cmd.replace("/", "\\");
-            Miscellaneous::run_command_sync(cmd);
+            Miscellaneous::RunCommandSync(cmd);
 
             outPath = QDir(options.s1gamedir).filePath(target);
             if (QFile::exists(contentPath)) {
@@ -138,7 +138,7 @@ void FileExtractFromVPK::ExtractParticle(const QString& filepath, const MapImpor
 
         QString cmd = "\"bin\\vpkeditcli.exe\" -e \"" + filepath + "\" \"" + vpkPath + "\" -o \"" + contentPath + "\"";
         cmd = cmd.replace("/", "\\");
-        Miscellaneous::run_command_sync(cmd);
+        Miscellaneous::RunCommandSync(cmd);
 
         if (QFile::exists(contentPath)) {
             QFileInfo fi(outPath);
@@ -167,7 +167,7 @@ void FileExtractFromVPK::ExtractSound(const QString& filepath, const MapImporter
 
         QString cmd = "\"bin\\vpkeditcli.exe\" -e \"" + filepath + "\" \"" + vpkPath + "\" -o \"" + contentPath + "\"";
         cmd = cmd.replace("/", "\\");
-        Miscellaneous::run_command_sync(cmd);
+        Miscellaneous::RunCommandSync(cmd);
 
         if (QFile::exists(contentPath)) {
             QFileInfo fi(outPath);

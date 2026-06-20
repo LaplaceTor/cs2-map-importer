@@ -11,13 +11,13 @@
 QAtomicInt Miscellaneous::cancel_import(0);
 Miscellaneous::LogCallback Miscellaneous::global_logger = nullptr;
 
-void Miscellaneous::log(const QString& msg) {
+void Miscellaneous::Log(const QString& msg) {
     if (global_logger) {
         global_logger(msg);
     }
 }
 
-bool Miscellaneous::check_java() {
+bool Miscellaneous::CheckJava() {
     QProcess process;
     process.start("java", QStringList() << "-version");
     process.waitForFinished();
@@ -25,7 +25,7 @@ bool Miscellaneous::check_java() {
     return output.contains("version");
 }
 
-void Miscellaneous::move_vpk_signatures(const QString& cs2_basefolder, bool& vpk_signatures_moved) {
+void Miscellaneous::MoveVpkSignatures(const QString& cs2_basefolder, bool& vpk_signatures_moved) {
     if (cs2_basefolder.isEmpty()) return;
 
     QString bin_folder = QDir(cs2_basefolder).filePath("game/bin/win64");
@@ -45,7 +45,7 @@ void Miscellaneous::move_vpk_signatures(const QString& cs2_basefolder, bool& vpk
     }
 }
 
-void Miscellaneous::restore_vpk_signatures(const QString& cs2_basefolder) {
+void Miscellaneous::RestoreVpkSignatures(const QString& cs2_basefolder) {
     if (cs2_basefolder.isEmpty()) return;
 
     QString bin_folder = QDir(cs2_basefolder).filePath("game/bin/win64");
@@ -60,15 +60,15 @@ void Miscellaneous::restore_vpk_signatures(const QString& cs2_basefolder) {
     }
 }
 
-void Miscellaneous::cancel_all() {
+void Miscellaneous::CancelAll() {
     cancel_import = 1;
 }
 
 
 
-int Miscellaneous::run_command_sync(const QString& cmd) {
+int Miscellaneous::RunCommandSync(const QString& cmd) {
     if (cancel_import) return -1;
-    Miscellaneous::log(cmd);
+    Miscellaneous::Log(cmd);
 
     QProcess process;
     process.setProcessChannelMode(QProcess::MergedChannels);
@@ -94,7 +94,7 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
             if (c == '\n') {
                 if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
                 if (!lineBuffer.isEmpty()) {
-                    Miscellaneous::log(lineBuffer);
+                    Miscellaneous::Log(lineBuffer);
                     if (isSource1Import && lineBuffer.contains("ParseEpar: token too long")) {
                         hasParseEparError = true;
                     }
@@ -116,7 +116,7 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
             processOutput(QString(output));
             if (hasParseEparError) {
                 process.kill();
-                Miscellaneous::cancel_all();
+                Miscellaneous::CancelAll();
                 throw AppException("This map geometry is too bad to run the clean up faces process!");
             }
         } else {
@@ -135,13 +135,13 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
 
     if (!lineBuffer.isEmpty()) {
         if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
-        Miscellaneous::log(lineBuffer);
+        Miscellaneous::Log(lineBuffer);
     }
 
     return process.exitCode();
 }
 
-bool copyDirectoryRecursively(const QString &sourceDir, const QString &destinationDir) {
+bool CopyDirectoryRecursively(const QString &sourceDir, const QString &destinationDir) {
     QDir source(sourceDir);
     if (!source.exists()) {
         return false;
@@ -170,7 +170,7 @@ bool copyDirectoryRecursively(const QString &sourceDir, const QString &destinati
     for (const QString &dir : dirs) {
         QString srcPath = source.filePath(dir);
         QString dstPath = destination.filePath(dir);
-        if (!copyDirectoryRecursively(srcPath, dstPath)) {
+        if (!CopyDirectoryRecursively(srcPath, dstPath)) {
             success = false;
         }
     }

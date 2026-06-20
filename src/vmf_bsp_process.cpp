@@ -8,7 +8,7 @@
 #include <QCoreApplication>
 #include <QByteArray>
 
-QString VmfBspProcess::parse_mapversion(const QStringList& lines, bool& found) {
+QString VmfBspProcess::ParseMapversion(const QStringList& lines, bool& found) {
     QString mapversion = "2";
     found = false;
     QRegularExpression mapversion_regex("^\\s*\"mapversion\"\\s+\"([^\"]+)\"");
@@ -24,7 +24,7 @@ QString VmfBspProcess::parse_mapversion(const QStringList& lines, bool& found) {
     return mapversion;
 }
 
-QStringList VmfBspProcess::extract_visgroups(const QStringList& lines, QStringList& remaining_lines) {
+QStringList VmfBspProcess::ExtractVisgroups(const QStringList& lines, QStringList& remaining_lines) {
     int visgroups_start_idx = -1;
     int visgroups_end_idx = -1;
 
@@ -66,7 +66,7 @@ QStringList VmfBspProcess::extract_visgroups(const QStringList& lines, QStringLi
     return visgroups_lines;
 }
 
-QStringList VmfBspProcess::insert_required_blocks(const QStringList& lines, const QString& mapversion, const QStringList& visgroups) {
+QStringList VmfBspProcess::InsertRequiredBlocks(const QStringList& lines, const QString& mapversion, const QStringList& visgroups) {
     bool has_versioninfo = false;
     bool has_viewsettings = false;
     bool has_cordon = false;
@@ -106,7 +106,7 @@ QStringList VmfBspProcess::insert_required_blocks(const QStringList& lines, cons
     return out_lines;
 }
 
-QStringList VmfBspProcess::patch_dispinfo(const QStringList& lines) {
+QStringList VmfBspProcess::PatchDispinfo(const QStringList& lines) {
     QStringList out_lines;
     bool in_dispinfo = false;
     int open_brackets_disp = 0;
@@ -196,7 +196,7 @@ QStringList VmfBspProcess::patch_dispinfo(const QStringList& lines) {
     return out_lines;
 }
 
-void VmfBspProcess::fix_special_targetnames(const QString& vmf_path) {
+void VmfBspProcess::FixSpecialTargetnames(const QString& vmf_path) {
     if (!QFile::exists(vmf_path)) return;
 
     QFile infile(vmf_path);
@@ -221,7 +221,7 @@ void VmfBspProcess::fix_special_targetnames(const QString& vmf_path) {
         return; // Nothing to do
     }
 
-    Miscellaneous::log("Found special targetnames in VMF. Fixing...");
+    Miscellaneous::Log("Found special targetnames in VMF. Fixing...");
 
     // Find the last entity block
     int last_entity_idx = -1;
@@ -276,7 +276,7 @@ void VmfBspProcess::fix_special_targetnames(const QString& vmf_path) {
     }
 }
 
-void VmfBspProcess::fix_vmf_from_bsp(const QString& vmf_path) {
+void VmfBspProcess::FixVmfFromBsp(const QString& vmf_path) {
     if (!QFile::exists(vmf_path)) return;
 
     QFile infile(vmf_path);
@@ -290,23 +290,23 @@ void VmfBspProcess::fix_vmf_from_bsp(const QString& vmf_path) {
     infile.close();
 
     bool mapversion_found = false;
-    QString mapversion = parse_mapversion(lines, mapversion_found);
+    QString mapversion = ParseMapversion(lines, mapversion_found);
 
     if (!mapversion_found) {
-        Miscellaneous::log("No mapversion found in VMF. Aborting fix.");
+        Miscellaneous::Log("No mapversion found in VMF. Aborting fix.");
         return;
     }
 
     QStringList remaining_lines;
-    QStringList visgroups_lines = extract_visgroups(lines, remaining_lines);
+    QStringList visgroups_lines = ExtractVisgroups(lines, remaining_lines);
 
     if (visgroups_lines.isEmpty()) {
-        Miscellaneous::log("No visgroups block found in VMF. Aborting fix.");
+        Miscellaneous::Log("No visgroups block found in VMF. Aborting fix.");
         return;
     }
 
-    QStringList structured_lines = insert_required_blocks(remaining_lines, mapversion, visgroups_lines);
-    QStringList out_lines = patch_dispinfo(structured_lines);
+    QStringList structured_lines = InsertRequiredBlocks(remaining_lines, mapversion, visgroups_lines);
+    QStringList out_lines = PatchDispinfo(structured_lines);
 
     QFile outfile(vmf_path);
     if (outfile.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -319,7 +319,7 @@ void VmfBspProcess::fix_vmf_from_bsp(const QString& vmf_path) {
 }
 
 
-void VmfBspProcess::process_bsp(Miscellaneous::Options& options) {
+void VmfBspProcess::ProcessBsp(Miscellaneous::Options& options) {
     if (Miscellaneous::cancel_import) return;
     QString app_dir = options.app_dir;
     QString maps_dir = QDir(app_dir).filePath("maps");
@@ -332,10 +332,10 @@ void VmfBspProcess::process_bsp(Miscellaneous::Options& options) {
         throw AppException("Could not find bspsrc.jar at " + bspsrc_jar);
     }
 
-    Miscellaneous::log("Decompiling BSP: " + options.bsp_file);
+    Miscellaneous::Log("Decompiling BSP: " + options.bsp_file);
 
     QString decomp_cmd = "java -jar \"" + bspsrc_jar + "\" \"" + options.bsp_file + "\" -o \"" + vmf_dest + "\"";
-    int ret = Miscellaneous::run_command_sync(decomp_cmd);
+    int ret = Miscellaneous::RunCommandSync(decomp_cmd);
     if (Miscellaneous::cancel_import) return;
     if (ret != 0) {
         throw AppException("BSP Decompilation failed.");
@@ -348,19 +348,19 @@ void VmfBspProcess::process_bsp(Miscellaneous::Options& options) {
     vpkeditcli_exe = QDir::toNativeSeparators(vpkeditcli_exe);
 #endif
     if (!QFile::exists(vpkeditcli_exe)) {
-        Miscellaneous::log("Warning: Could not find vpkeditcli.exe at " + vpkeditcli_exe);
+        Miscellaneous::Log("Warning: Could not find vpkeditcli.exe at " + vpkeditcli_exe);
     } else {
-        Miscellaneous::log("Extracting embedded files using vpkeditcli...");
+        Miscellaneous::Log("Extracting embedded files using vpkeditcli...");
         QString vpk_cmd = "\"" + vpkeditcli_exe + "\" -e \"/\" -o \"" + maps_dir + "\" \"" + options.bsp_file + "\"";
-        int vpk_ret = Miscellaneous::run_command_sync(vpk_cmd);
+        int vpk_ret = Miscellaneous::RunCommandSync(vpk_cmd);
         if (vpk_ret != 0) {
-            Miscellaneous::log("Warning: vpkeditcli failed to extract embedded files.");
+            Miscellaneous::Log("Warning: vpkeditcli failed to extract embedded files.");
         } else {
-            Miscellaneous::log("Successfully extracted embedded files to " + target_unpacked_dir);
+            Miscellaneous::Log("Successfully extracted embedded files to " + target_unpacked_dir);
         }
     }
 
-    fix_vmf_from_bsp(vmf_dest);
+    FixVmfFromBsp(vmf_dest);
     if (Miscellaneous::cancel_import) return;
 
     QString target_maps_dir = QDir(app_dir).filePath("maps/" + options.map_name + "/maps");
@@ -372,13 +372,13 @@ void VmfBspProcess::process_bsp(Miscellaneous::Options& options) {
     }
 
     if (QFile::rename(vmf_dest, final_vmf_dest)) {
-        Miscellaneous::log("Moved VMF to: " + final_vmf_dest);
+        Miscellaneous::Log("Moved VMF to: " + final_vmf_dest);
     } else {
-        Miscellaneous::log("Failed to move VMF to: " + final_vmf_dest);
+        Miscellaneous::Log("Failed to move VMF to: " + final_vmf_dest);
     }
 
     options.content_folder = QDir(app_dir).filePath("maps/" + options.map_name);
-    Miscellaneous::log("Decompiled and prepared at: " + final_vmf_dest);
+    Miscellaneous::Log("Decompiled and prepared at: " + final_vmf_dest);
 
     // Copy materials and models to s1gamedir
     QString s1_subfolder = "csgo";
@@ -396,22 +396,22 @@ void VmfBspProcess::process_bsp(Miscellaneous::Options& options) {
         QString src_materials = QDir(target_unpacked_dir).filePath("materials");
         QString dest_materials = QDir(s1gamedir).filePath("materials");
         if (QDir(src_materials).exists()) {
-            Miscellaneous::log("Copying materials to " + dest_materials);
-            copyDirectoryRecursively(src_materials, dest_materials);
+            Miscellaneous::Log("Copying materials to " + dest_materials);
+            CopyDirectoryRecursively(src_materials, dest_materials);
         }
 
         QString src_models = QDir(target_unpacked_dir).filePath("models");
         QString dest_models = QDir(s1gamedir).filePath("models");
         if (QDir(src_models).exists()) {
-            Miscellaneous::log("Copying models to " + dest_models);
-            copyDirectoryRecursively(src_models, dest_models);
+            Miscellaneous::Log("Copying models to " + dest_models);
+            CopyDirectoryRecursively(src_models, dest_models);
         }
 
         QString src_particles = QDir(target_unpacked_dir).filePath("particles");
         QString dest_particles = QDir(s1gamedir).filePath("particles");
         if (QDir(src_particles).exists()) {
-            Miscellaneous::log("Copying particles to " + dest_particles);
-            copyDirectoryRecursively(src_particles, dest_particles);
+            Miscellaneous::Log("Copying particles to " + dest_particles);
+            CopyDirectoryRecursively(src_particles, dest_particles);
         }
     }
 }

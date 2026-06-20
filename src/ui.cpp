@@ -37,19 +37,19 @@ Backend::Backend(QObject *parent) :
         }
     };
 
-    Miscellaneous::log("Initializing CS2 Importer...");
+    Miscellaneous::Log("Initializing CS2 Importer...");
 
-    java_installed = Miscellaneous::check_java();
+    java_installed = Miscellaneous::CheckJava();
 
-    get_launch_options();
+    GetLaunchOptions();
 
     if (!java_installed) {
-        Miscellaneous::log("Warning: Java is missing. BSP decompilation disabled.");
+        Miscellaneous::Log("Warning: Java is missing. BSP decompilation disabled.");
     }
 
-    load_from_cfg();
+    LoadFromCfg();
 
-    Miscellaneous::log("Initializing CS2 Importer... Finished");
+    Miscellaneous::Log("Initializing CS2 Importer... Finished");
 }
 
 Backend::~Backend()
@@ -67,12 +67,12 @@ Backend::~Backend()
     }
 }
 
-void Backend::validate_cs2()
+void Backend::ValidateCs2()
 {
     QDesktopServices::openUrl(QUrl("steam://validate/730"));
 }
 
-void Backend::validate_s1()
+void Backend::ValidateS1()
 {
     if (s1_game_type == "css") {
         QDesktopServices::openUrl(QUrl("steam://validate/240"));
@@ -95,18 +95,18 @@ void Backend::validate_s1()
     }
 }
 
-void Backend::set_s1_game_type(const QString& type)
+void Backend::SetS1GameType(const QString& type)
 {
     if (s1_game_type != type) {
         s1_game_type = type;
         emit s1gameBasefolderChanged();
         emit s1GameTypeChanged();
-        updateCanGo();
-        save_to_cfg();
+        UpdateCanGo();
+        SaveToCfg();
     }
 }
 
-bool Backend::is_valid_cs2(const QString& path)
+bool Backend::IsValidCs2(const QString& path)
 {
     if (path.isEmpty()) return false;
 
@@ -128,30 +128,30 @@ bool Backend::is_valid_cs2(const QString& path)
     return valid;
 }
 
-void Backend::select_cs2_folder_dialog(const QUrl& url)
+void Backend::SelectCs2FolderDialog(const QUrl& url)
 {
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
-    if (!is_valid_cs2(path)) {
+    if (!IsValidCs2(path)) {
         emit alertMessage("Invalid CS2 Folder", "The selected folder is not a valid CS2 installation.\nPlease make sure to select a folder where game/csgo/gameinfo.gi contains 'game \"Counter-Strike 2\"'.");
         return;
     }
 
-    set_cs2_folder(path);
+    SetCs2Folder(path);
 }
 
-void Backend::set_cs2_folder(const QString& path)
+void Backend::SetCs2Folder(const QString& path)
 {
     if (!path.isEmpty() && path != "None") {
         cs2_basefolder = path;
         emit cs2BasefolderChanged();
-        updateCanGo();
-        save_to_cfg();
+        UpdateCanGo();
+        SaveToCfg();
     }
 }
 
-bool Backend::is_valid_s1(const QString& path, const QString& type)
+bool Backend::IsValidS1(const QString& path, const QString& type)
 {
     if (path.isEmpty()) return false;
 
@@ -197,20 +197,20 @@ bool Backend::is_valid_s1(const QString& path, const QString& type)
     return valid;
 }
 
-void Backend::select_s1_folder_dialog(const QUrl& url)
+void Backend::SelectS1FolderDialog(const QUrl& url)
 {
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
-    if (!is_valid_s1(path, s1_game_type)) {
+    if (!IsValidS1(path, s1_game_type)) {
         emit alertMessage("Invalid Source 1 Folder", "The selected folder is not a valid installation for the selected game.\nPlease make sure it is the correct directory containing the gameinfo.txt.");
         return;
     }
 
-    set_s1_folder(path);
+    SetS1Folder(path);
 }
 
-void Backend::auto_detect_paths()
+void Backend::AutoDetectPaths()
 {
     QString steam_path;
 #ifdef Q_OS_WIN
@@ -296,73 +296,73 @@ void Backend::auto_detect_paths()
 
         if (lib.apps.contains("730")) {
             QString cs2_candidate = QDir(common_dir).filePath("Counter-Strike Global Offensive");
-            if (is_valid_cs2(cs2_candidate)) {
+            if (IsValidCs2(cs2_candidate)) {
                 found_cs2_dir = cs2_candidate;
             }
-            if (is_valid_s1(cs2_candidate, "csgo")) {
+            if (IsValidS1(cs2_candidate, "csgo")) {
                 found_csgo_cs2_dir = cs2_candidate;
             }
         }
 
         if (lib.apps.contains("4465480")) {
             QString csgo_legacy_candidate = QDir(common_dir).filePath("csgo legacy");
-            if (is_valid_s1(csgo_legacy_candidate, "csgo")) {
+            if (IsValidS1(csgo_legacy_candidate, "csgo")) {
                 found_csgo_legacy_dir = csgo_legacy_candidate;
             }
         }
 
         if (lib.apps.contains("240")) {
             QString css_candidate = QDir(common_dir).filePath("Counter-Strike Source");
-            if (is_valid_s1(css_candidate, "css")) {
+            if (IsValidS1(css_candidate, "css")) {
                 found_css_dir = css_candidate;
             }
         }
 
         if (lib.apps.contains("220")) {
             QString hl2_candidate = QDir(common_dir).filePath("Half-Life 2");
-            if (is_valid_s1(hl2_candidate, "hl2")) {
+            if (IsValidS1(hl2_candidate, "hl2")) {
                 found_hl2_dir = hl2_candidate;
             }
         }
 
         if (lib.apps.contains("500")) {
             QString l4d_candidate = QDir(common_dir).filePath("Left 4 Dead");
-            if (is_valid_s1(l4d_candidate, "l4d")) {
+            if (IsValidS1(l4d_candidate, "l4d")) {
                 found_l4d_dir = l4d_candidate;
             }
         }
 
         if (lib.apps.contains("550")) {
             QString l4d2_candidate = QDir(common_dir).filePath("Left 4 Dead 2");
-            if (is_valid_s1(l4d2_candidate, "l4d2")) {
+            if (IsValidS1(l4d2_candidate, "l4d2")) {
                 found_l4d2_dir = l4d2_candidate;
             }
         }
 
         if (lib.apps.contains("400")) {
             QString portal_candidate = QDir(common_dir).filePath("Portal");
-            if (is_valid_s1(portal_candidate, "portal")) {
+            if (IsValidS1(portal_candidate, "portal")) {
                 found_portal_dir = portal_candidate;
             }
         }
 
         if (lib.apps.contains("620")) {
             QString portal2_candidate = QDir(common_dir).filePath("Portal 2");
-            if (is_valid_s1(portal2_candidate, "portal2")) {
+            if (IsValidS1(portal2_candidate, "portal2")) {
                 found_portal2_dir = portal2_candidate;
             }
         }
 
         if (lib.apps.contains("440")) {
             QString tf2_candidate = QDir(common_dir).filePath("Team Fortress 2");
-            if (is_valid_s1(tf2_candidate, "tf2")) {
+            if (IsValidS1(tf2_candidate, "tf2")) {
                 found_tf2_dir = tf2_candidate;
             }
         }
 
         if (lib.apps.contains("4000")) {
             QString gmod_candidate = QDir(common_dir).filePath("GarrysMod");
-            if (is_valid_s1(gmod_candidate, "gmod")) {
+            if (IsValidS1(gmod_candidate, "gmod")) {
                 found_gmod_dir = gmod_candidate;
             }
         }
@@ -427,13 +427,13 @@ void Backend::auto_detect_paths()
     }
 
     if (updated) {
-        updateCanGo();
+        UpdateCanGo();
         emit s1gameBasefolderChanged();
-        save_to_cfg();
+        SaveToCfg();
     }
 }
 
-void Backend::set_s1_folder(const QString& path)
+void Backend::SetS1Folder(const QString& path)
 {
     if (!path.isEmpty() && path != "None") {
         if (s1_game_type == "css") {
@@ -456,12 +456,12 @@ void Backend::set_s1_folder(const QString& path)
             csgogamedir = path;
         }
         emit s1gameBasefolderChanged();
-        updateCanGo();
-        save_to_cfg();
+        UpdateCanGo();
+        SaveToCfg();
     }
 }
 
-void Backend::select_vmf_dialog(const QUrl& url)
+void Backend::SelectVmfDialog(const QUrl& url)
 {
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
@@ -495,12 +495,12 @@ void Backend::select_vmf_dialog(const QUrl& url)
     addon_name = "";
     emit addonNameChanged();
 
-    Miscellaneous::log("VMF set up at: " + target_vmf_path);
+    Miscellaneous::Log("VMF set up at: " + target_vmf_path);
 
-    updateCanGo();
+    UpdateCanGo();
 }
 
-void Backend::select_bsp_dialog(const QUrl& url)
+void Backend::SelectBspDialog(const QUrl& url)
 {
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
@@ -523,10 +523,10 @@ void Backend::select_bsp_dialog(const QUrl& url)
     addon_name = "";
     emit addonNameChanged();
 
-    updateCanGo();
+    UpdateCanGo();
 }
 
-void Backend::get_launch_options()
+void Backend::GetLaunchOptions()
 {
     QStringList options;
     if (usebsp) {
@@ -540,13 +540,13 @@ void Backend::get_launch_options()
     launch_options = options.join(" ");
 }
 
-void Backend::updateCanGo()
+void Backend::UpdateCanGo()
 {
     emit canGoChanged();
     emit isGoingChanged();
 }
 
-void Backend::save_to_cfg()
+void Backend::SaveToCfg()
 {
     QSettings settings("cs2importer.cfg", QSettings::IniFormat);
     settings.setValue("usebsp", usebsp);
@@ -566,7 +566,7 @@ void Backend::save_to_cfg()
     settings.setValue("s1_game_type", s1_game_type);
 }
 
-void Backend::load_from_cfg()
+void Backend::LoadFromCfg()
 {
     QSettings settings("cs2importer.cfg", QSettings::IniFormat);
 
@@ -592,38 +592,38 @@ void Backend::load_from_cfg()
         s1_game_type = "csgo";
     }
 
-    if (!cs2_basefolder.isEmpty() && !is_valid_cs2(cs2_basefolder)) {
+    if (!cs2_basefolder.isEmpty() && !IsValidCs2(cs2_basefolder)) {
         cs2_basefolder = "";
     }
-    if (!csgogamedir.isEmpty() && !is_valid_s1(csgogamedir, "csgo")) {
+    if (!csgogamedir.isEmpty() && !IsValidS1(csgogamedir, "csgo")) {
         csgogamedir = "";
     }
-    if (!cssgamedir.isEmpty() && !is_valid_s1(cssgamedir, "css")) {
+    if (!cssgamedir.isEmpty() && !IsValidS1(cssgamedir, "css")) {
         cssgamedir = "";
     }
-    if (!hl2gamedir.isEmpty() && !is_valid_s1(hl2gamedir, "hl2")) {
+    if (!hl2gamedir.isEmpty() && !IsValidS1(hl2gamedir, "hl2")) {
         hl2gamedir = "";
     }
-    if (!l4dgamedir.isEmpty() && !is_valid_s1(l4dgamedir, "l4d")) {
+    if (!l4dgamedir.isEmpty() && !IsValidS1(l4dgamedir, "l4d")) {
         l4dgamedir = "";
     }
-    if (!l4d2gamedir.isEmpty() && !is_valid_s1(l4d2gamedir, "l4d2")) {
+    if (!l4d2gamedir.isEmpty() && !IsValidS1(l4d2gamedir, "l4d2")) {
         l4d2gamedir = "";
     }
-    if (!portalgamedir.isEmpty() && !is_valid_s1(portalgamedir, "portal")) {
+    if (!portalgamedir.isEmpty() && !IsValidS1(portalgamedir, "portal")) {
         portalgamedir = "";
     }
-    if (!portal2gamedir.isEmpty() && !is_valid_s1(portal2gamedir, "portal2")) {
+    if (!portal2gamedir.isEmpty() && !IsValidS1(portal2gamedir, "portal2")) {
         portal2gamedir = "";
     }
-    if (!tf2gamedir.isEmpty() && !is_valid_s1(tf2gamedir, "tf2")) {
+    if (!tf2gamedir.isEmpty() && !IsValidS1(tf2gamedir, "tf2")) {
         tf2gamedir = "";
     }
-    if (!gmodgamedir.isEmpty() && !is_valid_s1(gmodgamedir, "gmod")) {
+    if (!gmodgamedir.isEmpty() && !IsValidS1(gmodgamedir, "gmod")) {
         gmodgamedir = "";
     }
 
-    auto_detect_paths();
+    AutoDetectPaths();
 
     emit cs2BasefolderChanged();
     emit s1gameBasefolderChanged();
@@ -633,17 +633,17 @@ void Backend::load_from_cfg()
     emit usebspNomergeinstancesChanged();
     emit skipdepsChanged();
 
-    updateCanGo();
-    get_launch_options();
+    UpdateCanGo();
+    GetLaunchOptions();
 }
 
-void Backend::start()
+void Backend::Start()
 {
     if (cs2_basefolder.isEmpty()) {
         emit alertMessage("Validation Error", "CS2 folder not selected.");
         return;
     }
-    if (getS1gameBasefolder().isEmpty()) {
+    if (GetS1gameBasefolder().isEmpty()) {
         emit alertMessage("Validation Error", "CSGO/CSS folder not selected.");
         return;
     }
@@ -652,7 +652,7 @@ void Backend::start()
         return;
     }
     if (usebsp || usebsp_nomergeinstances) {
-        if (csgogamedir.isEmpty() || !is_valid_s1(csgogamedir, "csgo")) {
+        if (csgogamedir.isEmpty() || !IsValidS1(csgogamedir, "csgo")) {
             emit alertMessage("Error", "You need to install CSGO for map geo import!");
             return;
         }
@@ -664,11 +664,11 @@ void Backend::start()
             emit addonNameChanged();
         }
 
-        save_to_cfg();
+        SaveToCfg();
 
-        QString log_dir_path = QDir(app_dir).filePath("log");
+        QString log_dir_path = QDir(app_dir).filePath("Log");
         QDir().mkpath(log_dir_path);
-        QString log_filename = QString("%1_%2.log")
+        QString log_filename = QString("%1_%2.Log")
             .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss"))
             .arg(addon_name);
         QString log_file_path = QDir(log_dir_path).filePath(log_filename);
@@ -694,17 +694,17 @@ void Backend::start()
         }
 
         Miscellaneous::cancel_import = 0;
-        Miscellaneous::move_vpk_signatures(cs2_basefolder, vpk_signatures_moved);
+        Miscellaneous::MoveVpkSignatures(cs2_basefolder, vpk_signatures_moved);
 
         is_going = true;
-        updateCanGo();
+        UpdateCanGo();
 
-        Miscellaneous::log("Starting Miscellaneous thread...");
+        Miscellaneous::Log("Starting Miscellaneous thread...");
 
         Miscellaneous::Options opts;
         opts.cs2_basefolder = cs2_basefolder;
         opts.cs2_basefolder.replace("/", "\\");
-        opts.s1game_basefolder = getS1gameBasefolder();
+        opts.s1game_basefolder = GetS1gameBasefolder();
         opts.csgogamedir = csgogamedir;
         opts.s1_game_type = s1_game_type;
         opts.content_folder = content_folder;
@@ -720,14 +720,14 @@ void Backend::start()
             bool success = true;
             try {
                 if (!opts.bsp_file.isEmpty()) {
-                    if (!Miscellaneous::check_java()) {
+                    if (!Miscellaneous::CheckJava()) {
                         throw AppException("Java is not installed. Cannot decompile BSP file.");
                     }
-                    VmfBspProcess::process_bsp(opts);
+                    VmfBspProcess::ProcessBsp(opts);
                 }
 
                 QString target_vmf_path = QDir(opts.app_dir).filePath("maps/" + opts.map_name + "/maps/" + opts.map_name + ".vmf");
-                VmfBspProcess::fix_special_targetnames(target_vmf_path);
+                VmfBspProcess::FixSpecialTargetnames(target_vmf_path);
 
                 MapImporter::Options mapOpts;
                 QString s1_subfolder = "csgo";
@@ -766,7 +766,7 @@ void Backend::start()
                 success = importer.Run();
 
             } catch (const AppException& e) {
-                Miscellaneous::log(QString("Error: ") + e.message());
+                Miscellaneous::Log(QString("Error: ") + e.message());
                 success = false;
                 QString errMsg = e.message();
                 QMetaObject::invokeMethod(this, [this, errMsg]() {
@@ -776,17 +776,17 @@ void Backend::start()
 
             QMetaObject::invokeMethod(this, [this, success]() {
                 if (vpk_signatures_moved && !cs2_basefolder.isEmpty()) {
-                    Miscellaneous::restore_vpk_signatures(cs2_basefolder);
+                    Miscellaneous::RestoreVpkSignatures(cs2_basefolder);
                     vpk_signatures_moved = false;
                 }
 
                 is_going = false;
-                updateCanGo();
+                UpdateCanGo();
 
                 if (success) {
-                    Miscellaneous::log("MapImporter thread finished successfully.");
+                    Miscellaneous::Log("MapImporter thread finished successfully.");
                 } else {
-                    Miscellaneous::log("MapImporter thread finished with errors.");
+                    Miscellaneous::Log("MapImporter thread finished with errors.");
                 }
 
                 if (log_stream) {
@@ -807,24 +807,24 @@ void Backend::start()
         workerThread->start();
 
     } catch (const AppException& e) {
-        Miscellaneous::log(QString("Error: %1").arg(e.message()));
+        Miscellaneous::Log(QString("Error: %1").arg(e.message()));
         emit alertMessage("Error", e.message());
     }
 }
 
-void Backend::stop()
+void Backend::Stop()
 {
     if (is_going) {
-        Miscellaneous::log("Cancelling import...");
-        Miscellaneous::cancel_all();
+        Miscellaneous::Log("Cancelling import...");
+        Miscellaneous::CancelAll();
     }
 }
 
-void Backend::appAboutToQuit()
+void Backend::AppAboutToQuit()
 {
-    Miscellaneous::cancel_all();
+    Miscellaneous::CancelAll();
     if (vpk_signatures_moved && !cs2_basefolder.isEmpty()) {
-        Miscellaneous::restore_vpk_signatures(cs2_basefolder);
+        Miscellaneous::RestoreVpkSignatures(cs2_basefolder);
         vpk_signatures_moved = false;
     }
 }

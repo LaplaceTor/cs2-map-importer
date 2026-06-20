@@ -49,13 +49,13 @@ ApplicationWindow {
     FolderDialog {
         id: cs2FolderDialog
         title: "Select CS2 folder"
-        onAccepted: backend.select_cs2_folder_dialog(selectedFolder)
+        onAccepted: backend.SelectCs2FolderDialog(selectedFolder)
     }
 
     FolderDialog {
         id: s1FolderDialog
         title: "Select Source 1 Game Folder"
-        onAccepted: backend.select_s1_folder_dialog(selectedFolder)
+        onAccepted: backend.SelectS1FolderDialog(selectedFolder)
     }
 
     FileDialog {
@@ -67,9 +67,9 @@ ApplicationWindow {
             let fileName = path.substring(path.lastIndexOf('/') + 1)
             selectedMapFileName = fileName
             if (path.endsWith(".vmf")) {
-                backend.select_vmf_dialog(selectedFile)
+                backend.SelectVmfDialog(selectedFile)
             } else if (path.endsWith(".bsp")) {
-                backend.select_bsp_dialog(selectedFile)
+                backend.SelectBspDialog(selectedFile)
             }
         }
     }
@@ -123,7 +123,7 @@ ApplicationWindow {
                                 else if (type === "gmod") currentIndex = 8;
                                 else currentIndex = 0;
                             }
-                            onActivated: backend.set_s1_game_type(currentText.toLowerCase())
+                            onActivated: backend.SetS1GameType(currentText.toLowerCase())
                         }
 
                         Button {
@@ -143,7 +143,7 @@ ApplicationWindow {
                         Button {
                             text: "Validate Game File"
                             Layout.fillWidth: true
-                            onClicked: backend.validate_s1()
+                            onClicked: backend.ValidateS1()
                         }
                     }
                 }
@@ -181,7 +181,7 @@ ApplicationWindow {
                         Button {
                             text: "Validate Game File"
                             Layout.fillWidth: true
-                            onClicked: backend.validate_cs2()
+                            onClicked: backend.ValidateCs2()
                         }
                     }
                 }
@@ -247,7 +247,7 @@ ApplicationWindow {
 
                     onClicked: {
                         logOutput.clear()
-                        backend.start()
+                        backend.Start()
                     }
                 }
 
@@ -266,7 +266,7 @@ ApplicationWindow {
                     }
 
                     onClicked: {
-                        backend.stop()
+                        backend.Stop()
                     }
                 }
             }

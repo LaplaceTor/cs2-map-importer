@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle("Fusion");
 
     Backend backend;
-    QObject::connect(&app, &QGuiApplication::aboutToQuit, &backend, &Backend::appAboutToQuit);
+    QObject::connect(&app, &QGuiApplication::aboutToQuit, &backend, &Backend::AppAboutToQuit);
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("backendObject", &backend);

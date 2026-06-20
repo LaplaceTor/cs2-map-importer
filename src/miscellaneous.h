@@ -40,16 +40,16 @@ public:
     };
 
     static LogCallback global_logger;
-    static void log(const QString& msg);
+    static void Log(const QString& msg);
 
-    static bool check_java();
-    static void move_vpk_signatures(const QString& cs2_basefolder, bool& vpk_signatures_moved);
-    static void restore_vpk_signatures(const QString& cs2_basefolder);
+    static bool CheckJava();
+    static void MoveVpkSignatures(const QString& cs2_basefolder, bool& vpk_signatures_moved);
+    static void RestoreVpkSignatures(const QString& cs2_basefolder);
 
     // Decompiles the BSP, moves unpacked files, and moves materials/models folders into s1gamedir
 
-    static int run_command_sync(const QString& cmd);
-    static void cancel_all();
+    static int RunCommandSync(const QString& cmd);
+    static void CancelAll();
 
     static QAtomicInt cancel_import;
 
@@ -57,4 +57,4 @@ public:
 private:
 };
 
-bool copyDirectoryRecursively(const QString &sourceDir, const QString &destinationDir);
+bool CopyDirectoryRecursively(const QString &sourceDir, const QString &destinationDir);
