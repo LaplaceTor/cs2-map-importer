@@ -213,14 +213,12 @@ void Backend::SelectS1FolderDialog(const QUrl& url)
 void Backend::AutoDetectPaths()
 {
     QString steamPath;
-#ifdef Q_OS_WIN
     QSettings regSteam("HKEY_LOCAL_MACHINE\\SOFTWARE\\Valve\\Steam", QSettings::NativeFormat);
     steamPath = regSteam.value("InstallPath").toString();
     if (steamPath.isEmpty()) {
         QSettings regSteam64("HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Valve\\Steam", QSettings::NativeFormat);
         steamPath = regSteam64.value("InstallPath").toString();
     }
-#endif
 
     if (steamPath.isEmpty()) return;
 

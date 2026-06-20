@@ -344,9 +344,8 @@ void VmfBspProcess::ProcessBsp(Miscellaneous::Options& options) {
     QString target_unpacked_dir = QDir(maps_dir).filePath(options.mapName);
 
     QString vpkeditcli_exe = QDir(appDir).filePath("bin/vpkeditcli.exe");
-#ifdef Q_OS_WIN
     vpkeditcli_exe = QDir::toNativeSeparators(vpkeditcli_exe);
-#endif
+
     if (!QFile::exists(vpkeditcli_exe)) {
         Miscellaneous::Log("Warning: Could not find vpkeditcli.exe at " + vpkeditcli_exe);
     } else {

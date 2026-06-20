@@ -29,9 +29,7 @@ set(SOURCES
 
 qt_add_executable(cs2importer MANUAL_FINALIZATION ${SOURCES})
 
-if(WIN32)
-    set_property(TARGET cs2importer PROPERTY WIN32_EXECUTABLE TRUE)
-endif()
+set_property(TARGET cs2importer PROPERTY WIN32_EXECUTABLE TRUE)
 
 qt_add_qml_module(cs2importer
     URI cs2importer
