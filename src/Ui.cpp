@@ -666,9 +666,9 @@ void Backend::Start()
 
         SaveToCfg();
 
-        QString log_dir_path = QDir(appDir).filePath("Log");
+        QString log_dir_path = QDir(appDir).filePath("logs");
         QDir().mkpath(log_dir_path);
-        QString log_filename = QString("%1_%2.Log")
+        QString log_filename = QString("%1_%2.log")
             .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss"))
             .arg(addonName);
         QString log_file_path = QDir(log_dir_path).filePath(log_filename);
