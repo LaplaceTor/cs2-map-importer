@@ -24,7 +24,7 @@ QString VmfBspProcess::ParseMapversion(const QStringList& lines, bool& found) {
     return mapversion;
 }
 
-QStringList VmfBspProcess::ExtractVisgroups(const QStringList& lines, QStringList& remaining_lines) {
+QStringList VmfBspProcess::ExtractVisgroups(const QStringList& lines, QStringList& remainingLines) {
     int visgroups_start_idx = -1;
     int visgroups_end_idx = -1;
 
@@ -37,7 +37,7 @@ QStringList VmfBspProcess::ExtractVisgroups(const QStringList& lines, QStringLis
     }
 
     QStringList visgroups_lines;
-    remaining_lines = lines;
+    remainingLines = lines;
 
     if (visgroups_start_idx != -1) {
         int open_brackets = 0;
@@ -59,7 +59,7 @@ QStringList VmfBspProcess::ExtractVisgroups(const QStringList& lines, QStringLis
             for (int i = visgroups_start_idx; i <= visgroups_end_idx; ++i) {
                 visgroups_lines.append(lines[i]);
             }
-            remaining_lines.erase(remaining_lines.begin() + visgroups_start_idx, remaining_lines.begin() + visgroups_end_idx + 1);
+            remainingLines.erase(remainingLines.begin() + visgroups_start_idx, remainingLines.begin() + visgroups_end_idx + 1);
         }
     }
 
@@ -196,10 +196,10 @@ QStringList VmfBspProcess::PatchDispinfo(const QStringList& lines) {
     return out_lines;
 }
 
-void VmfBspProcess::FixSpecialTargetnames(const QString& vmf_path) {
-    if (!QFile::exists(vmf_path)) return;
+void VmfBspProcess::FixSpecialTargetnames(const QString& vmfPath) {
+    if (!QFile::exists(vmfPath)) return;
 
-    QFile infile(vmf_path);
+    QFile infile(vmfPath);
     if (!infile.open(QIODevice::ReadOnly | QIODevice::Text)) return;
 
     QStringList lines;
@@ -266,7 +266,7 @@ void VmfBspProcess::FixSpecialTargetnames(const QString& vmf_path) {
         lines.append(entity_block);
     }
 
-    QFile outfile(vmf_path);
+    QFile outfile(vmfPath);
     if (outfile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream out(&outfile);
         for (const QString& l : lines) {
@@ -276,10 +276,10 @@ void VmfBspProcess::FixSpecialTargetnames(const QString& vmf_path) {
     }
 }
 
-void VmfBspProcess::FixVmfFromBsp(const QString& vmf_path) {
-    if (!QFile::exists(vmf_path)) return;
+void VmfBspProcess::FixVmfFromBsp(const QString& vmfPath) {
+    if (!QFile::exists(vmfPath)) return;
 
-    QFile infile(vmf_path);
+    QFile infile(vmfPath);
     if (!infile.open(QIODevice::ReadOnly | QIODevice::Text)) return;
 
     QStringList lines;
@@ -297,18 +297,18 @@ void VmfBspProcess::FixVmfFromBsp(const QString& vmf_path) {
         return;
     }
 
-    QStringList remaining_lines;
-    QStringList visgroups_lines = ExtractVisgroups(lines, remaining_lines);
+    QStringList remainingLines;
+    QStringList visgroups_lines = ExtractVisgroups(lines, remainingLines);
 
     if (visgroups_lines.isEmpty()) {
         Miscellaneous::Log("No visgroups block found in VMF. Aborting fix.");
         return;
     }
 
-    QStringList structured_lines = InsertRequiredBlocks(remaining_lines, mapversion, visgroups_lines);
+    QStringList structured_lines = InsertRequiredBlocks(remainingLines, mapversion, visgroups_lines);
     QStringList out_lines = PatchDispinfo(structured_lines);
 
-    QFile outfile(vmf_path);
+    QFile outfile(vmfPath);
     if (outfile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QTextStream out(&outfile);
         for (const QString& l : out_lines) {
@@ -320,7 +320,7 @@ void VmfBspProcess::FixVmfFromBsp(const QString& vmf_path) {
 
 
 void VmfBspProcess::ProcessBsp(Miscellaneous::Options& options) {
-    if (Miscellaneous::cancel_import) return;
+    if (Miscellaneous::CanceLImport) return;
     QString appDir = options.appDir;
     QString maps_dir = QDir(appDir).filePath("maps");
     QDir().mkpath(maps_dir);
@@ -336,7 +336,7 @@ void VmfBspProcess::ProcessBsp(Miscellaneous::Options& options) {
 
     QString decomp_cmd = "java -jar \"" + bspsrc_jar + "\" \"" + options.bspFile + "\" -o \"" + vmf_dest + "\"";
     int ret = Miscellaneous::RunCommandSync(decomp_cmd);
-    if (Miscellaneous::cancel_import) return;
+    if (Miscellaneous::CanceLImport) return;
     if (ret != 0) {
         throw AppException("BSP Decompilation failed.");
     }
@@ -361,7 +361,7 @@ void VmfBspProcess::ProcessBsp(Miscellaneous::Options& options) {
     }
 
     FixVmfFromBsp(vmf_dest);
-    if (Miscellaneous::cancel_import) return;
+    if (Miscellaneous::CanceLImport) return;
 
     QString target_maps_dir = QDir(appDir).filePath("maps/" + options.mapName + "/maps");
     QDir().mkpath(target_maps_dir);

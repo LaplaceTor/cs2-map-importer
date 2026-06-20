@@ -8,12 +8,12 @@
 #include <QCoreApplication>
 #include <QByteArray>
 
-QAtomicInt Miscellaneous::cancel_import(0);
-Miscellaneous::LogCallback Miscellaneous::global_logger = nullptr;
+QAtomicInt Miscellaneous::CanceLImport(0);
+Miscellaneous::LogCallback Miscellaneous::GlobaLLogger = nullptr;
 
 void Miscellaneous::Log(const QString& msg) {
-    if (global_logger) {
-        global_logger(msg);
+    if (GlobaLLogger) {
+        GlobaLLogger(msg);
     }
 }
 
@@ -61,13 +61,13 @@ void Miscellaneous::RestoreVpkSignatures(const QString& cs2Basefolder) {
 }
 
 void Miscellaneous::CancelAll() {
-    cancel_import = 1;
+    CanceLImport = 1;
 }
 
 
 
 int Miscellaneous::RunCommandSync(const QString& cmd) {
-    if (cancel_import) return -1;
+    if (CanceLImport) return -1;
     Miscellaneous::Log(cmd);
 
     QProcess process;
@@ -107,7 +107,7 @@ int Miscellaneous::RunCommandSync(const QString& cmd) {
     };
 
     while (process.waitForReadyRead(10000) || process.state() != QProcess::NotRunning) {
-        if (cancel_import) {
+        if (CanceLImport) {
             process.kill();
             return -1;
         }

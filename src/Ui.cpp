@@ -19,7 +19,7 @@
 Backend::Backend(QObject *parent) :
     QObject(parent),
     javaInstalled(false),
-    vmf_default_path("C:\\"),
+    vmfDefaultPath("C:\\"),
     s1GameType("csgo"),
     contentFolderToSave("C:\\"),
     vpkSignaturesMoved(false),
@@ -29,7 +29,7 @@ Backend::Backend(QObject *parent) :
 {
     appDir = QCoreApplication::applicationDirPath();
 
-    Miscellaneous::global_logger = [this](const QString& msg) {
+    Miscellaneous::GlobaLLogger = [this](const QString& msg) {
         emit logMessage(msg);
         if (logStream) {
             *logStream << msg << "\n";
@@ -110,8 +110,8 @@ bool Backend::IsValidCs2(const QString& path)
 {
     if (path.isEmpty()) return false;
 
-    QString gameinfo_path = QDir(path).filePath("game/csgo/gameinfo.gi");
-    QFile file(gameinfo_path);
+    QString gameinfoPath = QDir(path).filePath("game/csgo/gameinfo.gi");
+    QFile file(gameinfoPath);
     bool valid = false;
 
     if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -157,13 +157,13 @@ bool Backend::IsValidS1(const QString& path, const QString& type)
 
     bool valid = false;
 
-    auto check_gameinfo = [&](const QString& folder, const QString& game_name) {
-        QString gameinfo_path = QDir(path).filePath(folder + "/gameinfo.txt");
-        QFile file(gameinfo_path);
+    auto checkGameinfo = [&](const QString& folder, const QString& gamename) {
+        QString gameinfoPath = QDir(path).filePath(folder + "/gameinfo.txt");
+        QFile file(gameinfoPath);
 
         if (file.exists() && file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QTextStream in(&file);
-            QRegularExpression regex("^\\s*game\\s+\"" + QRegularExpression::escape(game_name) + "\"");
+            QRegularExpression regex("^\\s*game\\s+\"" + QRegularExpression::escape(gamename) + "\"");
             while (!in.atEnd()) {
                 if (regex.match(in.readLine()).hasMatch()) {
                     valid = true;
@@ -175,23 +175,23 @@ bool Backend::IsValidS1(const QString& path, const QString& type)
     };
 
     if (type == "csgo") {
-        check_gameinfo("csgo", "Counter-Strike: Global Offensive");
+        checkGameinfo("csgo", "Counter-Strike: Global Offensive");
     } else if (type == "css") {
-        check_gameinfo("cstrike", "Counter-Strike Source");
+        checkGameinfo("cstrike", "Counter-Strike Source");
     } else if (type == "hl2") {
-        check_gameinfo("hl2", "HALF-LIFE 2");
+        checkGameinfo("hl2", "HALF-LIFE 2");
     } else if (type == "l4d") {
-        check_gameinfo("left4dead", "Left 4 Dead");
+        checkGameinfo("left4dead", "Left 4 Dead");
     } else if (type == "l4d2") {
-        check_gameinfo("left4dead2", "Left 4 Dead 2");
+        checkGameinfo("left4dead2", "Left 4 Dead 2");
     } else if (type == "portal") {
-        check_gameinfo("portal", "Portal");
+        checkGameinfo("portal", "Portal");
     } else if (type == "portal2") {
-        check_gameinfo("portal2", "PORTAL 2");
+        checkGameinfo("portal2", "PORTAL 2");
     } else if (type == "tf2") {
-        check_gameinfo("tf", "Team Fortress 2");
+        checkGameinfo("tf", "Team Fortress 2");
     } else if (type == "gmod") {
-        check_gameinfo("garrysmod", "Garry's Mod");
+        checkGameinfo("garrysmod", "Garry's Mod");
     }
 
     return valid;
@@ -212,19 +212,19 @@ void Backend::SelectS1FolderDialog(const QUrl& url)
 
 void Backend::AutoDetectPaths()
 {
-    QString steam_path;
+    QString steamPath;
 #ifdef Q_OS_WIN
     QSettings regSteam("HKEY_LOCAL_MACHINE\\SOFTWARE\\Valve\\Steam", QSettings::NativeFormat);
-    steam_path = regSteam.value("InstallPath").toString();
-    if (steam_path.isEmpty()) {
+    steamPath = regSteam.value("InstallPath").toString();
+    if (steamPath.isEmpty()) {
         QSettings regSteam64("HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Valve\\Steam", QSettings::NativeFormat);
-        steam_path = regSteam64.value("InstallPath").toString();
+        steamPath = regSteam64.value("InstallPath").toString();
     }
 #endif
 
-    if (steam_path.isEmpty()) return;
+    if (steamPath.isEmpty()) return;
 
-    QString library_vdf = QDir(steam_path).filePath("steamapps/libraryfolders.vdf");
+    QString library_vdf = QDir(steamPath).filePath("steamapps/libraryfolders.vdf");
     QFile vdf_file(library_vdf);
     if (!vdf_file.exists() || !vdf_file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         return;
@@ -240,8 +240,8 @@ void Backend::AutoDetectPaths()
     };
     QList<LibraryData> libraries;
 
-    QString current_path;
-    QList<QString> current_apps;
+    QString currentPath;
+    QList<QString> currentApps;
     bool in_apps = false;
 
     QTextStream in2(&content);
@@ -253,13 +253,13 @@ void Backend::AutoDetectPaths()
             QRegularExpression re("\"path\"\\s+\"([^\"]+)\"");
             QRegularExpressionMatch match = re.match(line);
             if (match.hasMatch()) {
-                if (!current_path.isEmpty()) {
-                    libraries.append({current_path, current_apps});
-                    current_apps.clear();
+                if (!currentPath.isEmpty()) {
+                    libraries.append({currentPath, currentApps});
+                    currentApps.clear();
                 }
-                current_path = match.captured(1);
-                current_path.replace("\\\\", "/");
-                current_path.replace("\\", "/");
+                currentPath = match.captured(1);
+                currentPath.replace("\\\\", "/");
+                currentPath.replace("\\", "/");
                 in_apps = false;
             }
         } else if (line == "\"apps\"") {
@@ -270,12 +270,12 @@ void Backend::AutoDetectPaths()
             QRegularExpression re("\"(\\d+)\"");
             QRegularExpressionMatch match = re.match(line);
             if (match.hasMatch()) {
-                current_apps.append(match.captured(1));
+                currentApps.append(match.captured(1));
             }
         }
     }
-    if (!current_path.isEmpty()) {
-        libraries.append({current_path, current_apps});
+    if (!currentPath.isEmpty()) {
+        libraries.append({currentPath, currentApps});
     }
 
     QString found_cs2_dir;
@@ -487,7 +487,7 @@ void Backend::SelectVmfDialog(const QUrl& url)
 
     contentFolderToSave = contentFolder;
     contentFolder = QDir(appDir).filePath(QString("maps/%1").arg(mapName));
-    vmf_default_path = contentFolderToSave;
+    vmfDefaultPath = contentFolderToSave;
     emit vmfDefaultPathUrlChanged();
 
     emit contentFolderChanged();
@@ -516,7 +516,7 @@ void Backend::SelectBspDialog(const QUrl& url)
     mapName = fileInfo.baseName();
     contentFolder.clear();
     contentFolderToSave = fileInfo.absolutePath();
-    vmf_default_path = contentFolderToSave;
+    vmfDefaultPath = contentFolderToSave;
     emit vmfDefaultPathUrlChanged();
     emit contentFolderChanged();
 
@@ -584,7 +584,7 @@ void Backend::LoadFromCfg()
     tf2gamedir = settings.value("tf2gamedir", "").toString();
     gmodgamedir = settings.value("gmodgamedir", "").toString();
     contentFolderToSave = settings.value("content_folder_to_save", "C:\\").toString();
-    vmf_default_path = contentFolderToSave;
+    vmfDefaultPath = contentFolderToSave;
     s1GameType = settings.value("s1_game_type", "csgo").toString();
 
     QStringList valid_games = {"csgo", "css", "hl2", "l4d", "l4d2", "portal", "portal2", "tf2", "gmod"};
@@ -693,7 +693,7 @@ void Backend::Start()
             logFile = nullptr;
         }
 
-        Miscellaneous::cancel_import = 0;
+        Miscellaneous::CanceLImport = 0;
         Miscellaneous::MoveVpkSignatures(cs2Basefolder, vpkSignaturesMoved);
 
         isGoing = true;

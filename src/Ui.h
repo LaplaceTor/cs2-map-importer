@@ -41,7 +41,7 @@ public:
         return csgogamedir;
     }
     QString GetS1GameType() const { return s1GameType; }
-    QString GetVmfDefaultPathUrl() const { return QUrl::fromLocalFile(vmf_default_path).toString(); }
+    QString GetVmfDefaultPathUrl() const { return QUrl::fromLocalFile(vmfDefaultPath).toString(); }
     QString GetBspFile() const { return bspFile; }
     QString GetContentFolder() const { return contentFolder; }
     QString GetAddonName() const { return addonName; }
@@ -92,7 +92,7 @@ signals:
 private:
     QString appDir;
     bool javaInstalled;
-    QString vmf_default_path;
+    QString vmfDefaultPath;
     QString cs2Basefolder;
     QString csgogamedir;
     QString cssgamedir;

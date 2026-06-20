@@ -187,7 +187,7 @@ bool MapImporter::Force2UVsIfRequired(const QString& refsName, QSet<QString>& gl
     }
 
     for (const QString& refLine : refsList) {
-        if (Miscellaneous::cancel_import) return false;
+        if (Miscellaneous::CanceLImport) return false;
         QString mtlfile = CleanRefPath(refLine);
         if (mtlfile.isEmpty()) continue;
         if (uvsUpdated.contains(mtlfile)) continue;
@@ -235,7 +235,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     QString extraoptions = "";
 
     for (const QString& m : mdlfiles) {
-        if (Miscellaneous::cancel_import) return;
+        if (Miscellaneous::CanceLImport) return;
         if (m.isEmpty()) continue;
         if (m.startsWith('-')) {
             if (m == "-" || m == "-nooptions") extraoptions = "";
@@ -305,7 +305,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     QMap<QString, bool> mdlForceCompile;
 
     for (const QString& m : mdlfiles) {
-        if (Miscellaneous::cancel_import) return;
+        if (Miscellaneous::CanceLImport) return;
         if (m.isEmpty() || m.startsWith('-')) continue;
         QString mdlfile = CleanRefPath(m);
         if (mdlfile.isEmpty()) continue;
@@ -333,7 +333,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     }
 
     for (const QString& mtlfile : mdlmtls) {
-        if (Miscellaneous::cancel_import) return;
+        if (Miscellaneous::CanceLImport) return;
         if (mtlfile.isEmpty() || mtlfile.startsWith('-')) continue;
         QString mtl = mtlfile;
         mtl.replace('/', '\\');
@@ -346,7 +346,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     }
 
     for (const QString& m : mdlfiles) {
-        if (Miscellaneous::cancel_import) return;
+        if (Miscellaneous::CanceLImport) return;
         if (m.isEmpty() || m.startsWith('-')) continue;
         QString mdlfile = CleanRefPath(m);
         if (mdlfile.isEmpty()) continue;
@@ -378,7 +378,7 @@ void MapImporter::ImportAndCompileMapRefs(const QString& refsFile) {
     QString newList = "";
 
     for (const QString& line : refs) {
-        if (Miscellaneous::cancel_import) return;
+        if (Miscellaneous::CanceLImport) return;
         QString cleanedRef = CleanRefPath(line);
         if (!cleanedRef.isEmpty()) {
             QString modLine = cleanedRef;
@@ -420,11 +420,11 @@ void MapImporter::ImportParticles(){
     Miscellaneous::Log("Importing particles...");
 
     for (const QFileInfo& fileInfo : particleFiles) {
-        if (Miscellaneous::cancel_import) return;
+        if (Miscellaneous::CanceLImport) return;
 
         QStringList lines = ReadTextFile(fileInfo.absoluteFilePath());
         for (const QString& line : lines) {
-            if (Miscellaneous::cancel_import) return;
+            if (Miscellaneous::CanceLImport) return;
 
             QString trimmedLine = line.trimmed();
             if (!trimmedLine.startsWith("file", Qt::CaseInsensitive)) continue;
@@ -468,7 +468,7 @@ void MapImporter::ImportSounds() {
         }
 
         for (const QString& sound : uniqueSounds) {
-            if (Miscellaneous::cancel_import) return;
+            if (Miscellaneous::CanceLImport) return;
 
             QString fullPath = QDir(mOptions.s1contentdir).filePath(sound);
 
@@ -487,7 +487,7 @@ void MapImporter::ImportSounds() {
 }
 
 bool MapImporter::Run() {
-    if (Miscellaneous::cancel_import) return false;
+    if (Miscellaneous::CanceLImport) return false;
     Miscellaneous::Log("Starting Map Import process via C++.");
 
     QString usebspStr = mOptions.usebsp ? "-usebsp" : "";

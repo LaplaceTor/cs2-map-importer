@@ -39,7 +39,7 @@ public:
 
     };
 
-    static LogCallback global_logger;
+    static LogCallback GlobaLLogger;
     static void Log(const QString& msg);
 
     static bool CheckJava();
@@ -51,7 +51,7 @@ public:
     static int RunCommandSync(const QString& cmd);
     static void CancelAll();
 
-    static QAtomicInt cancel_import;
+    static QAtomicInt CanceLImport;
 
 
 private:
