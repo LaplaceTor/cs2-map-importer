@@ -112,7 +112,7 @@ ApplicationWindow {
                             model: ["CSGO", "CSS", "HL2", "L4D", "L4D2", "Portal", "Portal2", "TF2", "GMod"]
                             Layout.fillWidth: true
                             Component.onCompleted: {
-                                let type = backend.s1_game_type.toLowerCase();
+                                let type = backend.s1GameType.toLowerCase();
                                 if (type === "css") currentIndex = 1;
                                 else if (type === "hl2") currentIndex = 2;
                                 else if (type === "l4d") currentIndex = 3;
@@ -128,7 +128,7 @@ ApplicationWindow {
 
                         Button {
                             id: s1FolderButton
-                            text: backend.s1game_basefolder === "" ? "Press to Select Game Folder" : backend.s1game_basefolder
+                            text: backend.s1gameBasefolder === "" ? "Press to Select Game Folder" : backend.s1gameBasefolder
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             contentItem: Text {
@@ -166,7 +166,7 @@ ApplicationWindow {
 
                         Button {
                             id: cs2FolderButton
-                            text: backend.cs2_basefolder === "" ? "Press to Select Game Folder" : backend.cs2_basefolder
+                            text: backend.cs2Basefolder === "" ? "Press to Select Game Folder" : backend.cs2Basefolder
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             contentItem: Text {
@@ -203,7 +203,7 @@ ApplicationWindow {
                         elide: Text.ElideMiddle
                     }
                     onClicked: {
-                        mapFileDialog.currentFolder = backend.vmf_default_path_url
+                        mapFileDialog.currentFolder = backend.vmfDefaultPathUrl
                         mapFileDialog.open()
                     }
                 }
@@ -219,8 +219,8 @@ ApplicationWindow {
                     Layout.preferredWidth: 165
                     Layout.preferredHeight: 40
                     placeholderText: "Addon Name in CS2"
-                    text: backend.addon_name
-                    onTextChanged: backend.addon_name = text
+                    text: backend.addonName
+                    onTextChanged: backend.addonName = text
                     horizontalAlignment: TextInput.AlignHCenter
                     verticalAlignment: TextInput.AlignVCenter
                 }
@@ -234,7 +234,7 @@ ApplicationWindow {
                 Button {
                     id: goButton
                     text: "START"
-                    enabled: backend.can_go && !backend.is_going
+                    enabled: backend.canGo && !backend.isGoing
                     Layout.fillWidth: true
                     Layout.preferredHeight: 40
 
@@ -254,7 +254,7 @@ ApplicationWindow {
                 Button {
                     id: stopButton
                     text: "STOP"
-                    enabled: backend.is_going
+                    enabled: backend.isGoing
                     Layout.fillWidth: true
                     Layout.preferredHeight: 40
 
@@ -297,9 +297,9 @@ ApplicationWindow {
                     CheckBox {
                         id: nomergeInstancesCheckbox
                         text: "Keep Instances' Faces"
-                        checked: backend.usebsp_nomergeinstances
+                        checked: backend.usebspNomergeinstances
                         enabled: useBspCheckbox.checked
-                        onCheckedChanged: backend.usebsp_nomergeinstances = checked
+                        onCheckedChanged: backend.usebspNomergeinstances = checked
                         ToolTip.text: "if you wish to both generate clean geo and also preserve func_instances got merge in"
                         ToolTip.visible: hovered
                     }

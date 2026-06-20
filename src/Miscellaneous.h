@@ -13,7 +13,7 @@ public:
     void raise() const override { throw *this; }
     AppException *clone() const override { return new AppException(*this); }
 
-    QString Message() const { return msg_; }
+    QString message() const { return msg_; }
 private:
     QString msg_;
 };
@@ -23,18 +23,18 @@ public:
     using LogCallback = std::function<void(const QString&)>;
 
     struct Options {
-        QString cs2_basefolder;
-        QString s1game_basefolder;
+        QString cs2Basefolder;
+        QString s1gameBasefolder;
         QString csgogamedir;
-        QString s1_game_type; // "css" or "csgo"
-        QString content_folder;
-        QString map_name;
-        QString bsp_file;
-        QString app_dir;
-        QString addon_name;
+        QString s1GameType; // "css" or "csgo"
+        QString contentFolder;
+        QString mapName;
+        QString bspFile;
+        QString appDir;
+        QString addonName;
 
         bool usebsp;
-        bool usebsp_nomergeinstances;
+        bool usebspNomergeinstances;
         bool skipdeps;
 
     };
@@ -43,8 +43,8 @@ public:
     static void Log(const QString& msg);
 
     static bool CheckJava();
-    static void MoveVpkSignatures(const QString& cs2_basefolder, bool& vpk_signatures_moved);
-    static void RestoreVpkSignatures(const QString& cs2_basefolder);
+    static void MoveVpkSignatures(const QString& cs2Basefolder, bool& vpkSignaturesMoved);
+    static void RestoreVpkSignatures(const QString& cs2Basefolder);
 
     // Decompiles the BSP, moves unpacked files, and moves materials/models folders into s1gamedir
 

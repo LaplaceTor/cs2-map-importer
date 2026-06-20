@@ -25,38 +25,38 @@ bool Miscellaneous::CheckJava() {
     return output.contains("version");
 }
 
-void Miscellaneous::MoveVpkSignatures(const QString& cs2_basefolder, bool& vpk_signatures_moved) {
-    if (cs2_basefolder.isEmpty()) return;
+void Miscellaneous::MoveVpkSignatures(const QString& cs2Basefolder, bool& vpkSignaturesMoved) {
+    if (cs2Basefolder.isEmpty()) return;
 
-    QString bin_folder = QDir(cs2_basefolder).filePath("game/bin/win64");
-    QString vpk_path = QDir(bin_folder).filePath("vpk.signatures");
-    QString temp_folder = QDir(bin_folder).filePath("temp");
-    QString temp_vpk_path = QDir(temp_folder).filePath("vpk.signatures");
+    QString binFolder = QDir(cs2Basefolder).filePath("game/bin/win64");
+    QString vpkPath = QDir(binFolder).filePath("vpk.signatures");
+    QString tempFolder = QDir(binFolder).filePath("temp");
+    QString tempVpkPath = QDir(tempFolder).filePath("vpk.signatures");
 
-    if (QFile::exists(vpk_path)) {
-        if (!QDir(bin_folder).exists("temp")) {
-            QDir(bin_folder).mkdir("temp");
+    if (QFile::exists(vpkPath)) {
+        if (!QDir(binFolder).exists("temp")) {
+            QDir(binFolder).mkdir("temp");
         }
-        if (QFile::exists(temp_vpk_path)) {
-            QFile::remove(temp_vpk_path);
+        if (QFile::exists(tempVpkPath)) {
+            QFile::remove(tempVpkPath);
         }
-        QFile::rename(vpk_path, temp_vpk_path);
-        vpk_signatures_moved = true;
+        QFile::rename(vpkPath, tempVpkPath);
+        vpkSignaturesMoved = true;
     }
 }
 
-void Miscellaneous::RestoreVpkSignatures(const QString& cs2_basefolder) {
-    if (cs2_basefolder.isEmpty()) return;
+void Miscellaneous::RestoreVpkSignatures(const QString& cs2Basefolder) {
+    if (cs2Basefolder.isEmpty()) return;
 
-    QString bin_folder = QDir(cs2_basefolder).filePath("game/bin/win64");
-    QString vpk_path = QDir(bin_folder).filePath("vpk.signatures");
-    QString temp_vpk_path = QDir(bin_folder).filePath("temp/vpk.signatures");
+    QString binFolder = QDir(cs2Basefolder).filePath("game/bin/win64");
+    QString vpkPath = QDir(binFolder).filePath("vpk.signatures");
+    QString tempVpkPath = QDir(binFolder).filePath("temp/vpk.signatures");
 
-    if (QFile::exists(temp_vpk_path)) {
-        if (QFile::exists(vpk_path)) {
-            QFile::remove(vpk_path);
+    if (QFile::exists(tempVpkPath)) {
+        if (QFile::exists(vpkPath)) {
+            QFile::remove(vpkPath);
         }
-        QFile::rename(temp_vpk_path, vpk_path);
+        QFile::rename(tempVpkPath, vpkPath);
     }
 }
 
