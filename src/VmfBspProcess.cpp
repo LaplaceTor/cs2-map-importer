@@ -196,6 +196,98 @@ QStringList VmfBspProcess::PatchDispinfo(const QStringList& lines) {
     return out_lines;
 }
 
+void VmfBspProcess::FixLightColor(const QString& vmfPath) {
+    if (!QFile::exists(vmfPath)) return;
+
+    QFile infile(vmfPath);
+    if (!infile.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+
+    QStringList lines;
+    QTextStream in(&infile);
+    while (!in.atEnd()) {
+        lines.append(in.readLine());
+    }
+    infile.close();
+
+    bool in_entity = false;
+    int bracket_level = 0;
+    bool is_light = false;
+    int colormode_idx = -1;
+    QString indent_str = "";
+
+    QStringList out_lines;
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i];
+        QString trimmed = line.trimmed();
+
+        if (!in_entity && trimmed == "entity") {
+            in_entity = true;
+            bracket_level = 0;
+            is_light = false;
+            colormode_idx = -1;
+            indent_str = "";
+            out_lines.append(line);
+            continue;
+        }
+
+        if (in_entity) {
+            if (trimmed == "{") {
+                bracket_level++;
+                out_lines.append(line);
+            } else if (trimmed == "}") {
+                bracket_level--;
+                if (bracket_level == 0) {
+                    if (is_light) {
+                        if (colormode_idx == -1) {
+                            out_lines.append(indent_str + "\"colormode\" \"0\"");
+                        } else {
+                            out_lines[colormode_idx] = indent_str + "\"colormode\" \"0\"";
+                        }
+                    }
+                    in_entity = false;
+                    out_lines.append(line);
+                } else {
+                    out_lines.append(line);
+                }
+            } else {
+                if (bracket_level == 1) {
+                    QRegularExpression classname_regex("^\"classname\"\\s+\"(light|light_spot)\"$");
+                    if (classname_regex.match(trimmed).hasMatch()) {
+                        is_light = true;
+                    }
+                    QRegularExpression colormode_regex("^\"colormode\"\\s+\"(.*)\"$");
+                    QRegularExpressionMatch match = colormode_regex.match(trimmed);
+                    if (match.hasMatch()) {
+                        colormode_idx = out_lines.size(); // Index in out_lines where it will be appended
+                    }
+
+                    if (trimmed != "" && indent_str == "") {
+                        indent_str = line.left(line.indexOf(trimmed));
+                    }
+                }
+                out_lines.append(line);
+            }
+        } else {
+            out_lines.append(line);
+        }
+    }
+
+    QFile outfile(vmfPath);
+    if (outfile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&outfile);
+        for (const QString& l : out_lines) {
+            out << l << "\n";
+        }
+        outfile.close();
+    }
+}
+
+void VmfBspProcess::FixEntities(const QString& vmfPath) {
+    FixSpecialTargetnames(vmfPath);
+    FixLightColor(vmfPath);
+}
+
 void VmfBspProcess::FixSpecialTargetnames(const QString& vmfPath) {
     if (!QFile::exists(vmfPath)) return;
 

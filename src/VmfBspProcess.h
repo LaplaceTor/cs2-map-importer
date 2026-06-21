@@ -10,6 +10,8 @@ public:
 
     static void FixVmfFromBsp(const QString& vmfPath);
     static void FixSpecialTargetnames(const QString& vmfPath);
+    static void FixLightColor(const QString& vmfPath);
+    static void FixEntities(const QString& vmfPath);
 
 private:
     static QString ParseMapversion(const QStringList& lines, bool& found);
