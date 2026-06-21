@@ -232,42 +232,36 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
 
     QStringList force2UVList;
     QSet<QString> mdlmtls;
-    QString extraoptions = "";
 
     for (const QString& m : mdlfiles) {
         if (Miscellaneous::CanceLImport) return;
         if (m.isEmpty()) continue;
-        if (m.startsWith('-')) {
-            if (m == "-" || m == "-nooptions") extraoptions = "";
-            else extraoptions = m;
-        } else {
-            QString mdlfile = CleanRefPath(m);
-            if (mdlfile.isEmpty()) continue;
-            mdlfile.replace('/', '\\');
+        QString mdlfile = CleanRefPath(m);
+        if (mdlfile.isEmpty()) continue;
+        mdlfile.replace('/', '\\');
 
-            QString infile = mdlfile;
-            QString outName = mOptions.s2contentdir + "\\" + mdlfile;
-            int pos = outName.lastIndexOf(".mdl");
-            if (pos != -1) outName.replace(pos, 4, ".vmdl");
+        QString infile = mdlfile;
+        QString outName = mOptions.s2contentdir + "\\" + mdlfile;
+        int pos = outName.lastIndexOf(".mdl");
+        if (pos != -1) outName.replace(pos, 4, ".vmdl");
 
-            QString refsName = mOptions.s2contentdir + "\\" + mdlfile;
-            pos = refsName.lastIndexOf(".mdl");
-            if (pos != -1) refsName.replace(pos, 4, "_refs.txt");
+        QString refsName = mOptions.s2contentdir + "\\" + mdlfile;
+        pos = refsName.lastIndexOf(".mdl");
+        if (pos != -1) refsName.replace(pos, 4, "_refs.txt");
 
-            QString importCmd = "\"" + mOptions.cs2Basefolder + "\\game\\bin\\win64\\cs_mdl_import.exe\" -nop4 " + extraoptions + " -i \"" + mOptions.s1gamedir + "\" -o \"" + mOptions.s2contentdir + "\" \"" + infile + "\"";
-            Miscellaneous::RunCommandSync(importCmd);
+        QString importCmd = "\"" + mOptions.cs2Basefolder + "\\game\\bin\\win64\\cs_mdl_import.exe\" -nop4 " + " -i \"" + mOptions.s1gamedir + "\" -o \"" + mOptions.s2contentdir + "\" \"" + infile + "\"";
+        Miscellaneous::RunCommandSync(importCmd);
 
-            if (QFile::exists(refsName)) {
-                QStringList refs = ReadTextFile(refsName);
-                for (const QString& ref : refs) {
-                    QString cleanedRef = CleanRefPath(ref);
-                    if (!cleanedRef.isEmpty()) {
-                        cleanedRef.replace('\\', '/');
-                        mdlmtls.insert(cleanedRef);
-                    }
+        if (QFile::exists(refsName)) {
+            QStringList refs = ReadTextFile(refsName);
+            for (const QString& ref : refs) {
+                QString cleanedRef = CleanRefPath(ref);
+                if (!cleanedRef.isEmpty()) {
+                    cleanedRef.replace('\\', '/');
+                    mdlmtls.insert(cleanedRef);
                 }
-                force2UVList.append(refsName);
             }
+            force2UVList.append(refsName);
         }
     }
 
