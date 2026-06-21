@@ -725,7 +725,7 @@ void Backend::Start()
                 }
 
                 QString target_vmf_path = QDir(opts.appDir).filePath("maps/" + opts.mapName + "/maps/" + opts.mapName + ".vmf");
-                VmfBspProcess::FixSpecialTargetnames(target_vmf_path);
+                VmfBspProcess::FixEntities(target_vmf_path);
 
                 MapImporter::Options mapOpts;
                 QString s1Subfolder = "csgo";
