@@ -17,19 +17,19 @@ public:
         QString s2contentdir;
         QString mapname;
         bool usebsp;
-        bool usebsp_nomergeinstances;
+        bool usebspNomergeinstances;
         bool skipdeps;
 
-        QString cs2_basefolder; // to get the binaries
+        QString cs2Basefolder; // to get the binaries
             };
 
     MapImporter(const Options& options)
-        : m_options(options) {}
+        : mOptions(options) {}
 
     bool Run();
 
 private:
-    Options m_options;
+    Options mOptions;
 
 
     QStringList ReadTextFile(const QString& filepath);

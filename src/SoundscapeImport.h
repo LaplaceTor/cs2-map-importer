@@ -1,7 +1,7 @@
 #ifndef SOUNDSCAPEIMPORT_H
 #define SOUNDSCAPEIMPORT_H
 
-#include "mapimporter.h"
+#include "MapImporter.h"
 #include <QString>
 #include <QSet>
 

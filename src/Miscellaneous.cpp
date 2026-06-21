@@ -1,4 +1,4 @@
-#include "miscellaneous.h"
+#include "Miscellaneous.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -8,16 +8,16 @@
 #include <QCoreApplication>
 #include <QByteArray>
 
-QAtomicInt Miscellaneous::cancel_import(0);
-Miscellaneous::LogCallback Miscellaneous::global_logger = nullptr;
+QAtomicInt Miscellaneous::CanceLImport(0);
+Miscellaneous::LogCallback Miscellaneous::GlobaLLogger = nullptr;
 
-void Miscellaneous::log(const QString& msg) {
-    if (global_logger) {
-        global_logger(msg);
+void Miscellaneous::Log(const QString& msg) {
+    if (GlobaLLogger) {
+        GlobaLLogger(msg);
     }
 }
 
-bool Miscellaneous::check_java() {
+bool Miscellaneous::CheckJava() {
     QProcess process;
     process.start("java", QStringList() << "-version");
     process.waitForFinished();
@@ -25,50 +25,50 @@ bool Miscellaneous::check_java() {
     return output.contains("version");
 }
 
-void Miscellaneous::move_vpk_signatures(const QString& cs2_basefolder, bool& vpk_signatures_moved) {
-    if (cs2_basefolder.isEmpty()) return;
+void Miscellaneous::MoveVpkSignatures(const QString& cs2Basefolder, bool& vpkSignaturesMoved) {
+    if (cs2Basefolder.isEmpty()) return;
 
-    QString bin_folder = QDir(cs2_basefolder).filePath("game/bin/win64");
-    QString vpk_path = QDir(bin_folder).filePath("vpk.signatures");
-    QString temp_folder = QDir(bin_folder).filePath("temp");
-    QString temp_vpk_path = QDir(temp_folder).filePath("vpk.signatures");
+    QString binFolder = QDir(cs2Basefolder).filePath("game/bin/win64");
+    QString vpkPath = QDir(binFolder).filePath("vpk.signatures");
+    QString tempFolder = QDir(binFolder).filePath("temp");
+    QString tempVpkPath = QDir(tempFolder).filePath("vpk.signatures");
 
-    if (QFile::exists(vpk_path)) {
-        if (!QDir(bin_folder).exists("temp")) {
-            QDir(bin_folder).mkdir("temp");
+    if (QFile::exists(vpkPath)) {
+        if (!QDir(binFolder).exists("temp")) {
+            QDir(binFolder).mkdir("temp");
         }
-        if (QFile::exists(temp_vpk_path)) {
-            QFile::remove(temp_vpk_path);
+        if (QFile::exists(tempVpkPath)) {
+            QFile::remove(tempVpkPath);
         }
-        QFile::rename(vpk_path, temp_vpk_path);
-        vpk_signatures_moved = true;
+        QFile::rename(vpkPath, tempVpkPath);
+        vpkSignaturesMoved = true;
     }
 }
 
-void Miscellaneous::restore_vpk_signatures(const QString& cs2_basefolder) {
-    if (cs2_basefolder.isEmpty()) return;
+void Miscellaneous::RestoreVpkSignatures(const QString& cs2Basefolder) {
+    if (cs2Basefolder.isEmpty()) return;
 
-    QString bin_folder = QDir(cs2_basefolder).filePath("game/bin/win64");
-    QString vpk_path = QDir(bin_folder).filePath("vpk.signatures");
-    QString temp_vpk_path = QDir(bin_folder).filePath("temp/vpk.signatures");
+    QString binFolder = QDir(cs2Basefolder).filePath("game/bin/win64");
+    QString vpkPath = QDir(binFolder).filePath("vpk.signatures");
+    QString tempVpkPath = QDir(binFolder).filePath("temp/vpk.signatures");
 
-    if (QFile::exists(temp_vpk_path)) {
-        if (QFile::exists(vpk_path)) {
-            QFile::remove(vpk_path);
+    if (QFile::exists(tempVpkPath)) {
+        if (QFile::exists(vpkPath)) {
+            QFile::remove(vpkPath);
         }
-        QFile::rename(temp_vpk_path, vpk_path);
+        QFile::rename(tempVpkPath, vpkPath);
     }
 }
 
-void Miscellaneous::cancel_all() {
-    cancel_import = 1;
+void Miscellaneous::CancelAll() {
+    CanceLImport = 1;
 }
 
 
 
-int Miscellaneous::run_command_sync(const QString& cmd) {
-    if (cancel_import) return -1;
-    Miscellaneous::log(cmd);
+int Miscellaneous::RunCommandSync(const QString& cmd) {
+    if (CanceLImport) return -1;
+    Miscellaneous::Log(cmd);
 
     QProcess process;
     process.setProcessChannelMode(QProcess::MergedChannels);
@@ -94,7 +94,7 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
             if (c == '\n') {
                 if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
                 if (!lineBuffer.isEmpty()) {
-                    Miscellaneous::log(lineBuffer);
+                    Miscellaneous::Log(lineBuffer);
                     if (isSource1Import && lineBuffer.contains("ParseEpar: token too long")) {
                         hasParseEparError = true;
                     }
@@ -107,7 +107,7 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
     };
 
     while (process.waitForReadyRead(10000) || process.state() != QProcess::NotRunning) {
-        if (cancel_import) {
+        if (CanceLImport) {
             process.kill();
             return -1;
         }
@@ -116,7 +116,7 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
             processOutput(QString(output));
             if (hasParseEparError) {
                 process.kill();
-                Miscellaneous::cancel_all();
+                Miscellaneous::CancelAll();
                 throw AppException("This map geometry is too bad to run the clean up faces process!");
             }
         } else {
@@ -135,13 +135,13 @@ int Miscellaneous::run_command_sync(const QString& cmd) {
 
     if (!lineBuffer.isEmpty()) {
         if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
-        Miscellaneous::log(lineBuffer);
+        Miscellaneous::Log(lineBuffer);
     }
 
     return process.exitCode();
 }
 
-bool copyDirectoryRecursively(const QString &sourceDir, const QString &destinationDir) {
+bool CopyDirectoryRecursively(const QString &sourceDir, const QString &destinationDir) {
     QDir source(sourceDir);
     if (!source.exists()) {
         return false;
@@ -170,7 +170,7 @@ bool copyDirectoryRecursively(const QString &sourceDir, const QString &destinati
     for (const QString &dir : dirs) {
         QString srcPath = source.filePath(dir);
         QString dstPath = destination.filePath(dir);
-        if (!copyDirectoryRecursively(srcPath, dstPath)) {
+        if (!CopyDirectoryRecursively(srcPath, dstPath)) {
             success = false;
         }
     }

@@ -12,26 +12,24 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 set(SOURCES
-    src/main.cpp
-    src/ui.cpp
-    src/ui.h
-    src/miscellaneous.cpp
-    src/miscellaneous.h
-    src/vmf_bsp_process.cpp
-    src/vmf_bsp_process.h
-    src/mapimporter.cpp
-    src/mapimporter.h
-    src/soundscapeimport.cpp
-    src/soundscapeimport.h
+    src/Main.cpp
+    src/Ui.cpp
+    src/Ui.h
+    src/Miscellaneous.cpp
+    src/Miscellaneous.h
+    src/VmfBspProcess.cpp
+    src/VmfBspProcess.h
+    src/MapImporter.cpp
+    src/MapImporter.h
+    src/SoundscapeImport.cpp
+    src/SoundscapeImport.h
     src/FileExtractFromVPK.cpp
     src/FileExtractFromVPK.h
 )
 
 qt_add_executable(cs2importer MANUAL_FINALIZATION ${SOURCES})
 
-if(WIN32)
-    set_property(TARGET cs2importer PROPERTY WIN32_EXECUTABLE TRUE)
-endif()
+set_property(TARGET cs2importer PROPERTY WIN32_EXECUTABLE TRUE)
 
 qt_add_qml_module(cs2importer
     URI cs2importer

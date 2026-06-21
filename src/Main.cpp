@@ -4,7 +4,7 @@
 #include <QQuickStyle>
 #include <QIcon>
 #include <QPalette>
-#include "ui.h"
+#include "Ui.h"
 
 int main(int argc, char *argv[])
 {
@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle("Fusion");
 
     Backend backend;
-    QObject::connect(&app, &QGuiApplication::aboutToQuit, &backend, &Backend::appAboutToQuit);
+    QObject::connect(&app, &QGuiApplication::aboutToQuit, &backend, &Backend::AppAboutToQuit);
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("backendObject", &backend);

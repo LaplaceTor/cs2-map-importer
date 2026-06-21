@@ -1,5 +1,5 @@
-#include "soundscapeimport.h"
-#include "miscellaneous.h"
+#include "SoundscapeImport.h"
+#include "Miscellaneous.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -161,7 +161,7 @@ void SoundscapeImport::ImportSoundscapes(MapImporter* importer, const MapImporte
     }
 
     for (const QFileInfo& fileInfo : soundscapeFiles) {
-        if (Miscellaneous::cancel_import) return;
+        if (Miscellaneous::CanceLImport) return;
 
         if (fileInfo.fileName().toLower() == "soundscapes_manifest.txt") {
             continue;
