@@ -121,50 +121,7 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
     }
 }
 
-void MapImporter::ForceUV2ForVMAT(const QString& mtlfile) {
-    QString vmat = mtlfile;
-    int pos = vmat.lastIndexOf(".vmt");
-    if (pos != -1) vmat.replace(pos, 4, ".vmat");
-
-    QString vmatfilename = mOptions.s2contentdir + "\\" + vmat;
-    if (!QFile::exists(vmatfilename)) return;
-
-    QStringList lines = ReadTextFile(vmatfilename);
-    EnsureFileWritable(vmatfilename);
-
-    bool added = false;
-    for (int i = 0; i < lines.size(); ++i) {
-        QString txt = lines[i];
-        QString lowerTxt = txt.toLower();
-
-        int start = lowerTxt.indexOf(QRegularExpression("[^ \\t]"));
-        if (start != -1 && lowerTxt.mid(start).startsWith("\"shader\"")) {
-            if (i + 1 < lines.size()) {
-                QString txtNext = lines[i+1];
-                QString lowerNext = txtNext.toLower();
-
-                int startNext = lowerNext.indexOf(QRegularExpression("[^ \\t]"));
-                if (startNext == -1 || !lowerNext.mid(startNext).startsWith("\"f_force_uv2\"")) {
-                    lines.insert(i + 1, "\t\"F_FORCE_UV2\" \"1\"");
-                    added = true;
-                    break;
-                }
-            }
-        }
-    }
-
-    if (added) {
-        Miscellaneous::Log("Added F_FORCE_UV2 to " + vmatfilename);
-        QFile file(vmatfilename);
-        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            QTextStream out(&file);
-            for (const QString& l : lines) out << l << "\n";
-            file.close();
-        }
-    }
-}
-
-bool MapImporter::Force2UVsIfRequired(const QString& refsName, QSet<QString>& global2UVMaterials, QString& global2UVMaterialsFilepath) {
+bool MapImporter::Force2UVsIfRequired(const QString& refsName, QSet<QString>& global2UVMaterials) {
     QSet<QString> uvsUpdated;
     QString meshinfofilename = refsName;
     int pos = meshinfofilename.lastIndexOf("_refs.txt");
@@ -203,11 +160,45 @@ bool MapImporter::Force2UVsIfRequired(const QString& refsName, QSet<QString>& gl
 
                 global2UVMaterials.insert(mtlfile);
 
-                QFile ofs(global2UVMaterialsFilepath);
-                if (ofs.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-                    QTextStream out(&ofs);
-                    out << mtlfile << "\n";
-                    ofs.close();
+                QString vmat = mtlfile;
+                int pos = vmat.lastIndexOf(".vmt");
+                if (pos != -1) vmat.replace(pos, 4, ".vmat");
+
+                QString vmatfilename = mOptions.s2contentdir + "\\" + vmat;
+                if (QFile::exists(vmatfilename)) {
+                    QStringList lines = ReadTextFile(vmatfilename);
+                    EnsureFileWritable(vmatfilename);
+
+                    bool added = false;
+                    for (int i = 0; i < lines.size(); ++i) {
+                        QString txt = lines[i];
+                        QString lowerTxt = txt.toLower();
+
+                        int start = lowerTxt.indexOf(QRegularExpression("[^ \\t]"));
+                        if (start != -1 && lowerTxt.mid(start).startsWith("\"shader\"")) {
+                            if (i + 1 < lines.size()) {
+                                QString txtNext = lines[i+1];
+                                QString lowerNext = txtNext.toLower();
+
+                                int startNext = lowerNext.indexOf(QRegularExpression("[^ \\t]"));
+                                if (startNext == -1 || !lowerNext.mid(startNext).startsWith("\"f_force_uv2\"")) {
+                                    lines.insert(i + 1, "\t\"F_FORCE_UV2\" \"1\"");
+                                    added = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (added) {
+                        Miscellaneous::Log("Added F_FORCE_UV2 to " + vmatfilename);
+                        QFile file(vmatfilename);
+                        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                            QTextStream out(&file);
+                            for (const QString& l : lines) out << l << "\n";
+                            file.close();
+                        }
+                    }
                 }
             }
         }
@@ -287,14 +278,6 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     Miscellaneous::RunCommandSync(importRefsCmd);
 
     QSet<QString> global2UVMaterials;
-    QString global2UVMaterialFilepath = "source1import_2uvmateriallist.txt";
-    if (QFile::exists(global2UVMaterialFilepath)) {
-        QStringList force2UVListFile = ReadTextFile(global2UVMaterialFilepath);
-        for (const QString& mtl : force2UVListFile) {
-            global2UVMaterials.insert(mtl);
-        }
-    }
-    EnsureFileWritable(global2UVMaterialFilepath);
 
     QMap<QString, bool> mdlForceCompile;
 
@@ -315,16 +298,11 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         pos = refsName.lastIndexOf(".mdl");
         if (pos != -1) refsName.replace(pos, 4, "_refs.txt");
 
-        bool bForceCompile = Force2UVsIfRequired(refsName, global2UVMaterials, global2UVMaterialFilepath);
+        bool bForceCompile = Force2UVsIfRequired(refsName, global2UVMaterials);
         mdlForceCompile[m] = bForceCompile;
     }
 
-    if (QFile::exists(global2UVMaterialFilepath)) {
-        QStringList force2UVListFile = ReadTextFile(global2UVMaterialFilepath);
-        for (const QString& mtl : force2UVListFile) {
-            ForceUV2ForVMAT(mtl);
-        }
-    }
+    global2UVMaterials.clear();
 
     for (const QString& mtlfile : mdlmtls) {
         if (Miscellaneous::CanceLImport) return;

@@ -36,8 +36,7 @@ private:
     void EnsureFileWritable(const QString& filepath);
 
     void StripMDLsFromRefs(const QString& filename);
-    void ForceUV2ForVMAT(const QString& mtlfile);
-    bool Force2UVsIfRequired(const QString& refsName, QSet<QString>& global2UVMaterials, QString& global2UVMaterialsFilepath);
+    bool Force2UVsIfRequired(const QString& refsName, QSet<QString>& global2UVMaterials);
     void ImportAndCompileMapMDLs(const QString& filename);
     void ImportAndCompileMapRefs(const QString& refsFile);
     void ImportParticles();
