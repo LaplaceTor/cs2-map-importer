@@ -25,6 +25,8 @@ set(SOURCES
     src/SoundscapeImport.h
     src/FileExtractFromVPK.cpp
     src/FileExtractFromVPK.h
+    src/MaterialFix.cpp
+    src/MaterialFix.h
 )
 
 qt_add_executable(cs2importer MANUAL_FINALIZATION ${SOURCES})

@@ -2,6 +2,7 @@
 #include "Miscellaneous.h"
 #include "SoundscapeImport.h"
 #include "FileExtractFromVPK.h"
+#include "MaterialFix.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -121,91 +122,6 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
     }
 }
 
-bool MapImporter::Force2UVsIfRequired(const QString& refsName, QSet<QString>& global2UVMaterials) {
-    QSet<QString> uvsUpdated;
-    QString meshinfofilename = refsName;
-    int pos = meshinfofilename.lastIndexOf("_refs.txt");
-    if (pos != -1) meshinfofilename.replace(pos, 9, "_refs/mesh/meshinfo.txt");
-
-    meshinfofilename.replace('/', '\\');
-
-    if (!QFile::exists(meshinfofilename)) return false;
-
-    QStringList meshinfo = ReadTextFile(meshinfofilename);
-    QString meshstring = meshinfo.join("");
-
-    bool b2UV = false;
-    if (!QFile::exists(refsName)) return false;
-
-    QStringList refsList = ReadTextFile(refsName);
-    int numuvs = 1; // Simplistic parsing
-    if (meshstring.contains("'numuvs': 2") || meshstring.contains("\"numuvs\": 2")) {
-        numuvs = 2;
-    }
-
-    for (const QString& refLine : refsList) {
-        if (Miscellaneous::CanceLImport) return false;
-        QString mtlfile = CleanRefPath(refLine);
-        if (mtlfile.isEmpty()) continue;
-        if (uvsUpdated.contains(mtlfile)) continue;
-
-        if (global2UVMaterials.contains(mtlfile)) {
-            b2UV = true;
-            uvsUpdated.insert(mtlfile);
-        } else {
-            if (numuvs == 2) {
-                b2UV = true;
-                Miscellaneous::Log("Adding F_FORCE_UV2 to mtls imported from " + refsName + "...");
-                uvsUpdated.insert(mtlfile);
-
-                global2UVMaterials.insert(mtlfile);
-
-                QString vmat = mtlfile;
-                int pos = vmat.lastIndexOf(".vmt");
-                if (pos != -1) vmat.replace(pos, 4, ".vmat");
-
-                QString vmatfilename = mOptions.s2contentdir + "\\" + vmat;
-                if (QFile::exists(vmatfilename)) {
-                    QStringList lines = ReadTextFile(vmatfilename);
-                    EnsureFileWritable(vmatfilename);
-
-                    bool added = false;
-                    for (int i = 0; i < lines.size(); ++i) {
-                        QString txt = lines[i];
-                        QString lowerTxt = txt.toLower();
-
-                        int start = lowerTxt.indexOf(QRegularExpression("[^ \\t]"));
-                        if (start != -1 && lowerTxt.mid(start).startsWith("\"shader\"")) {
-                            if (i + 1 < lines.size()) {
-                                QString txtNext = lines[i+1];
-                                QString lowerNext = txtNext.toLower();
-
-                                int startNext = lowerNext.indexOf(QRegularExpression("[^ \\t]"));
-                                if (startNext == -1 || !lowerNext.mid(startNext).startsWith("\"f_force_uv2\"")) {
-                                    lines.insert(i + 1, "\t\"F_FORCE_UV2\" \"1\"");
-                                    added = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    if (added) {
-                        Miscellaneous::Log("Added F_FORCE_UV2 to " + vmatfilename);
-                        QFile file(vmatfilename);
-                        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                            QTextStream out(&file);
-                            for (const QString& l : lines) out << l << "\n";
-                            file.close();
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return b2UV;
-}
-
 void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     QStringList mdlfiles = ReadTextFile(filename);
     if (mdlfiles.isEmpty()) {
@@ -298,7 +214,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         pos = refsName.lastIndexOf(".mdl");
         if (pos != -1) refsName.replace(pos, 4, "_refs.txt");
 
-        bool bForceCompile = Force2UVsIfRequired(refsName, global2UVMaterials);
+        bool bForceCompile = MaterialFix::Force2UVsIfRequired(mOptions, refsName, global2UVMaterials);
         mdlForceCompile[m] = bForceCompile;
     }
 
@@ -486,6 +402,9 @@ bool MapImporter::Run() {
         ImportAndCompileMapRefs(mOptions.s2contentdir + "\\maps\\" + mMapname + "_new_refs.txt");
         ImportParticles();
         ImportSounds();
+
+        MaterialFix::SkyboxFix(mOptions);
+
         Miscellaneous::RunCommandSync(mapImportCmd);
     }
 
