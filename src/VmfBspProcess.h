@@ -6,7 +6,7 @@
 class VmfBspProcess {
 public:
     // Decompiles the BSP, moves unpacked files, and moves materials/models folders into s1gamedir
-    static void ProcessBsp(Miscellaneous::Options& options);
+    static void ProcessBsp();
 
     static void FixVmfFromBsp(const QString& vmfPath);
     static void FixSpecialTargetnames(const QString& vmfPath);

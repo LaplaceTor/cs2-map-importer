@@ -8,30 +8,11 @@
 
 class MapImporter {
 public:
-    struct Options {
-        QString s1gamedir;
-        QString csgogamedir;
-        QString s1gamename;
-        QString s1contentdir;
-        QString s2addonname;
-        QString s2contentdir;
-        QString mapname;
-        bool usebsp;
-        bool usebspNomergeinstances;
-        bool skipdeps;
-
-        QString cs2Basefolder; // to get the binaries
-            };
-
-    MapImporter(const Options& options)
-        : mOptions(options) {}
+    MapImporter() {}
 
     bool Run();
 
 private:
-    Options mOptions;
-
-
     QStringList ReadTextFile(const QString& filepath);
     void EnsureFileWritable(const QString& filepath);
 

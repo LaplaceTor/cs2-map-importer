@@ -5,8 +5,8 @@
 #include <QFileInfo>
 #include <QStringList>
 
-static QStringList GetVpkList(const MapImporter::Options& options) {
-    if (options.s1gamename == "css") {
+static QStringList GetVpkList() {
+    if (Miscellaneous::GetOptions().s1gamename == "css") {
         return {
             "cstrike/cstrike_pak_dir.vpk",
             "hl2/hl2_textures_dir.vpk",
@@ -14,7 +14,7 @@ static QStringList GetVpkList(const MapImporter::Options& options) {
             "hl2/hl2_misc_dir.vpk",
             "hl2/hl2_sound_vo_english_dir.vpk"
         };
-    } else if (options.s1gamename == "hl2") {
+    } else if (Miscellaneous::GetOptions().s1gamename == "hl2") {
         return {
             "hl2/hl2_sound_vo_english_dir.vpk",
             "hl2/hl2_pak_dir.vpk",
@@ -22,12 +22,12 @@ static QStringList GetVpkList(const MapImporter::Options& options) {
             "hl2/hl2_sound_misc_dir.vpk",
             "hl2/hl2_misc_dir.vpk"
         };
-    } else if (options.s1gamename == "l4d") {
+    } else if (Miscellaneous::GetOptions().s1gamename == "l4d") {
         return {
             "left4dead/pak01_dir.vpk",
             "left4dead_dlc3/pak01_dir.vpk"
         };
-    } else if (options.s1gamename == "l4d2") {
+    } else if (Miscellaneous::GetOptions().s1gamename == "l4d2") {
         return {
             "left4dead2/pak01_dir.vpk",
             "left4dead2_dlc1/pak01_dir.vpk",
@@ -35,7 +35,7 @@ static QStringList GetVpkList(const MapImporter::Options& options) {
             "left4dead2_dlc3/pak01_dir.vpk",
             "update/pak01_dir.vpk"
         };
-    } else if (options.s1gamename == "portal") {
+    } else if (Miscellaneous::GetOptions().s1gamename == "portal") {
         return {
             "portal/portal_pak_dir.vpk",
             "hl2/hl2_sound_vo_english_dir.vpk",
@@ -43,13 +43,13 @@ static QStringList GetVpkList(const MapImporter::Options& options) {
             "hl2/hl2_sound_misc_dir.vpk",
             "hl2/hl2_misc_dir.vpk"
         };
-    } else if (options.s1gamename == "portal2") {
+    } else if (Miscellaneous::GetOptions().s1gamename == "portal2") {
         return {
             "portal2/pak01_dir.vpk",
             "portal2_dlc1/pak01_dir.vpk",
             "portal2_dlc2/pak01_dir.vpk"
         };
-    } else if (options.s1gamename == "tf2") {
+    } else if (Miscellaneous::GetOptions().s1gamename == "tf2") {
         return {
             "tf/tf2_textures_dir.vpk",
             "tf/tf2_sound_vo_english_dir.vpk",
@@ -60,7 +60,7 @@ static QStringList GetVpkList(const MapImporter::Options& options) {
             "hl2/hl2_sound_misc_dir.vpk",
             "hl2/hl2_misc_dir.vpk"
         };
-    } else if (options.s1gamename == "gmod") {
+    } else if (Miscellaneous::GetOptions().s1gamename == "gmod") {
         return {
             "garrysmod/garrysmod_dir.vpk",
             "sourceengine/hl2_textures_dir.vpk",
@@ -73,14 +73,14 @@ static QStringList GetVpkList(const MapImporter::Options& options) {
     }
 }
 
-void FileExtractFromVPK::ExtractModel(const QString& filepath, const MapImporter::Options& options) {
+void FileExtractFromVPK::ExtractModel(const QString& filepath) {
     QFileInfo fi(filepath);
     QString basePath = fi.path() + "/" + fi.baseName();
-    QString contentPath = QDir(options.s1contentdir).filePath(filepath);
-    QString outPath = QDir(options.s1gamedir).filePath(filepath);
+    QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(filepath);
+    QString outPath = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(filepath);
 
-    QString baseFolder = QFileInfo(options.s1gamedir).dir().absolutePath();
-    QStringList vpkList = GetVpkList(options);
+    QString baseFolder = QFileInfo(Miscellaneous::GetOptions().s1gamedir).dir().absolutePath();
+    QStringList vpkList = GetVpkList();
     QString foundVpkPath;
 
     for (const QString& vpkRel : vpkList) {
@@ -105,7 +105,7 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath, const MapImporter
         QStringList extlist = {"vvd","phy","sw.vtx","dx80.vtx","dx90.vtx","ani"};
         for (const QString& ext : extlist) {
             QString target = basePath + "." + ext;
-            contentPath = QDir(options.s1contentdir).filePath(target);
+            contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(target);
 
             if (QFile::exists(contentPath)) {
                 QFile::remove(contentPath);
@@ -115,7 +115,7 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath, const MapImporter
             cmd = cmd.replace("/", "\\");
             Miscellaneous::RunCommandSync(cmd);
 
-            outPath = QDir(options.s1gamedir).filePath(target);
+            outPath = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(target);
             if (QFile::exists(contentPath)) {
                 QFile::copy(contentPath, outPath);
             }
@@ -123,11 +123,11 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath, const MapImporter
     }
 }
 
-void FileExtractFromVPK::ExtractParticle(const QString& filepath, const MapImporter::Options& options) {
-    QString contentPath = QDir(options.s1contentdir).filePath(filepath);
-    QString outPath = QDir(options.s1gamedir).filePath(filepath);
-    QString baseFolder = QFileInfo(options.s1gamedir).dir().absolutePath();
-    QStringList vpkList = GetVpkList(options);
+void FileExtractFromVPK::ExtractParticle(const QString& filepath) {
+    QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(filepath);
+    QString outPath = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(filepath);
+    QString baseFolder = QFileInfo(Miscellaneous::GetOptions().s1gamedir).dir().absolutePath();
+    QStringList vpkList = GetVpkList();
 
     for (const QString& vpkRel : vpkList) {
         QString vpkPath = QDir(baseFolder).filePath(vpkRel);
@@ -152,11 +152,11 @@ void FileExtractFromVPK::ExtractParticle(const QString& filepath, const MapImpor
     }
 }
 
-void FileExtractFromVPK::ExtractSound(const QString& filepath, const MapImporter::Options& options) {
-    QString contentPath = QDir(options.s1contentdir).filePath(filepath);
-    QString outPath = QDir(options.s1gamedir).filePath(filepath);
-    QString baseFolder = QFileInfo(options.s1gamedir).dir().absolutePath();
-    QStringList vpkList = GetVpkList(options);
+void FileExtractFromVPK::ExtractSound(const QString& filepath) {
+    QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(filepath);
+    QString outPath = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(filepath);
+    QString baseFolder = QFileInfo(Miscellaneous::GetOptions().s1gamedir).dir().absolutePath();
+    QStringList vpkList = GetVpkList();
 
     for (const QString& vpkRel : vpkList) {
         QString vpkPath = QDir(baseFolder).filePath(vpkRel);

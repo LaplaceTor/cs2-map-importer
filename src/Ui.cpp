@@ -717,50 +717,52 @@ void Backend::Start()
         QThread* workerThread = QThread::create([this, opts]() mutable {
             bool success = true;
             try {
+                Miscellaneous::SetOptions(opts);
+
                 if (!opts.bspFile.isEmpty()) {
                     if (!Miscellaneous::CheckJava()) {
                         throw AppException("Java is not installed. Cannot decompile BSP file.");
                     }
-                    VmfBspProcess::ProcessBsp(opts);
+                    VmfBspProcess::ProcessBsp();
                 }
 
-                QString target_vmf_path = QDir(opts.appDir).filePath("maps/" + opts.mapName + "/maps/" + opts.mapName + ".vmf");
+                // Get updated opts (like updated contentFolder after ProcessBsp)
+                Miscellaneous::Options currentOpts = Miscellaneous::GetOptions();
+
+                QString target_vmf_path = QDir(currentOpts.appDir).filePath("maps/" + currentOpts.mapName + "/maps/" + currentOpts.mapName + ".vmf");
                 VmfBspProcess::FixEntities(target_vmf_path);
 
-                MapImporter::Options mapOpts;
                 QString s1Subfolder = "csgo";
-                if (opts.s1GameType == "css") s1Subfolder = "cstrike";
-                else if (opts.s1GameType == "hl2") s1Subfolder = "hl2";
-                else if (opts.s1GameType == "l4d") s1Subfolder = "left4dead";
-                else if (opts.s1GameType == "l4d2") s1Subfolder = "left4dead2";
-                else if (opts.s1GameType == "portal") s1Subfolder = "portal";
-                else if (opts.s1GameType == "portal2") s1Subfolder = "portal2";
-                else if (opts.s1GameType == "tf2") s1Subfolder = "tf";
-                else if (opts.s1GameType == "gmod") s1Subfolder = "garrysmod";
+                if (currentOpts.s1GameType == "css") s1Subfolder = "cstrike";
+                else if (currentOpts.s1GameType == "hl2") s1Subfolder = "hl2";
+                else if (currentOpts.s1GameType == "l4d") s1Subfolder = "left4dead";
+                else if (currentOpts.s1GameType == "l4d2") s1Subfolder = "left4dead2";
+                else if (currentOpts.s1GameType == "portal") s1Subfolder = "portal";
+                else if (currentOpts.s1GameType == "portal2") s1Subfolder = "portal2";
+                else if (currentOpts.s1GameType == "tf2") s1Subfolder = "tf";
+                else if (currentOpts.s1GameType == "gmod") s1Subfolder = "garrysmod";
 
-                QString s1gamedir = opts.s1gameBasefolder + "\\" + s1Subfolder;
+                QString s1gamedir = currentOpts.s1gameBasefolder + "\\" + s1Subfolder;
                 s1gamedir.replace('/', '\\');
-                mapOpts.s1gamedir = s1gamedir;
+                currentOpts.s1gamedir = s1gamedir;
 
-                QString csgogamedir_path = opts.csgogamedir + "\\csgo";
+                QString csgogamedir_path = currentOpts.csgogamedir + "\\csgo";
                 csgogamedir_path.replace('/', '\\');
-                mapOpts.csgogamedir = csgogamedir_path;
+                currentOpts.csgogamedir = csgogamedir_path;
 
-                mapOpts.s1gamename = opts.s1GameType;
+                currentOpts.s1gamename = currentOpts.s1GameType;
 
-                QString contentdir = opts.contentFolder;
+                QString contentdir = currentOpts.contentFolder;
                 contentdir.replace('/', '\\');
-                mapOpts.s1contentdir = contentdir;
+                currentOpts.s1contentdir = contentdir;
 
-                mapOpts.s2addonname = opts.addonName;
-                mapOpts.s2contentdir = opts.cs2Basefolder + "\\content\\csgo_addons\\" + opts.addonName;
-                mapOpts.mapname = opts.mapName;
-                mapOpts.usebsp = opts.usebsp;
-                mapOpts.usebspNomergeinstances = opts.usebspNomergeinstances;
-                mapOpts.skipdeps = opts.skipdeps;
-                mapOpts.cs2Basefolder = opts.cs2Basefolder;
+                currentOpts.s2addonname = currentOpts.addonName;
+                currentOpts.s2contentdir = currentOpts.cs2Basefolder + "\\content\\csgo_addons\\" + currentOpts.addonName;
+                currentOpts.mapname = currentOpts.mapName;
 
-                MapImporter importer(mapOpts);
+                Miscellaneous::SetOptions(currentOpts);
+
+                MapImporter importer;
                 success = importer.Run();
 
             } catch (const AppException& e) {
