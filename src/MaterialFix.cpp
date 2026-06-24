@@ -58,7 +58,7 @@ static void EnsureFileWritable(const QString& filepath) {
     QFile::setPermissions(filepath, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadUser | QFile::WriteUser | QFile::ReadGroup | QFile::WriteGroup | QFile::ReadOther | QFile::WriteOther);
 }
 
-bool MaterialFix::Force2UVsIfRequired(const MapImporter::Options& options, const QString& refsName, QSet<QString>& global2UVMaterials) {
+bool MaterialFix::Force2UVsIfRequired(const QString& refsName, QSet<QString>& global2UVMaterials) {
     QSet<QString> uvsUpdated;
     QString meshinfofilename = refsName;
     int pos = meshinfofilename.lastIndexOf("_refs.txt");
@@ -101,7 +101,7 @@ bool MaterialFix::Force2UVsIfRequired(const MapImporter::Options& options, const
                 int pos = vmat.lastIndexOf(".vmt");
                 if (pos != -1) vmat.replace(pos, 4, ".vmat");
 
-                QString vmatfilename = options.s2contentdir + "\\" + vmat;
+                QString vmatfilename = Miscellaneous::GetOptions().s2contentdir + "\\" + vmat;
                 if (QFile::exists(vmatfilename)) {
                     QStringList lines = ReadTextFile(vmatfilename);
                     EnsureFileWritable(vmatfilename);
@@ -143,8 +143,8 @@ bool MaterialFix::Force2UVsIfRequired(const MapImporter::Options& options, const
     return b2UV;
 }
 
-void MaterialFix::SkyboxFix(const MapImporter::Options& options) {
-    QString materialsDir = options.s2contentdir + "/materials";
+void MaterialFix::SkyboxFix() {
+    QString materialsDir = Miscellaneous::GetOptions().s2contentdir + "/materials";
     QDirIterator it(materialsDir, QStringList() << "*.vmat", QDir::Files, QDirIterator::Subdirectories);
 
     QString magickPath = "magick";

@@ -33,11 +33,17 @@ public:
         QString appDir;
         QString addonName;
 
+        QString s1gamedir;
+        QString s1contentdir;
+        QString s2contentdir;
+
         bool usebsp;
         bool usebspNomergeinstances;
         bool skipdeps;
-
     };
+
+    static const Options& GetOptions();
+    static void SetOptions(const Options& options);
 
     static LogCallback GlobaLLogger;
     static void Log(const QString& msg);
