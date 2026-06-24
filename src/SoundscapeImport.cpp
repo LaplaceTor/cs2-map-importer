@@ -1,5 +1,6 @@
 #include "SoundscapeImport.h"
 #include "Miscellaneous.h"
+#include "MapImporter.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
