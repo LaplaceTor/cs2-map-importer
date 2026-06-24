@@ -411,29 +411,29 @@ void VmfBspProcess::FixVmfFromBsp(const QString& vmfPath) {
 }
 
 
-void VmfBspProcess::ProcessBsp(Miscellaneous::Options& options) {
+void VmfBspProcess::ProcessBsp(Miscellaneous::Options& Miscellaneous::globalOptions) {
     if (Miscellaneous::CanceLImport) return;
-    QString appDir = options.appDir;
+    QString appDir = Miscellaneous::globalOptions.appDir;
     QString maps_dir = QDir(appDir).filePath("maps");
     QDir().mkpath(maps_dir);
 
-    QString vmf_dest = QDir(maps_dir).filePath(options.mapName + ".vmf");
+    QString vmf_dest = QDir(maps_dir).filePath(Miscellaneous::globalOptions.mapName + ".vmf");
     QString bspsrc_jar = QDir(appDir).filePath("bin/bspsrc.jar");
 
     if (!QFile::exists(bspsrc_jar)) {
         throw AppException("Could not find bspsrc.jar at " + bspsrc_jar);
     }
 
-    Miscellaneous::Log("Decompiling BSP: " + options.bspFile);
+    Miscellaneous::Log("Decompiling BSP: " + Miscellaneous::globalOptions.bspFile);
 
-    QString decomp_cmd = "java -jar \"" + bspsrc_jar + "\" \"" + options.bspFile + "\" -o \"" + vmf_dest + "\"";
+    QString decomp_cmd = "java -jar \"" + bspsrc_jar + "\" \"" + Miscellaneous::globalOptions.bspFile + "\" -o \"" + vmf_dest + "\"";
     int ret = Miscellaneous::RunCommandSync(decomp_cmd);
     if (Miscellaneous::CanceLImport) return;
     if (ret != 0) {
         throw AppException("BSP Decompilation failed.");
     }
 
-    QString target_unpacked_dir = QDir(maps_dir).filePath(options.mapName);
+    QString target_unpacked_dir = QDir(maps_dir).filePath(Miscellaneous::globalOptions.mapName);
 
     QString vpkeditcli_exe = QDir(appDir).filePath("bin/vpkeditcli.exe");
     vpkeditcli_exe = QDir::toNativeSeparators(vpkeditcli_exe);
@@ -442,7 +442,7 @@ void VmfBspProcess::ProcessBsp(Miscellaneous::Options& options) {
         Miscellaneous::Log("Warning: Could not find vpkeditcli.exe at " + vpkeditcli_exe);
     } else {
         Miscellaneous::Log("Extracting embedded files using vpkeditcli...");
-        QString vpk_cmd = "\"" + vpkeditcli_exe + "\" -e \"/\" -o \"" + maps_dir + "\" \"" + options.bspFile + "\"";
+        QString vpk_cmd = "\"" + vpkeditcli_exe + "\" -e \"/\" -o \"" + maps_dir + "\" \"" + Miscellaneous::globalOptions.bspFile + "\"";
         int vpk_ret = Miscellaneous::RunCommandSync(vpk_cmd);
         if (vpk_ret != 0) {
             Miscellaneous::Log("Warning: vpkeditcli failed to extract embedded files.");
@@ -454,9 +454,9 @@ void VmfBspProcess::ProcessBsp(Miscellaneous::Options& options) {
     FixVmfFromBsp(vmf_dest);
     if (Miscellaneous::CanceLImport) return;
 
-    QString target_maps_dir = QDir(appDir).filePath("maps/" + options.mapName + "/maps");
+    QString target_maps_dir = QDir(appDir).filePath("maps/" + Miscellaneous::globalOptions.mapName + "/maps");
     QDir().mkpath(target_maps_dir);
-    QString final_vmf_dest = QDir(target_maps_dir).filePath(options.mapName + ".vmf");
+    QString final_vmf_dest = QDir(target_maps_dir).filePath(Miscellaneous::globalOptions.mapName + ".vmf");
 
     if (QFile::exists(final_vmf_dest)) {
         QFile::remove(final_vmf_dest);
@@ -468,20 +468,20 @@ void VmfBspProcess::ProcessBsp(Miscellaneous::Options& options) {
         Miscellaneous::Log("Failed to move VMF to: " + final_vmf_dest);
     }
 
-    options.contentFolder = QDir(appDir).filePath("maps/" + options.mapName);
+    Miscellaneous::globalOptions.contentFolder = QDir(appDir).filePath("maps/" + Miscellaneous::globalOptions.mapName);
     Miscellaneous::Log("Decompiled and prepared at: " + final_vmf_dest);
 
     // Copy materials and models to s1gamedir
     QString s1Subfolder = "csgo";
-    if (options.s1GameType == "css") s1Subfolder = "cstrike";
-    else if (options.s1GameType == "hl2") s1Subfolder = "hl2";
-    else if (options.s1GameType == "l4d") s1Subfolder = "left4dead";
-    else if (options.s1GameType == "l4d2") s1Subfolder = "left4dead2";
-    else if (options.s1GameType == "portal") s1Subfolder = "portal";
-    else if (options.s1GameType == "portal2") s1Subfolder = "portal2";
-    else if (options.s1GameType == "tf2") s1Subfolder = "tf";
-    else if (options.s1GameType == "gmod") s1Subfolder = "garrysmod";
-    QString s1gamedir = QDir(options.s1gameBasefolder).filePath(s1Subfolder);
+    if (Miscellaneous::globalOptions.s1GameType == "css") s1Subfolder = "cstrike";
+    else if (Miscellaneous::globalOptions.s1GameType == "hl2") s1Subfolder = "hl2";
+    else if (Miscellaneous::globalOptions.s1GameType == "l4d") s1Subfolder = "left4dead";
+    else if (Miscellaneous::globalOptions.s1GameType == "l4d2") s1Subfolder = "left4dead2";
+    else if (Miscellaneous::globalOptions.s1GameType == "portal") s1Subfolder = "portal";
+    else if (Miscellaneous::globalOptions.s1GameType == "portal2") s1Subfolder = "portal2";
+    else if (Miscellaneous::globalOptions.s1GameType == "tf2") s1Subfolder = "tf";
+    else if (Miscellaneous::globalOptions.s1GameType == "gmod") s1Subfolder = "garrysmod";
+    QString s1gamedir = QDir(Miscellaneous::globalOptions.s1gameBasefolder).filePath(s1Subfolder);
 
     if (QDir(target_unpacked_dir).exists()) {
         QString src_materials = QDir(target_unpacked_dir).filePath("materials");

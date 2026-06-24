@@ -7,8 +7,8 @@
 
 class MaterialFix {
 public:
-    static bool Force2UVsIfRequired(const MapImporter::Options& options, const QString& refsName, QSet<QString>& global2UVMaterials);
-    static void SkyboxFix(const MapImporter::Options& options);
+    static bool Force2UVsIfRequired(const QString& refsName, QSet<QString>& global2UVMaterials);
+    static void SkyboxFix();
 };
 
 #endif // MATERIALFIX_H

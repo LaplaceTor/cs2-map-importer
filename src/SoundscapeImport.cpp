@@ -146,8 +146,8 @@ static QString FormatVsndPath(QString wavePath) {
     return wavePath;
 }
 
-void SoundscapeImport::ImportSoundscapes(MapImporter* importer, const MapImporter::Options& options, QSet<QString>& uniqueSounds) {
-    QDir scriptsDir(options.s1contentdir + "\\scripts");
+void SoundscapeImport::ImportSoundscapes(MapImporter* importer, QSet<QString>& uniqueSounds) {
+    QDir scriptsDir(Miscellaneous::globalOptions.s1contentdir + "\\scripts");
     if (!scriptsDir.exists()) {
         return;
     }
@@ -269,7 +269,7 @@ void SoundscapeImport::ImportSoundscapes(MapImporter* importer, const MapImporte
             baseName = "soundevents_" + baseName;
         }
 
-        QString outPath = options.s2contentdir + "\\soundevents\\" + baseName + ".vsndevts";
+        QString outPath = Miscellaneous::globalOptions.s2contentdir + "\\soundevents\\" + baseName + ".vsndevts";
         QDir().mkpath(QFileInfo(outPath).absolutePath());
         importer->EnsureFileWritable(outPath);
         QFile vsndFile(outPath);

@@ -7,7 +7,7 @@
 
 class SoundscapeImport {
 public:
-    static void ImportSoundscapes(MapImporter* importer, const MapImporter::Options& options, QSet<QString>& uniqueSounds);
+    static void ImportSoundscapes(MapImporter* importer, QSet<QString>& uniqueSounds);
 };
 
 #endif // SOUNDSCAPEIMPORT_H
