@@ -6,7 +6,7 @@
 #include <QStringList>
 
 static QStringList GetVpkList() {
-    if (Miscellaneous::GetOptions().s1gamename == "css") {
+    if (Miscellaneous::GetOptions().s1GameType == "css") {
         return {
             "cstrike/cstrike_pak_dir.vpk",
             "hl2/hl2_textures_dir.vpk",
@@ -14,7 +14,7 @@ static QStringList GetVpkList() {
             "hl2/hl2_misc_dir.vpk",
             "hl2/hl2_sound_vo_english_dir.vpk"
         };
-    } else if (Miscellaneous::GetOptions().s1gamename == "hl2") {
+    } else if (Miscellaneous::GetOptions().s1GameType == "hl2") {
         return {
             "hl2/hl2_sound_vo_english_dir.vpk",
             "hl2/hl2_pak_dir.vpk",
@@ -22,12 +22,12 @@ static QStringList GetVpkList() {
             "hl2/hl2_sound_misc_dir.vpk",
             "hl2/hl2_misc_dir.vpk"
         };
-    } else if (Miscellaneous::GetOptions().s1gamename == "l4d") {
+    } else if (Miscellaneous::GetOptions().s1GameType == "l4d") {
         return {
             "left4dead/pak01_dir.vpk",
             "left4dead_dlc3/pak01_dir.vpk"
         };
-    } else if (Miscellaneous::GetOptions().s1gamename == "l4d2") {
+    } else if (Miscellaneous::GetOptions().s1GameType == "l4d2") {
         return {
             "left4dead2/pak01_dir.vpk",
             "left4dead2_dlc1/pak01_dir.vpk",
@@ -35,7 +35,7 @@ static QStringList GetVpkList() {
             "left4dead2_dlc3/pak01_dir.vpk",
             "update/pak01_dir.vpk"
         };
-    } else if (Miscellaneous::GetOptions().s1gamename == "portal") {
+    } else if (Miscellaneous::GetOptions().s1GameType == "portal") {
         return {
             "portal/portal_pak_dir.vpk",
             "hl2/hl2_sound_vo_english_dir.vpk",
@@ -43,13 +43,13 @@ static QStringList GetVpkList() {
             "hl2/hl2_sound_misc_dir.vpk",
             "hl2/hl2_misc_dir.vpk"
         };
-    } else if (Miscellaneous::GetOptions().s1gamename == "portal2") {
+    } else if (Miscellaneous::GetOptions().s1GameType == "portal2") {
         return {
             "portal2/pak01_dir.vpk",
             "portal2_dlc1/pak01_dir.vpk",
             "portal2_dlc2/pak01_dir.vpk"
         };
-    } else if (Miscellaneous::GetOptions().s1gamename == "tf2") {
+    } else if (Miscellaneous::GetOptions().s1GameType == "tf2") {
         return {
             "tf/tf2_textures_dir.vpk",
             "tf/tf2_sound_vo_english_dir.vpk",
@@ -60,7 +60,7 @@ static QStringList GetVpkList() {
             "hl2/hl2_sound_misc_dir.vpk",
             "hl2/hl2_misc_dir.vpk"
         };
-    } else if (Miscellaneous::GetOptions().s1gamename == "gmod") {
+    } else if (Miscellaneous::GetOptions().s1GameType == "gmod") {
         return {
             "garrysmod/garrysmod_dir.vpk",
             "sourceengine/hl2_textures_dir.vpk",

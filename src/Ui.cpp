@@ -750,15 +750,11 @@ void Backend::Start()
                 csgogamedir_path.replace('/', '\\');
                 currentOpts.csgogamedir = csgogamedir_path;
 
-                currentOpts.s1gamename = currentOpts.s1GameType;
-
                 QString contentdir = currentOpts.contentFolder;
                 contentdir.replace('/', '\\');
                 currentOpts.s1contentdir = contentdir;
 
-                currentOpts.s2addonname = currentOpts.addonName;
                 currentOpts.s2contentdir = currentOpts.cs2Basefolder + "\\content\\csgo_addons\\" + currentOpts.addonName;
-                currentOpts.mapname = currentOpts.mapName;
 
                 Miscellaneous::SetOptions(currentOpts);
 

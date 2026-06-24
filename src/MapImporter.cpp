@@ -190,7 +190,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         fw.close();
     }
 
-    QString importRefsCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + Miscellaneous::GetOptions().s1gamedir + "\" -s2addon " + Miscellaneous::GetOptions().s2addonname + " -game csgo -usefilelist \"" + tempRefs + "\"";
+    QString importRefsCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + Miscellaneous::GetOptions().s1gamedir + "\" -s2addon " + Miscellaneous::GetOptions().addonName + " -game csgo -usefilelist \"" + tempRefs + "\"";
     Miscellaneous::RunCommandSync(importRefsCmd);
 
     QSet<QString> global2UVMaterials;
@@ -259,7 +259,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
 }
 
 void MapImporter::ImportAndCompileMapRefs(const QString& refsFile) {
-    QString importcmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + Miscellaneous::GetOptions().s1gamedir + "\" -s2addon " + Miscellaneous::GetOptions().s2addonname + " -game csgo -usefilelist \"" + refsFile + "\"";
+    QString importcmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + Miscellaneous::GetOptions().s1gamedir + "\" -s2addon " + Miscellaneous::GetOptions().addonName + " -game csgo -usefilelist \"" + refsFile + "\"";
     Miscellaneous::RunCommandSync(importcmd);
 
     QStringList refs = ReadTextFile(refsFile);
@@ -278,7 +278,7 @@ void MapImporter::ImportAndCompileMapRefs(const QString& refsFile) {
         }
     }
 
-    QString tmpFile = Miscellaneous::GetOptions().s2contentdir + "\\maps\\" + Miscellaneous::GetOptions().mapname + "_compile_new_refs.txt";
+    QString tmpFile = Miscellaneous::GetOptions().s2contentdir + "\\maps\\" + Miscellaneous::GetOptions().mapName + "_compile_new_refs.txt";
     EnsureFileWritable(tmpFile);
     QFile writeFile(tmpFile);
     if (writeFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -331,7 +331,7 @@ void MapImporter::ImportParticles(){
             }
 
             cleanedPath.replace('/', '\\');
-            QString importCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + Miscellaneous::GetOptions().s1gamedir + "\" -s2addon " + Miscellaneous::GetOptions().s2addonname + " -game csgo \"" + cleanedPath + "\"";
+            QString importCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + Miscellaneous::GetOptions().s1gamedir + "\" -s2addon " + Miscellaneous::GetOptions().addonName + " -game csgo \"" + cleanedPath + "\"";
             Miscellaneous::RunCommandSync(importCmd);
         }
     }
@@ -344,7 +344,7 @@ void MapImporter::ImportSounds() {
     SoundscapeImport::ImportSoundscapes(this, uniqueSounds);
 
     if (!uniqueSounds.isEmpty()) {
-        QString soundListFile = Miscellaneous::GetOptions().s2contentdir + "\\maps\\" + Miscellaneous::GetOptions().mapname + "_sound_list.txt";
+        QString soundListFile = Miscellaneous::GetOptions().s2contentdir + "\\maps\\" + Miscellaneous::GetOptions().mapName + "_sound_list.txt";
         EnsureFileWritable(soundListFile);
         QFile writeFile(soundListFile);
         if (writeFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -386,11 +386,11 @@ bool MapImporter::Run() {
 
     QString targetS1gamedir =  Miscellaneous::GetOptions().csgogamedir;
 
-    mapImportCmd += " -src1gameinfodir \"" + targetS1gamedir + "\" -src1contentdir \"" + Miscellaneous::GetOptions().s1contentdir + "\" -s2addon \"" + Miscellaneous::GetOptions().s2addonname + "\" -game csgo maps\\" + Miscellaneous::GetOptions().mapname + ".vmf";
+    mapImportCmd += " -src1gameinfodir \"" + targetS1gamedir + "\" -src1contentdir \"" + Miscellaneous::GetOptions().s1contentdir + "\" -s2addon \"" + Miscellaneous::GetOptions().addonName + "\" -game csgo maps\\" + Miscellaneous::GetOptions().mapName + ".vmf";
 
     Miscellaneous::RunCommandSync(mapImportCmd);
 
-    QString mMapname = Miscellaneous::GetOptions().mapname;
+    QString mMapname = Miscellaneous::GetOptions().mapName;
     int pos = mMapname.indexOf("instances");
     if (pos != -1) {
         mMapname.replace(pos, 9, "prefabs");

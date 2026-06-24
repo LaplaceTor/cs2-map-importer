@@ -34,11 +34,8 @@ public:
         QString addonName;
 
         QString s1gamedir;
-        QString s1gamename;
         QString s1contentdir;
-        QString s2addonname;
         QString s2contentdir;
-        QString mapname;
 
         bool usebsp;
         bool usebspNomergeinstances;
