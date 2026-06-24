@@ -10,6 +10,7 @@
 
 QAtomicInt Miscellaneous::CanceLImport(0);
 Miscellaneous::LogCallback Miscellaneous::GlobaLLogger = nullptr;
+Miscellaneous::Options Miscellaneous::globalOptions;
 
 void Miscellaneous::Log(const QString& msg) {
     if (GlobaLLogger) {

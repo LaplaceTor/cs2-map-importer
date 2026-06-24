@@ -25,6 +25,7 @@ public:
     struct Options {
         QString cs2Basefolder;
         QString s1gameBasefolder;
+        QString s1gamedir;
         QString csgogamedir;
         QString s1GameType; // "css" or "csgo"
         QString contentFolder;
@@ -33,11 +34,17 @@ public:
         QString appDir;
         QString addonName;
 
+        QString s1gamename;
+        QString s1contentdir;
+        QString s2addonname;
+        QString s2contentdir;
+
         bool usebsp;
         bool usebspNomergeinstances;
         bool skipdeps;
-
     };
+
+    static Options globalOptions;
 
     static LogCallback GlobaLLogger;
     static void Log(const QString& msg);
