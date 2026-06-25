@@ -38,7 +38,7 @@ ApplicationWindow {
                 safeMsg = "<font color='yellow'>" + safeMsg + "</font>";
             }
             logLines.push(safeMsg)
-            if (logLines.length > 100) {
+            if (logLines.length > 40) {
                 logLines.shift()
             }
             logOutput.text = logLines.join("<br>")
