@@ -17,6 +17,7 @@ ApplicationWindow {
     // Property to bind the backend object
     property var backend: backendObject
     property string selectedMapFileName: "Select VMF/BSP"
+    property var logLines: []
 
     Connections {
         target: backend
@@ -36,7 +37,12 @@ ApplicationWindow {
             }else if(safeMsg.indexOf("WARN") !== -1) {
                 safeMsg = "<font color='yellow'>" + safeMsg + "</font>";
             }
-            logOutput.append(safeMsg)
+            logLines.push(safeMsg)
+            if (logLines.length > 100) {
+                logLines.shift()
+            }
+            logOutput.text = logLines.join("<br>")
+            logOutput.cursorPosition = logOutput.text.length
         }
         function onAlertMessage(title, msg) {
             messageDialog.title = title
@@ -246,6 +252,7 @@ ApplicationWindow {
                     }
 
                     onClicked: {
+                        logLines = []
                         logOutput.clear()
                         backend.Start()
                     }

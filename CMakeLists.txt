@@ -34,6 +34,7 @@ qt_add_executable(cs2importer MANUAL_FINALIZATION ${SOURCES})
 set_property(TARGET cs2importer PROPERTY WIN32_EXECUTABLE TRUE)
 
 qt_add_qml_module(cs2importer
+    OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cs2importer_qml
     URI cs2importer
     VERSION 1.0
     QML_FILES
