@@ -43,9 +43,9 @@ ApplicationWindow {
             }
             logOutput.text = logLines.join("<br>")
 
-            // Scroll to bottom by forcing the cursor to the end
-            logOutput.forceActiveFocus()
-            logOutput.cursorPosition = logOutput.text.length
+            if (logScrollView.ScrollBar.vertical) {
+                logScrollView.ScrollBar.vertical.position = 1.0 - logScrollView.ScrollBar.vertical.size
+            }
         }
         function onAlertMessage(title, msg) {
             messageDialog.title = title
