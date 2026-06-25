@@ -38,11 +38,15 @@ ApplicationWindow {
                 safeMsg = "<font color='yellow'>" + safeMsg + "</font>";
             }
             logLines.push(safeMsg)
-            if (logLines.length > 40) {
+            if (logLines.length > 100) {
                 logLines.shift()
             }
             logOutput.text = logLines.join("<br>")
-            logOutput.cursorPosition = logOutput.text.length
+
+            // Scroll to bottom by positioning the ScrollBar
+            if (logScrollView.ScrollBar.vertical) {
+                logScrollView.ScrollBar.vertical.position = 1.0 - logScrollView.ScrollBar.vertical.size
+            }
         }
         function onAlertMessage(title, msg) {
             messageDialog.title = title
@@ -343,6 +347,7 @@ ApplicationWindow {
                 border.width: 3
 
                 ScrollView {
+                    id: logScrollView
                     anchors.fill: parent
                     anchors.margins: 5
 
