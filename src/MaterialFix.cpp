@@ -259,6 +259,24 @@ void MaterialFix::ColorFix(QStringList& lines, int layer0StartIdx, int& layer0En
     }
 }
 
+void MaterialFix::ShaderFix(QStringList& lines, bool& fileModified) {
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i];
+        QString lowerLine = line.trimmed().toLower();
+
+        if (lowerLine.startsWith("\"shader\"")) {
+            if (lowerLine.contains("\"csgo_unlitgeneric.vfx\"") || lowerLine.contains("\"csgo_vertexlitgeneric.vfx\"")) {
+                // Replace the specific legacy shader with csgo_complex.vfx while trying to preserve spacing
+                QString newLine = line;
+                newLine.replace("csgo_unlitgeneric.vfx", "csgo_complex.vfx", Qt::CaseInsensitive);
+                newLine.replace("csgo_vertexlitgeneric.vfx", "csgo_complex.vfx", Qt::CaseInsensitive);
+                lines[i] = newLine;
+                fileModified = true;
+            }
+        }
+    }
+}
+
 void MaterialFix::FixMaterials() {
     QString materialsDir = Miscellaneous::GetOptions().s2contentdir + "/materials";
     QDirIterator it(materialsDir, QStringList() << "*.vmat", QDir::Files, QDirIterator::Subdirectories);
@@ -270,6 +288,7 @@ void MaterialFix::FixMaterials() {
         QStringList lines = ReadTextFile(vmatFile);
         bool fileModified = false;
         bool isSky = false;
+        bool isLegacyShader = false;
 
         // We look for legacy keys and values
         QMap<QString, QString> foundLegacyKeys;
@@ -287,6 +306,10 @@ void MaterialFix::FixMaterials() {
 
             if (lowerLine.contains("\"shader\"") && lowerLine.contains("\"sky.vfx\"")) {
                 isSky = true;
+            }
+
+            if (lowerLine.startsWith("\"shader\"") && (lowerLine.contains("\"csgo_unlitgeneric.vfx\"") || lowerLine.contains("\"csgo_vertexlitgeneric.vfx\""))) {
+                isLegacyShader = true;
             }
 
             if (lowerLine == "\"layer0\"" && i + 1 < lines.size() && lines[i+1].trimmed() == "{") {
@@ -319,6 +342,10 @@ void MaterialFix::FixMaterials() {
 
         if (isSky) {
             SkyboxFix(vmatFile);
+        }
+
+        if (isLegacyShader) {
+            ShaderFix(lines, fileModified);
         }
 
         if (!foundLegacyKeys.isEmpty()) {
