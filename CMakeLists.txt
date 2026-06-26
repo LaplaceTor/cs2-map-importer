@@ -43,7 +43,7 @@ qt_add_qml_module(cs2importer
 target_link_libraries(cs2importer PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Network)
 
 target_include_directories(cs2importer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_compile_definitions(cs2importer PRIVATE APP_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(cs2importer PRIVATE "APP_VERSION=\"${PROJECT_VERSION}\"")
 
 qt_import_qml_plugins(cs2importer)
 qt_finalize_executable(cs2importer)
