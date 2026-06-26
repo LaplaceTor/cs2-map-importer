@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -29,20 +29,21 @@ set(SOURCES
     src/MaterialFix.h
 )
 
-qt_add_executable(cs2importer MANUAL_FINALIZATION ${SOURCES})
+qt_add_executable(cs2importer_exe MANUAL_FINALIZATION ${SOURCES})
 
-set_property(TARGET cs2importer PROPERTY WIN32_EXECUTABLE TRUE)
+set_property(TARGET cs2importer_exe PROPERTY WIN32_EXECUTABLE TRUE)
 
-qt_add_qml_module(cs2importer
+qt_add_qml_module(cs2importer_exe
     URI cs2importer
     VERSION 1.0
     QML_FILES
         src/qml/main.qml
 )
 
-target_link_libraries(cs2importer PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2)
+target_link_libraries(cs2importer_exe PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Network)
 
-target_include_directories(cs2importer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(cs2importer_exe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_definitions(cs2importer_exe PRIVATE APP_VERSION="${PROJECT_VERSION}")
 
-qt_import_qml_plugins(cs2importer)
-qt_finalize_executable(cs2importer)
+qt_import_qml_plugins(cs2importer_exe)
+qt_finalize_executable(cs2importer_exe)

@@ -6,6 +6,8 @@
 #include <QFile>
 #include <QTextStream>
 #include <QUrl>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
 
 class Backend : public QObject
 {
@@ -23,6 +25,7 @@ class Backend : public QObject
     Q_PROPERTY(bool skipdeps READ GetSkipdeps WRITE SetSkipdeps NOTIFY skipdepsChanged)
     Q_PROPERTY(bool canGo READ GetCanGo NOTIFY canGoChanged)
     Q_PROPERTY(bool isGoing READ GetIsGoing NOTIFY isGoingChanged)
+    Q_PROPERTY(QString currentVersion READ GetCurrentVersion CONSTANT)
 
 public:
     explicit Backend(QObject *parent = nullptr);
@@ -58,6 +61,7 @@ public:
 
     bool GetCanGo() const { return !cs2Basefolder.isEmpty() && !GetS1gameBasefolder().isEmpty() && (!bspFile.isEmpty() || !contentFolder.isEmpty()) && !isGoing; }
     bool GetIsGoing() const { return isGoing; }
+    QString GetCurrentVersion() const;
 
     void AppAboutToQuit();
 
@@ -71,6 +75,7 @@ public slots:
     void SetS1GameType(const QString& type);
     void Start();
     void Stop();
+    void CheckForUpdate();
 
 signals:
     void cs2BasefolderChanged();
@@ -88,6 +93,8 @@ signals:
 
     void logMessage(const QString& msg);
     void alertMessage(const QString& title, const QString& msg);
+    void updateAvailable(const QString& version, const QString& notes, const QString& url);
+    void noUpdateAvailable();
 
 private:
     QString appDir;
@@ -115,6 +122,8 @@ private:
     bool usebspNomergeinstances = false;
     bool skipdeps = false;
     bool isGoing = false;
+
+    QNetworkAccessManager* networkManager;
 
     QFile* logFile;
     QTextStream* logStream;
