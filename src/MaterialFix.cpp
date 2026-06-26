@@ -144,101 +144,124 @@ bool MaterialFix::Force2UVsIfRequired(const QString& refsName, QSet<QString>& gl
     return b2UV;
 }
 
-void MaterialFix::SkyboxFix() {
-    QString materialsDir = Miscellaneous::GetOptions().s2contentdir + "/materials";
-    QDirIterator it(materialsDir, QStringList() << "*.vmat", QDir::Files, QDirIterator::Subdirectories);
+void MaterialFix::SkyboxFix(const QString& vmatFile) {
 
     QString magickPath = "magick";
     if (QFile::exists("bin/magick.exe")) {
-        magickPath = QDir("bin/magick.exe").absolutePath();
+    magickPath = QDir("bin/magick.exe").absolutePath();
     }
 
-    while (it.hasNext()) {
-        if (Miscellaneous::CanceLImport) return;
-        QString vmatFile = it.next();
+    if (Miscellaneous::CanceLImport) return;
 
-        QStringList lines = ReadTextFile(vmatFile);
-        bool isSky = false;
-        for (const QString& line : lines) {
-            if (line.toLower().contains("\"shader\"") && line.toLower().contains("\"sky.vfx\"")) {
-                isSky = true;
-                break;
+
+    QFileInfo fileInfo(vmatFile);
+    QString dirPath = fileInfo.absolutePath();
+    QString baseName = fileInfo.completeBaseName();
+
+    QString up = dirPath + "/" + baseName + "up.tga";
+    QString bk = dirPath + "/" + baseName + "bk.tga";
+    QString rt = dirPath + "/" + baseName + "rt.tga";
+    QString ft = dirPath + "/" + baseName + "ft.tga";
+    QString lf = dirPath + "/" + baseName + "lf.tga";
+    QString dn = dirPath + "/" + baseName + "dn.tga";
+
+    if (QFile::exists(up) && QFile::exists(bk) && QFile::exists(rt) &&
+        QFile::exists(ft) && QFile::exists(lf) && QFile::exists(dn)) {
+
+        Miscellaneous::Log("Rebuilding skybox cube for " + baseName + "...");
+
+        // Determine size dynamically
+        QProcess identifyProcess;
+        identifyProcess.setWorkingDirectory(dirPath);
+        identifyProcess.start(magickPath, QStringList() << "identify" << "-format" << "%wx%h" << up);
+        identifyProcess.waitForFinished(-1);
+
+        QString sizeStr = "1024x1024"; // Default fallback
+        if (identifyProcess.exitStatus() == QProcess::NormalExit && identifyProcess.exitCode() == 0) {
+            QString output = QString::fromUtf8(identifyProcess.readAllStandardOutput()).trimmed();
+            if (!output.isEmpty() && output.contains('x')) {
+                sizeStr = output;
             }
         }
 
-        if (isSky) {
-            QFileInfo fileInfo(vmatFile);
-            QString dirPath = fileInfo.absolutePath();
-            QString baseName = fileInfo.completeBaseName();
+        QString cubeFile = dirPath + "/" + baseName + "_cube.pfm";
 
-            QString up = dirPath + "/" + baseName + "up.tga";
-            QString bk = dirPath + "/" + baseName + "bk.tga";
-            QString rt = dirPath + "/" + baseName + "rt.tga";
-            QString ft = dirPath + "/" + baseName + "ft.tga";
-            QString lf = dirPath + "/" + baseName + "lf.tga";
-            QString dn = dirPath + "/" + baseName + "dn.tga";
+        QStringList args;
+        args << "(" << "-size" << sizeStr << "xc:black" << up << "xc:black" << "xc:black" << "+append" << ")"
+             << "(" << bk << rt << ft << lf << "+append" << ")"
+             << "(" << "-size" << sizeStr << "xc:black" << dn << "xc:black" << "xc:black" << "+append" << ")"
+             << "-append"
+             << "-set" << "colorspace" << "sRGB" << "-colorspace" << "RGB"
+             << cubeFile;
 
-            if (QFile::exists(up) && QFile::exists(bk) && QFile::exists(rt) &&
-                QFile::exists(ft) && QFile::exists(lf) && QFile::exists(dn)) {
+        QProcess process;
+        process.setWorkingDirectory(dirPath);
+        process.start(magickPath, args);
+        process.waitForFinished(-1);
 
-                Miscellaneous::Log("Rebuilding skybox cube for " + baseName + "...");
+        if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
+            Miscellaneous::Log("Successfully rebuilt skybox cube: " + baseName + "_cube.pfm");
+        } else {
+            Miscellaneous::Log("Failed to rebuild skybox cube for " + baseName + ". Error: " + process.readAllStandardError());
+        }
+    }
+}
 
-                // Determine size dynamically
-                QProcess identifyProcess;
-                identifyProcess.setWorkingDirectory(dirPath);
-                identifyProcess.start(magickPath, QStringList() << "identify" << "-format" << "%wx%h" << up);
-                identifyProcess.waitForFinished(-1);
 
-                QString sizeStr = "1024x1024"; // Default fallback
-                if (identifyProcess.exitStatus() == QProcess::NormalExit && identifyProcess.exitCode() == 0) {
-                    QString output = QString::fromUtf8(identifyProcess.readAllStandardOutput()).trimmed();
-                    if (!output.isEmpty() && output.contains('x')) {
-                        sizeStr = output;
-                    }
+struct KeyMapping {
+    QString newKey;
+    bool appendAlpha1;
+};
+
+static QMap<QString, KeyMapping> legacyKeyMap = { { "\"$color2\"", { "\"g_vColorTint\"", true } } };
+
+void MaterialFix::ColorFix(QStringList& lines, int layer0StartIdx, int& layer0EndIdx, const QMap<QString, QString>& foundLegacyKeys, bool& fileModified) {
+    // Filter keys that exist in our mapping
+    QMap<QString, QString> validKeys;
+    for (auto itFound = foundLegacyKeys.begin(); itFound != foundLegacyKeys.end(); ++itFound) {
+        if (legacyKeyMap.contains(itFound.key())) {
+            validKeys[itFound.key()] = itFound.value();
+        }
+    }
+
+    if (layer0StartIdx != -1 && layer0EndIdx != -1 && !validKeys.isEmpty()) {
+        // Try adding/updating the keys in Layer0
+        for (auto itFound = validKeys.begin(); itFound != validKeys.end(); ++itFound) {
+            QString legacyKey = itFound.key();
+            QString legacyVal = itFound.value();
+            KeyMapping mapping = legacyKeyMap[legacyKey];
+
+            // Format the new value
+            QString newVal = legacyVal;
+            if (mapping.appendAlpha1 && newVal.endsWith("]\"")) {
+                newVal = newVal.left(newVal.length() - 2) + " 1.0]\"";
+            }
+
+            bool keyUpdated = false;
+            // Search for the existing key in Layer0 block
+            for (int j = layer0StartIdx + 1; j < layer0EndIdx; ++j) {
+                QString tLine = lines[j].trimmed().toLower();
+                if (tLine.startsWith(mapping.newKey.toLower())) {
+                    lines[j] = "\t\t" + mapping.newKey + " " + newVal;
+                    keyUpdated = true;
+                    fileModified = true;
+                    break;
                 }
+            }
 
-                QString cubeFile = dirPath + "/" + baseName + "_cube.pfm";
-
-                QStringList args;
-                args << "(" << "-size" << sizeStr << "xc:black" << up << "xc:black" << "xc:black" << "+append" << ")"
-                     << "(" << bk << rt << ft << lf << "+append" << ")"
-                     << "(" << "-size" << sizeStr << "xc:black" << dn << "xc:black" << "xc:black" << "+append" << ")"
-                     << "-append"
-                     << "-set" << "colorspace" << "sRGB" << "-colorspace" << "RGB"
-                     << cubeFile;
-
-                QProcess process;
-                process.setWorkingDirectory(dirPath);
-                process.start(magickPath, args);
-                process.waitForFinished(-1);
-
-                if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
-                    Miscellaneous::Log("Successfully rebuilt skybox cube: " + baseName + "_cube.pfm");
-                } else {
-                    Miscellaneous::Log("Failed to rebuild skybox cube for " + baseName + ". Error: " + process.readAllStandardError());
-                }
+            if (!keyUpdated) {
+                // We just append to the end of Layer0 before the closing brace
+                lines.insert(layer0EndIdx, "\t\t" + mapping.newKey + " " + newVal);
+                layer0EndIdx++; // Adjust end index since we inserted a line
+                fileModified = true;
             }
         }
     }
 }
 
 void MaterialFix::FixMaterials() {
-    // First run the skybox fix
-    SkyboxFix();
-
-    // Now fix legacy keys in .vmat files
     QString materialsDir = Miscellaneous::GetOptions().s2contentdir + "/materials";
     QDirIterator it(materialsDir, QStringList() << "*.vmat", QDir::Files, QDirIterator::Subdirectories);
-
-    struct KeyMapping {
-        QString newKey;
-        bool appendAlpha1;
-    };
-
-    // Map of legacy keys (lowercase) to their new equivalents
-    QMap<QString, KeyMapping> legacyKeyMap;
-    legacyKeyMap["\"$color2\""] = { "\"g_vColorTint\"", true };
-    // Add more mappings here in the future as needed
 
     while (it.hasNext()) {
         if (Miscellaneous::CanceLImport) return;
@@ -246,6 +269,7 @@ void MaterialFix::FixMaterials() {
 
         QStringList lines = ReadTextFile(vmatFile);
         bool fileModified = false;
+        bool isSky = false;
 
         // We look for legacy keys and values
         QMap<QString, QString> foundLegacyKeys;
@@ -260,6 +284,10 @@ void MaterialFix::FixMaterials() {
             // Track blocks
             if (line == "{") bracketDepth++;
             else if (line == "}") bracketDepth--;
+
+            if (lowerLine.contains("\"shader\"") && lowerLine.contains("\"sky.vfx\"")) {
+                isSky = true;
+            }
 
             if (lowerLine == "\"layer0\"" && i + 1 < lines.size() && lines[i+1].trimmed() == "{") {
                 layer0StartIdx = i + 1; // Index of the opening brace
@@ -277,10 +305,8 @@ void MaterialFix::FixMaterials() {
                 }
             }
 
-            // Search for mapped legacy keys
             for (auto itMap = legacyKeyMap.begin(); itMap != legacyKeyMap.end(); ++itMap) {
                 if (lowerLine.startsWith(itMap.key())) {
-                    // Extract value, expecting format "$color2" "[0.5 0.5 0.1]"
                     int firstQuote = line.indexOf('"', itMap.key().length());
                     int lastQuote = line.lastIndexOf('"');
                     if (firstQuote != -1 && lastQuote != -1 && lastQuote > firstQuote) {
@@ -291,38 +317,12 @@ void MaterialFix::FixMaterials() {
             }
         }
 
-        if (layer0StartIdx != -1 && layer0EndIdx != -1 && !foundLegacyKeys.isEmpty()) {
-            // Try adding/updating the keys in Layer0
-            for (auto itFound = foundLegacyKeys.begin(); itFound != foundLegacyKeys.end(); ++itFound) {
-                QString legacyKey = itFound.key();
-                QString legacyVal = itFound.value();
-                KeyMapping mapping = legacyKeyMap[legacyKey];
+        if (isSky) {
+            SkyboxFix(vmatFile);
+        }
 
-                // Format the new value
-                QString newVal = legacyVal;
-                if (mapping.appendAlpha1 && newVal.endsWith("]\"")) {
-                    newVal = newVal.left(newVal.length() - 2) + " 1.0]\"";
-                }
-
-                bool keyUpdated = false;
-                // Search for the existing key in Layer0 block
-                for (int j = layer0StartIdx + 1; j < layer0EndIdx; ++j) {
-                    QString tLine = lines[j].trimmed().toLower();
-                    if (tLine.startsWith(mapping.newKey.toLower())) {
-                        lines[j] = "\t\t" + mapping.newKey + " " + newVal;
-                        keyUpdated = true;
-                        fileModified = true;
-                        break;
-                    }
-                }
-
-                if (!keyUpdated) {
-                    // We just append to the end of Layer0 before the closing brace
-                    lines.insert(layer0EndIdx, "\t\t" + mapping.newKey + " " + newVal);
-                    layer0EndIdx++; // Adjust end index since we inserted a line
-                    fileModified = true;
-                }
-            }
+        if (!foundLegacyKeys.isEmpty()) {
+            ColorFix(lines, layer0StartIdx, layer0EndIdx, foundLegacyKeys, fileModified);
         }
 
         if (fileModified) {
