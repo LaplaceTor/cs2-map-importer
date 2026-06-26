@@ -403,7 +403,7 @@ bool MapImporter::Run() {
         ImportParticles();
         ImportSounds();
 
-        MaterialFix::SkyboxFix();
+        MaterialFix::FixMaterials();
 
         Miscellaneous::RunCommandSync(mapImportCmd);
     }

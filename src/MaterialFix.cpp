@@ -2,6 +2,7 @@
 #include "Miscellaneous.h"
 #include <QFile>
 #include <QTextStream>
+#include <QMap>
 #include <QRegularExpression>
 #include <QDir>
 #include <QDirIterator>
@@ -143,79 +144,221 @@ bool MaterialFix::Force2UVsIfRequired(const QString& refsName, QSet<QString>& gl
     return b2UV;
 }
 
-void MaterialFix::SkyboxFix() {
-    QString materialsDir = Miscellaneous::GetOptions().s2contentdir + "/materials";
-    QDirIterator it(materialsDir, QStringList() << "*.vmat", QDir::Files, QDirIterator::Subdirectories);
+void MaterialFix::SkyboxFix(const QString& vmatFile) {
 
     QString magickPath = "magick";
     if (QFile::exists("bin/magick.exe")) {
-        magickPath = QDir("bin/magick.exe").absolutePath();
+    magickPath = QDir("bin/magick.exe").absolutePath();
     }
+
+    if (Miscellaneous::CanceLImport) return;
+
+
+    QFileInfo fileInfo(vmatFile);
+    QString dirPath = fileInfo.absolutePath();
+    QString baseName = fileInfo.completeBaseName();
+
+    QString up = dirPath + "/" + baseName + "up.tga";
+    QString bk = dirPath + "/" + baseName + "bk.tga";
+    QString rt = dirPath + "/" + baseName + "rt.tga";
+    QString ft = dirPath + "/" + baseName + "ft.tga";
+    QString lf = dirPath + "/" + baseName + "lf.tga";
+    QString dn = dirPath + "/" + baseName + "dn.tga";
+
+    if (QFile::exists(up) && QFile::exists(bk) && QFile::exists(rt) &&
+        QFile::exists(ft) && QFile::exists(lf) && QFile::exists(dn)) {
+
+        Miscellaneous::Log("Rebuilding skybox cube for " + baseName + "...");
+
+        // Determine size dynamically
+        QProcess identifyProcess;
+        identifyProcess.setWorkingDirectory(dirPath);
+        identifyProcess.start(magickPath, QStringList() << "identify" << "-format" << "%wx%h" << up);
+        identifyProcess.waitForFinished(-1);
+
+        QString sizeStr = "1024x1024"; // Default fallback
+        if (identifyProcess.exitStatus() == QProcess::NormalExit && identifyProcess.exitCode() == 0) {
+            QString output = QString::fromUtf8(identifyProcess.readAllStandardOutput()).trimmed();
+            if (!output.isEmpty() && output.contains('x')) {
+                sizeStr = output;
+            }
+        }
+
+        QString cubeFile = dirPath + "/" + baseName + "_cube.pfm";
+
+        QStringList args;
+        args << "(" << "-size" << sizeStr << "xc:black" << up << "xc:black" << "xc:black" << "+append" << ")"
+             << "(" << bk << rt << ft << lf << "+append" << ")"
+             << "(" << "-size" << sizeStr << "xc:black" << dn << "xc:black" << "xc:black" << "+append" << ")"
+             << "-append"
+             << "-set" << "colorspace" << "sRGB" << "-colorspace" << "RGB"
+             << cubeFile;
+
+        QProcess process;
+        process.setWorkingDirectory(dirPath);
+        process.start(magickPath, args);
+        process.waitForFinished(-1);
+
+        if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
+            Miscellaneous::Log("Successfully rebuilt skybox cube: " + baseName + "_cube.pfm");
+        } else {
+            Miscellaneous::Log("Failed to rebuild skybox cube for " + baseName + ". Error: " + process.readAllStandardError());
+        }
+    }
+}
+
+
+struct KeyMapping {
+    QString newKey;
+    bool appendAlpha1;
+};
+
+static QMap<QString, KeyMapping> legacyKeyMap = { { "\"$color2\"", { "\"g_vColorTint\"", true } } };
+
+void MaterialFix::ColorFix(QStringList& lines, int layer0StartIdx, int& layer0EndIdx, const QMap<QString, QString>& foundLegacyKeys, bool& fileModified) {
+    // Filter keys that exist in our mapping
+    QMap<QString, QString> validKeys;
+    for (auto itFound = foundLegacyKeys.begin(); itFound != foundLegacyKeys.end(); ++itFound) {
+        if (legacyKeyMap.contains(itFound.key())) {
+            validKeys[itFound.key()] = itFound.value();
+        }
+    }
+
+    if (layer0StartIdx != -1 && layer0EndIdx != -1 && !validKeys.isEmpty()) {
+        // Try adding/updating the keys in Layer0
+        for (auto itFound = validKeys.begin(); itFound != validKeys.end(); ++itFound) {
+            QString legacyKey = itFound.key();
+            QString legacyVal = itFound.value();
+            KeyMapping mapping = legacyKeyMap[legacyKey];
+
+            // Format the new value
+            QString newVal = legacyVal;
+            if (mapping.appendAlpha1 && newVal.endsWith("]\"")) {
+                newVal = newVal.left(newVal.length() - 2) + " 1.0]\"";
+            }
+
+            bool keyUpdated = false;
+            // Search for the existing key in Layer0 block
+            for (int j = layer0StartIdx + 1; j < layer0EndIdx; ++j) {
+                QString tLine = lines[j].trimmed().toLower();
+                if (tLine.startsWith(mapping.newKey.toLower())) {
+                    lines[j] = "\t\t" + mapping.newKey + " " + newVal;
+                    keyUpdated = true;
+                    fileModified = true;
+                    break;
+                }
+            }
+
+            if (!keyUpdated) {
+                // We just append to the end of Layer0 before the closing brace
+                lines.insert(layer0EndIdx, "\t\t" + mapping.newKey + " " + newVal);
+                layer0EndIdx++; // Adjust end index since we inserted a line
+                fileModified = true;
+            }
+        }
+    }
+}
+
+void MaterialFix::ShaderFix(QStringList& lines, bool& fileModified) {
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i];
+        QString lowerLine = line.trimmed().toLower();
+
+        if (lowerLine.startsWith("\"shader\"")) {
+            if (lowerLine.contains("\"csgo_unlitgeneric.vfx\"") || lowerLine.contains("\"csgo_vertexlitgeneric.vfx\"")) {
+                // Replace the specific legacy shader with csgo_complex.vfx while trying to preserve spacing
+                QString newLine = line;
+                newLine.replace("csgo_unlitgeneric.vfx", "csgo_complex.vfx", Qt::CaseInsensitive);
+                newLine.replace("csgo_vertexlitgeneric.vfx", "csgo_complex.vfx", Qt::CaseInsensitive);
+                lines[i] = newLine;
+                fileModified = true;
+            }
+        }
+    }
+}
+
+void MaterialFix::FixMaterials() {
+    QString materialsDir = Miscellaneous::GetOptions().s2contentdir + "/materials";
+    QDirIterator it(materialsDir, QStringList() << "*.vmat", QDir::Files, QDirIterator::Subdirectories);
 
     while (it.hasNext()) {
         if (Miscellaneous::CanceLImport) return;
         QString vmatFile = it.next();
 
         QStringList lines = ReadTextFile(vmatFile);
+        bool fileModified = false;
         bool isSky = false;
-        for (const QString& line : lines) {
-            if (line.toLower().contains("\"shader\"") && line.toLower().contains("\"sky.vfx\"")) {
+        bool isLegacyShader = false;
+
+        // We look for legacy keys and values
+        QMap<QString, QString> foundLegacyKeys;
+        int layer0StartIdx = -1;
+        int layer0EndIdx = -1;
+        int bracketDepth = 0;
+
+        for (int i = 0; i < lines.size(); ++i) {
+            QString line = lines[i].trimmed();
+            QString lowerLine = line.toLower();
+
+            // Track blocks
+            if (line == "{") bracketDepth++;
+            else if (line == "}") bracketDepth--;
+
+            if (lowerLine.contains("\"shader\"") && lowerLine.contains("\"sky.vfx\"")) {
                 isSky = true;
-                break;
+            }
+
+            if (lowerLine.startsWith("\"shader\"") && (lowerLine.contains("\"csgo_unlitgeneric.vfx\"") || lowerLine.contains("\"csgo_vertexlitgeneric.vfx\""))) {
+                isLegacyShader = true;
+            }
+
+            if (lowerLine == "\"layer0\"" && i + 1 < lines.size() && lines[i+1].trimmed() == "{") {
+                layer0StartIdx = i + 1; // Index of the opening brace
+                int tempDepth = bracketDepth;
+                for (int j = i + 1; j < lines.size(); ++j) {
+                    QString tLine = lines[j].trimmed();
+                    if (tLine == "{") tempDepth++;
+                    else if (tLine == "}") {
+                        tempDepth--;
+                        if (tempDepth == bracketDepth) {
+                            layer0EndIdx = j;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            for (auto itMap = legacyKeyMap.begin(); itMap != legacyKeyMap.end(); ++itMap) {
+                if (lowerLine.startsWith(itMap.key())) {
+                    int firstQuote = line.indexOf('"', itMap.key().length());
+                    int lastQuote = line.lastIndexOf('"');
+                    if (firstQuote != -1 && lastQuote != -1 && lastQuote > firstQuote) {
+                        QString valueStr = line.mid(firstQuote, lastQuote - firstQuote + 1);
+                        foundLegacyKeys[itMap.key()] = valueStr;
+                    }
+                }
             }
         }
 
         if (isSky) {
-            QFileInfo fileInfo(vmatFile);
-            QString dirPath = fileInfo.absolutePath();
-            QString baseName = fileInfo.completeBaseName();
+            SkyboxFix(vmatFile);
+        }
 
-            QString up = dirPath + "/" + baseName + "up.tga";
-            QString bk = dirPath + "/" + baseName + "bk.tga";
-            QString rt = dirPath + "/" + baseName + "rt.tga";
-            QString ft = dirPath + "/" + baseName + "ft.tga";
-            QString lf = dirPath + "/" + baseName + "lf.tga";
-            QString dn = dirPath + "/" + baseName + "dn.tga";
+        if (isLegacyShader) {
+            ShaderFix(lines, fileModified);
+        }
 
-            if (QFile::exists(up) && QFile::exists(bk) && QFile::exists(rt) &&
-                QFile::exists(ft) && QFile::exists(lf) && QFile::exists(dn)) {
+        if (!foundLegacyKeys.isEmpty()) {
+            ColorFix(lines, layer0StartIdx, layer0EndIdx, foundLegacyKeys, fileModified);
+        }
 
-                Miscellaneous::Log("Rebuilding skybox cube for " + baseName + "...");
-
-                // Determine size dynamically
-                QProcess identifyProcess;
-                identifyProcess.setWorkingDirectory(dirPath);
-                identifyProcess.start(magickPath, QStringList() << "identify" << "-format" << "%wx%h" << up);
-                identifyProcess.waitForFinished(-1);
-
-                QString sizeStr = "1024x1024"; // Default fallback
-                if (identifyProcess.exitStatus() == QProcess::NormalExit && identifyProcess.exitCode() == 0) {
-                    QString output = QString::fromUtf8(identifyProcess.readAllStandardOutput()).trimmed();
-                    if (!output.isEmpty() && output.contains('x')) {
-                        sizeStr = output;
-                    }
-                }
-
-                QString cubeFile = dirPath + "/" + baseName + "_cube.pfm";
-
-                QStringList args;
-                args << "(" << "-size" << sizeStr << "xc:black" << up << "xc:black" << "xc:black" << "+append" << ")"
-                     << "(" << bk << rt << ft << lf << "+append" << ")"
-                     << "(" << "-size" << sizeStr << "xc:black" << dn << "xc:black" << "xc:black" << "+append" << ")"
-                     << "-append"
-                     << "-set" << "colorspace" << "sRGB" << "-colorspace" << "RGB"
-                     << cubeFile;
-
-                QProcess process;
-                process.setWorkingDirectory(dirPath);
-                process.start(magickPath, args);
-                process.waitForFinished(-1);
-
-                if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
-                    Miscellaneous::Log("Successfully rebuilt skybox cube: " + baseName + "_cube.pfm");
-                } else {
-                    Miscellaneous::Log("Failed to rebuild skybox cube for " + baseName + ". Error: " + process.readAllStandardError());
-                }
+        if (fileModified) {
+            EnsureFileWritable(vmatFile);
+            QFile file(vmatFile);
+            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream out(&file);
+                for (const QString& l : lines) out << l << "\n";
+                file.close();
             }
         }
     }
