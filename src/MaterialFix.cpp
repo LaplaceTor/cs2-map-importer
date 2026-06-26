@@ -2,6 +2,7 @@
 #include "Miscellaneous.h"
 #include <QFile>
 #include <QTextStream>
+#include <QMap>
 #include <QRegularExpression>
 #include <QDir>
 #include <QDirIterator>
@@ -216,6 +217,121 @@ void MaterialFix::SkyboxFix() {
                 } else {
                     Miscellaneous::Log("Failed to rebuild skybox cube for " + baseName + ". Error: " + process.readAllStandardError());
                 }
+            }
+        }
+    }
+}
+
+void MaterialFix::FixMaterials() {
+    // First run the skybox fix
+    SkyboxFix();
+
+    // Now fix legacy keys in .vmat files
+    QString materialsDir = Miscellaneous::GetOptions().s2contentdir + "/materials";
+    QDirIterator it(materialsDir, QStringList() << "*.vmat", QDir::Files, QDirIterator::Subdirectories);
+
+    struct KeyMapping {
+        QString newKey;
+        bool appendAlpha1;
+    };
+
+    // Map of legacy keys (lowercase) to their new equivalents
+    QMap<QString, KeyMapping> legacyKeyMap;
+    legacyKeyMap["\"$color2\""] = { "\"g_vColorTint\"", true };
+    // Add more mappings here in the future as needed
+
+    while (it.hasNext()) {
+        if (Miscellaneous::CanceLImport) return;
+        QString vmatFile = it.next();
+
+        QStringList lines = ReadTextFile(vmatFile);
+        bool fileModified = false;
+
+        // We look for legacy keys and values
+        QMap<QString, QString> foundLegacyKeys;
+        int layer0StartIdx = -1;
+        int layer0EndIdx = -1;
+        int bracketDepth = 0;
+
+        for (int i = 0; i < lines.size(); ++i) {
+            QString line = lines[i].trimmed();
+            QString lowerLine = line.toLower();
+
+            // Track blocks
+            if (line == "{") bracketDepth++;
+            else if (line == "}") bracketDepth--;
+
+            if (lowerLine == "\"layer0\"" && i + 1 < lines.size() && lines[i+1].trimmed() == "{") {
+                layer0StartIdx = i + 1; // Index of the opening brace
+                int tempDepth = bracketDepth;
+                for (int j = i + 1; j < lines.size(); ++j) {
+                    QString tLine = lines[j].trimmed();
+                    if (tLine == "{") tempDepth++;
+                    else if (tLine == "}") {
+                        tempDepth--;
+                        if (tempDepth == bracketDepth) {
+                            layer0EndIdx = j;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Search for mapped legacy keys
+            for (auto itMap = legacyKeyMap.begin(); itMap != legacyKeyMap.end(); ++itMap) {
+                if (lowerLine.startsWith(itMap.key())) {
+                    // Extract value, expecting format "$color2" "[0.5 0.5 0.1]"
+                    int firstQuote = line.indexOf('"', itMap.key().length());
+                    int lastQuote = line.lastIndexOf('"');
+                    if (firstQuote != -1 && lastQuote != -1 && lastQuote > firstQuote) {
+                        QString valueStr = line.mid(firstQuote, lastQuote - firstQuote + 1);
+                        foundLegacyKeys[itMap.key()] = valueStr;
+                    }
+                }
+            }
+        }
+
+        if (layer0StartIdx != -1 && layer0EndIdx != -1 && !foundLegacyKeys.isEmpty()) {
+            // Try adding/updating the keys in Layer0
+            for (auto itFound = foundLegacyKeys.begin(); itFound != foundLegacyKeys.end(); ++itFound) {
+                QString legacyKey = itFound.key();
+                QString legacyVal = itFound.value();
+                KeyMapping mapping = legacyKeyMap[legacyKey];
+
+                // Format the new value
+                QString newVal = legacyVal;
+                if (mapping.appendAlpha1 && newVal.endsWith("]\"")) {
+                    newVal = newVal.left(newVal.length() - 2) + " 1.0]\"";
+                }
+
+                bool keyUpdated = false;
+                // Search for the existing key in Layer0 block
+                for (int j = layer0StartIdx + 1; j < layer0EndIdx; ++j) {
+                    QString tLine = lines[j].trimmed().toLower();
+                    if (tLine.startsWith(mapping.newKey.toLower())) {
+                        lines[j] = "\t\t" + mapping.newKey + " " + newVal;
+                        keyUpdated = true;
+                        fileModified = true;
+                        break;
+                    }
+                }
+
+                if (!keyUpdated) {
+                    // We just append to the end of Layer0 before the closing brace
+                    lines.insert(layer0EndIdx, "\t\t" + mapping.newKey + " " + newVal);
+                    layer0EndIdx++; // Adjust end index since we inserted a line
+                    fileModified = true;
+                }
+            }
+        }
+
+        if (fileModified) {
+            EnsureFileWritable(vmatFile);
+            QFile file(vmatFile);
+            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream out(&file);
+                for (const QString& l : lines) out << l << "\n";
+                file.close();
             }
         }
     }

@@ -7,6 +7,7 @@ class MaterialFix {
 public:
     static bool Force2UVsIfRequired(const QString& refsName, QSet<QString>& global2UVMaterials);
     static void SkyboxFix();
+    static void FixMaterials();
 };
 
 #endif // MATERIALFIX_H
