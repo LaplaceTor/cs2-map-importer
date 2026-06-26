@@ -66,17 +66,17 @@ jobs:
         cd release
         7z a cs2importer.zip *
 
-    - name: Get commit SHA
-      id: vars
-      shell: bash
-      run: |
-        echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+    - name: Bump version and push tag
+      id: tag_version
+      uses: mathieudutour/github-tag-action@v6.2
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: release-${{ steps.vars.outputs.sha_short }}
-        name: CS2 Importer Dev ${{ steps.vars.outputs.sha_short }}
+        tag_name: ${{ steps.tag_version.outputs.new_tag }}
+        name: CS2 Importer ${{ steps.tag_version.outputs.new_tag }}
         files: release/cs2importer.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
