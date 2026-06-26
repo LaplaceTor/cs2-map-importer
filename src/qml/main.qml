@@ -394,14 +394,14 @@ ApplicationWindow {
             RowLayout {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
-                spacing: 15
+                spacing: 10
 
                 Button {
                     text: "Check Update"
                     Layout.alignment: Qt.AlignVCenter
                     onClicked: backend.CheckForUpdate()
                 }
-                
+
                 Label {
                     text: "Current Version: " + backend.currentVersion
                     Layout.alignment: Qt.AlignVCenter
