@@ -15,6 +15,15 @@
 #include <QFileInfo>
 #include <QSettings>
 #include <QThread>
+#include <QNetworkRequest>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QJsonArray>
+
+#ifndef APP_VERSION
+#define APP_VERSION "1.0.0"
+#endif
 
 Backend::Backend(QObject *parent) :
     QObject(parent),
@@ -23,6 +32,7 @@ Backend::Backend(QObject *parent) :
     s1GameType("csgo"),
     contentFolderToSave("C:\\"),
     vpkSignaturesMoved(false),
+    networkManager(new QNetworkAccessManager(this)),
     logFile(nullptr),
     logStream(nullptr)
 
@@ -814,6 +824,54 @@ void Backend::Stop()
         Miscellaneous::Log("Cancelling import...");
         Miscellaneous::CancelAll();
     }
+}
+
+QString Backend::GetCurrentVersion() const
+{
+    return QString(APP_VERSION);
+}
+
+void Backend::CheckForUpdate()
+{
+    Miscellaneous::Log("Checking for updates...");
+    QUrl url("https://api.github.com/repos/LaplaceTor/cs2-map-importer/releases/latest");
+    QNetworkRequest request(url);
+    request.setRawHeader("User-Agent", "CS2-Map-Importer");
+
+    QNetworkReply* reply = networkManager->get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        reply->deleteLater();
+
+        if (reply->error() != QNetworkReply::NoError) {
+            Miscellaneous::Log("Failed to check for updates: " + reply->errorString());
+            return;
+        }
+
+        QByteArray responseData = reply->readAll();
+        QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
+        if (!jsonDoc.isObject()) {
+            Miscellaneous::Log("Failed to parse update response.");
+            return;
+        }
+
+        QJsonObject jsonObj = jsonDoc.object();
+        QString tagName = jsonObj["tag_name"].toString();
+        QString body = jsonObj["body"].toString();
+        QString htmlUrl = jsonObj["html_url"].toString();
+
+        if (tagName.startsWith("v")) {
+            tagName = tagName.mid(1);
+        }
+
+        // Very simple version comparison: if strings differ, assume update if tagName not empty
+        if (!tagName.isEmpty() && tagName != QString(APP_VERSION)) {
+            Miscellaneous::Log("Update available: " + tagName);
+            emit updateAvailable(tagName, body, htmlUrl);
+        } else {
+            Miscellaneous::Log("No updates available.");
+            emit noUpdateAvailable();
+        }
+    });
 }
 
 void Backend::AppAboutToQuit()

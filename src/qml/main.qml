@@ -52,9 +52,74 @@ ApplicationWindow {
             messageDialog.text = msg
             messageDialog.open()
         }
+        function onUpdateAvailable(version, notes, url) {
+            updateDialog.version = version;
+            updateDialog.notes = notes;
+            updateDialog.url = url;
+            updateDialog.open();
+        }
+        function onNoUpdateAvailable() {
+            messageDialog.title = "Update Check"
+            messageDialog.text = "You are already using the latest version."
+            messageDialog.open()
+        }
     }
 
     // Dialogs
+    Dialog {
+        id: updateDialog
+        title: "Update Available"
+        modal: true
+        anchors.centerIn: parent
+        width: 400
+        height: 300
+
+        property string version: ""
+        property string notes: ""
+        property string url: ""
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 10
+            spacing: 10
+
+            Label {
+                text: "A new version (v" + updateDialog.version + ") is available!"
+                font.bold: true
+                Layout.fillWidth: true
+            }
+
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+
+                TextArea {
+                    text: updateDialog.notes
+                    readOnly: true
+                    wrapMode: TextArea.Wrap
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignRight
+
+                Button {
+                    text: "Download Page"
+                    onClicked: {
+                        Qt.openUrlExternally(updateDialog.url)
+                        updateDialog.close()
+                    }
+                }
+                Button {
+                    text: "Close"
+                    onClicked: updateDialog.close()
+                }
+            }
+        }
+    }
+
     FolderDialog {
         id: cs2FolderDialog
         title: "Select CS2 folder"
@@ -323,6 +388,25 @@ ApplicationWindow {
                     }
                     Item { Layout.fillHeight: true } // Spacer
                 }
+            }
+
+            // Row 5: UPDATE
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignHCenter
+                spacing: 10
+
+                Button {
+                    text: "Check Update"
+                    Layout.alignment: Qt.AlignVCenter
+                    onClicked: backend.CheckForUpdate()
+                }
+
+                Label {
+                    text: "Current Version: " + backend.currentVersion
+                    Layout.alignment: Qt.AlignVCenter
+                }
+
             }
         }
 

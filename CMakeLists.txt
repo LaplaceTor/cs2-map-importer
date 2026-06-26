@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -40,9 +40,10 @@ qt_add_qml_module(cs2importer
         src/qml/main.qml
 )
 
-target_link_libraries(cs2importer PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2)
+target_link_libraries(cs2importer PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Network)
 
 target_include_directories(cs2importer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_definitions(cs2importer PRIVATE APP_VERSION="${PROJECT_VERSION}")
 
 qt_import_qml_plugins(cs2importer)
 qt_finalize_executable(cs2importer)
