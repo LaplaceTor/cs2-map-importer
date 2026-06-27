@@ -207,6 +207,146 @@ void MaterialFix::SkyboxFix(const QString& vmatFile) {
     }
 }
 
+void MaterialFix::MissingKVFix(QStringList& lines, bool& fileModified) {
+    bool hasTranslucentSource = false;
+    bool hasAlphaTestSource = false;
+    bool hasAdditiveSource = false;
+
+    bool hasTranslucentDest = false;
+    bool hasAlphaTestDest = false;
+    bool hasAdditiveDest = false;
+
+    int insertIndex = -1;
+    QString insertPrefix = "\t";
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString lowerLine = lines[i].trimmed().toLower();
+
+        if (lowerLine.startsWith("\"shader\"") && insertIndex == -1) {
+            insertIndex = i + 1;
+            QRegularExpressionMatch matchSpace = QRegularExpression("^(\\s*)").match(lines[i]);
+            insertPrefix = matchSpace.captured(1);
+        }
+
+        if (lowerLine.contains("\"$translucent\"") && lowerLine.contains("\"1\"")) hasTranslucentSource = true;
+        if (lowerLine.contains("\"$alphatest\"") && lowerLine.contains("\"1\"")) hasAlphaTestSource = true;
+        if (lowerLine.contains("\"$additive\"") && lowerLine.contains("\"1\"")) hasAdditiveSource = true;
+
+        if (lowerLine.startsWith("\"f_translucent\"")) hasTranslucentDest = true;
+        if (lowerLine.startsWith("\"f_alpha_test\"")) hasAlphaTestDest = true;
+        if (lowerLine.startsWith("\"f_additive_blend\"")) hasAdditiveDest = true;
+    }
+
+    if (insertIndex != -1) {
+        if (hasTranslucentSource && !hasTranslucentDest) {
+            lines.insert(insertIndex, insertPrefix + "\"F_TRANSLUCENT\"\t\t\"1\"");
+            fileModified = true;
+        }
+        if (hasAlphaTestSource && !hasAlphaTestDest) {
+            lines.insert(insertIndex, insertPrefix + "\"F_ALPHA_TEST\"\t\t\"1\"");
+            fileModified = true;
+        }
+        if (hasAdditiveSource && !hasAdditiveDest) {
+            lines.insert(insertIndex, insertPrefix + "\"F_ADDITIVE_BLEND\"\t\t\"1\"");
+            fileModified = true;
+        }
+    }
+}
+
+void MaterialFix::TranslucentAlphaTestConflictFix(QStringList& lines, bool& fileModified) {
+    bool hasTranslucent = false;
+    bool hasAlphaTest = false;
+    bool hasOpacityScale = false;
+
+    int translucentIdx = -1;
+    int alphaTestIdx = -1;
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString lowerLine = lines[i].trimmed().toLower();
+        if (lowerLine.startsWith("\"f_translucent\"")) {
+            hasTranslucent = true;
+            translucentIdx = i;
+        } else if (lowerLine.startsWith("\"f_alpha_test\"")) {
+            hasAlphaTest = true;
+            alphaTestIdx = i;
+        } else if (lowerLine.startsWith("\"g_flopacityscale\"")) {
+            hasOpacityScale = true;
+        }
+    }
+
+    if (hasTranslucent && hasAlphaTest) {
+        if (hasOpacityScale) {
+            lines.removeAt(alphaTestIdx);
+            fileModified = true;
+        } else {
+            lines.removeAt(translucentIdx);
+            fileModified = true;
+        }
+    }
+}
+
+void MaterialFix::ComplexShaderVariablesFix(QStringList& lines, bool& fileModified) {
+    bool hasAddedAniso = false;
+    QStringList newLines;
+    bool localModified = false;
+
+    QRegularExpression leadingSpaceRe("^(\\s*)");
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i];
+        QString lowerLine = line.trimmed().toLower();
+
+        QRegularExpressionMatch matchSpace = leadingSpaceRe.match(line);
+        QString prefix = matchSpace.captured(1);
+
+        if (lowerLine.startsWith("\"f_vertex_color\"") && lowerLine.contains("\"1\"")) {
+            newLines.append(prefix + "\"F_PAINT_VERTEX_COLORS\"\t\t\"1\"");
+            localModified = true;
+        } else if (lowerLine.startsWith("\"f_force_uv2\"") && lowerLine.contains("\"1\"")) {
+            newLines.append(prefix + "\"F_SECONDARY_UV\"\t\t\"1\"");
+            localModified = true;
+        } else if (lowerLine.startsWith("\"f_blend_mode\"") && lowerLine.contains("\"1\"")) {
+            newLines.append(prefix + "\"F_TRANSLUCENT\"\t\t\"1\"");
+            localModified = true;
+        } else if (lowerLine.startsWith("\"f_blend_mode\"") && lowerLine.contains("\"2\"")) {
+            newLines.append(prefix + "\"F_ALPHA_TEST\"\t\t\"1\"");
+            localModified = true;
+        } else if (lowerLine.startsWith("\"f_blend_mode\"") && lowerLine.contains("\"3\"")) {
+            newLines.append(prefix + "\"F_DETAIL_TEXTURE\"\t\t\"1\"");
+            localModified = true;
+        } else if (lowerLine.startsWith("\"f_blend_mode\"") && lowerLine.contains("\"4\"")) {
+            newLines.append(prefix + "\"F_ADDITIVE_BLEND\"\t\t\"1\"");
+            newLines.append(prefix + "\"F_TRANSLUCENT\"\t\t\"1\"");
+            localModified = true;
+        } else if (lowerLine.startsWith("\"f_blend_mode\"") && lowerLine.contains("\"5\"")) {
+            newLines.append(prefix + "\"F_DETAIL_TEXTURE\"\t\t\"2\"");
+            localModified = true;
+        } else if (lowerLine.startsWith("\"f_blend_mode\"") && lowerLine.contains("\"6\"")) {
+            newLines.append(prefix + "\"F_DETAIL_TEXTURE\"\t\t\"4\"");
+            localModified = true;
+        } else if (lowerLine.startsWith("\"f_specular_indirect\"") && lowerLine.contains("\"1\"")) {
+            if (!hasAddedAniso) {
+                newLines.append(prefix + "\"F_ANISOTROPIC_GLOSS\"\t\t\"1\"");
+                hasAddedAniso = true;
+            }
+            localModified = true;
+        } else if (lowerLine.startsWith("\"f_specular_direct\"") && lowerLine.contains("\"1\"")) {
+            if (!hasAddedAniso) {
+                newLines.append(prefix + "\"F_ANISOTROPIC_GLOSS\"\t\t\"1\"");
+                hasAddedAniso = true;
+            }
+            localModified = true;
+        } else {
+            newLines.append(line);
+        }
+    }
+
+    if (localModified) {
+        lines = newLines;
+        fileModified = true;
+    }
+}
+
 
 struct KeyMapping {
     QString newKey;
@@ -324,6 +464,16 @@ void MaterialFix::FixMaterials() {
                             layer0EndIdx = j;
                             break;
                         }
+                }
+            }
+
+            // Check for legacy_import block inside Layer0
+            if (layer0StartIdx != -1 && layer0EndIdx != -1) {
+                for (int j = layer0StartIdx + 1; j < layer0EndIdx; ++j) {
+                    if (lines[j].trimmed().toLower() == "\"legacy_import\"") {
+                        layer0EndIdx = j; // Set the insertion point *before* legacy_import
+                        break;
+                    }
                     }
                 }
             }
@@ -346,7 +496,11 @@ void MaterialFix::FixMaterials() {
 
         if (isLegacyShader) {
             ShaderFix(lines, fileModified);
+            ComplexShaderVariablesFix(lines, fileModified);
         }
+
+        MissingKVFix(lines, fileModified);
+        TranslucentAlphaTestConflictFix(lines, fileModified);
 
         if (!foundLegacyKeys.isEmpty()) {
             ColorFix(lines, layer0StartIdx, layer0EndIdx, foundLegacyKeys, fileModified);
