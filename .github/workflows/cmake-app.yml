@@ -27,16 +27,16 @@ jobs:
         arch: 'win64_msvc2022_64'
         modules: 'qtshadertools'
 
-    - name: Bump version and push tag
-      id: tag_version
-      uses: mathieudutour/github-tag-action@v6.2
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Draft Release
+      id: release_drafter
+      uses: release-drafter/release-drafter@v6
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Update CMakeLists.txt Version
       shell: pwsh
       run: |
-        $newVersion = "${{ steps.tag_version.outputs.new_version }}"
+        $newVersion = "${{ steps.release_drafter.outputs.resolved_version }}"
         (Get-Content CMakeLists.txt) -replace 'project\(cs2importer VERSION .* LANGUAGES CXX\)', "project(cs2importer VERSION $newVersion LANGUAGES CXX)" | Set-Content CMakeLists.txt
 
     - name: Configure CMake
@@ -81,8 +81,9 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ steps.tag_version.outputs.new_tag }}
-        name: CS2 Importer ${{ steps.tag_version.outputs.new_tag }}
+        tag_name: ${{ steps.release_drafter.outputs.tag_name }}
+        name: ${{ steps.release_drafter.outputs.name }}
+        body: ${{ steps.release_drafter.outputs.body }}
         files: release/cs2importer.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
