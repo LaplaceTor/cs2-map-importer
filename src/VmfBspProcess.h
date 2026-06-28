@@ -11,6 +11,7 @@ public:
     static void FixVmfFromBsp(const QString& vmfPath);
     static void FixSpecialTargetnames(const QString& vmfPath);
     static void FixLightColor(const QString& vmfPath);
+    static void FixBrush(const QString& vmfPath);
     static void FixEntities(const QString& vmfPath);
 
 private:
