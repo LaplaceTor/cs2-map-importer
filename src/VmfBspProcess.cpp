@@ -283,9 +283,89 @@ void VmfBspProcess::FixLightColor(const QString& vmfPath) {
     }
 }
 
+void VmfBspProcess::FixBrush(const QString& vmfPath) {
+    if (!QFile::exists(vmfPath)) return;
+
+    QFile infile(vmfPath);
+    if (!infile.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+
+    QStringList lines;
+    QTextStream in(&infile);
+    while (!in.atEnd()) {
+        lines.append(in.readLine());
+    }
+    infile.close();
+
+    bool in_entity = false;
+    int bracket_level = 0;
+
+    QStringList out_lines;
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i];
+        QString trimmed = line.trimmed();
+
+        if (!in_entity && trimmed == "entity") {
+            in_entity = true;
+            bracket_level = 0;
+            out_lines.append(line);
+            continue;
+        }
+
+        if (in_entity) {
+            if (trimmed == "{") {
+                bracket_level++;
+                out_lines.append(line);
+            } else if (trimmed == "}") {
+                bracket_level--;
+                if (bracket_level == 0) {
+                    in_entity = false;
+                }
+                out_lines.append(line);
+            } else {
+                if (bracket_level == 1) {
+                    QRegularExpression classname_regex("^\"classname\"\\s+\"(func_illusionary|func_wall|func_wall_toggle)\"$");
+                    QRegularExpressionMatch match = classname_regex.match(trimmed);
+                    if (match.hasMatch()) {
+                        QString classname = match.captured(1);
+                        QString indent = line.left(line.indexOf(trimmed));
+
+                        out_lines.append(indent + "\"classname\" \"func_brush\"");
+                        out_lines.append(indent + "\"InputFilter\" \"32\"");
+
+                        if (classname == "func_illusionary") {
+                            out_lines.append(indent + "\"Solidity\" \"1\"");
+                        } else if (classname == "func_wall") {
+                            out_lines.append(indent + "\"Solidity\" \"2\"");
+                        } else if (classname == "func_wall_toggle") {
+                            out_lines.append(indent + "\"Solidity\" \"0\"");
+                        }
+                    } else {
+                        out_lines.append(line);
+                    }
+                } else {
+                    out_lines.append(line);
+                }
+            }
+        } else {
+            out_lines.append(line);
+        }
+    }
+
+    QFile outfile(vmfPath);
+    if (outfile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&outfile);
+        for (const QString& l : out_lines) {
+            out << l << "\n";
+        }
+        outfile.close();
+    }
+}
+
 void VmfBspProcess::FixEntities(const QString& vmfPath) {
     FixSpecialTargetnames(vmfPath);
     FixLightColor(vmfPath);
+    FixBrush(vmfPath);
 }
 
 void VmfBspProcess::FixSpecialTargetnames(const QString& vmfPath) {
