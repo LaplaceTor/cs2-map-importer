@@ -191,7 +191,6 @@ void MaterialFix::SkyboxFix(const QString& vmatFile) {
              << "(" << bk << rt << ft << lf << "+append" << ")"
              << "(" << "-size" << sizeStr << "xc:black" << dn << "xc:black" << "xc:black" << "+append" << ")"
              << "-append"
-             << "-set" << "colorspace" << "sRGB" << "-colorspace" << "RGB"
              << cubeFile;
 
         QProcess process;
