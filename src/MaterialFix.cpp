@@ -157,6 +157,10 @@ void MaterialFix::SkyboxFix(const QString& vmatFile) {
     QFileInfo fileInfo(vmatFile);
     QString dirPath = fileInfo.absolutePath();
     QString baseName = fileInfo.completeBaseName();
+    QString oldFile = dirPath + "/" + baseName + "_cube.pfm";
+    if(QFile::exists(oldFile)){
+        QFile::remove(oldFile);
+    }
 
     QString up = dirPath + "/" + baseName + "up.tga";
     QString bk = dirPath + "/" + baseName + "bk.tga";
