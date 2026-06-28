@@ -184,7 +184,7 @@ void MaterialFix::SkyboxFix(const QString& vmatFile) {
             }
         }
 
-        QString cubeFile = dirPath + "/" + baseName + "_cube.pfm";
+        QString cubeFile = dirPath + "/" + baseName + "_cube.tga";
 
         QStringList args;
         args << "(" << "-size" << sizeStr << "xc:black" << up << "xc:black" << "xc:black" << "+append" << ")"
@@ -200,9 +200,41 @@ void MaterialFix::SkyboxFix(const QString& vmatFile) {
         process.waitForFinished(-1);
 
         if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
-            Miscellaneous::Log("Successfully rebuilt skybox cube: " + baseName + "_cube.pfm");
+            Miscellaneous::Log("Successfully rebuilt skybox cube: " + baseName + "_cube.tga");
         } else {
             Miscellaneous::Log("Failed to rebuild skybox cube for " + baseName + ". Error: " + process.readAllStandardError());
+        }
+
+        // Update vmat file
+        QStringList vmatLines = ReadTextFile(vmatFile);
+        bool modified = false;
+
+        for (int i = 0; i < vmatLines.size(); ++i) {
+            QString lowerLine = vmatLines[i].toLower();
+
+            // Remove F_TEXTURE_FORMAT2
+            if (lowerLine.contains("\"f_texture_format2\"")) {
+                vmatLines.removeAt(i);
+                i--;
+                modified = true;
+                continue;
+            }
+
+            // Update SkyTexture from .pfm to .tga
+            if (lowerLine.contains("\"skytexture\"") && lowerLine.contains(".pfm\"")) {
+                vmatLines[i].replace(".pfm", ".tga", Qt::CaseInsensitive);
+                modified = true;
+            }
+        }
+
+        if (modified) {
+            EnsureFileWritable(vmatFile);
+            QFile file(vmatFile);
+            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream out(&file);
+                for (const QString& l : vmatLines) out << l << "\n";
+                file.close();
+            }
         }
     }
 }
