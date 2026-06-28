@@ -1,6 +1,7 @@
 #include "VmfBspProcess.h"
 #include "Ui.h"
 #include "MapImporter.h"
+#include "MaterialImporter.h"
 #include "Miscellaneous.h"
 
 #include <QDir>
@@ -508,6 +509,29 @@ void Backend::SelectVmfDialog(const QUrl& url)
     UpdateCanGo();
 }
 
+void Backend::SelectMaterialFolderDialog(const QUrl& url)
+{
+    QString path = url.toLocalFile();
+    if (path.isEmpty()) return;
+
+    materialFolder = path;
+    emit materialFolderChanged();
+
+    UpdateCanGo();
+}
+
+void Backend::SelectMaterialAddonDialog(const QUrl& url)
+{
+    QString path = url.toLocalFile();
+    if (path.isEmpty()) return;
+
+    QFileInfo fi(path);
+    materialAddonName = fi.fileName();
+    emit materialAddonNameChanged();
+
+    UpdateCanGo();
+}
+
 void Backend::SelectBspDialog(const QUrl& url)
 {
     QString path = url.toLocalFile();
@@ -550,6 +574,8 @@ void Backend::GetLaunchOptions()
 
 void Backend::UpdateCanGo()
 {
+    // Note: canGo is mainly for Map Import right now based on its logic.
+    // We could split canGoMap and canGoMaterial, but let's keep it simple for now or rely on specific validation.
     emit canGoChanged();
     emit isGoingChanged();
 }
@@ -793,6 +819,153 @@ void Backend::Start()
                     Miscellaneous::Log("MapImporter thread finished successfully.");
                 } else {
                     Miscellaneous::Log("MapImporter thread finished with errors.");
+                }
+
+                if (logStream) {
+                    delete logStream;
+                    logStream = nullptr;
+                }
+                if (logFile) {
+                    if (logFile->isOpen()) {
+                        logFile->close();
+                    }
+                    delete logFile;
+                    logFile = nullptr;
+                }
+            }, Qt::QueuedConnection);
+        });
+
+        connect(workerThread, &QThread::finished, workerThread, &QObject::deleteLater);
+        workerThread->start();
+
+    } catch (const AppException& e) {
+        Miscellaneous::Log(QString("Error: %1").arg(e.message()));
+        emit alertMessage("Error", e.message());
+    }
+}
+
+void Backend::StartMaterialImport()
+{
+    if (cs2Basefolder.isEmpty()) {
+        emit alertMessage("Validation Error", "CS2 folder not selected.");
+        return;
+    }
+    if (GetS1gameBasefolder().isEmpty()) {
+        emit alertMessage("Validation Error", "CSGO/CSS folder not selected.");
+        return;
+    }
+    if (materialFolder.isEmpty() && materialFileList.trimmed().isEmpty()) {
+        emit alertMessage("Validation Error", "Please select a Material Folder or enter a file list.");
+        return;
+    }
+    if (materialAddonName.isEmpty()) {
+        emit alertMessage("Validation Error", "Please select a CS2 Addon for material import.");
+        return;
+    }
+
+    try {
+        SaveToCfg();
+
+        QString log_dir_path = QDir(appDir).filePath("logs");
+        QDir().mkpath(log_dir_path);
+        QString log_filename = QString("%1_Material_%2.log")
+            .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss"))
+            .arg(materialAddonName);
+        QString log_file_path = QDir(log_dir_path).filePath(log_filename);
+
+        if (logStream) {
+            delete logStream;
+            logStream = nullptr;
+        }
+        if (logFile) {
+            if (logFile->isOpen()) {
+                logFile->close();
+            }
+            delete logFile;
+            logFile = nullptr;
+        }
+
+        logFile = new QFile(log_file_path);
+        if (logFile->open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+            logStream = new QTextStream(logFile);
+        } else {
+            delete logFile;
+            logFile = nullptr;
+        }
+
+        Miscellaneous::CanceLImport = 0;
+        Miscellaneous::MoveVpkSignatures(cs2Basefolder, vpkSignaturesMoved);
+
+        isGoing = true;
+        UpdateCanGo();
+
+        Miscellaneous::Log("Starting Miscellaneous thread for Material Import...");
+
+        Miscellaneous::Options opts;
+        opts.cs2Basefolder = cs2Basefolder;
+        opts.cs2Basefolder.replace("/", "\\");
+        opts.s1gameBasefolder = GetS1gameBasefolder();
+        opts.csgogamedir = csgogamedir;
+        opts.s1GameType = s1GameType;
+        opts.appDir = appDir;
+        opts.addonName = materialAddonName;
+
+        QString matFolder = materialFolder;
+        QString matFileList = materialFileList;
+        QString matAddon = materialAddonName;
+
+        QThread* workerThread = QThread::create([this, opts, matFolder, matFileList, matAddon]() mutable {
+            bool success = true;
+            try {
+                // Setup S1 gamedir for source1import
+                QString s1Subfolder = "csgo";
+                if (opts.s1GameType == "css") s1Subfolder = "cstrike";
+                else if (opts.s1GameType == "hl2") s1Subfolder = "hl2";
+                else if (opts.s1GameType == "l4d") s1Subfolder = "left4dead";
+                else if (opts.s1GameType == "l4d2") s1Subfolder = "left4dead2";
+                else if (opts.s1GameType == "portal") s1Subfolder = "portal";
+                else if (opts.s1GameType == "portal2") s1Subfolder = "portal2";
+                else if (opts.s1GameType == "tf2") s1Subfolder = "tf";
+                else if (opts.s1GameType == "gmod") s1Subfolder = "garrysmod";
+
+                QString s1gamedir = opts.s1gameBasefolder + "\\" + s1Subfolder;
+                s1gamedir.replace('/', '\\');
+                opts.s1gamedir = s1gamedir;
+
+                QString csgogamedir_path = opts.csgogamedir + "\\csgo";
+                csgogamedir_path.replace('/', '\\');
+                opts.csgogamedir = csgogamedir_path;
+
+                Miscellaneous::SetOptions(opts);
+
+                MaterialImporter importer(matFolder, matFileList, matAddon);
+                success = importer.Run();
+
+            } catch (const AppException& e) {
+                Miscellaneous::Log(QString("Error: ") + e.message());
+                success = false;
+                QString errMsg = e.message();
+                QMetaObject::invokeMethod(this, [this, errMsg]() {
+                    emit alertMessage("Error", errMsg);
+                }, Qt::QueuedConnection);
+            } catch (...) {
+                Miscellaneous::Log("Unknown error in Material Import thread.");
+                success = false;
+            }
+
+            QMetaObject::invokeMethod(this, [this, success]() {
+                if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
+                    Miscellaneous::RestoreVpkSignatures(cs2Basefolder);
+                    vpkSignaturesMoved = false;
+                }
+
+                isGoing = false;
+                UpdateCanGo();
+
+                if (success) {
+                    Miscellaneous::Log("MaterialImporter thread finished successfully.");
+                } else {
+                    Miscellaneous::Log("MaterialImporter thread finished with errors.");
                 }
 
                 if (logStream) {

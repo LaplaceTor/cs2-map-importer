@@ -20,6 +20,9 @@ class Backend : public QObject
     Q_PROPERTY(QString bspFile READ GetBspFile NOTIFY bspFileChanged)
     Q_PROPERTY(QString contentFolder READ GetContentFolder NOTIFY contentFolderChanged)
     Q_PROPERTY(QString addonName READ GetAddonName WRITE SetAddonName NOTIFY addonNameChanged)
+    Q_PROPERTY(QString materialFolder READ GetMaterialFolder NOTIFY materialFolderChanged)
+    Q_PROPERTY(QString materialFileList READ GetMaterialFileList WRITE SetMaterialFileList NOTIFY materialFileListChanged)
+    Q_PROPERTY(QString materialAddonName READ GetMaterialAddonName WRITE SetMaterialAddonName NOTIFY materialAddonNameChanged)
     Q_PROPERTY(bool usebsp READ GetUsebsp WRITE SetUsebsp NOTIFY usebspChanged)
     Q_PROPERTY(bool usebspNomergeinstances READ GetUsebspNomergeinstances WRITE SetUsebspNomergeinstances NOTIFY usebspNomergeinstancesChanged)
     Q_PROPERTY(bool skipdeps READ GetSkipdeps WRITE SetSkipdeps NOTIFY skipdepsChanged)
@@ -50,6 +53,12 @@ public:
     QString GetAddonName() const { return addonName; }
     void SetAddonName(const QString& name) { if(addonName != name) { addonName = name; emit addonNameChanged(); UpdateCanGo(); } }
 
+    QString GetMaterialFolder() const { return materialFolder; }
+    QString GetMaterialFileList() const { return materialFileList; }
+    void SetMaterialFileList(const QString& list) { if(materialFileList != list) { materialFileList = list; emit materialFileListChanged(); UpdateCanGo(); } }
+    QString GetMaterialAddonName() const { return materialAddonName; }
+    void SetMaterialAddonName(const QString& name) { if(materialAddonName != name) { materialAddonName = name; emit materialAddonNameChanged(); UpdateCanGo(); } }
+
     bool GetUsebsp() const { return usebsp; }
     void SetUsebsp(bool val) { if(usebsp != val) { usebsp = val; emit usebspChanged(); if(!usebsp) SetUsebspNomergeinstances(false); GetLaunchOptions(); SaveToCfg(); } }
 
@@ -70,10 +79,13 @@ public slots:
     void SelectS1FolderDialog(const QUrl& url);
     void SelectVmfDialog(const QUrl& url);
     void SelectBspDialog(const QUrl& url);
+    void SelectMaterialFolderDialog(const QUrl& url);
+    void SelectMaterialAddonDialog(const QUrl& url);
     void ValidateCs2();
     void ValidateS1();
     void SetS1GameType(const QString& type);
     void Start();
+    void StartMaterialImport();
     void Stop();
     void CheckForUpdate();
 
@@ -85,6 +97,9 @@ signals:
     void bspFileChanged();
     void contentFolderChanged();
     void addonNameChanged();
+    void materialFolderChanged();
+    void materialFileListChanged();
+    void materialAddonNameChanged();
     void usebspChanged();
     void usebspNomergeinstancesChanged();
     void skipdepsChanged();
@@ -114,6 +129,9 @@ private:
     QString contentFolder;
     QString contentFolderToSave;
     QString addonName;
+    QString materialFolder;
+    QString materialFileList;
+    QString materialAddonName;
     QString mapName;
     bool vpkSignaturesMoved;
     QString bspFile;

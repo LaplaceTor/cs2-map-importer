@@ -148,6 +148,19 @@ ApplicationWindow {
         }
     }
 
+    FolderDialog {
+        id: materialFolderDialog
+        title: "Select Material Folder"
+        onAccepted: backend.SelectMaterialFolderDialog(selectedFolder)
+    }
+
+    FolderDialog {
+        id: materialAddonDialog
+        title: "Select CS2 Addon"
+        currentFolder: backend.cs2Basefolder !== "" ? "file:///" + backend.cs2Basefolder + "/content/csgo_addons" : ""
+        onAccepted: backend.SelectMaterialAddonDialog(selectedFolder)
+    }
+
     MessageDialog {
         id: messageDialog
         title: "Message"
@@ -166,7 +179,7 @@ ApplicationWindow {
             Layout.maximumWidth: 400
             spacing: 20
 
-            // Row 1: Folders
+            // Row 1: Folders (Common to both Map and Material)
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 15
@@ -261,133 +274,272 @@ ApplicationWindow {
                 }
             }
 
-            // Row 2: Maps and Addon
-            RowLayout {
+            // TabBar for Map / Material switching
+            TabBar {
+                id: modeTabBar
                 Layout.fillWidth: true
-                spacing: 15
-
-                Button {
-                    Layout.preferredWidth: 165
-                    Layout.preferredHeight: 40
-                    text: selectedMapFileName
-                    contentItem: Text {
-                        text: parent.text
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        elide: Text.ElideMiddle
-                    }
-                    onClicked: {
-                        mapFileDialog.currentFolder = backend.vmfDefaultPathUrl
-                        mapFileDialog.open()
-                    }
-                }
-
-                Label {
-                    text: "➡"
-                    font.pixelSize: 40
-                    Layout.alignment: Qt.AlignVCenter
-                }
-
-                TextField {
-                    id: addonEdit
-                    Layout.preferredWidth: 165
-                    Layout.preferredHeight: 40
-                    placeholderText: "Addon Name in CS2"
-                    text: backend.addonName
-                    onTextChanged: backend.addonName = text
-                    horizontalAlignment: TextInput.AlignHCenter
-                    verticalAlignment: TextInput.AlignVCenter
-                }
+                TabButton { text: "Map" }
+                TabButton { text: "Material" }
             }
 
-            // Row 3: START and STOP Buttons
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 15
-
-                Button {
-                    id: goButton
-                    text: "START"
-                    enabled: backend.canGo && !backend.isGoing
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 40
-
-                    contentItem: Text {
-                        text: parent.text
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        font.bold: true
-                    }
-
-                    onClicked: {
-                        logLines = []
-                        logOutput.clear()
-                        backend.Start()
-                    }
-                }
-
-                Button {
-                    id: stopButton
-                    text: "STOP"
-                    enabled: backend.isGoing
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 40
-
-                    contentItem: Text {
-                        text: parent.text
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        font.bold: true
-                    }
-
-                    onClicked: {
-                        backend.Stop()
-                    }
-                }
-            }
-
-            // Row 4: OPTIONS
-            GroupBox {
+            // StackLayout containing Map and Material views
+            StackLayout {
+                currentIndex: modeTabBar.currentIndex
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
+                // Map Tab
                 ColumnLayout {
-                    Label {
-                        text: "OPTIONS"
-                        font.bold: true
-                        Layout.alignment: Qt.AlignHCenter
+                    spacing: 15
+
+                    // Row 2: Maps and Addon
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 15
+
+                        Button {
+                            Layout.preferredWidth: 165
+                            Layout.preferredHeight: 40
+                            text: selectedMapFileName
+                            contentItem: Text {
+                                text: parent.text
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideMiddle
+                            }
+                            onClicked: {
+                                mapFileDialog.currentFolder = backend.vmfDefaultPathUrl
+                                mapFileDialog.open()
+                            }
+                        }
+
+                        Label {
+                            text: "➡"
+                            font.pixelSize: 40
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        TextField {
+                            id: addonEdit
+                            Layout.preferredWidth: 165
+                            Layout.preferredHeight: 40
+                            placeholderText: "Addon Name in CS2"
+                            text: backend.addonName
+                            onTextChanged: backend.addonName = text
+                            horizontalAlignment: TextInput.AlignHCenter
+                            verticalAlignment: TextInput.AlignVCenter
+                        }
                     }
 
-                    anchors.fill: parent
-                    spacing: 5
+                    // Row 3: START and STOP Buttons
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 15
 
-                    CheckBox {
-                        id: useBspCheckbox
-                        text: "Clean Unnecessary Faces"
-                        checked: backend.usebsp
-                        onCheckedChanged: backend.usebsp = checked
-                        ToolTip.text: "This runs the map through a special vbsp process to generate clean map geometry from brushes"
-                        ToolTip.visible: hovered
+                        Button {
+                            id: goButton
+                            text: "START"
+                            enabled: backend.canGo && !backend.isGoing
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 40
+
+                            contentItem: Text {
+                                text: parent.text
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                font.bold: true
+                            }
+
+                            onClicked: {
+                                logLines = []
+                                logOutput.clear()
+                                backend.Start()
+                            }
+                        }
+
+                        Button {
+                            id: stopButton
+                            text: "STOP"
+                            enabled: backend.isGoing
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 40
+
+                            contentItem: Text {
+                                text: parent.text
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                font.bold: true
+                            }
+
+                            onClicked: {
+                                backend.Stop()
+                            }
+                        }
                     }
-                    CheckBox {
-                        id: nomergeInstancesCheckbox
-                        text: "Keep Instances' Faces"
-                        checked: backend.usebspNomergeinstances
-                        enabled: useBspCheckbox.checked
-                        onCheckedChanged: backend.usebspNomergeinstances = checked
-                        ToolTip.text: "if you wish to both generate clean geo and also preserve func_instances got merge in"
-                        ToolTip.visible: hovered
+
+                    // Row 4: OPTIONS
+                    GroupBox {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+
+                        ColumnLayout {
+                            Label {
+                                text: "OPTIONS"
+                                font.bold: true
+                                Layout.alignment: Qt.AlignHCenter
+                            }
+
+                            anchors.fill: parent
+                            spacing: 5
+
+                            CheckBox {
+                                id: useBspCheckbox
+                                text: "Clean Unnecessary Faces"
+                                checked: backend.usebsp
+                                onCheckedChanged: backend.usebsp = checked
+                                ToolTip.text: "This runs the map through a special vbsp process to generate clean map geometry from brushes"
+                                ToolTip.visible: hovered
+                            }
+                            CheckBox {
+                                id: nomergeInstancesCheckbox
+                                text: "Keep Instances' Faces"
+                                checked: backend.usebspNomergeinstances
+                                enabled: useBspCheckbox.checked
+                                onCheckedChanged: backend.usebspNomergeinstances = checked
+                                ToolTip.text: "if you wish to both generate clean geo and also preserve func_instances got merge in"
+                                ToolTip.visible: hovered
+                            }
+                            CheckBox {
+                                id: skipDepsCheckbox
+                                text: "Skip References Import"
+                                checked: backend.skipdeps
+                                onCheckedChanged: backend.skipdeps = checked
+                                ToolTip.text: "Optional: skips importing all dependencies/content and only generates the vmap file(s)"
+                                ToolTip.visible: hovered
+                            }
+                            Item { Layout.fillHeight: true } // Spacer
+                        }
                     }
-                    CheckBox {
-                        id: skipDepsCheckbox
-                        text: "Skip References Import"
-                        checked: backend.skipdeps
-                        onCheckedChanged: backend.skipdeps = checked
-                        ToolTip.text: "Optional: skips importing all dependencies/content and only generates the vmap file(s)"
-                        ToolTip.visible: hovered
+                } // End Map Tab
+
+                // Material Tab
+                ColumnLayout {
+                    spacing: 15
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 15
+
+                        Button {
+                            Layout.preferredWidth: 165
+                            Layout.preferredHeight: 40
+                            text: backend.materialFolder === "" ? "SELECT FOLDER" : backend.materialFolder.substring(backend.materialFolder.lastIndexOf('/') + 1)
+                            contentItem: Text {
+                                text: parent.text
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideMiddle
+                            }
+                            onClicked: {
+                                materialFolderDialog.open()
+                            }
+                        }
+
+                        Label {
+                            text: "➡"
+                            font.pixelSize: 40
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        Button {
+                            Layout.preferredWidth: 165
+                            Layout.preferredHeight: 40
+                            text: backend.materialAddonName === "" ? "SELECT CS2 ADDON" : backend.materialAddonName
+                            contentItem: Text {
+                                text: parent.text
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideMiddle
+                            }
+                            onClicked: {
+                                materialAddonDialog.open()
+                            }
+                        }
                     }
-                    Item { Layout.fillHeight: true } // Spacer
-                }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 15
+
+                        Button {
+                            id: goMaterialButton
+                            text: "START"
+                            enabled: !backend.isGoing
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 40
+
+                            contentItem: Text {
+                                text: parent.text
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                font.bold: true
+                            }
+
+                            onClicked: {
+                                logLines = []
+                                logOutput.clear()
+                                backend.StartMaterialImport()
+                            }
+                        }
+
+                        Button {
+                            id: stopMaterialButton
+                            text: "STOP"
+                            enabled: backend.isGoing
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 40
+
+                            contentItem: Text {
+                                text: parent.text
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                font.bold: true
+                            }
+
+                            onClicked: {
+                                backend.Stop()
+                            }
+                        }
+                    }
+
+                    GroupBox {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: 5
+
+                            Label {
+                                text: "FILE LIST"
+                                font.bold: true
+                                Layout.alignment: Qt.AlignHCenter
+                            }
+
+                            ScrollView {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                TextArea {
+                                    id: materialFileListArea
+                                    placeholderText: "Enter the materials filepath you need here, you need to move them into game folder before start or it's game source files"
+                                    text: backend.materialFileList
+                                    onTextChanged: backend.materialFileList = text
+                                    wrapMode: TextArea.Wrap
+                                }
+                            }
+                        }
+                    }
+                } // End Material Tab
             }
 
             // Row 5: UPDATE

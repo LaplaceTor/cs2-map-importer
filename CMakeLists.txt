@@ -21,6 +21,8 @@ set(SOURCES
     src/VmfBspProcess.h
     src/MapImporter.cpp
     src/MapImporter.h
+    src/MaterialImporter.cpp
+    src/MaterialImporter.h
     src/SoundscapeImport.cpp
     src/SoundscapeImport.h
     src/FileExtractFromVPK.cpp
