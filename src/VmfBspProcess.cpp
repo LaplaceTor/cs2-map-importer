@@ -7,6 +7,7 @@
 #include <QRegularExpression>
 #include <QCoreApplication>
 #include <QByteArray>
+#include <QMap>
 
 QString VmfBspProcess::ParseMapversion(const QStringList& lines, bool& found) {
     QString mapversion = "2";
@@ -362,10 +363,88 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
     }
 }
 
+void VmfBspProcess::FixRender(const QString& vmfPath) {
+    if (!QFile::exists(vmfPath)) return;
+
+    QFile infile(vmfPath);
+    if (!infile.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+
+    QStringList lines;
+    QTextStream in(&infile);
+    while (!in.atEnd()) {
+        lines.append(in.readLine());
+    }
+    infile.close();
+
+    QMap<QString, QString> renderfxMap = {
+        {"0", "kRenderFxNone"},
+        {"1", "kRenderFxPulseSlow"},
+        {"2", "kRenderFxPulseFast"},
+        {"3", "kRenderFxPulseSlowWide"},
+        {"4", "kRenderFxPulseFastWide"},
+        {"5", "kRenderFxFadeSlow"},
+        {"6", "kRenderFxFadeFast"},
+        {"7", "kRenderFxSolidSlow"},
+        {"8", "kRenderFxSolidFast"},
+        {"9", "kRenderFxStrobeSlow"},
+        {"10", "kRenderFxStrobeFast"},
+        {"11", "kRenderFxStrobeFaster"},
+        {"12", "kRenderFxFlickerSlow"},
+        {"13", "kRenderFxFlickerFast"},
+        {"14", "kRenderFxNoDissipation"}
+    };
+
+    QMap<QString, QString> rendermodeMap = {
+        {"0", "kRenderNormal"},
+        {"1", "kRenderTransColor"},
+        {"2", "kRenderTransTexture"},
+        {"3", "kRenderGlow"},
+        {"4", "kRenderTransAlpha"},
+        {"5", "kRenderTransAdd"},
+        {"7", "kRenderTransAddFrameBlend"},
+        {"9", "kRenderWorldGlow"},
+        {"10", "kRenderNone"}
+    };
+
+    QStringList out_lines;
+    QRegularExpression renderfx_regex("^(\\s*\"renderfx\"\\s+\")([^\"]+)(\".*)$");
+    QRegularExpression rendermode_regex("^(\\s*\"rendermode\"\\s+\")([^\"]+)(\".*)$");
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i];
+        QRegularExpressionMatch fx_match = renderfx_regex.match(line);
+        if (fx_match.hasMatch()) {
+            QString val = fx_match.captured(2);
+            if (renderfxMap.contains(val)) {
+                line = fx_match.captured(1) + renderfxMap[val] + fx_match.captured(3);
+            }
+        } else {
+            QRegularExpressionMatch mode_match = rendermode_regex.match(line);
+            if (mode_match.hasMatch()) {
+                QString val = mode_match.captured(2);
+                if (rendermodeMap.contains(val)) {
+                    line = mode_match.captured(1) + rendermodeMap[val] + mode_match.captured(3);
+                }
+            }
+        }
+        out_lines.append(line);
+    }
+
+    QFile outfile(vmfPath);
+    if (outfile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&outfile);
+        for (const QString& l : out_lines) {
+            out << l << "\n";
+        }
+        outfile.close();
+    }
+}
+
 void VmfBspProcess::FixEntities(const QString& vmfPath) {
     FixSpecialTargetnames(vmfPath);
     FixLightColor(vmfPath);
     FixBrush(vmfPath);
+    FixRender(vmfPath);
 }
 
 void VmfBspProcess::FixSpecialTargetnames(const QString& vmfPath) {
