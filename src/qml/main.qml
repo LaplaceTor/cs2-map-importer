@@ -300,6 +300,50 @@ ApplicationWindow {
                 }
             }
 
+            // Row 4: OPTIONS
+            GroupBox {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                ColumnLayout {
+                    Label {
+                        text: "OPTIONS"
+                        font.bold: true
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+
+                    anchors.fill: parent
+                    spacing: 5
+
+                    CheckBox {
+                        id: useBspCheckbox
+                        text: "Clean Unnecessary Faces"
+                        checked: backend.usebsp
+                        onCheckedChanged: backend.usebsp = checked
+                        ToolTip.text: "This runs the map through a special vbsp process to generate clean map geometry from brushes"
+                        ToolTip.visible: hovered
+                    }
+                    CheckBox {
+                        id: nomergeInstancesCheckbox
+                        text: "Keep Instances' Faces"
+                        checked: backend.usebspNomergeinstances
+                        enabled: useBspCheckbox.checked
+                        onCheckedChanged: backend.usebspNomergeinstances = checked
+                        ToolTip.text: "if you wish to both generate clean geo and also preserve func_instances got merge in"
+                        ToolTip.visible: hovered
+                    }
+                    CheckBox {
+                        id: skipDepsCheckbox
+                        text: "Skip References Import"
+                        checked: backend.skipdeps
+                        onCheckedChanged: backend.skipdeps = checked
+                        ToolTip.text: "Optional: skips importing all dependencies/content and only generates the vmap file(s)"
+                        ToolTip.visible: hovered
+                    }
+                    Item { Layout.fillHeight: true } // Spacer
+                }
+            }
+
             // Row 3: START and STOP Buttons
             RowLayout {
                 Layout.fillWidth: true
@@ -343,50 +387,6 @@ ApplicationWindow {
                     onClicked: {
                         backend.Stop()
                     }
-                }
-            }
-
-            // Row 4: OPTIONS
-            GroupBox {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-
-                ColumnLayout {
-                    Label {
-                        text: "OPTIONS"
-                        font.bold: true
-                        Layout.alignment: Qt.AlignHCenter
-                    }
-
-                    anchors.fill: parent
-                    spacing: 5
-
-                    CheckBox {
-                        id: useBspCheckbox
-                        text: "Clean Unnecessary Faces"
-                        checked: backend.usebsp
-                        onCheckedChanged: backend.usebsp = checked
-                        ToolTip.text: "This runs the map through a special vbsp process to generate clean map geometry from brushes"
-                        ToolTip.visible: hovered
-                    }
-                    CheckBox {
-                        id: nomergeInstancesCheckbox
-                        text: "Keep Instances' Faces"
-                        checked: backend.usebspNomergeinstances
-                        enabled: useBspCheckbox.checked
-                        onCheckedChanged: backend.usebspNomergeinstances = checked
-                        ToolTip.text: "if you wish to both generate clean geo and also preserve func_instances got merge in"
-                        ToolTip.visible: hovered
-                    }
-                    CheckBox {
-                        id: skipDepsCheckbox
-                        text: "Skip References Import"
-                        checked: backend.skipdeps
-                        onCheckedChanged: backend.skipdeps = checked
-                        ToolTip.text: "Optional: skips importing all dependencies/content and only generates the vmap file(s)"
-                        ToolTip.visible: hovered
-                    }
-                    Item { Layout.fillHeight: true } // Spacer
                 }
             }
 
