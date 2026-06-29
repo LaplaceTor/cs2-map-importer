@@ -31,21 +31,21 @@ set(SOURCES
     src/MaterialImporter.h
 )
 
-qt_add_executable(cs2importer_app MANUAL_FINALIZATION ${SOURCES})
+qt_add_executable(cs2importer MANUAL_FINALIZATION ${SOURCES})
 
-set_property(TARGET cs2importer_app PROPERTY WIN32_EXECUTABLE TRUE)
+set_property(TARGET cs2importer PROPERTY WIN32_EXECUTABLE TRUE)
 
-qt_add_qml_module(cs2importer_app
+qt_add_qml_module(cs2importer
     URI cs2importer
     VERSION 1.0
     QML_FILES
         src/qml/main.qml
 )
 
-target_link_libraries(cs2importer_app PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Network)
+target_link_libraries(cs2importer PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Network)
 
-target_include_directories(cs2importer_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_compile_definitions(cs2importer_app PRIVATE "APP_VERSION=\"${PROJECT_VERSION}\"")
+target_include_directories(cs2importer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_definitions(cs2importer PRIVATE "APP_VERSION=\"${PROJECT_VERSION}\"")
 
-qt_import_qml_plugins(cs2importer_app)
-qt_finalize_executable(cs2importer_app)
+qt_import_qml_plugins(cs2importer)
+qt_finalize_executable(cs2importer)
