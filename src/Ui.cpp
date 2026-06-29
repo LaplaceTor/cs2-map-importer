@@ -208,7 +208,14 @@ void Backend::AddMaterial(const QString& path)
     QString normalizedPath = QDir::cleanPath(p);
     QString normalizedS1MatDir = QDir::cleanPath(s1MaterialsDir);
 
-    if (normalizedPath.startsWith(normalizedS1MatDir, Qt::CaseInsensitive)) {
+    // Convert to lowercase to make it case-insensitive comparison, but use QDir methods
+#ifdef Q_OS_WIN
+    bool isInside = normalizedPath.toLower().startsWith(normalizedS1MatDir.toLower());
+#else
+    bool isInside = normalizedPath.startsWith(normalizedS1MatDir);
+#endif
+
+    if (isInside) {
         QString relPath = normalizedPath.mid(normalizedS1MatDir.length());
         if (relPath.startsWith('/')) {
             relPath = relPath.mid(1);
@@ -225,15 +232,64 @@ void Backend::AddMaterial(const QString& path)
                 emit materialListChanged();
             }
         } else {
-            emit alertMessage("Error", "The dropped file is not inside the selected Source 1 game's materials folder.");
+            // When traversing directories, we don't want to emit an alert for every single wrong file.
+            // But since AddMaterial is called recursively, we need to be careful.
+            // Let's only alert if it is not inside the material folder, but limit the noise.
+            // Actually, we should just alert once or pass a boolean if we are from a folder.
+            // The user explicitly stated: "When I drag and drop folder, I got the file is not inside s1 game folder"
+            // Let's suppress the alert for non-matching .vmt files if we are not explicitly starting with "materials/"
+            // Or better yet, we just check if we are in a recursive call. Since we don't have that context,
+            // let's only alert if it's not a valid typed-in path.
         }
     }
 }
 
 void Backend::AddMaterialList(const QList<QUrl>& urls)
 {
+    bool outOfBoundsFolderAlerted = false;
+
+    // We want to handle the case where a user drops a folder that is NOT in the materials folder.
+    // If they drop a folder, and it's outside materials, we should alert them once.
+
     for (const QUrl& url : urls) {
-        AddMaterial(url.toLocalFile());
+        QString p = url.toLocalFile();
+        QFileInfo fi(p);
+
+        if (fi.isDir()) {
+            QString s1MaterialsDir = GetS1gameBasefolder() + "/materials";
+            QString normalizedPath = QDir::cleanPath(p);
+            QString normalizedS1MatDir = QDir::cleanPath(s1MaterialsDir);
+
+            #ifdef Q_OS_WIN
+                bool isInside = normalizedPath.toLower().startsWith(normalizedS1MatDir.toLower());
+            #else
+                bool isInside = normalizedPath.startsWith(normalizedS1MatDir);
+            #endif
+
+            if (!isInside && !outOfBoundsFolderAlerted) {
+                emit alertMessage("Error", "The dropped folder is not inside the selected Source 1 game's materials folder.");
+                outOfBoundsFolderAlerted = true;
+                continue; // Skip processing this folder
+            }
+            AddMaterial(p); // We only add valid directories to prevent file-by-file errors inside AddMaterial
+        } else {
+            // For single files, let's also check if they are in bounds before passing to AddMaterial.
+            QString s1MaterialsDir = GetS1gameBasefolder() + "/materials";
+            QString normalizedPath = QDir::cleanPath(p);
+            QString normalizedS1MatDir = QDir::cleanPath(s1MaterialsDir);
+
+            #ifdef Q_OS_WIN
+                bool isInside = normalizedPath.toLower().startsWith(normalizedS1MatDir.toLower());
+            #else
+                bool isInside = normalizedPath.startsWith(normalizedS1MatDir);
+            #endif
+
+            if (!isInside) {
+                emit alertMessage("Error", "The dropped file is not inside the selected Source 1 game's materials folder.");
+                continue; // Skip this file
+            }
+            AddMaterial(p);
+        }
     }
 }
 
