@@ -148,6 +148,24 @@ ApplicationWindow {
         }
     }
 
+    FileDialog {
+        id: materialFilesDialog
+        title: "Select Material Files"
+        nameFilters: ["Material files (*.vmt)"]
+        fileMode: FileDialog.OpenFiles
+        onAccepted: {
+            backend.AddMaterialList(selectedFiles)
+        }
+    }
+
+    FolderDialog {
+        id: materialFolderDialog
+        title: "Select Material Folder"
+        onAccepted: {
+            backend.AddMaterialFolder(selectedFolder)
+        }
+    }
+
     MessageDialog {
         id: messageDialog
         title: "Message"
@@ -405,19 +423,10 @@ ApplicationWindow {
                         border.color: "#555"
                         border.width: 1
 
-                        DropArea {
-                            anchors.fill: parent
-                            onDropped: (drop) => {
-                                if (drop.hasUrls) {
-                                    backend.AddMaterialList(drop.urls)
-                                }
-                            }
-                        }
-
                         Label {
                             anchors.fill: parent
                             anchors.margins: 10
-                            text: "How to use this material import tool:\nFirst, move all the materials into materials folder inside game folder, or you're sure it's from game source files;\nAfter that, you can drag and drop vmt files or folders into the block to add to the list, or type into the input box underside which is inside game source files;\nFinally, select the cs2 addon you want to add these materials for, and then press START to got them."
+                            text: "How to use this material import tool:\nFirst, move all the materials into materials folder inside game folder, or you're sure it's from game source files;\nAfter that, you can use the buttons below to select vmt files or folders to add to the list, or type into the input box underside which is inside game source files;\nFinally, select the cs2 addon you want to add these materials for, and then press START to got them."
                             wrapMode: Text.WordWrap
                             color: "#999"
                             visible: backend.materialList.length === 0
@@ -455,15 +464,30 @@ ApplicationWindow {
                         }
                     }
 
-                    TextField {
-                        id: materialInput
+                    RowLayout {
                         Layout.fillWidth: true
-                        placeholderText: "e.g. materials/kz_communityjump/pavement_01.vmt"
-                        onAccepted: {
-                            if (text !== "") {
-                                backend.AddMaterial(text)
-                                text = ""
+                        spacing: 10
+
+                        TextField {
+                            id: materialInput
+                            Layout.fillWidth: true
+                            placeholderText: "e.g. materials/kz_communityjump/pavement_01.vmt"
+                            onAccepted: {
+                                if (text !== "") {
+                                    backend.AddMaterial(text)
+                                    text = ""
+                                }
                             }
+                        }
+
+                        Button {
+                            text: "Files"
+                            onClicked: materialFilesDialog.open()
+                        }
+
+                        Button {
+                            text: "Folder"
+                            onClicked: materialFolderDialog.open()
                         }
                     }
                 } // Material Tab End

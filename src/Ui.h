@@ -94,6 +94,7 @@ public slots:
     void RefreshCS2Addons();
     void AddMaterial(const QString& path);
     void AddMaterialList(const QList<QUrl>& urls);
+    void AddMaterialFolder(const QUrl& url);
     void RemoveMaterial(int index);
     void StartMaterialImport();
 

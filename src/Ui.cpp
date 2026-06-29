@@ -258,7 +258,7 @@ void Backend::AddMaterialList(const QList<QUrl>& urls)
 
         if (!isInside) {
             if (!outOfBoundsAlerted) {
-                emit alertMessage("Error", "The dropped file or folder is not inside the selected Source 1 game's materials folder.");
+                emit alertMessage("Error", "The selected file is not inside the selected Source 1 game's materials folder.");
                 outOfBoundsAlerted = true;
             }
             continue;
@@ -266,6 +266,28 @@ void Backend::AddMaterialList(const QList<QUrl>& urls)
 
         AddMaterial(p);
     }
+}
+
+void Backend::AddMaterialFolder(const QUrl& url)
+{
+    QString p = url.toLocalFile();
+    p.replace('/', '\\');
+
+    QString s1MaterialsDir = GetS1gameBasefolder() + "\\materials";
+    s1MaterialsDir.replace('/', '\\');
+
+#ifdef Q_OS_WIN
+    bool isInside = p.toLower().startsWith(s1MaterialsDir.toLower());
+#else
+    bool isInside = p.startsWith(s1MaterialsDir);
+#endif
+
+    if (!isInside) {
+        emit alertMessage("Error", "The selected folder is not inside the selected Source 1 game's materials folder.");
+        return;
+    }
+
+    AddMaterial(p);
 }
 
 void Backend::RemoveMaterial(int index)
