@@ -1,6 +1,7 @@
 #include "VmfBspProcess.h"
 #include "Ui.h"
 #include "MapImporter.h"
+#include "MaterialImporter.h"
 #include "Miscellaneous.h"
 
 #include <QDir>
@@ -58,6 +59,9 @@ Backend::Backend(QObject *parent) :
     }
 
     LoadFromCfg();
+    if (!cs2Basefolder.isEmpty()) {
+        RefreshCS2Addons();
+    }
 
     Miscellaneous::Log("Initializing CS2 Importer... Finished");
 }
@@ -156,9 +160,177 @@ void Backend::SetCs2Folder(const QString& path)
     if (!path.isEmpty() && path != "None") {
         cs2Basefolder = path;
         emit cs2BasefolderChanged();
+        RefreshCS2Addons();
         UpdateCanGo();
         SaveToCfg();
     }
+}
+
+void Backend::RefreshCS2Addons()
+{
+    cs2Addons.clear();
+    QString addonsPath = cs2Basefolder + "/content/csgo_addons";
+    QDir dir(addonsPath);
+    if (dir.exists()) {
+        QStringList folders = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        cs2Addons = folders;
+    }
+    emit cs2AddonsChanged();
+    if (!cs2Addons.isEmpty()) {
+        SetMaterialAddon(cs2Addons.first());
+    } else {
+        SetMaterialAddon("");
+    }
+}
+
+void Backend::AddMaterial(const QString& path)
+{
+    QString p = path;
+    if (p.startsWith("file:///")) {
+        p = QUrl(p).toLocalFile();
+    }
+
+    QFileInfo fi(p);
+    if (fi.isDir()) {
+        QDir dir(p);
+        QFileInfoList entries = dir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QFileInfo& entry : entries) {
+            AddMaterial(entry.absoluteFilePath());
+        }
+        return;
+    }
+
+    if (!p.endsWith(".vmt", Qt::CaseInsensitive)) {
+        return;
+    }
+
+    QString s1MaterialsDir = GetS1gameBasefolder() + "/materials";
+    QString normalizedPath = QDir::cleanPath(p);
+    QString normalizedS1MatDir = QDir::cleanPath(s1MaterialsDir);
+
+    if (normalizedPath.startsWith(normalizedS1MatDir, Qt::CaseInsensitive)) {
+        QString relPath = normalizedPath.mid(normalizedS1MatDir.length());
+        if (relPath.startsWith('/')) {
+            relPath = relPath.mid(1);
+        }
+        QString finalPath = "materials/" + relPath;
+        if (!materialList.contains(finalPath)) {
+            materialList.append(finalPath);
+            emit materialListChanged();
+        }
+    } else {
+        if (p.startsWith("materials/") && p.endsWith(".vmt", Qt::CaseInsensitive)) {
+            if (!materialList.contains(p)) {
+                materialList.append(p);
+                emit materialListChanged();
+            }
+        } else {
+            emit alertMessage("Error", "The dropped file is not inside the selected Source 1 game's materials folder.");
+        }
+    }
+}
+
+void Backend::AddMaterialList(const QList<QUrl>& urls)
+{
+    for (const QUrl& url : urls) {
+        AddMaterial(url.toLocalFile());
+    }
+}
+
+void Backend::RemoveMaterial(int index)
+{
+    if (index >= 0 && index < materialList.size()) {
+        materialList.removeAt(index);
+        emit materialListChanged();
+    }
+}
+
+void Backend::StartMaterialImport()
+{
+    if (cs2Basefolder.isEmpty()) {
+        emit alertMessage("Validation Error", "CS2 folder not selected.");
+        return;
+    }
+    if (GetS1gameBasefolder().isEmpty()) {
+        emit alertMessage("Validation Error", "CSGO/CSS folder not selected.");
+        return;
+    }
+    if (materialList.isEmpty()) {
+        emit alertMessage("Validation Error", "Material list is empty.");
+        return;
+    }
+    if (materialAddon.isEmpty()) {
+        emit alertMessage("Validation Error", "No CS2 Addon selected.");
+        return;
+    }
+
+    SaveToCfg();
+
+    QString log_dir_path = QDir(appDir).filePath("logs");
+    QDir().mkpath(log_dir_path);
+
+    QString filelist_dir_path = QDir(appDir).filePath("filelist");
+    QDir().mkpath(filelist_dir_path);
+
+    QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+    QString filelist_path = QDir(filelist_dir_path).filePath(timestamp + "_importfilelist.txt");
+
+    QFile file(filelist_path);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&file);
+        for (const QString& mat : materialList) {
+            out << mat << "\n";
+        }
+        file.close();
+    } else {
+        emit alertMessage("Error", "Could not save material list.");
+        return;
+    }
+
+    Miscellaneous::Options opts;
+    opts.cs2Basefolder = cs2Basefolder;
+    opts.s1gameBasefolder = GetS1gameBasefolder();
+    opts.csgogamedir = csgogamedir;
+    opts.s1GameType = s1GameType;
+    opts.appDir = appDir;
+    opts.addonName = materialAddon;
+    opts.s1gamedir = GetS1gameBasefolder();
+    opts.s1contentdir = opts.s1gamedir;
+    opts.s2contentdir = opts.cs2Basefolder + "\\content\\csgo_addons\\" + materialAddon;
+
+    Miscellaneous::SetOptions(opts);
+    Miscellaneous::CanceLImport = 0;
+
+    isGoing = true;
+    emit isGoingChanged();
+    emit canGoChanged();
+
+    auto runThread = [this, filelist_path]() {
+        bool res = false;
+        try {
+            MaterialImporter importer;
+            res = importer.Run(filelist_path);
+        } catch (const AppException& e) {
+            Miscellaneous::Log(QString("ERROR: %1").arg(e.message()));
+        } catch (...) {
+            Miscellaneous::Log("ERROR: An unknown exception occurred.");
+        }
+
+        QMetaObject::invokeMethod(this, [this, res]() {
+            if (Miscellaneous::CanceLImport) {
+                Miscellaneous::Log("Task stopped by user.");
+            } else if (res) {
+                Miscellaneous::Log("===========================");
+                Miscellaneous::Log("Material Import completed!");
+            }
+            isGoing = false;
+            emit isGoingChanged();
+            emit canGoChanged();
+        });
+    };
+
+    QThread* thread = QThread::create(runThread);
+    thread->start();
 }
 
 bool Backend::IsValidS1(const QString& path, const QString& type)

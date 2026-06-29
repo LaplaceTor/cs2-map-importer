@@ -164,7 +164,18 @@ ApplicationWindow {
             Layout.fillHeight: true
             Layout.preferredWidth: 400
             Layout.maximumWidth: 400
-            spacing: 20
+            spacing: 10
+
+            TabBar {
+                id: mainTabBar
+                Layout.fillWidth: true
+                TabButton {
+                    text: "Map"
+                }
+                TabButton {
+                    text: "Material"
+                }
+            }
 
             // Row 1: Folders
             RowLayout {
@@ -261,8 +272,20 @@ ApplicationWindow {
                 }
             }
 
-            // Row 2: Maps and Addon
-            RowLayout {
+            StackLayout {
+                id: mainStackLayout
+                currentIndex: mainTabBar.currentIndex
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                // --- Map Tab ---
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: 15
+
+                    // Row 2: Maps and Addon
+                    RowLayout {
                 Layout.fillWidth: true
                 spacing: 15
 
@@ -300,53 +323,7 @@ ApplicationWindow {
                 }
             }
 
-            // Row 3: START and STOP Buttons
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 15
-
-                Button {
-                    id: goButton
-                    text: "START"
-                    enabled: backend.canGo && !backend.isGoing
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 40
-
-                    contentItem: Text {
-                        text: parent.text
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        font.bold: true
-                    }
-
-                    onClicked: {
-                        logLines = []
-                        logOutput.clear()
-                        backend.Start()
-                    }
-                }
-
-                Button {
-                    id: stopButton
-                    text: "STOP"
-                    enabled: backend.isGoing
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 40
-
-                    contentItem: Text {
-                        text: parent.text
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        font.bold: true
-                    }
-
-                    onClicked: {
-                        backend.Stop()
-                    }
-                }
-            }
-
-            // Row 4: OPTIONS
+                        // Row 4: OPTIONS
             GroupBox {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -389,6 +366,160 @@ ApplicationWindow {
                     Item { Layout.fillHeight: true } // Spacer
                 }
             }
+                    // Map Tab End here, closing layout tag later.
+                    Item { Layout.fillHeight: true } // Spacer
+                } // Map Tab End
+
+                // --- Material Tab ---
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: 15
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 15
+
+                        Label {
+                            text: "SELECT CS2 ADDON:"
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        ComboBox {
+                            id: materialAddonCombo
+                            Layout.fillWidth: true
+                            model: backend.cs2Addons
+                            onActivated: {
+                                backend.materialAddon = currentText
+                            }
+                            Component.onCompleted: {
+                                currentIndex = indexOfValue(backend.materialAddon)
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        color: "#222"
+                        border.color: "#555"
+                        border.width: 1
+
+                        DropArea {
+                            anchors.fill: parent
+                            onDropped: (drop) => {
+                                if (drop.hasUrls) {
+                                    backend.AddMaterialList(drop.urls)
+                                }
+                            }
+                        }
+
+                        Label {
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            text: "How to use this material import tool:\nFirst, move all the materials into materials folder inside game folder, or you're sure it's from game source files;\nAfter that, you can drag and drop vmt files or folders into the block to add to the list, or type into the input box underside which is inside game source files;\nFinally, select the cs2 addon you want to add these materials for, and then press START to got them."
+                            wrapMode: Text.WordWrap
+                            color: "#999"
+                            visible: backend.materialList.length === 0
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        ScrollView {
+                            anchors.fill: parent
+                            clip: true
+                            visible: backend.materialList.length > 0
+
+                            ListView {
+                                anchors.fill: parent
+                                model: backend.materialList
+                                delegate: RowLayout {
+                                    width: ListView.view.width
+                                    height: 30
+                                    spacing: 5
+                                    Label {
+                                        Layout.fillWidth: true
+                                        Layout.leftMargin: 5
+                                        text: modelData
+                                        color: "white"
+                                        elide: Text.ElideMiddle
+                                    }
+                                    Button {
+                                        text: "X"
+                                        Layout.preferredWidth: 30
+                                        Layout.preferredHeight: 30
+                                        onClicked: backend.RemoveMaterial(index)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    TextField {
+                        id: materialInput
+                        Layout.fillWidth: true
+                        placeholderText: "e.g. materials/kz_communityjump/pavement_01.vmt"
+                        onAccepted: {
+                            if (text !== "") {
+                                backend.AddMaterial(text)
+                                text = ""
+                            }
+                        }
+                    }
+                } // Material Tab End
+            }
+
+            // Row 3: START and STOP Buttons
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 15
+
+                Button {
+                    id: goButton
+                    text: "START"
+                    enabled: mainTabBar.currentIndex === 0 ? (backend.canGo && !backend.isGoing) : (backend.materialList.length > 0 && backend.materialAddon !== "" && !backend.isGoing)
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+
+                    contentItem: Text {
+                        text: parent.text
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.bold: true
+                    }
+
+                    onClicked: {
+                        logLines = []
+                        logOutput.clear()
+                        if (mainTabBar.currentIndex === 0) {
+                            backend.Start()
+                        } else {
+                            backend.StartMaterialImport()
+                        }
+                    }
+                }
+
+                Button {
+                    id: stopButton
+                    text: "STOP"
+                    enabled: backend.isGoing
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+
+                    contentItem: Text {
+                        text: parent.text
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.bold: true
+                    }
+
+                    onClicked: {
+                        backend.Stop()
+                    }
+                }
+            }
+
+
 
             // Row 5: UPDATE
             RowLayout {

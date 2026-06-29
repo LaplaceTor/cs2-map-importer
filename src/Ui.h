@@ -27,6 +27,10 @@ class Backend : public QObject
     Q_PROPERTY(bool isGoing READ GetIsGoing NOTIFY isGoingChanged)
     Q_PROPERTY(QString currentVersion READ GetCurrentVersion CONSTANT)
 
+    Q_PROPERTY(QStringList materialList READ GetMaterialList NOTIFY materialListChanged)
+    Q_PROPERTY(QStringList cs2Addons READ GetCs2Addons NOTIFY cs2AddonsChanged)
+    Q_PROPERTY(QString materialAddon READ GetMaterialAddon WRITE SetMaterialAddon NOTIFY materialAddonChanged)
+
 public:
     explicit Backend(QObject *parent = nullptr);
     ~Backend();
@@ -63,6 +67,16 @@ public:
     bool GetIsGoing() const { return isGoing; }
     QString GetCurrentVersion() const;
 
+    QStringList GetMaterialList() const { return materialList; }
+    QStringList GetCs2Addons() const { return cs2Addons; }
+    QString GetMaterialAddon() const { return materialAddon; }
+    void SetMaterialAddon(const QString& addon) {
+        if (materialAddon != addon) {
+            materialAddon = addon;
+            emit materialAddonChanged();
+        }
+    }
+
     void AppAboutToQuit();
 
 public slots:
@@ -77,6 +91,12 @@ public slots:
     void Stop();
     void CheckForUpdate();
 
+    void RefreshCS2Addons();
+    void AddMaterial(const QString& path);
+    void AddMaterialList(const QList<QUrl>& urls);
+    void RemoveMaterial(int index);
+    void StartMaterialImport();
+
 signals:
     void cs2BasefolderChanged();
     void s1gameBasefolderChanged();
@@ -90,6 +110,10 @@ signals:
     void skipdepsChanged();
     void canGoChanged();
     void isGoingChanged();
+
+    void materialListChanged();
+    void cs2AddonsChanged();
+    void materialAddonChanged();
 
     void logMessage(const QString& msg);
     void alertMessage(const QString& title, const QString& msg);
@@ -122,6 +146,10 @@ private:
     bool usebspNomergeinstances = false;
     bool skipdeps = false;
     bool isGoing = false;
+
+    QStringList materialList;
+    QStringList cs2Addons;
+    QString materialAddon;
 
     QNetworkAccessManager* networkManager;
 
