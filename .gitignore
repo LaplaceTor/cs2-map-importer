@@ -1,6 +1,7 @@
 *.pyc
 *.spec
 *.cfg
+*.json
 release
 build/
 
@@ -11,3 +12,6 @@ build_test/
 .qt/
 mybuild/
 cmake_build/
+.vs/
+.qtcreator/
+
