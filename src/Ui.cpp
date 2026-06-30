@@ -823,6 +823,10 @@ void Backend::Stop()
     if (isGoing) {
         Miscellaneous::Log("Cancelling import...");
         Miscellaneous::CancelAll();
+        if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
+            Miscellaneous::RestoreVpkSignatures(cs2Basefolder);
+            vpkSignaturesMoved = false;
+        }
     }
 }
 
