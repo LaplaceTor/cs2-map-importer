@@ -371,6 +371,8 @@ void MaterialFix::ComplexShaderVariablesFix(QStringList& lines, bool& fileModifi
                 hasAddedAniso = true;
             }
             localModified = true;
+        } else if (lowerLine.startsWith("\"f_twotexture\"") && lowerLine.contains("\"1\"")) {
+            localModified = true;
         } else {
             newLines.append(line);
         }
