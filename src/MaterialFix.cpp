@@ -1,5 +1,6 @@
 #include "MaterialFix.h"
 #include "Miscellaneous.h"
+#include "FileExtractFromVPK.h"
 #include <QFile>
 #include <QTextStream>
 #include <QMap>
@@ -144,7 +145,7 @@ bool MaterialFix::Force2UVsIfRequired(const QString& refsName, QSet<QString>& gl
     return b2UV;
 }
 
-void MaterialFix::SkyboxFix(const QString& vmatFile) {
+void MaterialFix::SkyboxFix() {
 
     QString magickPath = "magick";
     if (QFile::exists("bin/magick.exe")) {
@@ -153,21 +154,63 @@ void MaterialFix::SkyboxFix(const QString& vmatFile) {
 
     if (Miscellaneous::CanceLImport) return;
 
+    QString mapName = Miscellaneous::GetOptions().mapName;
+    QString vmfPath = Miscellaneous::GetOptions().s1contentdir + "/maps/" + mapName + ".vmf";
+    QString baseName = "";
 
-    QFileInfo fileInfo(vmatFile);
-    QString dirPath = fileInfo.absolutePath();
-    QString baseName = fileInfo.completeBaseName();
+    QFile vmfFile(vmfPath);
+    if (vmfFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&vmfFile);
+        while (!in.atEnd()) {
+            QString line = in.readLine();
+            if (line.contains("\"skyname\"")) {
+                int firstQuote = line.indexOf('"', line.indexOf("\"skyname\"") + 9);
+                int lastQuote = line.lastIndexOf('"');
+                if (firstQuote != -1 && lastQuote != -1 && lastQuote > firstQuote) {
+                    baseName = line.mid(firstQuote + 1, lastQuote - firstQuote - 1);
+                }
+                break;
+            }
+        }
+        vmfFile.close();
+    }
+
+    if (baseName.isEmpty()) return;
+
+    QString dirPath = Miscellaneous::GetOptions().s1contentdir + "/materials/skybox";
+    QString s2DirPath = Miscellaneous::GetOptions().s2contentdir + "/materials/skybox";
+    QDir().mkpath(dirPath);
+    QDir().mkpath(s2DirPath);
+
     QString oldFile = dirPath + "/" + baseName + "_cube.pfm";
     if(QFile::exists(oldFile)){
         QFile::remove(oldFile);
     }
 
-    QString up = dirPath + "/" + baseName + "up.tga";
-    QString bk = dirPath + "/" + baseName + "bk.tga";
-    QString rt = dirPath + "/" + baseName + "rt.tga";
-    QString ft = dirPath + "/" + baseName + "ft.tga";
-    QString lf = dirPath + "/" + baseName + "lf.tga";
-    QString dn = dirPath + "/" + baseName + "dn.tga";
+    QStringList suffixes = {"up", "bk", "rt", "ft", "lf", "dn"};
+
+    for (const QString& suffix : suffixes) {
+        QString vtfName = baseName + suffix + ".vtf";
+        QString vtfPath = dirPath + "/" + vtfName;
+
+        if (!QFile::exists(vtfPath)) {
+            FileExtractFromVPK::ExtractMaterial("materials/skybox/" + vtfName);
+        }
+
+        if (QFile::exists(vtfPath)) {
+            QString cmd = "\"bin\\vtfcmd.exe\" -file \"" + vtfPath + "\" -output \"" + s2DirPath + "\" -exportformat \"tga\"";
+            cmd = cmd.replace("/", "\\");
+            Miscellaneous::RunCommandSync(cmd);
+        }
+    }
+
+    // Look for generated tga files in s2DirPath
+    QString up = s2DirPath + "/" + baseName + "up.tga";
+    QString bk = s2DirPath + "/" + baseName + "bk.tga";
+    QString rt = s2DirPath + "/" + baseName + "rt.tga";
+    QString ft = s2DirPath + "/" + baseName + "ft.tga";
+    QString lf = s2DirPath + "/" + baseName + "lf.tga";
+    QString dn = s2DirPath + "/" + baseName + "dn.tga";
 
     if (QFile::exists(up) && QFile::exists(bk) && QFile::exists(rt) &&
         QFile::exists(ft) && QFile::exists(lf) && QFile::exists(dn)) {
@@ -176,7 +219,7 @@ void MaterialFix::SkyboxFix(const QString& vmatFile) {
 
         // Determine size dynamically
         QProcess identifyProcess;
-        identifyProcess.setWorkingDirectory(dirPath);
+        identifyProcess.setWorkingDirectory(s2DirPath);
         identifyProcess.start(magickPath, QStringList() << "identify" << "-format" << "%wx%h" << up);
         identifyProcess.waitForFinished(-1);
 
@@ -188,7 +231,7 @@ void MaterialFix::SkyboxFix(const QString& vmatFile) {
             }
         }
 
-        QString cubeFile = dirPath + "/" + baseName + "_cube.tga";
+        QString cubeFile = s2DirPath + "/" + baseName + "cube.tga";
 
         QStringList args;
         args << "(" << "-size" << sizeStr << "xc:black" << up << "xc:black" << "xc:black" << "+append" << ")"
@@ -198,46 +241,28 @@ void MaterialFix::SkyboxFix(const QString& vmatFile) {
              << cubeFile;
 
         QProcess process;
-        process.setWorkingDirectory(dirPath);
+        process.setWorkingDirectory(s2DirPath);
         process.start(magickPath, args);
         process.waitForFinished(-1);
 
         if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
-            Miscellaneous::Log("Successfully rebuilt skybox cube: " + baseName + "_cube.tga");
+            Miscellaneous::Log("Successfully rebuilt skybox cube: " + baseName + "cube.tga");
         } else {
             Miscellaneous::Log("Failed to rebuild skybox cube for " + baseName + ". Error: " + process.readAllStandardError());
         }
 
         // Update vmat file
-        QStringList vmatLines = ReadTextFile(vmatFile);
-        bool modified = false;
-
-        for (int i = 0; i < vmatLines.size(); ++i) {
-            QString lowerLine = vmatLines[i].toLower();
-
-            // Remove F_TEXTURE_FORMAT2
-            if (lowerLine.contains("\"f_texture_format2\"")) {
-                vmatLines.removeAt(i);
-                i--;
-                modified = true;
-                continue;
-            }
-
-            // Update SkyTexture from .pfm to .tga
-            if (lowerLine.contains("\"skytexture\"") && lowerLine.contains(".pfm\"")) {
-                vmatLines[i].replace(".pfm", ".tga", Qt::CaseInsensitive);
-                modified = true;
-            }
-        }
-
-        if (modified) {
-            EnsureFileWritable(vmatFile);
-            QFile file(vmatFile);
-            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                QTextStream out(&file);
-                for (const QString& l : vmatLines) out << l << "\n";
-                file.close();
-            }
+        QString vmatFile = s2DirPath + "/" + baseName + ".vmat";
+        EnsureFileWritable(vmatFile);
+        QFile file(vmatFile);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&file);
+            out << "Layer0\n";
+            out << "{\n";
+            out << "\tshader \"sky.vfx\"\n";
+            out << "\tSkyTexture \"materials/skybox/" << baseName << "cube.tga\"\n";
+            out << "}\n";
+            file.close();
         }
     }
 }
@@ -455,6 +480,8 @@ void MaterialFix::ShaderFix(QStringList& lines, bool& fileModified) {
 }
 
 void MaterialFix::FixMaterials() {
+    SkyboxFix();
+
     QString materialsDir = Miscellaneous::GetOptions().s2contentdir + "/materials";
     QDirIterator it(materialsDir, QStringList() << "*.vmat", QDir::Files, QDirIterator::Subdirectories);
 
@@ -464,7 +491,6 @@ void MaterialFix::FixMaterials() {
 
         QStringList lines = ReadTextFile(vmatFile);
         bool fileModified = false;
-        bool isSky = false;
         bool isLegacyShader = false;
 
         // We look for legacy keys and values
@@ -480,10 +506,6 @@ void MaterialFix::FixMaterials() {
             // Track blocks
             if (line == "{") bracketDepth++;
             else if (line == "}") bracketDepth--;
-
-            if (lowerLine.contains("\"shader\"") && lowerLine.contains("\"sky.vfx\"")) {
-                isSky = true;
-            }
 
             if (lowerLine.startsWith("\"shader\"") && (lowerLine.contains("\"csgo_unlitgeneric.vfx\"") || lowerLine.contains("\"csgo_vertexlitgeneric.vfx\""))) {
                 isLegacyShader = true;
@@ -525,10 +547,6 @@ void MaterialFix::FixMaterials() {
                     }
                 }
             }
-        }
-
-        if (isSky) {
-            SkyboxFix(vmatFile);
         }
 
         if (isLegacyShader) {

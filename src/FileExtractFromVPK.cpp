@@ -123,6 +123,35 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath) {
     }
 }
 
+void FileExtractFromVPK::ExtractMaterial(const QString& filepath) {
+    QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(filepath);
+    QString outPath = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(filepath);
+    QString baseFolder = QFileInfo(Miscellaneous::GetOptions().s1gamedir).dir().absolutePath();
+    QStringList vpkList = GetVpkList();
+
+    for (const QString& vpkRel : vpkList) {
+        QString vpkPath = QDir(baseFolder).filePath(vpkRel);
+
+        if (QFile::exists(contentPath)) {
+            QFile::remove(contentPath);
+        }
+
+        QString cmd = "\"bin\\vpkeditcli.exe\" -e \"" + filepath + "\" \"" + vpkPath + "\" -o \"" + contentPath + "\"";
+        cmd = cmd.replace("/", "\\");
+        Miscellaneous::RunCommandSync(cmd);
+
+        if (QFile::exists(contentPath)) {
+            QFileInfo fi(outPath);
+            QDir().mkpath(fi.absolutePath());
+            if (QFile::exists(outPath)) {
+                QFile::remove(outPath);
+            }
+            QFile::copy(contentPath, outPath);
+            break;
+        }
+    }
+}
+
 void FileExtractFromVPK::ExtractParticle(const QString& filepath) {
     QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(filepath);
     QString outPath = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(filepath);
