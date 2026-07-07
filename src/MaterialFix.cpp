@@ -212,15 +212,29 @@ void MaterialFix::SkyboxFix() {
     QString lf = s2DirPath + "/" + baseName + "lf.tga";
     QString dn = s2DirPath + "/" + baseName + "dn.tga";
 
-    if (QFile::exists(up) && QFile::exists(bk) && QFile::exists(rt) &&
-        QFile::exists(ft) && QFile::exists(lf) && QFile::exists(dn)) {
+    bool hasUp = QFile::exists(up);
+    bool hasBk = QFile::exists(bk);
+    bool hasRt = QFile::exists(rt);
+    bool hasFt = QFile::exists(ft);
+    bool hasLf = QFile::exists(lf);
+    bool hasDn = QFile::exists(dn);
+
+    if (hasUp || hasBk || hasRt || hasFt || hasLf || hasDn) {
 
         Miscellaneous::Log("Rebuilding skybox cube for " + baseName + "...");
+
+        QString existingFace = "";
+        if (hasUp) existingFace = up;
+        else if (hasBk) existingFace = bk;
+        else if (hasRt) existingFace = rt;
+        else if (hasFt) existingFace = ft;
+        else if (hasLf) existingFace = lf;
+        else if (hasDn) existingFace = dn;
 
         // Determine size dynamically
         QProcess identifyProcess;
         identifyProcess.setWorkingDirectory(s2DirPath);
-        identifyProcess.start(magickPath, QStringList() << "identify" << "-format" << "%wx%h" << up);
+        identifyProcess.start(magickPath, QStringList() << "identify" << "-format" << "%wx%h" << existingFace);
         identifyProcess.waitForFinished(-1);
 
         QString sizeStr = "1024x1024"; // Default fallback
@@ -234,9 +248,9 @@ void MaterialFix::SkyboxFix() {
         QString cubeFile = s2DirPath + "/" + baseName + "cube.tga";
 
         QStringList args;
-        args << "(" << "-size" << sizeStr << "xc:black" << up << "xc:black" << "xc:black" << "+append" << ")"
-             << "(" << bk << rt << ft << lf << "+append" << ")"
-             << "(" << "-size" << sizeStr << "xc:black" << dn << "xc:black" << "xc:black" << "+append" << ")"
+        args << "(" << "-size" << sizeStr << "xc:black" << (hasUp ? up : "xc:black") << "xc:black" << "xc:black" << "+append" << ")"
+             << "(" << "-size" << sizeStr << (hasBk ? bk : "xc:black") << (hasRt ? rt : "xc:black") << (hasFt ? ft : "xc:black") << (hasLf ? lf : "xc:black") << "+append" << ")"
+             << "(" << "-size" << sizeStr << "xc:black" << (hasDn ? dn : "xc:black") << "xc:black" << "xc:black" << "+append" << ")"
              << "-append"
              << cubeFile;
 
