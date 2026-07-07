@@ -625,7 +625,8 @@ void MaterialFix::OverlayFix() {
         }
 
         QStringList vmatLines = ReadTextFile(vmatPath);
-        bool hasFLit = false;
+        bool hasFOverlay = false;
+        bool hasFDecalTexture = false;
         bool isLightMapped = false;
         bool isComplex = false;
         int shaderLineIdx = -1;
@@ -637,26 +638,31 @@ void MaterialFix::OverlayFix() {
                 if (line.contains("csgo_lightmappedgeneric.vfx")) isLightMapped = true;
                 else if (line.contains("csgo_complex.vfx")) isComplex = true;
 
-                if (isLightMapped || isComplex) {
-                    // We change shader to csgo_static_overlay.vfx
-                    vmatLines[i].replace("csgo_lightmappedgeneric.vfx", "csgo_static_overlay.vfx", Qt::CaseInsensitive);
-                    vmatLines[i].replace("csgo_complex.vfx", "csgo_static_overlay.vfx", Qt::CaseInsensitive);
-                }
+
                 shaderLineIdx = i;
             }
 
-            if (line.contains("f_lit") && line.contains("1")) hasFLit = true;
-
-            if (isLightMapped || isComplex) {
-                vmatLines[i].replace("TextureLayer1Color", "TextureColor", Qt::CaseInsensitive);
-                vmatLines[i].replace("TextureLayer1Normal", "TextureNormal", Qt::CaseInsensitive);
-                vmatLines[i].replace("TextureLayer1Roughness", "TextureRoughness", Qt::CaseInsensitive);
-                vmatLines[i].replace("TextureLayer1AmbientOcclusion", "TextureAmbientOcclusion", Qt::CaseInsensitive);
-            }
+            if (line.contains("f_overlay") && line.contains("1")) hasFOverlay = true;
+            if (line.contains("f_decal_texture") && line.contains("1")) hasFDecalTexture = true;
         }
 
         if (shaderLineIdx != -1) {
-            if ((isLightMapped || isComplex) && !hasFLit) {
+            bool needsFix = false;
+            if (isLightMapped && !hasFOverlay) needsFix = true;
+            else if (isComplex && !hasFDecalTexture) needsFix = true;
+
+            if (needsFix) {
+                vmatLines[shaderLineIdx].replace("csgo_lightmappedgeneric.vfx", "csgo_static_overlay.vfx", Qt::CaseInsensitive);
+                vmatLines[shaderLineIdx].replace("csgo_complex.vfx", "csgo_static_overlay.vfx", Qt::CaseInsensitive);
+
+                for (int i = 0; i < vmatLines.size(); ++i) {
+                    if (isLightMapped) {
+                        vmatLines[i].replace("TextureLayer1Color", "TextureColor", Qt::CaseInsensitive);
+                        vmatLines[i].replace("TextureLayer1Normal", "TextureNormal", Qt::CaseInsensitive);
+                        vmatLines[i].replace("TextureLayer1Roughness", "TextureRoughness", Qt::CaseInsensitive);
+                        vmatLines[i].replace("TextureLayer1AmbientOcclusion", "TextureAmbientOcclusion", Qt::CaseInsensitive);
+                    }
+                }
                 vmatLines.insert(shaderLineIdx + 1, "\t\"F_LIT\"\t\t\"1\"");
                 QString newMatName = matName + "_overlay";
                 materialReplacementMap[matName] = newMatName;
