@@ -593,14 +593,22 @@ void MaterialFix::OverlayFix() {
                 isInfoOverlay = true;
             }
 
-            if (lowerLine.startsWith("\"material\"")) {
-                int firstQuote = line.indexOf('"', 10);
+
+            int matIdx = lowerLine.indexOf("\"material\"");
+            if (matIdx != -1) {
+                int firstQuote = line.indexOf('"', matIdx + 10);
                 int lastQuote = line.lastIndexOf('"');
                 if (firstQuote != -1 && lastQuote != -1 && lastQuote > firstQuote) {
                     currentMaterial = line.mid(firstQuote + 1, lastQuote - firstQuote - 1);
+                    if (currentMaterial.endsWith(".vmat", Qt::CaseInsensitive)) {
+                        currentMaterial = currentMaterial.left(currentMaterial.length() - 5);
+                    } else if (currentMaterial.endsWith(".vmt", Qt::CaseInsensitive)) {
+                        currentMaterial = currentMaterial.left(currentMaterial.length() - 4);
+                    }
                     currentMaterialIdx = i;
                 }
             }
+
         }
 
         if (line == "}" && bracketDepth == 0 && inEntity) {
