@@ -388,8 +388,6 @@ bool MapImporter::Run() {
 
     mapImportCmd += " -src1gameinfodir \"" + targetS1gamedir + "\" -src1contentdir \"" + Miscellaneous::GetOptions().s1contentdir + "\" -s2addon \"" + Miscellaneous::GetOptions().addonName + "\" -game csgo maps\\" + Miscellaneous::GetOptions().mapName + ".vmf";
 
-    Miscellaneous::RunCommandSync(mapImportCmd);
-
     QString mMapname = Miscellaneous::GetOptions().mapName;
     int pos = mMapname.indexOf("instances");
     if (pos != -1) {
@@ -397,6 +395,8 @@ bool MapImporter::Run() {
     }
 
     if (!Miscellaneous::GetOptions().skipdeps) {
+        Miscellaneous::RunCommandSync(mapImportCmd);
+
         StripMDLsFromRefs(Miscellaneous::GetOptions().s2contentdir + "\\maps\\" + mMapname + "_refs.txt");
         ImportAndCompileMapMDLs(Miscellaneous::GetOptions().s2contentdir + "\\maps\\" + mMapname + "_mdl_lst.txt");
         ImportAndCompileMapRefs(Miscellaneous::GetOptions().s2contentdir + "\\maps\\" + mMapname + "_new_refs.txt");
@@ -404,9 +404,9 @@ bool MapImporter::Run() {
         ImportSounds();
 
         MaterialFix::FixMaterials();
-
-        Miscellaneous::RunCommandSync(mapImportCmd);
     }
+
+    Miscellaneous::RunCommandSync(mapImportCmd);
 
     Miscellaneous::Log("Import process complete.");
     return true;
