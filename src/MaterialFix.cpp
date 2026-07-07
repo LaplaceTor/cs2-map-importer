@@ -698,7 +698,7 @@ void MaterialFix::OverlayFix() {
                 }
 
 
-                QString newMatName = matName + "_overlay";
+                QString newMatName = matName + "overlay";
                 materialReplacementMap[matName] = newMatName;
                 QString newVmatPath = Miscellaneous::GetOptions().s2contentdir + "/materials/" + newMatName + ".vmat";
 
