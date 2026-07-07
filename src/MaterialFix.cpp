@@ -759,3 +759,136 @@ void MaterialFix::OverlayFix() {
         }
     }
 }
+
+void MaterialFix::DevTextureFix() {
+    QString usebspStr = Miscellaneous::GetOptions().usebsp ? "-usebsp" : "";
+    QString nomergeinstancesStr = Miscellaneous::GetOptions().usebspNomergeinstances ? "-usebsp_nomergeinstances" : "";
+
+    QString mapImportCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync " + usebspStr;
+    if (!nomergeinstancesStr.isEmpty()) mapImportCmd += " " + nomergeinstancesStr;
+
+    QString targetS1gamedir =  Miscellaneous::GetOptions().csgogamedir;
+
+    mapImportCmd += " -src1gameinfodir \"" + targetS1gamedir + "\" -src1contentdir \"" + Miscellaneous::GetOptions().s1contentdir + "\" -s2addon \"" + Miscellaneous::GetOptions().addonName + "\" -game csgo maps\\" + Miscellaneous::GetOptions().mapName + ".vmf";
+
+    Miscellaneous::Log("Running mapImportCmd in DevTextureFix: " + mapImportCmd);
+
+    QProcess process;
+    process.setProcessChannelMode(QProcess::MergedChannels);
+    process.setProgram("cmd.exe");
+#ifdef Q_OS_WIN
+    process.setNativeArguments("/S /C \"" + mapImportCmd + "\"");
+#else
+    process.setArguments({"/c", mapImportCmd});
+#endif
+    process.start();
+
+    QString lineBuffer;
+    QList<QString> missingMaterials;
+
+    auto processOutput = [&](const QString& outStr) {
+        for (QChar c : outStr) {
+            if (c == '\n') {
+                if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
+                if (!lineBuffer.isEmpty()) {
+                    Miscellaneous::Log(lineBuffer);
+
+                    if (lineBuffer.startsWith("Failed loading resource \"materials/dev/") || lineBuffer.startsWith("Failed loading resource \"materials/tools/")) {
+                        if (lineBuffer.endsWith("vmat_c\" (ERROR_FILEOPEN: File not found)")) {
+                            int startIdx = lineBuffer.indexOf('"') + 1;
+                            int endIdx = lineBuffer.lastIndexOf('"');
+                            if (startIdx > 0 && endIdx > startIdx) {
+                                QString matPath = lineBuffer.mid(startIdx, endIdx - startIdx);
+                                if (matPath.endsWith(".vmat_c")) {
+                                    matPath.replace(".vmat_c", ".vmt");
+                                    missingMaterials.append(matPath);
+                                }
+                            }
+                        }
+                    }
+                }
+                lineBuffer.clear();
+            } else {
+                lineBuffer += c;
+            }
+        }
+    };
+
+    while (process.waitForReadyRead(10000) || process.state() != QProcess::NotRunning) {
+        if (Miscellaneous::CanceLImport) {
+            process.kill();
+            return;
+        }
+        QByteArray output = process.readAll();
+        if (!output.isEmpty()) {
+            processOutput(QString(output));
+        } else {
+            if (process.state() == QProcess::Running) {
+                process.write("y\n");
+            }
+        }
+    }
+
+    QByteArray output = process.readAll();
+    if (!output.isEmpty()) {
+        processOutput(QString(output));
+    }
+
+    if (!lineBuffer.isEmpty()) {
+        if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
+        Miscellaneous::Log(lineBuffer);
+    }
+
+    for (QString& vmtPath : missingMaterials) {
+        if (Miscellaneous::CanceLImport) return;
+
+        vmtPath.replace('\\', '/'); // Make sure paths are standardized
+
+        FileExtractFromVPK::ExtractMaterial(vmtPath);
+
+        QString origVmtS1 = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(vmtPath);
+        if (!QFile::exists(origVmtS1)) {
+            Miscellaneous::Log("Failed to extract " + vmtPath);
+            continue;
+        }
+
+        QString tmpVmtRel = vmtPath;
+        if (tmpVmtRel.startsWith("materials/dev/")) {
+            tmpVmtRel.replace("materials/dev/", "materials/tmp/dev/");
+        } else if (tmpVmtRel.startsWith("materials/tools/")) {
+            tmpVmtRel.replace("materials/tools/", "materials/tmp/tools/");
+        }
+
+        QString tmpVmtS1 = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(tmpVmtRel);
+        QDir().mkpath(QFileInfo(tmpVmtS1).absolutePath());
+
+        if (QFile::exists(tmpVmtS1)) QFile::remove(tmpVmtS1);
+        if (QFile::copy(origVmtS1, tmpVmtS1)) {
+            QFile::remove(origVmtS1); // Move operation
+        } else {
+            continue;
+        }
+
+        QString importCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + Miscellaneous::GetOptions().s1gamedir + "\" -s2addon \"" + Miscellaneous::GetOptions().addonName + "\" -game csgo \"" + tmpVmtRel.replace('/', '\\') + "\"";
+        Miscellaneous::RunCommandSync(importCmd);
+
+        QString tmpVmatRel = tmpVmtRel;
+        tmpVmatRel.replace(".vmt", ".vmat");
+        QString origVmatRel = vmtPath;
+        origVmatRel.replace(".vmt", ".vmat");
+
+        QString tmpVmatS2 = QDir(Miscellaneous::GetOptions().s2contentdir).filePath(tmpVmatRel);
+        QString origVmatS2 = QDir(Miscellaneous::GetOptions().s2contentdir).filePath(origVmatRel);
+
+        if (QFile::exists(tmpVmatS2)) {
+            QDir().mkpath(QFileInfo(origVmatS2).absolutePath());
+            if (QFile::exists(origVmatS2)) QFile::remove(origVmatS2);
+            if (QFile::copy(tmpVmatS2, origVmatS2)) {
+                QFile::remove(tmpVmatS2);
+            }
+
+            QString resCompCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + origVmatS2.replace('/', '\\') + "\"";
+            Miscellaneous::RunCommandSync(resCompCmd);
+        }
+    }
+}
