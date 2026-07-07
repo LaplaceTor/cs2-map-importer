@@ -553,4 +553,187 @@ void MaterialFix::FixMaterials() {
             }
         }
     }
+
+    OverlayFix();
+}
+
+void MaterialFix::OverlayFix() {
+    QString vmfPath = Miscellaneous::GetOptions().s1contentdir + "/maps/" + Miscellaneous::GetOptions().mapName + ".vmf";
+    if (!QFile::exists(vmfPath)) return;
+
+    QStringList lines = ReadTextFile(vmfPath);
+
+    // Pass 1: find all info_overlay blocks, collect materials used, and track line indices
+    QSet<QString> overlayMaterials;
+    QMap<int, QString> materialLinesToFix; // index -> material name
+
+    int bracketDepth = 0;
+    bool inEntity = false;
+    bool isInfoOverlay = false;
+    QString currentMaterial;
+    int currentMaterialIdx = -1;
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i].trimmed();
+
+        if (line == "entity") {
+            inEntity = true;
+            isInfoOverlay = false;
+            currentMaterial = "";
+            currentMaterialIdx = -1;
+        } else if (line == "{") {
+            bracketDepth++;
+        } else if (line == "}") {
+            bracketDepth--;
+        }
+
+        if (inEntity && bracketDepth == 1) {
+            QString lowerLine = line.toLower();
+            if (lowerLine.startsWith("\"classname\"") && lowerLine.contains("\"info_overlay\"")) {
+                isInfoOverlay = true;
+            }
+
+            if (lowerLine.startsWith("\"material\"")) {
+                int firstQuote = line.indexOf('"', 10);
+                int lastQuote = line.lastIndexOf('"');
+                if (firstQuote != -1 && lastQuote != -1 && lastQuote > firstQuote) {
+                    currentMaterial = line.mid(firstQuote + 1, lastQuote - firstQuote - 1);
+                    currentMaterialIdx = i;
+                }
+            }
+        }
+
+        if (line == "}" && bracketDepth == 0 && inEntity) {
+            // Finished parsing an entity
+            if (isInfoOverlay && !currentMaterial.isEmpty() && currentMaterialIdx != -1) {
+                overlayMaterials.insert(currentMaterial);
+                materialLinesToFix[currentMaterialIdx] = currentMaterial;
+            }
+            inEntity = false;
+        }
+    }
+
+    // Process collected materials
+    QMap<QString, QString> materialReplacementMap;
+
+    for (const QString& matName : overlayMaterials) {
+        QString vmatPath = Miscellaneous::GetOptions().s2contentdir + "/materials/" + matName + ".vmat";
+
+        if (!QFile::exists(vmatPath)) {
+            vmatPath = Miscellaneous::GetOptions().s2contentdir + "\\materials\\" + QString(matName).replace('/', '\\') + ".vmat";
+            if (!QFile::exists(vmatPath)) continue;
+        }
+
+        QStringList vmatLines = ReadTextFile(vmatPath);
+        bool hasFOverlay = false;
+        bool hasFDecalTexture = false;
+        bool isLightMapped = false;
+        bool isComplex = false;
+        int shaderLineIdx = -1;
+
+        for (int i = 0; i < vmatLines.size(); ++i) {
+            QString line = vmatLines[i].trimmed().toLower();
+
+            if (line.startsWith("\"shader\"") || line.startsWith("shader")) {
+                if (line.contains("csgo_lightmappedgeneric.vfx")) isLightMapped = true;
+                else if (line.contains("csgo_complex.vfx")) isComplex = true;
+
+
+                shaderLineIdx = i;
+            }
+
+            if (line.contains("f_overlay") && line.contains("1")) hasFOverlay = true;
+            if (line.contains("f_decal_texture") && line.contains("1")) hasFDecalTexture = true;
+        }
+
+        if (shaderLineIdx != -1) {
+            bool needsFix = false;
+            if (isLightMapped && !hasFOverlay) needsFix = true;
+            else if (isComplex && !hasFDecalTexture) needsFix = true;
+
+            if (needsFix) {
+                vmatLines[shaderLineIdx].replace("csgo_lightmappedgeneric.vfx", "csgo_static_overlay.vfx", Qt::CaseInsensitive);
+                vmatLines[shaderLineIdx].replace("csgo_complex.vfx", "csgo_static_overlay.vfx", Qt::CaseInsensitive);
+
+                for (int i = 0; i < vmatLines.size(); ++i) {
+                    if (isLightMapped) {
+                        vmatLines[i].replace("TextureLayer1Color", "TextureColor", Qt::CaseInsensitive);
+                        vmatLines[i].replace("TextureLayer1Normal", "TextureNormal", Qt::CaseInsensitive);
+                        vmatLines[i].replace("TextureLayer1Roughness", "TextureRoughness", Qt::CaseInsensitive);
+                        vmatLines[i].replace("TextureLayer1AmbientOcclusion", "TextureAmbientOcclusion", Qt::CaseInsensitive);
+                        vmatLines[i].replace("TextureLayer1Translucency", "TextureTranslucency", Qt::CaseInsensitive);
+                    }
+                }
+
+                bool hasAlphaTest = false;
+                bool hasTranslucent = false;
+                bool hasAdditiveBlend = false;
+
+                for (int i = 0; i < vmatLines.size(); ++i) {
+                    QString lower = vmatLines[i].toLower();
+                    if (lower.contains("f_alpha_test") && lower.contains("1")) { hasAlphaTest = true; vmatLines[i] = ""; }
+                    if (lower.contains("f_translucent") && lower.contains("1")) { hasTranslucent = true; vmatLines[i] = ""; }
+                    if (lower.contains("f_additive_blend") && lower.contains("1")) { hasAdditiveBlend = true; vmatLines[i] = ""; }
+                }
+
+
+                // Insert new flags BEFORE removing empty lines to preserve shaderLineIdx
+                if (hasTranslucent && hasAdditiveBlend) {
+                    vmatLines.insert(shaderLineIdx + 1, "	\"F_BLEND_MODE\"\t\t\"4\"");
+                } else if (hasTranslucent) {
+                    vmatLines.insert(shaderLineIdx + 1, "	\"F_BLEND_MODE\"\t\t\"1\"");
+                } else if (hasAlphaTest) {
+                    vmatLines.insert(shaderLineIdx + 1, "	\"F_BLEND_MODE\"\t\t\"2\"");
+                }
+
+                vmatLines.insert(shaderLineIdx + 1, "	\"F_LIT\"\t\t\"1\"");
+
+                // Cleanup empty lines we created
+                for (int i = vmatLines.size() - 1; i >= 0; --i) {
+                    if (vmatLines[i].isEmpty()) vmatLines.removeAt(i);
+                }
+
+
+                QString newMatName = matName + "_overlay";
+                materialReplacementMap[matName] = newMatName;
+                QString newVmatPath = Miscellaneous::GetOptions().s2contentdir + "/materials/" + newMatName + ".vmat";
+
+                QFile file(newVmatPath);
+                if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                    QTextStream out(&file);
+                    for (const QString& l : vmatLines) out << l << "\n";
+                    file.close();
+                }
+
+                QString resCompCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + newVmatPath + "\"";
+                Miscellaneous::RunCommandSync(resCompCmd);
+            }
+        }
+    }
+
+    // Pass 2: Apply replacements to VMF
+    if (!materialReplacementMap.isEmpty()) {
+        bool vmfModified = false;
+        for (auto it = materialLinesToFix.begin(); it != materialLinesToFix.end(); ++it) {
+            int idx = it.key();
+            QString matName = it.value();
+            if (materialReplacementMap.contains(matName)) {
+                QString newMat = materialReplacementMap[matName];
+                QString newLine = lines[idx];
+                newLine.replace("\"" + matName + "\"", "\"" + newMat + "\"");
+                lines[idx] = newLine;
+                vmfModified = true;
+            }
+        }
+
+        if (vmfModified) {
+            EnsureFileWritable(vmfPath);
+            QFile file(vmfPath);
+            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream out(&file);
+                for (const QString& l : lines) out << l << "\n";
+                file.close();
+            }
+        }
+    }
 }
