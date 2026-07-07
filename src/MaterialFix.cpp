@@ -661,9 +661,39 @@ void MaterialFix::OverlayFix() {
                         vmatLines[i].replace("TextureLayer1Normal", "TextureNormal", Qt::CaseInsensitive);
                         vmatLines[i].replace("TextureLayer1Roughness", "TextureRoughness", Qt::CaseInsensitive);
                         vmatLines[i].replace("TextureLayer1AmbientOcclusion", "TextureAmbientOcclusion", Qt::CaseInsensitive);
+                        vmatLines[i].replace("TextureLayer1Translucency", "TextureTranslucency", Qt::CaseInsensitive);
                     }
                 }
-                vmatLines.insert(shaderLineIdx + 1, "\t\"F_LIT\"\t\t\"1\"");
+
+                bool hasAlphaTest = false;
+                bool hasTranslucent = false;
+                bool hasAdditiveBlend = false;
+
+                for (int i = 0; i < vmatLines.size(); ++i) {
+                    QString lower = vmatLines[i].toLower();
+                    if (lower.contains("f_alpha_test") && lower.contains("1")) { hasAlphaTest = true; vmatLines[i] = ""; }
+                    if (lower.contains("f_translucent") && lower.contains("1")) { hasTranslucent = true; vmatLines[i] = ""; }
+                    if (lower.contains("f_additive_blend") && lower.contains("1")) { hasAdditiveBlend = true; vmatLines[i] = ""; }
+                }
+
+
+                // Insert new flags BEFORE removing empty lines to preserve shaderLineIdx
+                if (hasTranslucent && hasAdditiveBlend) {
+                    vmatLines.insert(shaderLineIdx + 1, "	\"F_BLEND_MODE\"\t\t\"4\"");
+                } else if (hasTranslucent) {
+                    vmatLines.insert(shaderLineIdx + 1, "	\"F_BLEND_MODE\"\t\t\"1\"");
+                } else if (hasAlphaTest) {
+                    vmatLines.insert(shaderLineIdx + 1, "	\"F_BLEND_MODE\"\t\t\"2\"");
+                }
+
+                vmatLines.insert(shaderLineIdx + 1, "	\"F_LIT\"\t\t\"1\"");
+
+                // Cleanup empty lines we created
+                for (int i = vmatLines.size() - 1; i >= 0; --i) {
+                    if (vmatLines[i].isEmpty()) vmatLines.removeAt(i);
+                }
+
+
                 QString newMatName = matName + "_overlay";
                 materialReplacementMap[matName] = newMatName;
                 QString newVmatPath = Miscellaneous::GetOptions().s2contentdir + "/materials/" + newMatName + ".vmat";
