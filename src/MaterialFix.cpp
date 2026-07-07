@@ -231,7 +231,7 @@ void MaterialFix::SkyboxFix() {
             }
         }
 
-        QString cubeFile = s2DirPath + "/" + baseName + "_cube.tga";
+        QString cubeFile = s2DirPath + "/" + baseName + "cube.tga";
 
         QStringList args;
         args << "(" << "-size" << sizeStr << "xc:black" << up << "xc:black" << "xc:black" << "+append" << ")"
@@ -246,7 +246,7 @@ void MaterialFix::SkyboxFix() {
         process.waitForFinished(-1);
 
         if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
-            Miscellaneous::Log("Successfully rebuilt skybox cube: " + baseName + "_cube.tga");
+            Miscellaneous::Log("Successfully rebuilt skybox cube: " + baseName + "cube.tga");
         } else {
             Miscellaneous::Log("Failed to rebuild skybox cube for " + baseName + ". Error: " + process.readAllStandardError());
         }
@@ -260,7 +260,7 @@ void MaterialFix::SkyboxFix() {
             out << "Layer0\n";
             out << "{\n";
             out << "\tshader \"sky.vfx\"\n";
-            out << "\tSkyTexture \"materials/skybox/" << baseName << "_cube.tga\"\n";
+            out << "\tSkyTexture \"materials/skybox/" << baseName << "cube.tga\"\n";
             out << "}\n";
             file.close();
         }
