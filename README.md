@@ -33,8 +33,6 @@ cmake ..
 cmake --build .
 ```
 
-On Windows, the CMake configuration will create a GUI application without a console window. On Linux/macOS, it will create a standard executable.
-
 ## Usage
 
 1. Launch `cs2importer`.
