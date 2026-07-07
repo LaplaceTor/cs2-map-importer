@@ -600,11 +600,7 @@ void MaterialFix::OverlayFix() {
                 int lastQuote = line.lastIndexOf('"');
                 if (firstQuote != -1 && lastQuote != -1 && lastQuote > firstQuote) {
                     currentMaterial = line.mid(firstQuote + 1, lastQuote - firstQuote - 1);
-                    if (currentMaterial.endsWith(".vmat", Qt::CaseInsensitive)) {
-                        currentMaterial = currentMaterial.left(currentMaterial.length() - 5);
-                    } else if (currentMaterial.endsWith(".vmt", Qt::CaseInsensitive)) {
-                        currentMaterial = currentMaterial.left(currentMaterial.length() - 4);
-                    }
+
                     currentMaterialIdx = i;
                 }
             }
