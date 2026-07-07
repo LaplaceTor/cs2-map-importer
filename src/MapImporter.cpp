@@ -400,6 +400,7 @@ bool MapImporter::Run() {
         StripMDLsFromRefs(Miscellaneous::GetOptions().s2contentdir + "\\maps\\" + mMapname + "_refs.txt");
         ImportAndCompileMapMDLs(Miscellaneous::GetOptions().s2contentdir + "\\maps\\" + mMapname + "_mdl_lst.txt");
         ImportAndCompileMapRefs(Miscellaneous::GetOptions().s2contentdir + "\\maps\\" + mMapname + "_new_refs.txt");
+        MaterialFix::DevTextureFix();
         ImportParticles();
         ImportSounds();
 

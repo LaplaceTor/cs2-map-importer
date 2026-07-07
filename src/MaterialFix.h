@@ -14,6 +14,7 @@ public:
     static void TranslucentAlphaTestConflictFix(QStringList& lines, bool& fileModified);
     static void OverlayFix();
     static void FixMaterials();
+    static void DevTextureFix();
 };
 
 #endif // MATERIALFIX_H
