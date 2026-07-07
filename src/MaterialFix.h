@@ -12,6 +12,7 @@ public:
     static void ComplexShaderVariablesFix(QStringList& lines, bool& fileModified);
     static void MissingKVFix(QStringList& lines, bool& fileModified);
     static void TranslucentAlphaTestConflictFix(QStringList& lines, bool& fileModified);
+    static void OverlayFix();
     static void FixMaterials();
 };
 
