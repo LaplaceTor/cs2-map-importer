@@ -249,7 +249,7 @@ void MaterialFix::SkyboxFix() {
 
         QStringList args;
         args << "(" << "-size" << sizeStr << "xc:black" << (hasUp ? up : "xc:black") << "xc:black" << "xc:black" << "+append" << ")"
-             << "(" << "-size" << sizeStr << (hasBk ? bk : "xc:black") << (hasRt ? rt : "xc:black") << (hasFt ? ft : "xc:black") << (hasLf ? lf : "xc:black") << "+append" << ")"
+             << "(" << "-size" << sizeStr << (hasRt ? rt : "xc:black") << (hasFt ? ft : "xc:black") << (hasLf ? lf : "xc:black") << (hasBk ? bk : "xc:black") << "+append" << ")"
              << "(" << "-size" << sizeStr << "xc:black" << (hasDn ? dn : "xc:black") << "xc:black" << "xc:black" << "+append" << ")"
              << "-append"
              << cubeFile;
