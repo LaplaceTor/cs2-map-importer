@@ -594,19 +594,21 @@ void VmfBspProcess::ProcessBsp() {
 
     QString target_unpacked_dir = QDir(maps_dir).filePath(Miscellaneous::GetOptions().mapName);
 
-    QString vpkeditcli_exe = QDir(appDir).filePath("bin/vpkeditcli.exe");
-    vpkeditcli_exe = QDir::toNativeSeparators(vpkeditcli_exe);
+    if (!Miscellaneous::GetOptions().skipdeps) {
+        QString vpkeditcli_exe = QDir(appDir).filePath("bin/vpkeditcli.exe");
+        vpkeditcli_exe = QDir::toNativeSeparators(vpkeditcli_exe);
 
-    if (!QFile::exists(vpkeditcli_exe)) {
-        Miscellaneous::Log("Warning: Could not find vpkeditcli.exe at " + vpkeditcli_exe);
-    } else {
-        Miscellaneous::Log("Extracting embedded files using vpkeditcli...");
-        QString vpk_cmd = "\"" + vpkeditcli_exe + "\" -e \"/\" -o \"" + maps_dir + "\" \"" + Miscellaneous::GetOptions().bspFile + "\"";
-        int vpk_ret = Miscellaneous::RunCommandSync(vpk_cmd);
-        if (vpk_ret != 0) {
-            Miscellaneous::Log("Warning: vpkeditcli failed to extract embedded files.");
+        if (!QFile::exists(vpkeditcli_exe)) {
+            Miscellaneous::Log("Warning: Could not find vpkeditcli.exe at " + vpkeditcli_exe);
         } else {
-            Miscellaneous::Log("Successfully extracted embedded files to " + target_unpacked_dir);
+            Miscellaneous::Log("Extracting embedded files using vpkeditcli...");
+            QString vpk_cmd = "\"" + vpkeditcli_exe + "\" -e \"/\" -o \"" + maps_dir + "\" \"" + Miscellaneous::GetOptions().bspFile + "\"";
+            int vpk_ret = Miscellaneous::RunCommandSync(vpk_cmd);
+            if (vpk_ret != 0) {
+                Miscellaneous::Log("Warning: vpkeditcli failed to extract embedded files.");
+            } else {
+                Miscellaneous::Log("Successfully extracted embedded files to " + target_unpacked_dir);
+            }
         }
     }
 
@@ -632,38 +634,40 @@ void VmfBspProcess::ProcessBsp() {
     Miscellaneous::SetOptions(newOptions);
     Miscellaneous::Log("Decompiled and prepared at: " + final_vmf_dest);
 
-    // Copy materials and models to s1gamedir
-    QString s1Subfolder = "csgo";
-    if (Miscellaneous::GetOptions().s1GameType == "css") s1Subfolder = "cstrike";
-    else if (Miscellaneous::GetOptions().s1GameType == "hl2") s1Subfolder = "hl2";
-    else if (Miscellaneous::GetOptions().s1GameType == "l4d") s1Subfolder = "left4dead";
-    else if (Miscellaneous::GetOptions().s1GameType == "l4d2") s1Subfolder = "left4dead2";
-    else if (Miscellaneous::GetOptions().s1GameType == "portal") s1Subfolder = "portal";
-    else if (Miscellaneous::GetOptions().s1GameType == "portal2") s1Subfolder = "portal2";
-    else if (Miscellaneous::GetOptions().s1GameType == "tf2") s1Subfolder = "tf";
-    else if (Miscellaneous::GetOptions().s1GameType == "gmod") s1Subfolder = "garrysmod";
-    QString s1gamedir = QDir(Miscellaneous::GetOptions().s1gameBasefolder).filePath(s1Subfolder);
+    if (!Miscellaneous::GetOptions().skipdeps) {
+        // Copy materials and models to s1gamedir
+        QString s1Subfolder = "csgo";
+        if (Miscellaneous::GetOptions().s1GameType == "css") s1Subfolder = "cstrike";
+        else if (Miscellaneous::GetOptions().s1GameType == "hl2") s1Subfolder = "hl2";
+        else if (Miscellaneous::GetOptions().s1GameType == "l4d") s1Subfolder = "left4dead";
+        else if (Miscellaneous::GetOptions().s1GameType == "l4d2") s1Subfolder = "left4dead2";
+        else if (Miscellaneous::GetOptions().s1GameType == "portal") s1Subfolder = "portal";
+        else if (Miscellaneous::GetOptions().s1GameType == "portal2") s1Subfolder = "portal2";
+        else if (Miscellaneous::GetOptions().s1GameType == "tf2") s1Subfolder = "tf";
+        else if (Miscellaneous::GetOptions().s1GameType == "gmod") s1Subfolder = "garrysmod";
+        QString s1gamedir = QDir(Miscellaneous::GetOptions().s1gameBasefolder).filePath(s1Subfolder);
 
-    if (QDir(target_unpacked_dir).exists()) {
-        QString src_materials = QDir(target_unpacked_dir).filePath("materials");
-        QString dest_materials = QDir(s1gamedir).filePath("materials");
-        if (QDir(src_materials).exists()) {
-            Miscellaneous::Log("Copying materials to " + dest_materials);
-            CopyDirectoryRecursively(src_materials, dest_materials);
-        }
+        if (QDir(target_unpacked_dir).exists()) {
+            QString src_materials = QDir(target_unpacked_dir).filePath("materials");
+            QString dest_materials = QDir(s1gamedir).filePath("materials");
+            if (QDir(src_materials).exists()) {
+                Miscellaneous::Log("Copying materials to " + dest_materials);
+                CopyDirectoryRecursively(src_materials, dest_materials);
+            }
 
-        QString src_models = QDir(target_unpacked_dir).filePath("models");
-        QString dest_models = QDir(s1gamedir).filePath("models");
-        if (QDir(src_models).exists()) {
-            Miscellaneous::Log("Copying models to " + dest_models);
-            CopyDirectoryRecursively(src_models, dest_models);
-        }
+            QString src_models = QDir(target_unpacked_dir).filePath("models");
+            QString dest_models = QDir(s1gamedir).filePath("models");
+            if (QDir(src_models).exists()) {
+                Miscellaneous::Log("Copying models to " + dest_models);
+                CopyDirectoryRecursively(src_models, dest_models);
+            }
 
-        QString src_particles = QDir(target_unpacked_dir).filePath("particles");
-        QString dest_particles = QDir(s1gamedir).filePath("particles");
-        if (QDir(src_particles).exists()) {
-            Miscellaneous::Log("Copying particles to " + dest_particles);
-            CopyDirectoryRecursively(src_particles, dest_particles);
+            QString src_particles = QDir(target_unpacked_dir).filePath("particles");
+            QString dest_particles = QDir(s1gamedir).filePath("particles");
+            if (QDir(src_particles).exists()) {
+                Miscellaneous::Log("Copying particles to " + dest_particles);
+                CopyDirectoryRecursively(src_particles, dest_particles);
+            }
         }
     }
 }
