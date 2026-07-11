@@ -557,6 +557,7 @@ void Backend::UpdateCanGo()
 void Backend::SaveToCfg()
 {
     QSettings settings("cs2importer.cfg", QSettings::IniFormat);
+    settings.setValue("keepFuncDetailAsBrush", keepFuncDetailAsBrush);
     settings.setValue("usebsp", usebsp);
     settings.setValue("usebsp_nomergeinstances", usebspNomergeinstances);
     settings.setValue("skipdeps", skipdeps);
@@ -578,6 +579,7 @@ void Backend::LoadFromCfg()
 {
     QSettings settings("cs2importer.cfg", QSettings::IniFormat);
 
+    keepFuncDetailAsBrush = settings.value("keepFuncDetailAsBrush", false).toBool();
     usebsp = settings.value("usebsp", true).toBool();
     usebspNomergeinstances = settings.value("usebsp_nomergeinstances", false).toBool();
     skipdeps = settings.value("skipdeps", false).toBool();
@@ -720,6 +722,7 @@ void Backend::Start()
         opts.bspFile = bspFile;
         opts.appDir = appDir;
         opts.addonName = addonName;
+        opts.keepFuncDetailAsBrush = keepFuncDetailAsBrush;
         opts.usebsp = usebsp && !usebspNomergeinstances;
         opts.usebspNomergeinstances = usebsp && usebspNomergeinstances;
         opts.skipdeps = skipdeps;

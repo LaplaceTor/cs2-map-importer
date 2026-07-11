@@ -333,6 +333,14 @@ ApplicationWindow {
                         ToolTip.visible: hovered
                     }
                     CheckBox {
+                        id: keepFuncDetailAsBrushCheckbox
+                        text: "Keep func_detail as brush"
+                        checked: backend.keepFuncDetailAsBrush
+                        onCheckedChanged: backend.keepFuncDetailAsBrush = checked
+                        ToolTip.text: "Optional: preserves func_detail entities by converting them to func_brush instead of letting them merge with world geometry"
+                        ToolTip.visible: hovered
+                    }
+                    CheckBox {
                         id: skipDepsCheckbox
                         text: "Skip References Import"
                         checked: backend.skipdeps

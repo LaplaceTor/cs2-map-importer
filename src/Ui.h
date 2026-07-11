@@ -20,6 +20,7 @@ class Backend : public QObject
     Q_PROPERTY(QString bspFile READ GetBspFile NOTIFY bspFileChanged)
     Q_PROPERTY(QString contentFolder READ GetContentFolder NOTIFY contentFolderChanged)
     Q_PROPERTY(QString addonName READ GetAddonName WRITE SetAddonName NOTIFY addonNameChanged)
+    Q_PROPERTY(bool keepFuncDetailAsBrush READ GetKeepFuncDetailAsBrush WRITE SetKeepFuncDetailAsBrush NOTIFY keepFuncDetailAsBrushChanged)
     Q_PROPERTY(bool usebsp READ GetUsebsp WRITE SetUsebsp NOTIFY usebspChanged)
     Q_PROPERTY(bool usebspNomergeinstances READ GetUsebspNomergeinstances WRITE SetUsebspNomergeinstances NOTIFY usebspNomergeinstancesChanged)
     Q_PROPERTY(bool skipdeps READ GetSkipdeps WRITE SetSkipdeps NOTIFY skipdepsChanged)
@@ -49,6 +50,9 @@ public:
     QString GetContentFolder() const { return contentFolder; }
     QString GetAddonName() const { return addonName; }
     void SetAddonName(const QString& name) { if(addonName != name) { addonName = name; emit addonNameChanged(); UpdateCanGo(); } }
+
+    bool GetKeepFuncDetailAsBrush() const { return keepFuncDetailAsBrush; }
+    void SetKeepFuncDetailAsBrush(bool val) { if(keepFuncDetailAsBrush != val) { keepFuncDetailAsBrush = val; emit keepFuncDetailAsBrushChanged(); SaveToCfg(); } }
 
     bool GetUsebsp() const { return usebsp; }
     void SetUsebsp(bool val) { if(usebsp != val) { usebsp = val; emit usebspChanged(); if(!usebsp) SetUsebspNomergeinstances(false); GetLaunchOptions(); SaveToCfg(); } }
@@ -85,6 +89,7 @@ signals:
     void bspFileChanged();
     void contentFolderChanged();
     void addonNameChanged();
+    void keepFuncDetailAsBrushChanged();
     void usebspChanged();
     void usebspNomergeinstancesChanged();
     void skipdepsChanged();
@@ -118,6 +123,7 @@ private:
     bool vpkSignaturesMoved;
     QString bspFile;
     QString launchOptions;
+    bool keepFuncDetailAsBrush = false;
     bool usebsp = true;
     bool usebspNomergeinstances = false;
     bool skipdeps = false;
