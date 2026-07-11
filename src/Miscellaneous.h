@@ -37,6 +37,7 @@ public:
         QString s1contentdir;
         QString s2contentdir;
 
+        bool keepFuncDetailAsBrush;
         bool usebsp;
         bool usebspNomergeinstances;
         bool skipdeps;

@@ -352,7 +352,9 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
                         }
                     }
 
-                    if (classname == "func_illusionary" || classname == "func_wall" || classname == "func_wall_toggle" || classname == "func_lod") {
+                    bool process_func_detail = Miscellaneous::GetOptions().keepFuncDetailAsBrush && classname == "func_detail";
+
+                    if (classname == "func_illusionary" || classname == "func_wall" || classname == "func_wall_toggle" || classname == "func_lod" || process_func_detail) {
                         QStringList new_entity_lines;
                         inner_level = 0;
                         for (int j = 0; j < entity_lines.size(); ++j) {
@@ -380,6 +382,8 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
                                         solidity_val = "2";
                                     } else if (classname == "func_wall_toggle") {
                                         solidity_val = "0";
+                                    } else if (classname == "func_detail") {
+                                        solidity_val = "2";
                                     } else if (classname == "func_lod") {
                                         if (solid_val == "0") {
                                             solidity_val = "2";
