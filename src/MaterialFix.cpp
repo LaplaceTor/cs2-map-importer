@@ -587,6 +587,157 @@ void MaterialFix::FixMaterials() {
     }
 
     OverlayFix();
+    OldParticleMtlFix();
+}
+
+void MaterialFix::OldParticleMtlFix() {
+    QString vmfPath = Miscellaneous::GetOptions().s1contentdir + "/maps/" + Miscellaneous::GetOptions().mapName + ".vmf";
+    if (!QFile::exists(vmfPath)) return;
+
+    QStringList lines = ReadTextFile(vmfPath);
+
+    QSet<QString> spriteMaterials;
+    int bracketDepth = 0;
+    bool inEntity = false;
+    bool isEnvSprite = false;
+    QString currentModel;
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i].trimmed();
+
+        if (line == "entity") {
+            inEntity = true;
+            isEnvSprite = false;
+            currentModel = "";
+        } else if (line == "{") {
+            bracketDepth++;
+        } else if (line == "}") {
+            bracketDepth--;
+        }
+
+        if (inEntity && bracketDepth == 1) {
+            QString lowerLine = line.toLower();
+            if (lowerLine.startsWith("\"classname\"") && lowerLine.contains("\"env_sprite\"")) {
+                isEnvSprite = true;
+            }
+
+            int matIdx = lowerLine.indexOf("\"model\"");
+            if (matIdx != -1) {
+                int firstQuote = line.indexOf('"', matIdx + 7);
+                int lastQuote = line.lastIndexOf('"');
+                if (firstQuote != -1 && lastQuote != -1 && lastQuote > firstQuote) {
+                    currentModel = line.mid(firstQuote + 1, lastQuote - firstQuote - 1);
+                }
+            }
+        }
+
+        if (line == "}" && bracketDepth == 0 && inEntity) {
+            if (isEnvSprite && !currentModel.isEmpty()) {
+                spriteMaterials.insert(currentModel);
+            }
+            inEntity = false;
+        }
+    }
+
+    QList<QString> materialList;
+    for (const QString& modelPath : spriteMaterials) {
+        QString vmtPath = modelPath;
+        if (vmtPath.endsWith(".spr", Qt::CaseInsensitive)) {
+            vmtPath = vmtPath.left(vmtPath.length() - 4) + ".vmt";
+        }
+        if (!vmtPath.startsWith("materials/", Qt::CaseInsensitive)) {
+            vmtPath = "materials/" + vmtPath;
+        }
+        materialList.append(vmtPath);
+    }
+
+    for (const QString& vmtPath : materialList) {
+        if (Miscellaneous::CanceLImport) return;
+
+        QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(vmtPath);
+        if (!QFile::exists(contentPath)) {
+            FileExtractFromVPK::ExtractMaterial(vmtPath);
+        } else {
+            QString s1GameDirVmt = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(vmtPath);
+            if (!QFile::exists(s1GameDirVmt)) {
+                QFileInfo fi(s1GameDirVmt);
+                QDir().mkpath(fi.absolutePath());
+                QFile::copy(contentPath, s1GameDirVmt);
+            }
+        }
+
+        QString importCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + Miscellaneous::GetOptions().s1gamedir + "\" -s2addon \"" + Miscellaneous::GetOptions().addonName + "\" -game csgo \"" + QString(vmtPath).replace('/', '\\') + "\"";
+        Miscellaneous::RunCommandSync(importCmd);
+
+        QString vmatRel = vmtPath;
+        vmatRel.replace(".vmt", ".vmat");
+        QString s2VmatPath = QDir(Miscellaneous::GetOptions().s2contentdir).filePath(vmatRel);
+
+        QString resCompCmdVmat = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + QString(s2VmatPath).replace('/', '\\') + "\"";
+        Miscellaneous::RunCommandSync(resCompCmdVmat);
+
+        QString vtexRel = vmtPath;
+        vtexRel.replace(".vmt", ".vtex");
+        QString s2VtexPath = QDir(Miscellaneous::GetOptions().s2contentdir).filePath(vtexRel);
+
+        QString tgaRel = vmtPath;
+        tgaRel.replace(".vmt", "_color.tga");
+
+        QFile file(s2VtexPath);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&file);
+            out << "<!-- dmx encoding keyvalues2_noids 1 format vtex 1 -->\n";
+            out << "\"CDmeVtex\"\n";
+            out << "{\n";
+            out << "    \"m_inputTextureArray\" \"element_array\"\n";
+            out << "    [\n";
+            out << "        \"CDmeInputTexture\"\n";
+            out << "        {\n";
+            out << "            \"m_name\" \"string\" \"InputTexture0\"\n";
+            out << "            \"m_fileName\" \"string\" \"" << tgaRel << "\"\n";
+            out << "            \"m_colorSpace\" \"string\" \"srgb\"\n";
+            out << "            \"m_typeString\" \"string\" \"2D\"\n";
+            out << "            \"m_imageProcessorArray\" \"element_array\"\n";
+            out << "            [\n";
+            out << "                \"CDmeImageProcessor\"\n";
+            out << "                {\n";
+            out << "                    \"m_algorithm\" \"string\" \"None\"\n";
+            out << "                    \"m_stringArg\" \"string\" \"\"\n";
+            out << "                    \"m_vFloat4Arg\" \"vector4\" \"0 0 0 0\"\n";
+            out << "                }\n";
+            out << "            ]\n";
+            out << "        }\n";
+            out << "    ]\n";
+            out << "    \"m_outputTypeString\" \"string\" \"2D\"\n";
+            out << "    \"m_outputFormat\" \"string\" \"DXT5\"\n";
+            out << "    \"m_outputClearColor\" \"vector4\" \"0 0 0 0\"\n";
+            out << "    \"m_nOutputMinDimension\" \"int\" \"0\"\n";
+            out << "    \"m_nOutputMaxDimension\" \"int\" \"0\"\n";
+            out << "    \"m_textureOutputChannelArray\" \"element_array\"\n";
+            out << "    [\n";
+            out << "        \"CDmeTextureOutputChannel\"\n";
+            out << "        {\n";
+            out << "            \"m_inputTextureArray\" \"string_array\" [ \"InputTexture0\" ]\n";
+            out << "            \"m_srcChannels\" \"string\" \"rgba\"\n";
+            out << "            \"m_dstChannels\" \"string\" \"rgba\"\n";
+            out << "            \"m_mipAlgorithm\" \"CDmeImageProcessor\"\n";
+            out << "            {\n";
+            out << "                \"m_algorithm\" \"string\" \"Box\"\n";
+            out << "                \"m_stringArg\" \"string\" \"\"\n";
+            out << "                \"m_vFloat4Arg\" \"vector4\" \"0 0 0 0\"\n";
+            out << "            }\n";
+            out << "            \"m_outputColorSpace\" \"string\" \"srgb\"\n";
+            out << "        }\n";
+            out << "    ]\n";
+            out << "    \"m_vClamp\" \"vector3\" \"0 0 0\"\n";
+            out << "    \"m_bNoLod\" \"bool\" \"0\"\n";
+            out << "}\n";
+            file.close();
+        }
+
+        QString resCompCmdVtex = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + QString(s2VtexPath).replace('/', '\\') + "\"";
+        Miscellaneous::RunCommandSync(resCompCmdVtex);
+    }
 }
 
 void MaterialFix::OverlayFix() {

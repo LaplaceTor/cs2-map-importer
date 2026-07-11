@@ -15,6 +15,7 @@ public:
     static void OverlayFix();
     static void FixMaterials();
     static void DevTextureFix();
+    static void OldParticleMtlFix();
 };
 
 #endif // MATERIALFIX_H
