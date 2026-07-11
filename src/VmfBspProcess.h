@@ -15,6 +15,7 @@ public:
     static void FixRender(const QString& vmfPath);
     static void FixDynamicProp(const QString& vmfPath);
     static void FixEntities(const QString& vmfPath);
+    static void OldParticleFix(const QString& vmfPath);
 
 private:
     static QString ParseMapversion(const QStringList& lines, bool& found);
