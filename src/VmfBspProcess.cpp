@@ -299,7 +299,7 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
 
     bool in_entity = false;
     int bracket_level = 0;
-
+    QStringList entity_lines;
     QStringList out_lines;
 
     for (int i = 0; i < lines.size(); ++i) {
@@ -309,43 +309,100 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
         if (!in_entity && trimmed == "entity") {
             in_entity = true;
             bracket_level = 0;
-            out_lines.append(line);
+            entity_lines.clear();
+            entity_lines.append(line);
             continue;
         }
 
         if (in_entity) {
+            entity_lines.append(line);
             if (trimmed == "{") {
                 bracket_level++;
-                out_lines.append(line);
             } else if (trimmed == "}") {
                 bracket_level--;
                 if (bracket_level == 0) {
                     in_entity = false;
-                }
-                out_lines.append(line);
-            } else {
-                if (bracket_level == 1) {
-                    QRegularExpression classname_regex("^\"classname\"\\s+\"(func_illusionary|func_wall|func_wall_toggle)\"$");
-                    QRegularExpressionMatch match = classname_regex.match(trimmed);
-                    if (match.hasMatch()) {
-                        QString classname = match.captured(1);
-                        QString indent = line.left(line.indexOf(trimmed));
 
-                        out_lines.append(indent + "\"classname\" \"func_brush\"");
-                        out_lines.append(indent + "\"InputFilter\" \"32\"");
+                    int inner_level = 0;
+                    QString classname = "";
+                    QString solid_val = "";
+                    QString base_indent = "";
 
-                        if (classname == "func_illusionary") {
-                            out_lines.append(indent + "\"Solidity\" \"1\"");
-                        } else if (classname == "func_wall") {
-                            out_lines.append(indent + "\"Solidity\" \"2\"");
-                        } else if (classname == "func_wall_toggle") {
-                            out_lines.append(indent + "\"Solidity\" \"0\"");
+                    for (int j = 0; j < entity_lines.size(); ++j) {
+                        QString eline = entity_lines[j];
+                        QString etrimmed = eline.trimmed();
+
+                        if (etrimmed == "{") {
+                            inner_level++;
+                        } else if (etrimmed == "}") {
+                            inner_level--;
+                        } else if (inner_level == 1) {
+                            QRegularExpression classname_regex("^\"classname\"\\s+\"(.*)\"$");
+                            QRegularExpressionMatch c_match = classname_regex.match(etrimmed);
+                            if (c_match.hasMatch()) {
+                                classname = c_match.captured(1);
+                                base_indent = eline.left(eline.indexOf(etrimmed));
+                            }
+
+                            QRegularExpression solid_regex("^\"solid\"\\s+\"(.*)\"$");
+                            QRegularExpressionMatch s_match = solid_regex.match(etrimmed);
+                            if (s_match.hasMatch()) {
+                                solid_val = s_match.captured(1);
+                            }
                         }
-                    } else {
-                        out_lines.append(line);
                     }
-                } else {
-                    out_lines.append(line);
+
+                    if (classname == "func_illusionary" || classname == "func_wall" || classname == "func_wall_toggle" || classname == "func_lod") {
+                        QStringList new_entity_lines;
+                        inner_level = 0;
+                        for (int j = 0; j < entity_lines.size(); ++j) {
+                            QString eline = entity_lines[j];
+                            QString etrimmed = eline.trimmed();
+
+                            if (etrimmed == "{") {
+                                inner_level++;
+                                new_entity_lines.append(eline);
+                            } else if (etrimmed == "}") {
+                                inner_level--;
+                                new_entity_lines.append(eline);
+                            } else if (inner_level == 1) {
+                                QRegularExpression classname_regex("^\"classname\"\\s+\"(.*)\"$");
+                                QRegularExpression solid_regex("^\"solid\"\\s+\"(.*)\"$");
+
+                                if (classname_regex.match(etrimmed).hasMatch()) {
+                                    new_entity_lines.append(base_indent + "\"classname\" \"func_brush\"");
+                                    new_entity_lines.append(base_indent + "\"InputFilter\" \"32\"");
+
+                                    QString solidity_val = "2";
+                                    if (classname == "func_illusionary") {
+                                        solidity_val = "1";
+                                    } else if (classname == "func_wall") {
+                                        solidity_val = "2";
+                                    } else if (classname == "func_wall_toggle") {
+                                        solidity_val = "0";
+                                    } else if (classname == "func_lod") {
+                                        if (solid_val == "0") {
+                                            solidity_val = "2";
+                                        } else if (solid_val == "1") {
+                                            solidity_val = "1";
+                                        } else {
+                                            solidity_val = "2";
+                                        }
+                                    }
+                                    new_entity_lines.append(base_indent + "\"Solidity\" \"" + solidity_val + "\"");
+                                } else if (classname == "func_lod" && solid_regex.match(etrimmed).hasMatch()) {
+                                    // Remove the original solid key for func_lod
+                                } else {
+                                    new_entity_lines.append(eline);
+                                }
+                            } else {
+                                new_entity_lines.append(eline);
+                            }
+                        }
+                        out_lines.append(new_entity_lines);
+                    } else {
+                        out_lines.append(entity_lines);
+                    }
                 }
             }
         } else {
