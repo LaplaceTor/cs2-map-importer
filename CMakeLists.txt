@@ -37,6 +37,7 @@ set(SOURCES
 qt_add_executable(cs2importer MANUAL_FINALIZATION ${SOURCES})
 
 set_property(TARGET cs2importer PROPERTY WIN32_EXECUTABLE TRUE)
+set_target_properties(cs2importer PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
 qt_add_qml_module(cs2importer
     URI cs2importer

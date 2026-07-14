@@ -80,6 +80,7 @@ public slots:
     void Start();
     void Stop();
     void CheckForUpdate();
+    void AutoCheckForUpdate();
 
 signals:
     void cs2BasefolderChanged();
@@ -145,6 +146,7 @@ private:
     bool IsValidCs2(const QString& path);
     bool IsValidS1(const QString& path, const QString& type);
     void AutoDetectPaths();
+    void CheckForUpdateInternal(bool isManual);
 };
 
 #endif // UI_H

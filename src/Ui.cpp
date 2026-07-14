@@ -4,6 +4,7 @@
 #include "Miscellaneous.h"
 
 #include <QDir>
+#include <QDebug>
 #include <QFile>
 #include <QTextStream>
 #include <QDesktopServices>
@@ -840,16 +841,28 @@ QString Backend::GetCurrentVersion() const
 
 void Backend::CheckForUpdate()
 {
+    CheckForUpdateInternal(true);
+}
+
+void Backend::AutoCheckForUpdate()
+{
+    CheckForUpdateInternal(false);
+}
+
+void Backend::CheckForUpdateInternal(bool isManual)
+{
+    qDebug() << "[UpdateCheck] Checking for updates... Manual:" << isManual;
     Miscellaneous::Log("Checking for updates...");
     QUrl url("https://api.github.com/repos/LaplaceTor/cs2-map-importer/releases/latest");
     QNetworkRequest request(url);
     request.setRawHeader("User-Agent", "CS2-Map-Importer");
 
     QNetworkReply* reply = networkManager->get(request);
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, isManual]() {
         reply->deleteLater();
 
         if (reply->error() != QNetworkReply::NoError) {
+            qDebug() << "[UpdateCheck] Failed to check for updates:" << reply->errorString();
             Miscellaneous::Log("Failed to check for updates: " + reply->errorString());
             return;
         }
@@ -857,6 +870,7 @@ void Backend::CheckForUpdate()
         QByteArray responseData = reply->readAll();
         QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
         if (!jsonDoc.isObject()) {
+            qDebug() << "[UpdateCheck] Failed to parse update response.";
             Miscellaneous::Log("Failed to parse update response.");
             return;
         }
@@ -870,13 +884,19 @@ void Backend::CheckForUpdate()
             tagName = tagName.mid(1);
         }
 
+        qDebug() << "[UpdateCheck] Latest version:" << tagName << "Current version:" << APP_VERSION;
+
         // Very simple version comparison: if strings differ, assume update if tagName not empty
         if (!tagName.isEmpty() && tagName != QString(APP_VERSION)) {
+            qDebug() << "[UpdateCheck] Update available!";
             Miscellaneous::Log("Update available: " + tagName);
             emit updateAvailable(tagName, body, htmlUrl);
         } else {
+            qDebug() << "[UpdateCheck] No updates available.";
             Miscellaneous::Log("No updates available.");
-            emit noUpdateAvailable();
+            if (isManual) {
+                emit noUpdateAvailable();
+            }
         }
     });
 }
