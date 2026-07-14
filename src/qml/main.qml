@@ -352,6 +352,14 @@ ApplicationWindow {
                         ToolTip.text: "Optional: skips importing all dependencies/content and only generates the vmap file(s)"
                         ToolTip.visible: hovered
                     }
+                    CheckBox {
+                        id: generateNormalForTexturesCheckbox
+                        text: "Generate normal for textures"
+                        checked: backend.generateNormalForTextures
+                        onCheckedChanged: backend.generateNormalForTextures = checked
+                        ToolTip.text: "Automatically generate normal maps for textures using ImageMagick"
+                        ToolTip.visible: hovered
+                    }
                     Item { Layout.fillHeight: true } // Spacer
                 }
             }

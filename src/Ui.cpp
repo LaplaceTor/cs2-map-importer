@@ -562,6 +562,7 @@ void Backend::SaveToCfg()
     settings.setValue("usebsp", usebsp);
     settings.setValue("usebsp_nomergeinstances", usebspNomergeinstances);
     settings.setValue("skipdeps", skipdeps);
+    settings.setValue("generateNormalForTextures", generateNormalForTextures);
     settings.setValue("cs2_basefolder", cs2Basefolder);
     settings.setValue("csgogamedir", csgogamedir);
     settings.setValue("cssgamedir", cssgamedir);
@@ -584,6 +585,7 @@ void Backend::LoadFromCfg()
     usebsp = settings.value("usebsp", true).toBool();
     usebspNomergeinstances = settings.value("usebsp_nomergeinstances", false).toBool();
     skipdeps = settings.value("skipdeps", false).toBool();
+    generateNormalForTextures = settings.value("generateNormalForTextures", false).toBool();
     cs2Basefolder = settings.value("cs2_basefolder", "").toString();
     csgogamedir = settings.value("csgogamedir", "").toString();
     cssgamedir = settings.value("cssgamedir", "").toString();
@@ -643,6 +645,7 @@ void Backend::LoadFromCfg()
     emit usebspChanged();
     emit usebspNomergeinstancesChanged();
     emit skipdepsChanged();
+    emit generateNormalForTexturesChanged();
 
     UpdateCanGo();
     GetLaunchOptions();
@@ -727,6 +730,7 @@ void Backend::Start()
         opts.usebsp = usebsp && !usebspNomergeinstances;
         opts.usebspNomergeinstances = usebsp && usebspNomergeinstances;
         opts.skipdeps = skipdeps;
+        opts.generateNormalForTextures = generateNormalForTextures;
 
         QThread* workerThread = QThread::create([this, opts]() mutable {
             bool success = true;

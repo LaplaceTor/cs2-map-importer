@@ -41,6 +41,7 @@ public:
         bool usebsp;
         bool usebspNomergeinstances;
         bool skipdeps;
+        bool generateNormalForTextures;
     };
 
     static const Options& GetOptions();
