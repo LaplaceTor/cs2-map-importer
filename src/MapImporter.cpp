@@ -380,10 +380,14 @@ bool MapImporter::Run() {
 
     QString usebspStr = Miscellaneous::GetOptions().usebsp ? "-usebsp" : "";
     QString nomergeinstancesStr = Miscellaneous::GetOptions().usebspNomergeinstances ? "-usebsp_nomergeinstances" : "";
+    QString mapImportCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync "
 
-    QString mapImportCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync " + usebspStr;
-    if (!nomergeinstancesStr.isEmpty()) mapImportCmd += " " + nomergeinstancesStr;
-
+    if (nomergeinstancesStr.isEmpty()){
+        mapImportCmd += usebspStr;
+    } else {
+        mapImportCmd += nomergeinstancesStr;
+    }
+    
     QString targetS1gamedir =  Miscellaneous::GetOptions().csgogamedir;
 
     mapImportCmd += " -src1gameinfodir \"" + targetS1gamedir + "\" -src1contentdir \"" + Miscellaneous::GetOptions().s1contentdir + "\" -s2addon \"" + Miscellaneous::GetOptions().addonName + "\" -game csgo maps\\" + Miscellaneous::GetOptions().mapName + ".vmf";

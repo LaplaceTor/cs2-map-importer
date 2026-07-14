@@ -325,7 +325,7 @@ ApplicationWindow {
                     }
                     CheckBox {
                         id: nomergeInstancesCheckbox
-                        text: "Keep Instances' Faces"
+                        text: "Keep func_instance as its own part"
                         checked: backend.usebspNomergeinstances
                         enabled: useBspCheckbox.checked
                         onCheckedChanged: backend.usebspNomergeinstances = checked
