@@ -590,6 +590,200 @@ void MaterialFix::FixMaterials() {
 
     OverlayFix();
     OldParticleMtlFix();
+
+    GenerateNormalForTextures();
+}
+
+void MaterialFix::GenerateNormalForTextures() {
+    if (!Miscellaneous::GetOptions().generateNormalForTextures) {
+        return;
+    }
+
+    if (Miscellaneous::CanceLImport) return;
+
+    QString magickPath = "magick";
+    if (QFile::exists("bin/magick.exe")) {
+        magickPath = QDir("bin/magick.exe").absolutePath();
+    }
+
+    QString materialsDir = Miscellaneous::GetOptions().s2contentdir + "/materials";
+    if (!QDir(materialsDir).exists()) {
+        return;
+    }
+
+    QDirIterator it(materialsDir, QStringList() << "*.vmat", QDir::Files, QDirIterator::Subdirectories);
+
+    // Regex patterns
+    // Matches TextureColor, TextureLayer1Color, TextureLayer2Color, etc.
+    QRegularExpression colorKeyRe("^\"(Texture(Layer\\d+)?Color)\"");
+    // Matches TextureNormal, TextureLayer1Normal, TextureLayer2Normal, etc.
+    QRegularExpression normalKeyRe("^\"(Texture(Layer\\d+)?Normal)\"");
+    // Matches TextureTranslucency, TextureLayer1Translucency, TextureLayer2Translucency, etc.
+    QRegularExpression translucencyKeyRe("^\"(Texture(Layer\\d+)?Translucency)\"");
+
+    while (it.hasNext()) {
+        if (Miscellaneous::CanceLImport) return;
+        QString vmatFile = it.next();
+
+        QStringList lines = ReadTextFile(vmatFile);
+        bool fileModified = false;
+
+        // Check if ANY translucency key exists in the file.
+        // If so, skip this entire file.
+        bool hasTranslucency = false;
+        for (const QString& line : lines) {
+            QString trimmed = line.trimmed();
+            if (translucencyKeyRe.match(trimmed).hasMatch()) {
+                hasTranslucency = true;
+                break;
+            }
+        }
+
+        if (hasTranslucency) {
+            continue;
+        }
+
+        // Collect all existing keys to check if normal key is missing
+        QSet<QString> existingKeys;
+        for (const QString& line : lines) {
+            QString trimmed = line.trimmed();
+            // Match keys by extracting the key name (e.g. "TextureLayer1Color" or "TextureLayer1Normal")
+            int firstQuote = trimmed.indexOf('"');
+            if (firstQuote != -1) {
+                int secondQuote = trimmed.indexOf('"', firstQuote + 1);
+                if (secondQuote != -1) {
+                    QString keyName = trimmed.mid(firstQuote + 1, secondQuote - firstQuote - 1);
+                    existingKeys.insert(keyName);
+                }
+            }
+        }
+
+        // Now process the lines and insert normal maps where color exists but normal does not
+        for (int i = 0; i < lines.size(); ++i) {
+            QString trimmed = lines[i].trimmed();
+            QRegularExpressionMatch colorMatch = colorKeyRe.match(trimmed);
+            if (colorMatch.hasMatch()) {
+                QString colorKey = colorMatch.captured(1);
+                // Determine the corresponding normal key name
+                QString normalKey = colorKey;
+                normalKey.replace("Color", "Normal");
+
+                // If normal key does not exist, we should generate one
+                if (!existingKeys.contains(normalKey)) {
+                    // Extract the value (source image path)
+                    int firstQuoteVal = trimmed.indexOf('"', colorKey.length() + 2);
+                    if (firstQuoteVal != -1) {
+                        int lastQuoteVal = trimmed.lastIndexOf('"');
+                        if (lastQuoteVal > firstQuoteVal) {
+                            QString colorRelPath = trimmed.mid(firstQuoteVal + 1, lastQuoteVal - firstQuoteVal - 1);
+                            if (colorRelPath.isEmpty()) continue;
+
+                            // Skip color values that are vectors or rgb values (e.g. starting with '[')
+                            if (colorRelPath.startsWith('[') || colorRelPath.startsWith('{')) {
+                                continue;
+                            }
+
+                            // Absolute path to the input color image in s2contentdir
+                            QString colorAbsPath = Miscellaneous::GetOptions().s2contentdir + "/" + colorRelPath;
+                            colorAbsPath = QDir::cleanPath(colorAbsPath);
+
+                            if (QFile::exists(colorAbsPath)) {
+                                // Construct normal filename next to color filename
+                                QFileInfo colorFileInfo(colorAbsPath);
+                                QString colorFileName = colorFileInfo.fileName();
+                                QString ext = colorFileInfo.suffix();
+                                QString normalFileName;
+
+                                if (colorFileName.contains("_color", Qt::CaseInsensitive)) {
+                                    // replace _color with _normal
+                                    int colorIdx = colorFileName.lastIndexOf("_color", -1, Qt::CaseInsensitive);
+                                    normalFileName = colorFileName.left(colorIdx) + "_normal." + ext;
+                                } else {
+                                    normalFileName = colorFileInfo.baseName() + "_normal." + ext;
+                                }
+
+                                QString normalAbsPath = colorFileInfo.absolutePath() + "/" + normalFileName;
+                                normalAbsPath = QDir::cleanPath(normalAbsPath);
+
+                                // Relative path of normal map to put in the vmat
+                                QString normalRelPath = colorRelPath;
+                                int lastSlash = normalRelPath.lastIndexOf('/');
+                                if (lastSlash == -1) {
+                                    lastSlash = normalRelPath.lastIndexOf('\\');
+                                }
+                                if (lastSlash != -1) {
+                                    normalRelPath = normalRelPath.left(lastSlash + 1) + normalFileName;
+                                } else {
+                                    normalRelPath = normalFileName;
+                                }
+
+                                // Run ImageMagick command:
+                                // magick input_picture.tga -alpha off -colorspace linear-gray -define convolve:scale="50%!" -bias 50%
+                                //   ( -clone 0 -morphology Convolve Sobel:0 )
+                                //   ( -clone 0 -morphology Convolve Sobel:-90 )
+                                //   ( -clone 0 -evaluate set 100% )
+                                //   -delete 0 -combine output_normalmap.tga
+                                QStringList args;
+                                args << colorAbsPath
+                                     << "-alpha" << "off"
+                                     << "-colorspace" << "linear-gray"
+                                     << "-define" << "convolve:scale=50%!"
+                                     << "-bias" << "50%"
+                                     << "(" << "-clone" << "0" << "-morphology" << "Convolve" << "Sobel:0" << ")"
+                                     << "(" << "-clone" << "0" << "-morphology" << "Convolve" << "Sobel:-90" << ")"
+                                     << "(" << "-clone" << "0" << "-evaluate" << "set" << "100%" << ")"
+                                     << "-delete" << "0"
+                                     << "-combine"
+                                     << normalAbsPath;
+
+                                Miscellaneous::Log("Generating normal map for " + colorAbsPath);
+
+                                QProcess process;
+                                process.start(magickPath, args);
+                                process.waitForFinished(-1);
+
+                                if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
+                                    Miscellaneous::Log("Successfully generated normal map: " + normalAbsPath);
+
+                                    // Insert the new line in lines
+                                    // Preserve indentation
+                                    int leadingSpaceCount = 0;
+                                    while (leadingSpaceCount < lines[i].length() && (lines[i][leadingSpaceCount] == ' ' || lines[i][leadingSpaceCount] == '\t')) {
+                                        leadingSpaceCount++;
+                                    }
+                                    QString indent = lines[i].left(leadingSpaceCount);
+                                    QString newLine = indent + "\"" + normalKey + "\"\t\t\"" + normalRelPath + "\"";
+
+                                    lines.insert(i + 1, newLine);
+                                    fileModified = true;
+
+                                    // Add to existingKeys to prevent duplicate generation if processed in other loops
+                                    existingKeys.insert(normalKey);
+
+                                    // Skip the newly inserted line in next iterations
+                                    i++;
+                                } else {
+                                    Miscellaneous::Log("Failed to generate normal map for " + colorAbsPath + ". Error: " + process.readAllStandardError());
+                                }
+                            } else {
+                                Miscellaneous::Log("Source color file not found: " + colorAbsPath);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (fileModified) {
+            EnsureFileWritable(vmatFile);
+            QFile file(vmatFile);
+            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream out(&file);
+                for (const QString& l : lines) out << l << "\n";
+                file.close();
+            }
+        }
+    }
 }
 
 void MaterialFix::OldParticleMtlFix() {
