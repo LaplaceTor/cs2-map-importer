@@ -231,19 +231,21 @@ void MaterialFix::SkyboxFix() {
         else if (hasLf) existingFace = lf;
         else if (hasDn) existingFace = dn;
 
-        // Determine size dynamically
-        QProcess identifyProcess;
-        identifyProcess.setWorkingDirectory(s2DirPath);
-        identifyProcess.start(magickPath, QStringList() << "identify" << "-format" << "%wx%h" << existingFace);
-        identifyProcess.waitForFinished(-1);
-
-        QString sizeStr = "1024x1024"; // Default fallback
-        if (identifyProcess.exitStatus() == QProcess::NormalExit && identifyProcess.exitCode() == 0) {
-            QString output = QString::fromUtf8(identifyProcess.readAllStandardOutput()).trimmed();
-            if (!output.isEmpty() && output.contains('x')) {
-                sizeStr = output;
+        // Resize existing faces to 1024x1024
+        QStringList facePaths = {up, bk, rt, ft, lf, dn};
+        for (const QString& facePath : facePaths) {
+            if (QFile::exists(facePath)) {
+                QProcess resizeProcess;
+                resizeProcess.setWorkingDirectory(s2DirPath);
+                resizeProcess.start(magickPath, QStringList() << facePath << "-resize" << "1024x1024!" << facePath);
+                resizeProcess.waitForFinished(-1);
+                if (resizeProcess.exitStatus() != QProcess::NormalExit || resizeProcess.exitCode() != 0) {
+                    Miscellaneous::Log("Warning: Failed to resize face " + facePath + " to 1024x1024. Error: " + resizeProcess.readAllStandardError());
+                }
             }
         }
+
+        QString sizeStr = "1024x1024";
 
         QString cubeFile = s2DirPath + "/" + baseName + "cube.tga";
 
