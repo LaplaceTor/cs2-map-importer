@@ -19,6 +19,10 @@ ApplicationWindow {
     property string selectedMapFileName: "Select VMF/BSP"
     property var logLines: []
 
+    Component.onCompleted: {
+        backend.AutoCheckForUpdate()
+    }
+
     Connections {
         target: backend
         function onLogMessage(msg) {

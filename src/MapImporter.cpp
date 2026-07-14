@@ -380,7 +380,7 @@ bool MapImporter::Run() {
 
     QString usebspStr = Miscellaneous::GetOptions().usebsp ? "-usebsp" : "";
     QString nomergeinstancesStr = Miscellaneous::GetOptions().usebspNomergeinstances ? "-usebsp_nomergeinstances" : "";
-    QString mapImportCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync "
+    QString mapImportCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync ";
 
     if (nomergeinstancesStr.isEmpty()){
         mapImportCmd += usebspStr;
