@@ -356,6 +356,7 @@ ApplicationWindow {
                         id: generateNormalForTexturesCheckbox
                         text: "Generate normal for textures"
                         checked: backend.generateNormalForTextures
+                        enabled: !skipDepsCheckbox.checked
                         onCheckedChanged: backend.generateNormalForTextures = checked
                         ToolTip.text: "Automatically generate normal maps for textures using ImageMagick"
                         ToolTip.visible: hovered
