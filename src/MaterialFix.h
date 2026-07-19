@@ -15,7 +15,6 @@ public:
     static void OverlayFix();
     static void FixMaterials();
     static void GenerateNormalForTextures();
-    static void DevTextureFix();
     static void OldParticleMtlFix();
 };
 

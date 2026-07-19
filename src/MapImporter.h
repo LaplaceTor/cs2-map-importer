@@ -16,9 +16,8 @@ private:
     QStringList ReadTextFile(const QString& filepath);
     void EnsureFileWritable(const QString& filepath);
 
-    void StripMDLsFromRefs(const QString& filename);
     void ImportAndCompileMapMDLs(const QString& filename);
-    void ImportAndCompileMapRefs(const QString& refsFile);
+    void ImportAndCompileMapRefs();
     void ImportParticles();
     void ImportSounds();
 

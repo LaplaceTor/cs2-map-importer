@@ -9,6 +9,7 @@
 #include <QTextStream>
 #include <QRegularExpression>
 #include <QMap>
+#include <QProcess>
 
 static QString CleanRefPath(QString input) {
     int filePos = input.indexOf("\"file\"");
@@ -72,10 +73,9 @@ void MapImporter::EnsureFileWritable(const QString& filepath) {
     }
 }
 
-void MapImporter::StripMDLsFromRefs(const QString& filename) {
+void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     QStringList refs = ReadTextFile(filename);
-    QStringList mdls;
-    QStringList others;
+    QStringList mdlfiles;
 
     for (const QString& ref : refs) {
         if (ref.isEmpty()) continue;
@@ -83,47 +83,14 @@ void MapImporter::StripMDLsFromRefs(const QString& filename) {
         if (cleanedRef.isEmpty()) continue;
         QString lowerRef = cleanedRef.toLower();
         if (lowerRef.contains(".mdl")) {
-            mdls.append(cleanedRef);
+            mdlfiles.append(cleanedRef);
             QString fullPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(cleanedRef);
             if (!QFileInfo::exists(fullPath)) {
                 FileExtractFromVPK::ExtractModel(cleanedRef);
             }
-        } else {
-            others.append(cleanedRef);
         }
     }
 
-    QString mdlfilename = filename;
-    int pos = mdlfilename.lastIndexOf("_refs.txt");
-    if (pos != -1) mdlfilename.replace(pos, 9, "_mdl_lst.txt");
-
-    EnsureFileWritable(mdlfilename);
-    QFile mdlFile(mdlfilename);
-    if (mdlFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QTextStream out(&mdlFile);
-        out << "importfilelist\n{\n";
-        for (const QString& m : mdls) out << "\t\"file\"\t\"" << m << "\"\n";
-        out << "}\n";
-        mdlFile.close();
-    }
-
-    QString refsfilename = filename;
-    pos = refsfilename.lastIndexOf("_refs.txt");
-    if (pos != -1) refsfilename.replace(pos, 9, "_new_refs.txt");
-
-    EnsureFileWritable(refsfilename);
-    QFile refFile(refsfilename);
-    if (refFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QTextStream out(&refFile);
-        out << "importfilelist\n{\n";
-        for (const QString& o : others) out << "\t\"file\"\t\"" << o << "\"\n";
-        out << "}\n";
-        refFile.close();
-    }
-}
-
-void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
-    QStringList mdlfiles = ReadTextFile(filename);
     if (mdlfiles.isEmpty()) {
         Miscellaneous::Log("No MDLs to import");
         return;
@@ -137,7 +104,6 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     }
     Miscellaneous::Log("--------------------------------");
 
-    QStringList force2UVList;
     QSet<QString> mdlmtls;
 
     for (const QString& m : mdlfiles) {
@@ -160,41 +126,87 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         Miscellaneous::RunCommandSync(importCmd);
 
         if (QFile::exists(refsName)) {
-            QStringList refs = ReadTextFile(refsName);
-            for (const QString& ref : refs) {
+            QStringList modelRefs = ReadTextFile(refsName);
+            for (const QString& ref : modelRefs) {
                 QString cleanedRef = CleanRefPath(ref);
                 if (!cleanedRef.isEmpty()) {
                     cleanedRef.replace('\\', '/');
                     mdlmtls.insert(cleanedRef);
                 }
             }
-            force2UVList.append(refsName);
         }
     }
 
-    QString tempRefs = filename;
-    int pos = tempRefs.lastIndexOf("mdl_lst");
-    if (pos != -1) tempRefs.replace(pos, 7, "mtl_lst");
+    // Now import each model material (mtl) in mdlmtls
+    for (const QString& mtlfile : mdlmtls) {
+        if (Miscellaneous::CanceLImport) return;
+        if (mtlfile.isEmpty() || mtlfile.startsWith('-')) continue;
 
-    EnsureFileWritable(tempRefs);
-    QFile fw(tempRefs);
-    if (fw.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QTextStream out(&fw);
-        out << "importfilelist\n{\n";
-        for (const QString& mtl : mdlmtls) {
-            QString formattedMtl = mtl;
-            formattedMtl.replace('\\', '/');
-            out << "\t\"file\"\t\"" << formattedMtl << "\"\n";
+        bool isDevOrTool = mtlfile.startsWith("materials/dev/", Qt::CaseInsensitive) || mtlfile.startsWith("materials/tools/", Qt::CaseInsensitive);
+
+        if (isDevOrTool) {
+            QString s1GameDirMtl = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(mtlfile);
+            if (!QFile::exists(s1GameDirMtl)) {
+                FileExtractFromVPK::ExtractMaterial(mtlfile);
+            }
+
+            QString tmpVmtRel = mtlfile;
+            if (tmpVmtRel.startsWith("materials/dev/", Qt::CaseInsensitive)) {
+                tmpVmtRel.replace("materials/dev/", "materials/tmp/dev/", Qt::CaseInsensitive);
+            } else if (tmpVmtRel.startsWith("materials/tools/", Qt::CaseInsensitive)) {
+                tmpVmtRel.replace("materials/tools/", "materials/tmp/tools/", Qt::CaseInsensitive);
+            }
+
+            QString origVmtS1 = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(mtlfile);
+            QString tmpVmtS1 = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(tmpVmtRel);
+            QDir().mkpath(QFileInfo(tmpVmtS1).absolutePath());
+
+            if (QFile::exists(tmpVmtS1)) QFile::remove(tmpVmtS1);
+            if (QFile::copy(origVmtS1, tmpVmtS1)) {
+                QFile::remove(origVmtS1);
+            } else {
+                continue;
+            }
+
+            QString importCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + Miscellaneous::GetOptions().s1gamedir + "\" -s2addon \"" + Miscellaneous::GetOptions().addonName + "\" -game csgo \"" + QString(tmpVmtRel).replace('/', '\\') + "\"";
+            Miscellaneous::RunCommandSync(importCmd);
+
+            QString tmpVmatRel = tmpVmtRel;
+            int vmtPos = tmpVmatRel.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
+            if (vmtPos != -1) tmpVmatRel.replace(vmtPos, 4, ".vmat");
+            QString origVmatRel = mtlfile;
+            vmtPos = origVmatRel.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
+            if (vmtPos != -1) origVmatRel.replace(vmtPos, 4, ".vmat");
+
+            QString tmpVmatS2 = QDir(Miscellaneous::GetOptions().s2contentdir).filePath(tmpVmatRel);
+            QString origVmatS2 = QDir(Miscellaneous::GetOptions().s2contentdir).filePath(origVmatRel);
+
+            if (QFile::exists(tmpVmatS2)) {
+                QDir().mkpath(QFileInfo(origVmatS2).absolutePath());
+                if (QFile::exists(origVmatS2)) QFile::remove(origVmatS2);
+                if (QFile::copy(tmpVmatS2, origVmatS2)) {
+                    QFile::remove(tmpVmatS2);
+                }
+
+                QString resCompCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + QString(origVmatS2).replace('/', '\\') + "\"";
+                Miscellaneous::RunCommandSync(resCompCmd);
+            }
+        } else {
+            QString formattedMtl = mtlfile;
+            formattedMtl.replace('/', '\\');
+            QString importRefsCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + Miscellaneous::GetOptions().s1gamedir + "\" -s2addon \"" + Miscellaneous::GetOptions().addonName + "\" -game csgo \"" + formattedMtl + "\"";
+            Miscellaneous::RunCommandSync(importRefsCmd);
+
+            QString outName = Miscellaneous::GetOptions().s2contentdir + "\\" + formattedMtl;
+            int vmtPos = outName.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
+            if (vmtPos != -1) outName.replace(vmtPos, 4, ".vmat");
+
+            QString resCompCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + outName + "\"";
+            Miscellaneous::RunCommandSync(resCompCmd);
         }
-        out << "}\n";
-        fw.close();
     }
-
-    QString importRefsCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + Miscellaneous::GetOptions().s1gamedir + "\" -s2addon " + Miscellaneous::GetOptions().addonName + " -game csgo -usefilelist \"" + tempRefs + "\"";
-    Miscellaneous::RunCommandSync(importRefsCmd);
 
     QSet<QString> global2UVMaterials;
-
     QMap<QString, bool> mdlForceCompile;
 
     for (const QString& m : mdlfiles) {
@@ -205,7 +217,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         mdlfile.replace('/', '\\');
 
         QString outName = Miscellaneous::GetOptions().s2contentdir + "\\" + mdlfile;
-        pos = outName.lastIndexOf(".mdl");
+        int pos = outName.lastIndexOf(".mdl");
         if (pos != -1) outName.replace(pos, 4, ".vmdl");
 
         if (!QFile::exists(outName)) continue;
@@ -220,19 +232,6 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
 
     global2UVMaterials.clear();
 
-    for (const QString& mtlfile : mdlmtls) {
-        if (Miscellaneous::CanceLImport) return;
-        if (mtlfile.isEmpty() || mtlfile.startsWith('-')) continue;
-        QString mtl = mtlfile;
-        mtl.replace('/', '\\');
-        QString outName = Miscellaneous::GetOptions().s2contentdir + "\\" + mtl;
-        pos = outName.lastIndexOf(".vmt");
-        if (pos != -1) outName.replace(pos, 4, ".vmat");
-
-        QString resCompCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + outName + "\"";
-        Miscellaneous::RunCommandSync(resCompCmd);
-    }
-
     for (const QString& m : mdlfiles) {
         if (Miscellaneous::CanceLImport) return;
         if (m.isEmpty() || m.startsWith('-')) continue;
@@ -241,7 +240,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         mdlfile.replace('/', '\\');
 
         QString outName = Miscellaneous::GetOptions().s2contentdir + "\\" + mdlfile;
-        pos = outName.lastIndexOf(".mdl");
+        int pos = outName.lastIndexOf(".mdl");
         if (pos != -1) outName.replace(pos, 4, ".vmdl");
 
         if (!QFile::exists(outName)) continue;
@@ -258,37 +257,153 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     }
 }
 
-void MapImporter::ImportAndCompileMapRefs(const QString& refsFile) {
-    QString importcmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + Miscellaneous::GetOptions().s1gamedir + "\" -s2addon " + Miscellaneous::GetOptions().addonName + " -game csgo -usefilelist \"" + refsFile + "\"";
-    Miscellaneous::RunCommandSync(importcmd);
+void MapImporter::ImportAndCompileMapRefs() {
+    QString usebspStr = Miscellaneous::GetOptions().usebsp ? "-usebsp" : "";
+    QString nomergeinstancesStr = Miscellaneous::GetOptions().usebspNomergeinstances ? "-usebsp_nomergeinstances" : "";
 
-    QStringList refs = ReadTextFile(refsFile);
-    QString newList = "";
+    QString mapImportCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync " + usebspStr;
+    if (!nomergeinstancesStr.isEmpty()) mapImportCmd += " " + nomergeinstancesStr;
 
-    for (const QString& line : refs) {
-        if (Miscellaneous::CanceLImport) return;
-        QString cleanedRef = CleanRefPath(line);
-        if (!cleanedRef.isEmpty()) {
-            QString modLine = cleanedRef;
-            int pos = modLine.lastIndexOf(".vmt");
-            if (pos != -1) modLine.replace(pos, 4, ".vmat");
-            modLine.replace(' ', '_');
-            modLine.replace('/', '\\');
-            newList += Miscellaneous::GetOptions().s2contentdir + "\\" + modLine + "\n";
+    QString targetS1gamedir = Miscellaneous::GetOptions().csgogamedir;
+
+    mapImportCmd += " -src1gameinfodir \"" + targetS1gamedir + "\" -src1contentdir \"" + Miscellaneous::GetOptions().s1contentdir + "\" -s2addon \"" + Miscellaneous::GetOptions().addonName + "\" -game csgo maps\\" + Miscellaneous::GetOptions().mapName + ".vmf";
+
+    Miscellaneous::Log("Running mapImportCmd in ImportAndCompileMapRefs: " + mapImportCmd);
+
+    QProcess process;
+    process.setProcessChannelMode(QProcess::MergedChannels);
+    process.setProgram("cmd.exe");
+#ifdef Q_OS_WIN
+    process.setNativeArguments("/S /C \"" + mapImportCmd + "\"");
+#else
+    process.setArguments({"/c", mapImportCmd});
+#endif
+    process.start();
+
+    QString lineBuffer;
+    QList<QString> missingMaterials;
+
+    auto processOutput = [&](const QString& outStr) {
+        for (QChar c : outStr) {
+            if (c == '\n') {
+                if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
+                if (!lineBuffer.isEmpty()) {
+                    Miscellaneous::Log(lineBuffer);
+
+                    if (lineBuffer.startsWith("Failed loading resource \"materials/")) {
+                        if (lineBuffer.endsWith("vmat_c\" (ERROR_FILEOPEN: File not found)")) {
+                            int startIdx = lineBuffer.indexOf('"') + 1;
+                            int endIdx = lineBuffer.lastIndexOf('"');
+                            if (startIdx > 0 && endIdx > startIdx) {
+                                QString matPath = lineBuffer.mid(startIdx, endIdx - startIdx);
+                                if (matPath.endsWith(".vmat_c")) {
+                                    matPath.replace(".vmat_c", ".vmt");
+                                    missingMaterials.append(matPath);
+                                }
+                            }
+                        }
+                    }
+                }
+                lineBuffer.clear();
+            } else {
+                lineBuffer += c;
+            }
+        }
+    };
+
+    while (process.waitForReadyRead(10000) || process.state() != QProcess::NotRunning) {
+        if (Miscellaneous::CanceLImport) {
+            process.kill();
+            return;
+        }
+        QByteArray output = process.readAll();
+        if (!output.isEmpty()) {
+            processOutput(QString(output));
+        } else {
+            if (process.state() == QProcess::Running) {
+                process.write("y\n");
+            }
         }
     }
 
-    QString tmpFile = Miscellaneous::GetOptions().s2contentdir + "\\maps\\" + Miscellaneous::GetOptions().mapName + "_compile_new_refs.txt";
-    EnsureFileWritable(tmpFile);
-    QFile writeFile(tmpFile);
-    if (writeFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QTextStream out(&writeFile);
-        out << newList;
-        writeFile.close();
+    QByteArray output = process.readAll();
+    if (!output.isEmpty()) {
+        processOutput(QString(output));
     }
 
-    QString compilercmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo -f -filelist \"" + tmpFile + "\"";
-    Miscellaneous::RunCommandSync(compilercmd);
+    if (!lineBuffer.isEmpty()) {
+        if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
+        Miscellaneous::Log(lineBuffer);
+    }
+
+    for (QString& vmtPath : missingMaterials) {
+        if (Miscellaneous::CanceLImport) return;
+
+        vmtPath.replace('\\', '/'); // Make sure paths are standardized
+
+        bool isDevOrTool = vmtPath.startsWith("materials/dev/", Qt::CaseInsensitive) || vmtPath.startsWith("materials/tools/", Qt::CaseInsensitive);
+
+        if (isDevOrTool) {
+            QString s1GameDirMtl = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(vmtPath);
+            if (!QFile::exists(s1GameDirMtl)) {
+                FileExtractFromVPK::ExtractMaterial(vmtPath);
+            }
+
+            QString tmpVmtRel = vmtPath;
+            if (tmpVmtRel.startsWith("materials/dev/", Qt::CaseInsensitive)) {
+                tmpVmtRel.replace("materials/dev/", "materials/tmp/dev/", Qt::CaseInsensitive);
+            } else if (tmpVmtRel.startsWith("materials/tools/", Qt::CaseInsensitive)) {
+                tmpVmtRel.replace("materials/tools/", "materials/tmp/tools/", Qt::CaseInsensitive);
+            }
+
+            QString origVmtS1 = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(vmtPath);
+            QString tmpVmtS1 = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(tmpVmtRel);
+            QDir().mkpath(QFileInfo(tmpVmtS1).absolutePath());
+
+            if (QFile::exists(tmpVmtS1)) QFile::remove(tmpVmtS1);
+            if (QFile::copy(origVmtS1, tmpVmtS1)) {
+                QFile::remove(origVmtS1); // Move operation
+            } else {
+                continue;
+            }
+
+            QString importCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + Miscellaneous::GetOptions().s1gamedir + "\" -s2addon \"" + Miscellaneous::GetOptions().addonName + "\" -game csgo \"" + tmpVmtRel.replace('/', '\\') + "\"";
+            Miscellaneous::RunCommandSync(importCmd);
+
+            QString tmpVmatRel = tmpVmtRel;
+            int vmtPos = tmpVmatRel.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
+            if (vmtPos != -1) tmpVmatRel.replace(vmtPos, 4, ".vmat");
+            QString origVmatRel = vmtPath;
+            vmtPos = origVmatRel.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
+            if (vmtPos != -1) origVmatRel.replace(vmtPos, 4, ".vmat");
+
+            QString tmpVmatS2 = QDir(Miscellaneous::GetOptions().s2contentdir).filePath(tmpVmatRel);
+            QString origVmatS2 = QDir(Miscellaneous::GetOptions().s2contentdir).filePath(origVmatRel);
+
+            if (QFile::exists(tmpVmatS2)) {
+                QDir().mkpath(QFileInfo(origVmatS2).absolutePath());
+                if (QFile::exists(origVmatS2)) QFile::remove(origVmatS2);
+                if (QFile::copy(tmpVmatS2, origVmatS2)) {
+                    QFile::remove(tmpVmatS2);
+                }
+
+                QString resCompCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + origVmatS2.replace('/', '\\') + "\"";
+                Miscellaneous::RunCommandSync(resCompCmd);
+            }
+        } else {
+            QString formattedMtl = vmtPath;
+            formattedMtl.replace('/', '\\');
+            QString importRefsCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + Miscellaneous::GetOptions().s1gamedir + "\" -s2addon \"" + Miscellaneous::GetOptions().addonName + "\" -game csgo \"" + formattedMtl + "\"";
+            Miscellaneous::RunCommandSync(importRefsCmd);
+
+            QString outName = Miscellaneous::GetOptions().s2contentdir + "\\" + formattedMtl;
+            int vmtPos = outName.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
+            if (vmtPos != -1) outName.replace(vmtPos, 4, ".vmat");
+
+            QString resCompCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + outName + "\"";
+            Miscellaneous::RunCommandSync(resCompCmd);
+        }
+    }
 }
 
 void MapImporter::ImportParticles(){
@@ -401,10 +516,8 @@ bool MapImporter::Run() {
     if (!Miscellaneous::GetOptions().skipdeps) {
         Miscellaneous::RunCommandSync(mapImportCmd);
 
-        StripMDLsFromRefs(Miscellaneous::GetOptions().s2contentdir + "\\maps\\" + mMapname + "_refs.txt");
-        ImportAndCompileMapMDLs(Miscellaneous::GetOptions().s2contentdir + "\\maps\\" + mMapname + "_mdl_lst.txt");
-        ImportAndCompileMapRefs(Miscellaneous::GetOptions().s2contentdir + "\\maps\\" + mMapname + "_new_refs.txt");
-        MaterialFix::DevTextureFix();
+        ImportAndCompileMapMDLs(Miscellaneous::GetOptions().s2contentdir + "\\maps\\" + mMapname + "_refs.txt");
+        ImportAndCompileMapRefs();
         ImportParticles();
         ImportSounds();
 
