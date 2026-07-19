@@ -284,6 +284,50 @@ void VmfBspProcess::FixLightColor(const QString& vmfPath) {
     }
 }
 
+void VmfBspProcess::FixPerformanceMode(const QString& vmfPath) {
+    if (!QFile::exists(vmfPath)) return;
+
+    QFile infile(vmfPath);
+    if (!infile.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+
+    QStringList lines;
+    QTextStream in(&infile);
+    while (!in.atEnd()) {
+        lines.append(in.readLine());
+    }
+    infile.close();
+
+    QStringList out_lines;
+    QRegularExpression pm_regex("^(\\s*\"PerformanceMode\"\\s+\")([^\"]+)(\".*)$");
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i];
+        QRegularExpressionMatch pm_match = pm_regex.match(line);
+        if (pm_match.hasMatch()) {
+            QString val = pm_match.captured(2);
+            QString new_val;
+            if (val == "0" || val == "2") {
+                new_val = "PM_NORMAL";
+            } else if (val == "1" || val == "3") {
+                new_val = "PM_NO_GIBS";
+            } else {
+                new_val = val; // Keep as is if not matched
+            }
+            line = pm_match.captured(1) + new_val + pm_match.captured(3);
+        }
+        out_lines.append(line);
+    }
+
+    QFile outfile(vmfPath);
+    if (outfile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&outfile);
+        for (const QString& l : out_lines) {
+            out << l << "\n";
+        }
+        outfile.close();
+    }
+}
+
 void VmfBspProcess::FixBrush(const QString& vmfPath) {
     if (!QFile::exists(vmfPath)) return;
 
@@ -555,24 +599,6 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
                     }
 
                     if (is_prop_dynamic) {
-                        // Fix PerformanceMode
-                        QRegularExpression pm_regex("^(\\s*\"PerformanceMode\"\\s+\")([^\"]+)(\".*)$");
-                        for (int j = 0; j < current_entity_block.size(); ++j) {
-                            QRegularExpressionMatch match = pm_regex.match(current_entity_block[j]);
-                            if (match.hasMatch()) {
-                                QString val = match.captured(2);
-                                QString new_val;
-                                if (val == "0" || val == "2") {
-                                    new_val = "PM_NORMAL";
-                                } else if (val == "1" || val == "3") {
-                                    new_val = "PM_NO_GIBS";
-                                } else {
-                                    new_val = val; // Keep as is if not matched
-                                }
-                                current_entity_block[j] = match.captured(1) + new_val + match.captured(3);
-                            }
-                        }
-
                         // Fix DefaultAnim
                         QRegularExpression anim_regex("^(\\s*)\"DefaultAnim\"\\s+\"([^\"]*)\"(.*)$");
                         int anim_idx = -1;
@@ -632,6 +658,7 @@ void VmfBspProcess::FixEntities(const QString& vmfPath) {
     FixBrush(vmfPath);
     FixRender(vmfPath);
     FixDynamicProp(vmfPath);
+    FixPerformanceMode(vmfPath);
     OldParticleFix(vmfPath);
 }
 
