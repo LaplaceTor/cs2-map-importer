@@ -26,6 +26,18 @@ jobs:
         arch: 'win64_msvc2022_64'
         modules: 'qtshadertools'
 
+    - name: Get commit SHA
+      id: vars
+      shell: bash
+      run: |
+        echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        
+    - name: Update CMakeLists.txt Version
+      shell: pwsh
+      run: |
+        $newVersion = "${{ steps.vars.outputs.sha_short }}"
+        (Get-Content CMakeLists.txt) -replace 'project\(cs2importer VERSION .* LANGUAGES CXX\)', "project(cs2importer VERSION $newVersion LANGUAGES CXX)" | Set-Content CMakeLists.txt
+
     - name: Configure CMake
       run: cmake -B build -S .
 
@@ -58,17 +70,9 @@ jobs:
 
         Copy-Item -Path bin -Destination release\bin -Recurse
         Copy-Item bspsrc\bspsrc.jar release\bin\
-        cd release
-        7z a cs2importer.zip *
-
-    - name: Get commit SHA
-      id: vars
-      shell: bash
-      run: |
-        echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: CS2-Importer-Dev-${{ steps.vars.outputs.sha_short }}
-        path: release/cs2importer.zip
+        path: release
