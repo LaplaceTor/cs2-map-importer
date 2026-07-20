@@ -14,5 +14,3 @@ mybuild/
 cmake_build/
 .vs/
 .qtcreator/
-.agents/
-
