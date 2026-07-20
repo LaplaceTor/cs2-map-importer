@@ -37,6 +37,8 @@ set(SOURCES
 qt_add_executable(cs2importer MANUAL_FINALIZATION ${SOURCES})
 
 set_property(TARGET cs2importer PROPERTY WIN32_EXECUTABLE TRUE)
+
+# Use for agent
 if(NOT WIN32)
     set_target_properties(cs2importer PROPERTIES OUTPUT_NAME "cs2importer_app")
 endif()
