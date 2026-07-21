@@ -41,10 +41,15 @@ class Backend : public QObject
     Q_PROPERTY(bool modelImportLods READ GetModelImportLods WRITE SetModelImportLods NOTIFY modelImportLodsChanged)
     Q_PROPERTY(bool modelWriteWeaponPrefab READ GetModelWriteWeaponPrefab WRITE SetModelWriteWeaponPrefab NOTIFY modelWriteWeaponPrefabChanged)
 
+    Q_PROPERTY(QString pcfFile READ GetPcfFile NOTIFY pcfFileChanged)
+    Q_PROPERTY(bool particleAllowDepthBlend READ GetParticleAllowDepthBlend WRITE SetParticleAllowDepthBlend NOTIFY particleAllowDepthBlendChanged)
+    Q_PROPERTY(bool particleDisableDiffuse READ GetParticleDisableDiffuse WRITE SetParticleDisableDiffuse NOTIFY particleDisableDiffuseChanged)
+
 public:
     enum TabIndex {
         TAB_MAP = 0,
-        TAB_MODEL = 1
+        TAB_MODEL = 1,
+        TAB_PARTICLE = 2
     };
 
     explicit Backend(QObject *parent = nullptr);
@@ -77,6 +82,14 @@ public:
 
     bool GetModelWriteWeaponPrefab() const { return modelWriteWeaponPrefab; }
     void SetModelWriteWeaponPrefab(bool val) { if(modelWriteWeaponPrefab != val) { modelWriteWeaponPrefab = val; emit modelWriteWeaponPrefabChanged(); SaveToCfg(); } }
+
+    QString GetPcfFile() const { return pcfFile; }
+
+    bool GetParticleAllowDepthBlend() const { return particleAllowDepthBlend; }
+    void SetParticleAllowDepthBlend(bool val) { if(particleAllowDepthBlend != val) { particleAllowDepthBlend = val; emit particleAllowDepthBlendChanged(); SaveToCfg(); } }
+
+    bool GetParticleDisableDiffuse() const { return particleDisableDiffuse; }
+    void SetParticleDisableDiffuse(bool val) { if(particleDisableDiffuse != val) { particleDisableDiffuse = val; emit particleDisableDiffuseChanged(); SaveToCfg(); } }
 
     QString GetCs2Basefolder() const { return cs2Basefolder; }
     QString GetS1gameBasefolder() const {
@@ -120,6 +133,9 @@ public:
         if (activeTab == TAB_MAP) {
             return !cs2Basefolder.isEmpty() && !GetS1gameBasefolder().isEmpty() && (!bspFile.isEmpty() || !contentFolder.isEmpty()) && !isGoing;
         }
+        if (activeTab == TAB_PARTICLE) {
+            return !cs2Basefolder.isEmpty() && !GetS1gameBasefolder().isEmpty() && !pcfFile.isEmpty() && !selectedMdlAddon.isEmpty() && !isGoing;
+        }
         return false;
     }
     bool GetIsGoing() const { return isGoing; }
@@ -133,6 +149,7 @@ public slots:
     void SelectVmfDialog(const QUrl& url);
     void SelectBspDialog(const QUrl& url);
     void SelectMdlDialog(const QUrl& url);
+    void SelectPcfDialog(const QUrl& url);
     void RefreshCs2AddonsList();
     void ValidateCs2();
     void ValidateS1();
@@ -168,6 +185,10 @@ signals:
     void modelHeaderHullBoundsChanged();
     void modelImportLodsChanged();
     void modelWriteWeaponPrefabChanged();
+
+    void pcfFileChanged();
+    void particleAllowDepthBlendChanged();
+    void particleDisableDiffuseChanged();
 
     void logMessage(const QString& msg);
     void alertMessage(const QString& title, const QString& msg);
@@ -206,6 +227,7 @@ private:
 
     int activeTab = TAB_MAP;
     QString mdlFile;
+    QString pcfFile;
     QStringList cs2AddonsList;
     QString selectedMdlAddon;
     bool modelSkipAnimation = false;
@@ -214,6 +236,9 @@ private:
     bool modelHeaderHullBounds = false;
     bool modelImportLods = false;
     bool modelWriteWeaponPrefab = false;
+
+    bool particleAllowDepthBlend = false;
+    bool particleDisableDiffuse = false;
 
     QNetworkAccessManager* networkManager;
 
@@ -235,6 +260,7 @@ private:
 
     bool RunMapImportWorkflow(Miscellaneous::Options opts);
     bool RunModelImportWorkflow(Miscellaneous::Options opts, const QString& mdlPath);
+    bool RunParticleImportWorkflow(Miscellaneous::Options opts, const QString& pcfPath);
 };
 
 #endif // UI_H

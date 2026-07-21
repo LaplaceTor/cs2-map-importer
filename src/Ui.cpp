@@ -2,6 +2,7 @@
 #include "Ui.h"
 #include "MapImporter.h"
 #include "ModelImporter.h"
+#include "ParticleImporter.h"
 #include "Miscellaneous.h"
 
 #include <QDir>
@@ -530,6 +531,17 @@ void Backend::SelectVmfDialog(const QUrl& url)
     UpdateCanGo();
 }
 
+void Backend::SelectPcfDialog(const QUrl& url)
+{
+    QString path = url.toLocalFile();
+    if (path.isEmpty()) return;
+
+    pcfFile = path;
+    emit pcfFileChanged();
+
+    UpdateCanGo();
+}
+
 void Backend::SelectMdlDialog(const QUrl& url)
 {
     QString path = url.toLocalFile();
@@ -631,6 +643,10 @@ void Backend::SaveToCfg()
     settings.setValue("modelHeaderHullBounds", modelHeaderHullBounds);
     settings.setValue("modelImportLods", modelImportLods);
     settings.setValue("modelWriteWeaponPrefab", modelWriteWeaponPrefab);
+
+    settings.setValue("particleAllowDepthBlend", particleAllowDepthBlend);
+    settings.setValue("particleDisableDiffuse", particleDisableDiffuse);
+
     settings.setValue("csgogamedir", csgogamedir);
     settings.setValue("cssgamedir", cssgamedir);
     settings.setValue("hl2gamedir", hl2gamedir);
@@ -662,6 +678,10 @@ void Backend::LoadFromCfg()
     modelHeaderHullBounds = settings.value("modelHeaderHullBounds", false).toBool();
     modelImportLods = settings.value("modelImportLods", false).toBool();
     modelWriteWeaponPrefab = settings.value("modelWriteWeaponPrefab", false).toBool();
+
+    particleAllowDepthBlend = settings.value("particleAllowDepthBlend", false).toBool();
+    particleDisableDiffuse = settings.value("particleDisableDiffuse", false).toBool();
+
     csgogamedir = settings.value("csgogamedir", "").toString();
     cssgamedir = settings.value("cssgamedir", "").toString();
     hl2gamedir = settings.value("hl2gamedir", "").toString();
@@ -733,6 +753,9 @@ void Backend::LoadFromCfg()
     emit modelImportLodsChanged();
     emit modelWriteWeaponPrefabChanged();
 
+    emit particleAllowDepthBlendChanged();
+    emit particleDisableDiffuseChanged();
+
     RefreshCs2AddonsList();
 
     UpdateCanGo();
@@ -758,6 +781,15 @@ void Backend::Start()
             emit alertMessage("Validation Error", "Please select a CS2 addon.");
             return;
         }
+    } else if (activeTab == TAB_PARTICLE) {
+        if (pcfFile.isEmpty()) {
+            emit alertMessage("Validation Error", "Please select a PCF file.");
+            return;
+        }
+        if (selectedMdlAddon.isEmpty()) {
+            emit alertMessage("Validation Error", "Please select a CS2 addon.");
+            return;
+        }
     } else {
         if (bspFile.isEmpty() && contentFolder.isEmpty()) {
             emit alertMessage("Validation Error", "Please select a VMF or BSP file.");
@@ -772,7 +804,7 @@ void Backend::Start()
     }
 
     try {
-        QString currentAddonName = (activeTab == TAB_MODEL) ? selectedMdlAddon : addonName;
+        QString currentAddonName = (activeTab == TAB_MODEL || activeTab == TAB_PARTICLE) ? selectedMdlAddon : addonName;
         if (activeTab == TAB_MAP && currentAddonName.trimmed().isEmpty()) {
             currentAddonName = mapName;
             addonName = mapName;
@@ -824,7 +856,22 @@ void Backend::Start()
         opts.s1GameType = s1GameType;
         opts.appDir = appDir;
 
-        if (activeTab == TAB_MODEL) {
+        if (activeTab == TAB_PARTICLE) {
+            opts.addonName = selectedMdlAddon;
+            opts.particleAllowDepthBlend = particleAllowDepthBlend;
+            opts.particleDisableDiffuse = particleDisableDiffuse;
+            opts.keepFuncDetailAsBrush = false;
+            opts.usebsp = false;
+            opts.usebspNomergeinstances = false;
+            opts.skipdeps = false;
+            opts.generateNormalForTextures = false;
+            opts.modelSkipAnimation = false;
+            opts.modelChangeBindpose = false;
+            opts.modelOverrideLean = false;
+            opts.modelHeaderHullBounds = false;
+            opts.modelImportLods = false;
+            opts.modelWriteWeaponPrefab = false;
+        } else if (activeTab == TAB_MODEL) {
             opts.addonName = selectedMdlAddon;
             opts.generateNormalForTextures = generateNormalForTextures;
             opts.modelSkipAnimation = modelSkipAnimation;
@@ -833,12 +880,16 @@ void Backend::Start()
             opts.modelHeaderHullBounds = modelHeaderHullBounds;
             opts.modelImportLods = modelImportLods;
             opts.modelWriteWeaponPrefab = modelWriteWeaponPrefab;
+            opts.particleAllowDepthBlend = false;
+            opts.particleDisableDiffuse = false;
             opts.keepFuncDetailAsBrush = false;
             opts.usebsp = false;
             opts.usebspNomergeinstances = false;
             opts.skipdeps = false;
         } else {
             opts.contentFolder = contentFolder;
+            opts.particleAllowDepthBlend = false;
+            opts.particleDisableDiffuse = false;
             opts.mapName = mapName;
             opts.bspFile = bspFile;
             opts.addonName = addonName;
@@ -855,11 +906,13 @@ void Backend::Start()
             opts.modelWriteWeaponPrefab = false;
         }
 
-        QThread* workerThread = QThread::create([this, opts, activeTabCopy = activeTab, mdlFileCopy = mdlFile]() mutable {
+        QThread* workerThread = QThread::create([this, opts, activeTabCopy = activeTab, mdlFileCopy = mdlFile, pcfFileCopy = pcfFile]() mutable {
             bool success = true;
             try {
                 if (activeTabCopy == TAB_MODEL) {
                     success = RunModelImportWorkflow(opts, mdlFileCopy);
+                } else if (activeTabCopy == TAB_PARTICLE) {
+                    success = RunParticleImportWorkflow(opts, pcfFileCopy);
                 } else if (activeTabCopy == TAB_MAP) {
                     success = RunMapImportWorkflow(opts);
                 }
@@ -884,12 +937,16 @@ void Backend::Start()
                 if (success) {
                     if (activeTabCopy == TAB_MODEL) {
                         Miscellaneous::Log("ModelImporter thread finished successfully.");
+                    } else if (activeTabCopy == TAB_PARTICLE) {
+                        Miscellaneous::Log("ParticleImporter thread finished successfully.");
                     } else {
                         Miscellaneous::Log("MapImporter thread finished successfully.");
                     }
                 } else {
                     if (activeTabCopy == TAB_MODEL) {
                         Miscellaneous::Log("ModelImporter thread finished with errors.");
+                    } else if (activeTabCopy == TAB_PARTICLE) {
+                        Miscellaneous::Log("ParticleImporter thread finished with errors.");
                     } else {
                         Miscellaneous::Log("MapImporter thread finished with errors.");
                     }
@@ -997,6 +1054,35 @@ bool Backend::RunModelImportWorkflow(Miscellaneous::Options opts, const QString&
 
     ModelImporter importer;
     return importer.Run(mdlPath);
+}
+
+bool Backend::RunParticleImportWorkflow(Miscellaneous::Options opts, const QString& pcfPath)
+{
+    QString s1Subfolder = "csgo";
+    if (opts.s1GameType == "css") s1Subfolder = "cstrike";
+    else if (opts.s1GameType == "hl2") s1Subfolder = "hl2";
+    else if (opts.s1GameType == "l4d") s1Subfolder = "left4dead";
+    else if (opts.s1GameType == "l4d2") s1Subfolder = "left4dead2";
+    else if (opts.s1GameType == "portal") s1Subfolder = "portal";
+    else if (opts.s1GameType == "portal2") s1Subfolder = "portal2";
+    else if (opts.s1GameType == "tf2") s1Subfolder = "tf";
+    else if (opts.s1GameType == "gmod") s1Subfolder = "garrysmod";
+    else if (opts.s1GameType == "blackmesa") s1Subfolder = "bms";
+
+    QString s1gamedir = opts.s1gameBasefolder + "\\" + s1Subfolder;
+    s1gamedir.replace('/', '\\');
+    opts.s1gamedir = s1gamedir;
+
+    QString csgogamedir_path = opts.csgogamedir + "\\csgo";
+    csgogamedir_path.replace('/', '\\');
+    opts.csgogamedir = csgogamedir_path;
+
+    opts.s2contentdir = opts.cs2Basefolder + "\\content\\csgo_addons\\" + opts.addonName;
+
+    Miscellaneous::SetOptions(opts);
+
+    ParticleImporter importer;
+    return importer.Run(pcfPath);
 }
 
 void Backend::Stop()

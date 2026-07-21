@@ -28,6 +28,8 @@ set(SOURCES
     src/MapImporter.h
     src/ModelImporter.cpp
     src/ModelImporter.h
+    src/ParticleImporter.cpp
+    src/ParticleImporter.h
     src/SoundscapeImport.cpp
     src/SoundscapeImport.h
     src/FileExtractFromVPK.cpp
