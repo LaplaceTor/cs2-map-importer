@@ -32,17 +32,11 @@ jobs:
       run: |
         echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
         
-    - name: Update CMakeLists.txt Version
-      shell: pwsh
-      run: |
-        $newVersion = "${{ steps.vars.outputs.sha_short }}"
-        (Get-Content CMakeLists.txt) -replace 'project\(cs2importer VERSION .* LANGUAGES CXX\)', "project(cs2importer VERSION $newVersion LANGUAGES CXX)" | Set-Content CMakeLists.txt
-
     - name: Configure CMake
       run: cmake -B build -S .
 
     - name: Build with CMake
-      run: cmake --build build --config Release
+      run: cmake -B build -S . -DAPP_VERSION=${{ steps.vars.outputs.sha_short }}
 
     - name: Download bspsrc
       shell: pwsh
