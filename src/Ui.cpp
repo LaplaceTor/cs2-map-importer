@@ -104,6 +104,8 @@ void Backend::ValidateS1()
         QDesktopServices::openUrl(QUrl("steam://validate/440"));
     } else if (s1GameType == "gmod") {
         QDesktopServices::openUrl(QUrl("steam://validate/4000"));
+    } else if (s1GameType == "blackmesa") {
+        QDesktopServices::openUrl(QUrl("steam://validate/362890"));
     }
 }
 
@@ -205,6 +207,8 @@ bool Backend::IsValidS1(const QString& path, const QString& type)
         checkGameinfo("tf", "Team Fortress 2");
     } else if (type == "gmod") {
         checkGameinfo("garrysmod", "Garry's Mod");
+    } else if (type == "blackmesa") {
+        checkGameinfo("bms", "Black Mesa");
     }
 
     return valid;
@@ -300,6 +304,7 @@ void Backend::AutoDetectPaths()
     QString found_portal2_dir;
     QString found_tf2_dir;
     QString found_gmod_dir;
+    QString found_blackmesa_dir;
 
     for (const auto& lib : libraries) {
         QString base_lib = lib.path;
@@ -377,6 +382,13 @@ void Backend::AutoDetectPaths()
                 found_gmod_dir = gmod_candidate;
             }
         }
+
+        if (lib.apps.contains("362890")) {
+            QString blackmesa_candidate = QDir(common_dir).filePath("Black Mesa");
+            if (IsValidS1(blackmesa_candidate, "blackmesa")) {
+                found_blackmesa_dir = blackmesa_candidate;
+            }
+        }
     }
 
     bool updated = false;
@@ -437,6 +449,11 @@ void Backend::AutoDetectPaths()
         updated = true;
     }
 
+    if (blackmesagamedir.isEmpty() && !found_blackmesa_dir.isEmpty()) {
+        blackmesagamedir = found_blackmesa_dir;
+        updated = true;
+    }
+
     if (updated) {
         UpdateCanGo();
         emit s1gameBasefolderChanged();
@@ -463,6 +480,8 @@ void Backend::SetS1Folder(const QString& path)
             tf2gamedir = path;
         } else if (s1GameType == "gmod") {
             gmodgamedir = path;
+        } else if (s1GameType == "blackmesa") {
+            blackmesagamedir = path;
         } else {
             csgogamedir = path;
         }
@@ -621,6 +640,7 @@ void Backend::SaveToCfg()
     settings.setValue("portal2gamedir", portal2gamedir);
     settings.setValue("tf2gamedir", tf2gamedir);
     settings.setValue("gmodgamedir", gmodgamedir);
+    settings.setValue("blackmesagamedir", blackmesagamedir);
     settings.setValue("content_folder_to_save", contentFolderToSave);
     settings.setValue("s1_game_type", s1GameType);
 }
@@ -651,11 +671,12 @@ void Backend::LoadFromCfg()
     portal2gamedir = settings.value("portal2gamedir", "").toString();
     tf2gamedir = settings.value("tf2gamedir", "").toString();
     gmodgamedir = settings.value("gmodgamedir", "").toString();
+    blackmesagamedir = settings.value("blackmesagamedir", "").toString();
     contentFolderToSave = settings.value("content_folder_to_save", "C:\\").toString();
     vmfDefaultPath = contentFolderToSave;
     s1GameType = settings.value("s1_game_type", "csgo").toString();
 
-    QStringList valid_games = {"csgo", "css", "hl2", "l4d", "l4d2", "portal", "portal2", "tf2", "gmod"};
+    QStringList valid_games = {"csgo", "css", "hl2", "l4d", "l4d2", "portal", "portal2", "tf2", "gmod", "blackmesa"};
     if (!valid_games.contains(s1GameType)) {
         s1GameType = "csgo";
     }
@@ -689,6 +710,9 @@ void Backend::LoadFromCfg()
     }
     if (!gmodgamedir.isEmpty() && !IsValidS1(gmodgamedir, "gmod")) {
         gmodgamedir = "";
+    }
+    if (!blackmesagamedir.isEmpty() && !IsValidS1(blackmesagamedir, "blackmesa")) {
+        blackmesagamedir = "";
     }
 
     AutoDetectPaths();
@@ -920,6 +944,7 @@ bool Backend::RunMapImportWorkflow(Miscellaneous::Options opts)
     else if (currentOpts.s1GameType == "portal2") s1Subfolder = "portal2";
     else if (currentOpts.s1GameType == "tf2") s1Subfolder = "tf";
     else if (currentOpts.s1GameType == "gmod") s1Subfolder = "garrysmod";
+    else if (currentOpts.s1GameType == "blackmesa") s1Subfolder = "bms";
 
     QString s1gamedir = currentOpts.s1gameBasefolder + "\\" + s1Subfolder;
     s1gamedir.replace('/', '\\');
@@ -952,6 +977,7 @@ bool Backend::RunModelImportWorkflow(Miscellaneous::Options opts, const QString&
     else if (opts.s1GameType == "portal2") s1Subfolder = "portal2";
     else if (opts.s1GameType == "tf2") s1Subfolder = "tf";
     else if (opts.s1GameType == "gmod") s1Subfolder = "garrysmod";
+    else if (opts.s1GameType == "blackmesa") s1Subfolder = "bms";
 
     QString s1gamedir = opts.s1gameBasefolder + "\\" + s1Subfolder;
     s1gamedir.replace('/', '\\');

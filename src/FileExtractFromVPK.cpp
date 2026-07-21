@@ -68,6 +68,21 @@ static QStringList GetVpkList() {
             "sourceengine/hl2_sound_misc_dir.vpk",
             "sourceengine/hl2_misc_dir.vpk"
         };
+    } else if (Miscellaneous::GetOptions().s1GameType == "blackmesa") {
+        return {
+            "bms/bms_textures_dir.vpk",
+            "bms/bms_materials_dir.vpk",
+            "bms/bms_models_dir.vpk",
+            "bms/bms_misc_dir.vpk",
+            "bms/bms_sounds_misc_dir.vpk",
+            "bms/bms_sound_vo_english_dir.vpk",
+            "bms/bms_maps_dir.vpk",
+            "hl2/hl2_misc_dir.vpk",
+            "hl2/hl2_sound_misc_dir.vpk",
+            "hl2/hl2_textures_dir.vpk",
+            "hl2/hl2_materials_dir.vpk",
+            "hl2/hl2_models_dir.vpk"
+        };
     } else {
         return { "csgo/pak01_dir.vpk" };
     }

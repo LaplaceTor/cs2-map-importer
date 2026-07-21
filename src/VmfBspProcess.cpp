@@ -934,6 +934,7 @@ void VmfBspProcess::ProcessBsp() {
         else if (Miscellaneous::GetOptions().s1GameType == "portal2") s1Subfolder = "portal2";
         else if (Miscellaneous::GetOptions().s1GameType == "tf2") s1Subfolder = "tf";
         else if (Miscellaneous::GetOptions().s1GameType == "gmod") s1Subfolder = "garrysmod";
+        else if (Miscellaneous::GetOptions().s1GameType == "blackmesa") s1Subfolder = "bms";
         QString s1gamedir = QDir(Miscellaneous::GetOptions().s1gameBasefolder).filePath(s1Subfolder);
 
         if (QDir(target_unpacked_dir).exists()) {
