@@ -49,6 +49,9 @@ public:
         bool modelHeaderHullBounds;
         bool modelImportLods;
         bool modelWriteWeaponPrefab;
+
+        bool particleAllowDepthBlend;
+        bool particleDisableDiffuse;
     };
 
     static const Options& GetOptions();

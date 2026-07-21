@@ -161,6 +161,15 @@ ApplicationWindow {
         }
     }
 
+    FileDialog {
+        id: pcfFileDialog
+        title: "Select PCF File"
+        nameFilters: ["Particle files (*.pcf)"]
+        onAccepted: {
+            backend.SelectPcfDialog(selectedFile)
+        }
+    }
+
     MessageDialog {
         id: messageDialog
         title: "Message"
@@ -288,6 +297,9 @@ ApplicationWindow {
                 }
                 TabButton {
                     text: "Model"
+                }
+                TabButton {
+                    text: "Particle"
                 }
             }
 
@@ -515,6 +527,84 @@ ApplicationWindow {
                                 checked: backend.modelWriteWeaponPrefab
                                 onCheckedChanged: backend.modelWriteWeaponPrefab = checked
                                 ToolTip.text: "Write sequences & weighlists into a prefab (-write_weapon_anim_prefab)"
+                                ToolTip.visible: hovered
+                            }
+
+                            Item { Layout.fillHeight: true } // Spacer
+                        }
+                    }
+                }
+
+                // Item 2: Particle Tab Layout
+                ColumnLayout {
+                    spacing: 20
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    // Row 2: Particle selection and Addon dropdown (Particle)
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 15
+
+                        Button {
+                            Layout.preferredWidth: 165
+                            Layout.preferredHeight: 40
+                            text: backend.pcfFile === "" ? "SELECT PCF" : backend.pcfFile.substring(backend.pcfFile.lastIndexOf('/') + 1)
+                            contentItem: Text {
+                                text: parent.text
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideMiddle
+                            }
+                            onClicked: {
+                                pcfFileDialog.open()
+                            }
+                        }
+
+                        Label {
+                            text: "➡"
+                            font.pixelSize: 40
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        ComboBox {
+                            id: particleAddonCombo
+                            Layout.preferredWidth: 165
+                            Layout.preferredHeight: 40
+                            model: backend.cs2AddonsList
+                            currentIndex: Math.max(0, model.indexOf(backend.selectedMdlAddon))
+                            onActivated: backend.selectedMdlAddon = currentText
+                        }
+                    }
+
+                    // Row 4: OPTIONS (Particle)
+                    GroupBox {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+
+                        ColumnLayout {
+                            Label {
+                                text: "OPTIONS"
+                                font.bold: true
+                                Layout.alignment: Qt.AlignHCenter
+                            }
+
+                            anchors.fill: parent
+                            spacing: 5
+
+                            CheckBox {
+                                text: "Respect $DEPTHBLEND in particle materials"
+                                checked: backend.particleAllowDepthBlend
+                                onCheckedChanged: backend.particleAllowDepthBlend = checked
+                                ToolTip.text: "Respect $DEPTHBLEND in particle materials (-particle_allow_depth_blend)"
+                                ToolTip.visible: hovered
+                            }
+
+                            CheckBox {
+                                text: "Disable diffuse lighting on imported particle systems"
+                                checked: backend.particleDisableDiffuse
+                                onCheckedChanged: backend.particleDisableDiffuse = checked
+                                ToolTip.text: "Disable diffuse lighting on imported particle systems (-particle_disable_diffuse)"
                                 ToolTip.visible: hovered
                             }
 
