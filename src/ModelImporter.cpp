@@ -103,7 +103,11 @@ bool ModelImporter::Run(const QString& mdlPath) {
     if (opts.modelOverrideLean) extraOpts += " -overridelean";
     if (opts.modelHeaderHullBounds) extraOpts += " -header_hull_bounds";
     if (opts.modelImportLods) extraOpts += " -lods";
-    if (opts.modelWriteWeaponPrefab) extraOpts += " -write_weapon_anim_prefab";
+    if (opts.modelWriteWeaponPrefab) {
+        extraOpts += " -write_weapon_anim_prefab";
+        QString modelBaseName = QFileInfo(relMdlPath).baseName();
+        extraOpts += " -weapon_anim_prefab \"" + modelBaseName + "_prefab\"";
+    }
 
     QString importCmd = "\"" + opts.cs2Basefolder + "\\game\\bin\\win64\\cs_mdl_import.exe\" -nop4" + extraOpts + " -i \"" + sourceGameDir + "\" -o \"" + opts.s2contentdir + "\" \"" + relMdlPath + "\"";
     Miscellaneous::RunCommandSync(importCmd);
