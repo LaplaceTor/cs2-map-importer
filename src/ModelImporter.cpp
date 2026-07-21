@@ -79,21 +79,10 @@ bool ModelImporter::Run(const QString& mdlPath) {
     QString fullMdlPath = mdlPath;
     fullMdlPath.replace('/', '\\');
 
-    QString relMdlPath = fullMdlPath;
-    QString sourceGameDir = Miscellaneous::GetOptions().s1gamedir;
-
-    int idx = fullMdlPath.indexOf("\\models\\", 0, Qt::CaseInsensitive);
-    if (idx != -1) {
-        relMdlPath = fullMdlPath.mid(idx + 1); // e.g. "models\\props\\foo.mdl"
-        sourceGameDir = fullMdlPath.left(idx);  // e.g. "C:\\Games\\CSGO\\csgo"
-    } else {
-        // Fallback: use filename and s1gamedir
-        relMdlPath = QFileInfo(fullMdlPath).fileName();
-    }
+    QString relMdlPath = "models\\" + QFileInfo(fullMdlPath).fileName();
 
     Miscellaneous::Log("Input model path: " + fullMdlPath);
     Miscellaneous::Log("Relative MDL path: " + relMdlPath);
-    Miscellaneous::Log("Input source game directory: " + sourceGameDir);
 
     // Build options for cs_mdl_import
     QString extraOpts;
@@ -109,17 +98,18 @@ bool ModelImporter::Run(const QString& mdlPath) {
         extraOpts += " -weapon_anim_prefab \"" + modelBaseName + "_prefab\"";
     }
 
-    QString importCmd = "\"" + opts.cs2Basefolder + "\\game\\bin\\win64\\cs_mdl_import.exe\" -nop4" + extraOpts + " -i \"" + sourceGameDir + "\" -o \"" + opts.s2contentdir + "\" \"" + relMdlPath + "\"";
+    QString outputDir = opts.s2contentdir + "\\models";
+    QString importCmd = "\"" + opts.cs2Basefolder + "\\game\\bin\\win64\\cs_mdl_import.exe\" -nop4" + extraOpts + " -o \"" + outputDir + "\" \"" + fullMdlPath + "\"";
     Miscellaneous::RunCommandSync(importCmd);
 
     if (Miscellaneous::CanceLImport) return false;
 
     // Define output path for refs file
-    QString refsName = opts.s2contentdir + "\\" + relMdlPath;
+    QString refsName = outputDir + "\\" + QFileInfo(fullMdlPath).fileName();
     int pos = refsName.lastIndexOf(".mdl");
     if (pos != -1) refsName.replace(pos, 4, "_refs.txt");
 
-    QString outName = opts.s2contentdir + "\\" + relMdlPath;
+    QString outName = outputDir + "\\" + QFileInfo(fullMdlPath).fileName();
     pos = outName.lastIndexOf(".mdl");
     if (pos != -1) outName.replace(pos, 4, ".vmdl");
 
