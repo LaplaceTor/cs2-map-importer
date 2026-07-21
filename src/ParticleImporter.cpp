@@ -22,18 +22,15 @@ bool ParticleImporter::Run(const QString& pcfPath) {
     QString destPcfPath = destDir + "\\" + filename;
     destPcfPath.replace('/', '\\');
 
-    QFileInfo sourceInfo(fullPcfPath);
-    QFileInfo destInfo(destPcfPath);
-
     bool alreadyInDest = false;
-    if (sourceInfo.exists() && destInfo.exists()) {
-        if (sourceInfo.canonicalFilePath().toLower() == destInfo.canonicalFilePath().toLower()) {
-            alreadyInDest = true;
-        }
-    } else {
-        if (QDir::toNativeSeparators(fullPcfPath).toLower() == QDir::toNativeSeparators(destPcfPath).toLower()) {
-            alreadyInDest = true;
-        }
+    QString lowerPcfPath = fullPcfPath.toLower();
+    QString lowerDestDir = destDir.toLower();
+    if (!lowerDestDir.endsWith('\\')) {
+        lowerDestDir += '\\';
+    }
+
+    if (lowerPcfPath.startsWith(lowerDestDir)) {
+        alreadyInDest = true;
     }
 
     if (alreadyInDest) {
