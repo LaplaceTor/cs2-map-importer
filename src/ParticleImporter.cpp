@@ -22,16 +22,34 @@ bool ParticleImporter::Run(const QString& pcfPath) {
     QString destPcfPath = destDir + "\\" + filename;
     destPcfPath.replace('/', '\\');
 
-    Miscellaneous::Log("Copying PCF to Source 1 particles folder...");
-    Miscellaneous::Log("From: " + fullPcfPath);
-    Miscellaneous::Log("To: " + destPcfPath);
+    QFileInfo sourceInfo(fullPcfPath);
+    QFileInfo destInfo(destPcfPath);
 
-    if (QFile::exists(destPcfPath)) {
-        QFile::remove(destPcfPath);
+    bool alreadyInDest = false;
+    if (sourceInfo.exists() && destInfo.exists()) {
+        if (sourceInfo.canonicalFilePath().toLower() == destInfo.canonicalFilePath().toLower()) {
+            alreadyInDest = true;
+        }
+    } else {
+        if (QDir::toNativeSeparators(fullPcfPath).toLower() == QDir::toNativeSeparators(destPcfPath).toLower()) {
+            alreadyInDest = true;
+        }
     }
-    if (!QFile::copy(fullPcfPath, destPcfPath)) {
-        Miscellaneous::Log("Error: Failed to copy PCF file to Source 1 particles folder!");
-        return false;
+
+    if (alreadyInDest) {
+        Miscellaneous::Log("PCF file is already inside Source 1 particles folder. Skipping copy progress.");
+    } else {
+        Miscellaneous::Log("Copying PCF to Source 1 particles folder...");
+        Miscellaneous::Log("From: " + fullPcfPath);
+        Miscellaneous::Log("To: " + destPcfPath);
+
+        if (QFile::exists(destPcfPath)) {
+            QFile::remove(destPcfPath);
+        }
+        if (!QFile::copy(fullPcfPath, destPcfPath)) {
+            Miscellaneous::Log("Error: Failed to copy PCF file to Source 1 particles folder!");
+            return false;
+        }
     }
 
     // Build options for source1import.exe
