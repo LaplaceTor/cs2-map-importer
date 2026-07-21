@@ -152,6 +152,15 @@ ApplicationWindow {
         }
     }
 
+    FileDialog {
+        id: mdlFileDialog
+        title: "Select MDL File"
+        nameFilters: ["Model files (*.mdl)"]
+        onAccepted: {
+            backend.SelectMdlDialog(selectedFile)
+        }
+    }
+
     MessageDialog {
         id: messageDialog
         title: "Message"
@@ -265,103 +274,252 @@ ApplicationWindow {
                 }
             }
 
-            // Row 2: Maps and Addon
-            RowLayout {
+            TabBar {
+                id: tabBar
                 Layout.fillWidth: true
-                spacing: 15
-
-                Button {
-                    Layout.preferredWidth: 165
-                    Layout.preferredHeight: 40
-                    text: selectedMapFileName
-                    contentItem: Text {
-                        text: parent.text
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        elide: Text.ElideMiddle
-                    }
-                    onClicked: {
-                        mapFileDialog.currentFolder = backend.vmfDefaultPathUrl
-                        mapFileDialog.open()
-                    }
+                currentIndex: backend.activeTab
+                onCurrentIndexChanged: {
+                    backend.activeTab = currentIndex
                 }
 
-                Label {
-                    text: "➡"
-                    font.pixelSize: 40
-                    Layout.alignment: Qt.AlignVCenter
+                TabButton {
+                    text: "Map"
                 }
-
-                TextField {
-                    id: addonEdit
-                    Layout.preferredWidth: 165
-                    Layout.preferredHeight: 40
-                    placeholderText: "Addon Name in CS2"
-                    text: backend.addonName
-                    onTextChanged: backend.addonName = text
-                    horizontalAlignment: TextInput.AlignHCenter
-                    verticalAlignment: TextInput.AlignVCenter
+                TabButton {
+                    text: "Model"
                 }
             }
 
-            // Row 4: OPTIONS
-            GroupBox {
+            StackLayout {
+                id: stackLayout
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                currentIndex: tabBar.currentIndex
 
+                // Item 0: Map Tab Layout
                 ColumnLayout {
-                    Label {
-                        text: "OPTIONS"
-                        font.bold: true
-                        Layout.alignment: Qt.AlignHCenter
+                    spacing: 20
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    // Row 2: Maps and Addon
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 15
+
+                        Button {
+                            Layout.preferredWidth: 165
+                            Layout.preferredHeight: 40
+                            text: selectedMapFileName
+                            contentItem: Text {
+                                text: parent.text
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideMiddle
+                            }
+                            onClicked: {
+                                mapFileDialog.currentFolder = backend.vmfDefaultPathUrl
+                                mapFileDialog.open()
+                            }
+                        }
+
+                        Label {
+                            text: "➡"
+                            font.pixelSize: 40
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        TextField {
+                            id: addonEdit
+                            Layout.preferredWidth: 165
+                            Layout.preferredHeight: 40
+                            placeholderText: "Addon Name in CS2"
+                            text: backend.addonName
+                            onTextChanged: backend.addonName = text
+                            horizontalAlignment: TextInput.AlignHCenter
+                            verticalAlignment: TextInput.AlignVCenter
+                        }
                     }
 
-                    anchors.fill: parent
-                    spacing: 5
+                    // Row 4: OPTIONS (Map)
+                    GroupBox {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
 
-                    CheckBox {
-                        id: useBspCheckbox
-                        text: "Clean Unnecessary Faces"
-                        checked: backend.usebsp
-                        onCheckedChanged: backend.usebsp = checked
-                        ToolTip.text: "This runs the map through a special vbsp process to generate clean map geometry from brushes"
-                        ToolTip.visible: hovered
+                        ColumnLayout {
+                            Label {
+                                text: "OPTIONS"
+                                font.bold: true
+                                Layout.alignment: Qt.AlignHCenter
+                            }
+
+                            anchors.fill: parent
+                            spacing: 5
+
+                            CheckBox {
+                                id: useBspCheckbox
+                                text: "Clean Unnecessary Faces"
+                                checked: backend.usebsp
+                                onCheckedChanged: backend.usebsp = checked
+                                ToolTip.text: "This runs the map through a special vbsp process to generate clean map geometry from brushes"
+                                ToolTip.visible: hovered
+                            }
+                            CheckBox {
+                                id: nomergeInstancesCheckbox
+                                text: "Keep func_instance as its own part"
+                                checked: backend.usebspNomergeinstances
+                                enabled: useBspCheckbox.checked
+                                onCheckedChanged: backend.usebspNomergeinstances = checked
+                                ToolTip.text: "if you wish to both generate clean geo and also preserve func_instances got merge in"
+                                ToolTip.visible: hovered
+                            }
+                            CheckBox {
+                                id: keepFuncDetailAsBrushCheckbox
+                                text: "Keep func_detail as brush"
+                                checked: backend.keepFuncDetailAsBrush
+                                onCheckedChanged: backend.keepFuncDetailAsBrush = checked
+                                ToolTip.text: "Optional: preserves func_detail entities by converting them to func_brush instead of letting them merge with world geometry"
+                                ToolTip.visible: hovered
+                            }
+                            CheckBox {
+                                id: skipDepsCheckbox
+                                text: "Skip References Import"
+                                checked: backend.skipdeps
+                                onCheckedChanged: backend.skipdeps = checked
+                                ToolTip.text: "Optional: skips importing all dependencies/content and only generates the vmap file(s)"
+                                ToolTip.visible: hovered
+                            }
+                            CheckBox {
+                                id: generateNormalForTexturesCheckbox
+                                text: "Generate normal for textures"
+                                checked: backend.generateNormalForTextures
+                                enabled: !skipDepsCheckbox.checked
+                                onCheckedChanged: backend.generateNormalForTextures = checked
+                                ToolTip.text: "Automatically generate normal maps for textures using ImageMagick"
+                                ToolTip.visible: hovered
+                            }
+                            Item { Layout.fillHeight: true } // Spacer
+                        }
                     }
-                    CheckBox {
-                        id: nomergeInstancesCheckbox
-                        text: "Keep func_instance as its own part"
-                        checked: backend.usebspNomergeinstances
-                        enabled: useBspCheckbox.checked
-                        onCheckedChanged: backend.usebspNomergeinstances = checked
-                        ToolTip.text: "if you wish to both generate clean geo and also preserve func_instances got merge in"
-                        ToolTip.visible: hovered
+                }
+
+                // Item 1: Model Tab Layout
+                ColumnLayout {
+                    spacing: 20
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    // Row 2: Model selection and Addon dropdown (Model)
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 15
+
+                        Button {
+                            Layout.preferredWidth: 165
+                            Layout.preferredHeight: 40
+                            text: backend.mdlFile === "" ? "SELECT MDL" : backend.mdlFile.substring(backend.mdlFile.lastIndexOf('/') + 1)
+                            contentItem: Text {
+                                text: parent.text
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideMiddle
+                            }
+                            onClicked: {
+                                mdlFileDialog.open()
+                            }
+                        }
+
+                        Label {
+                            text: "➡"
+                            font.pixelSize: 40
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        ComboBox {
+                            id: addonCombo
+                            Layout.preferredWidth: 165
+                            Layout.preferredHeight: 40
+                            model: backend.cs2AddonsList
+                            currentIndex: Math.max(0, model.indexOf(backend.selectedMdlAddon))
+                            onActivated: backend.selectedMdlAddon = currentText
+                        }
                     }
-                    CheckBox {
-                        id: keepFuncDetailAsBrushCheckbox
-                        text: "Keep func_detail as brush"
-                        checked: backend.keepFuncDetailAsBrush
-                        onCheckedChanged: backend.keepFuncDetailAsBrush = checked
-                        ToolTip.text: "Optional: preserves func_detail entities by converting them to func_brush instead of letting them merge with world geometry"
-                        ToolTip.visible: hovered
+
+                    // Row 4: OPTIONS (Model)
+                    GroupBox {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+
+                        ColumnLayout {
+                            Label {
+                                text: "OPTIONS"
+                                font.bold: true
+                                Layout.alignment: Qt.AlignHCenter
+                            }
+
+                            anchors.fill: parent
+                            spacing: 5
+
+                            CheckBox {
+                                id: modelGenerateNormalCheckbox
+                                text: "Generate normal for textures"
+                                checked: backend.generateNormalForTextures
+                                onCheckedChanged: backend.generateNormalForTextures = checked
+                                ToolTip.text: "Automatically generate normal maps for textures using ImageMagick"
+                                ToolTip.visible: hovered
+                            }
+
+                            CheckBox {
+                                text: "Skip animation import"
+                                checked: backend.modelSkipAnimation
+                                onCheckedChanged: backend.modelSkipAnimation = checked
+                                ToolTip.text: "Skip writing dmx files (anims) (-skipcommondmxwrite)"
+                                ToolTip.visible: hovered
+                            }
+
+                            CheckBox {
+                                text: "Change bindpose from Yup to Zup"
+                                checked: backend.modelChangeBindpose
+                                onCheckedChanged: backend.modelChangeBindpose = checked
+                                ToolTip.text: "Change bindpose from Yup to Zup (-YupToZup)"
+                                ToolTip.visible: hovered
+                            }
+
+                            CheckBox {
+                                text: "Override \"lean\" sequence"
+                                checked: backend.modelOverrideLean
+                                onCheckedChanged: backend.modelOverrideLean = checked
+                                ToolTip.text: "Override \"lean\" sequence (-overridelean)"
+                                ToolTip.visible: hovered
+                            }
+
+                            CheckBox {
+                                text: "Import mdl hull bounds from the studiohdr"
+                                checked: backend.modelHeaderHullBounds
+                                onCheckedChanged: backend.modelHeaderHullBounds = checked
+                                ToolTip.text: "Import mdl hull bounds from the studiohdr (-header_hull_bounds)"
+                                ToolTip.visible: hovered
+                            }
+
+                            CheckBox {
+                                text: "Import all lods"
+                                checked: backend.modelImportLods
+                                onCheckedChanged: backend.modelImportLods = checked
+                                ToolTip.text: "Import all lods (-lods)"
+                                ToolTip.visible: hovered
+                            }
+
+                            CheckBox {
+                                text: "Write weapons sequences & weighlists into a prefab"
+                                checked: backend.modelWriteWeaponPrefab
+                                onCheckedChanged: backend.modelWriteWeaponPrefab = checked
+                                ToolTip.text: "Write sequences & weighlists into a prefab (-write_weapon_anim_prefab)"
+                                ToolTip.visible: hovered
+                            }
+
+                            Item { Layout.fillHeight: true } // Spacer
+                        }
                     }
-                    CheckBox {
-                        id: skipDepsCheckbox
-                        text: "Skip References Import"
-                        checked: backend.skipdeps
-                        onCheckedChanged: backend.skipdeps = checked
-                        ToolTip.text: "Optional: skips importing all dependencies/content and only generates the vmap file(s)"
-                        ToolTip.visible: hovered
-                    }
-                    CheckBox {
-                        id: generateNormalForTexturesCheckbox
-                        text: "Generate normal for textures"
-                        checked: backend.generateNormalForTextures
-                        enabled: !skipDepsCheckbox.checked
-                        onCheckedChanged: backend.generateNormalForTextures = checked
-                        ToolTip.text: "Automatically generate normal maps for textures using ImageMagick"
-                        ToolTip.visible: hovered
-                    }
-                    Item { Layout.fillHeight: true } // Spacer
                 }
             }
 

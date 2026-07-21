@@ -42,6 +42,13 @@ public:
         bool usebspNomergeinstances;
         bool skipdeps;
         bool generateNormalForTextures;
+
+        bool modelSkipAnimation;
+        bool modelChangeBindpose;
+        bool modelOverrideLean;
+        bool modelHeaderHullBounds;
+        bool modelImportLods;
+        bool modelWriteWeaponPrefab;
     };
 
     static const Options& GetOptions();
