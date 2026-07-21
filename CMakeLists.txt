@@ -32,6 +32,8 @@ set(SOURCES
     src/FileExtractFromVPK.h
     src/MaterialFix.cpp
     src/MaterialFix.h
+    src/ModelImporter.cpp
+    src/ModelImporter.h
 )
 
 qt_add_executable(cs2importer MANUAL_FINALIZATION ${SOURCES})

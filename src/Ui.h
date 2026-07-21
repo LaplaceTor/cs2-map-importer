@@ -29,9 +29,48 @@ class Backend : public QObject
     Q_PROPERTY(bool isGoing READ GetIsGoing NOTIFY isGoingChanged)
     Q_PROPERTY(QString currentVersion READ GetCurrentVersion CONSTANT)
 
+    Q_PROPERTY(bool isModelMode READ GetIsModelMode WRITE SetIsModelMode NOTIFY isModelModeChanged)
+    Q_PROPERTY(QString mdlFile READ GetMdlFile NOTIFY mdlFileChanged)
+    Q_PROPERTY(QStringList cs2AddonsList READ GetCs2AddonsList NOTIFY cs2AddonsListChanged)
+    Q_PROPERTY(QString selectedMdlAddon READ GetSelectedMdlAddon WRITE SetSelectedMdlAddon NOTIFY selectedMdlAddonChanged)
+    Q_PROPERTY(bool modelSkipAnimation READ GetModelSkipAnimation WRITE SetModelSkipAnimation NOTIFY modelSkipAnimationChanged)
+    Q_PROPERTY(bool modelChangeBindpose READ GetModelChangeBindpose WRITE SetModelChangeBindpose NOTIFY modelChangeBindposeChanged)
+    Q_PROPERTY(bool modelOverrideLean READ GetModelOverrideLean WRITE SetModelOverrideLean NOTIFY modelOverrideLeanChanged)
+    Q_PROPERTY(bool modelHeaderHullBounds READ GetModelHeaderHullBounds WRITE SetModelHeaderHullBounds NOTIFY modelHeaderHullBoundsChanged)
+    Q_PROPERTY(bool modelImportLods READ GetModelImportLods WRITE SetModelImportLods NOTIFY modelImportLodsChanged)
+    Q_PROPERTY(bool modelWriteWeaponPrefab READ GetModelWriteWeaponPrefab WRITE SetModelWriteWeaponPrefab NOTIFY modelWriteWeaponPrefabChanged)
+
 public:
     explicit Backend(QObject *parent = nullptr);
     ~Backend();
+
+    bool GetIsModelMode() const { return isModelMode; }
+    void SetIsModelMode(bool val) { if(isModelMode != val) { isModelMode = val; emit isModelModeChanged(); UpdateCanGo(); } }
+
+    QString GetMdlFile() const { return mdlFile; }
+
+    QStringList GetCs2AddonsList() const { return cs2AddonsList; }
+
+    QString GetSelectedMdlAddon() const { return selectedMdlAddon; }
+    void SetSelectedMdlAddon(const QString& addon) { if(selectedMdlAddon != addon) { selectedMdlAddon = addon; emit selectedMdlAddonChanged(); UpdateCanGo(); } }
+
+    bool GetModelSkipAnimation() const { return modelSkipAnimation; }
+    void SetModelSkipAnimation(bool val) { if(modelSkipAnimation != val) { modelSkipAnimation = val; emit modelSkipAnimationChanged(); SaveToCfg(); } }
+
+    bool GetModelChangeBindpose() const { return modelChangeBindpose; }
+    void SetModelChangeBindpose(bool val) { if(modelChangeBindpose != val) { modelChangeBindpose = val; emit modelChangeBindposeChanged(); SaveToCfg(); } }
+
+    bool GetModelOverrideLean() const { return modelOverrideLean; }
+    void SetModelOverrideLean(bool val) { if(modelOverrideLean != val) { modelOverrideLean = val; emit modelOverrideLeanChanged(); SaveToCfg(); } }
+
+    bool GetModelHeaderHullBounds() const { return modelHeaderHullBounds; }
+    void SetModelHeaderHullBounds(bool val) { if(modelHeaderHullBounds != val) { modelHeaderHullBounds = val; emit modelHeaderHullBoundsChanged(); SaveToCfg(); } }
+
+    bool GetModelImportLods() const { return modelImportLods; }
+    void SetModelImportLods(bool val) { if(modelImportLods != val) { modelImportLods = val; emit modelImportLodsChanged(); SaveToCfg(); } }
+
+    bool GetModelWriteWeaponPrefab() const { return modelWriteWeaponPrefab; }
+    void SetModelWriteWeaponPrefab(bool val) { if(modelWriteWeaponPrefab != val) { modelWriteWeaponPrefab = val; emit modelWriteWeaponPrefabChanged(); SaveToCfg(); } }
 
     QString GetCs2Basefolder() const { return cs2Basefolder; }
     QString GetS1gameBasefolder() const {
@@ -67,7 +106,12 @@ public:
     bool GetGenerateNormalForTextures() const { return generateNormalForTextures; }
     void SetGenerateNormalForTextures(bool val) { if(generateNormalForTextures != val) { generateNormalForTextures = val; emit generateNormalForTexturesChanged(); SaveToCfg(); } }
 
-    bool GetCanGo() const { return !cs2Basefolder.isEmpty() && !GetS1gameBasefolder().isEmpty() && (!bspFile.isEmpty() || !contentFolder.isEmpty()) && !isGoing; }
+    bool GetCanGo() const {
+        if (isModelMode) {
+            return !cs2Basefolder.isEmpty() && !GetS1gameBasefolder().isEmpty() && !mdlFile.isEmpty() && !selectedMdlAddon.isEmpty() && !isGoing;
+        }
+        return !cs2Basefolder.isEmpty() && !GetS1gameBasefolder().isEmpty() && (!bspFile.isEmpty() || !contentFolder.isEmpty()) && !isGoing;
+    }
     bool GetIsGoing() const { return isGoing; }
     QString GetCurrentVersion() const;
 
@@ -78,6 +122,8 @@ public slots:
     void SelectS1FolderDialog(const QUrl& url);
     void SelectVmfDialog(const QUrl& url);
     void SelectBspDialog(const QUrl& url);
+    void SelectMdlDialog(const QUrl& url);
+    void RefreshCs2AddonsList();
     void ValidateCs2();
     void ValidateS1();
     void SetS1GameType(const QString& type);
@@ -101,6 +147,17 @@ signals:
     void generateNormalForTexturesChanged();
     void canGoChanged();
     void isGoingChanged();
+
+    void isModelModeChanged();
+    void mdlFileChanged();
+    void cs2AddonsListChanged();
+    void selectedMdlAddonChanged();
+    void modelSkipAnimationChanged();
+    void modelChangeBindposeChanged();
+    void modelOverrideLeanChanged();
+    void modelHeaderHullBoundsChanged();
+    void modelImportLodsChanged();
+    void modelWriteWeaponPrefabChanged();
 
     void logMessage(const QString& msg);
     void alertMessage(const QString& title, const QString& msg);
@@ -135,6 +192,17 @@ private:
     bool skipdeps = false;
     bool generateNormalForTextures = false;
     bool isGoing = false;
+
+    bool isModelMode = false;
+    QString mdlFile;
+    QStringList cs2AddonsList;
+    QString selectedMdlAddon;
+    bool modelSkipAnimation = false;
+    bool modelChangeBindpose = false;
+    bool modelOverrideLean = false;
+    bool modelHeaderHullBounds = false;
+    bool modelImportLods = false;
+    bool modelWriteWeaponPrefab = false;
 
     QNetworkAccessManager* networkManager;
 
