@@ -22,6 +22,7 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QJsonArray>
+#include <memory>
 
 #ifndef APP_VERSION
 #define APP_VERSION "1.0.0"
@@ -1004,32 +1005,98 @@ void Backend::CheckForUpdateInternal(bool isManual)
 {
     qDebug() << "[UpdateCheck] Checking for updates... Manual:" << isManual;
     Miscellaneous::Log("Checking for updates...");
+
+    auto performFallback = [this, isManual]() {
+        qDebug() << "[UpdateCheck] Performing fallback update check using github.com...";
+        Miscellaneous::Log("Retrying update check using fallback...");
+
+        QUrl fallbackUrl("https://github.com/LaplaceTor/cs2-map-importer/releases/latest");
+        QNetworkRequest request(fallbackUrl);
+        request.setRawHeader("User-Agent", "CS2-Map-Importer");
+        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+
+        QNetworkReply* fallbackReply = networkManager->get(request);
+
+        auto finalUrl = std::make_shared<QUrl>(fallbackUrl);
+
+        connect(fallbackReply, &QNetworkReply::redirected, this, [finalUrl](const QUrl &redirectUrl) {
+            *finalUrl = redirectUrl;
+        });
+
+        connect(fallbackReply, &QNetworkReply::finished, this, [this, fallbackReply, isManual, finalUrl]() {
+            fallbackReply->deleteLater();
+
+            if (fallbackReply->error() != QNetworkReply::NoError) {
+                qDebug() << "[UpdateCheck] Fallback failed:" << fallbackReply->errorString();
+                Miscellaneous::Log("Fallback failed to check for updates: " + fallbackReply->errorString());
+                if (isManual) {
+                    emit noUpdateAvailable();
+                }
+                return;
+            }
+
+            QString path = finalUrl->path();
+            int index = path.indexOf("/releases/tag/");
+            QString tagName;
+            if (index != -1) {
+                tagName = path.mid(index + QString("/releases/tag/").length());
+            }
+
+            if (tagName.startsWith("v")) {
+                tagName = tagName.mid(1);
+            }
+
+            qDebug() << "[UpdateCheck] Fallback final URL:" << finalUrl->toString() << "Latest version:" << tagName << "Current version:" << APP_VERSION;
+
+            if (!tagName.isEmpty() && tagName != QString(APP_VERSION)) {
+                qDebug() << "[UpdateCheck] Update available (via fallback)!";
+                Miscellaneous::Log("Update available: " + tagName);
+                emit updateAvailable(tagName, "", finalUrl->toString());
+            } else {
+                qDebug() << "[UpdateCheck] No updates available (via fallback).";
+                Miscellaneous::Log("No updates available.");
+                if (isManual) {
+                    emit noUpdateAvailable();
+                }
+            }
+        });
+    };
+
     QUrl url("https://api.github.com/repos/LaplaceTor/cs2-map-importer/releases/latest");
     QNetworkRequest request(url);
     request.setRawHeader("User-Agent", "CS2-Map-Importer");
 
     QNetworkReply* reply = networkManager->get(request);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, isManual]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, isManual, performFallback]() {
         reply->deleteLater();
 
-        if (reply->error() != QNetworkReply::NoError) {
+        bool success = false;
+        QString tagName;
+        QString body;
+        QString htmlUrl;
+
+        if (reply->error() == QNetworkReply::NoError) {
+            QByteArray responseData = reply->readAll();
+            QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
+            if (jsonDoc.isObject()) {
+                QJsonObject jsonObj = jsonDoc.object();
+                tagName = jsonObj["tag_name"].toString();
+                body = jsonObj["body"].toString();
+                htmlUrl = jsonObj["html_url"].toString();
+                success = true;
+            } else {
+                qDebug() << "[UpdateCheck] Failed to parse update response.";
+                Miscellaneous::Log("Failed to parse update response.");
+            }
+        } else {
             qDebug() << "[UpdateCheck] Failed to check for updates:" << reply->errorString();
             Miscellaneous::Log("Failed to check for updates: " + reply->errorString());
-            return;
         }
 
-        QByteArray responseData = reply->readAll();
-        QJsonDocument jsonDoc = QJsonDocument::fromJson(responseData);
-        if (!jsonDoc.isObject()) {
-            qDebug() << "[UpdateCheck] Failed to parse update response.";
-            Miscellaneous::Log("Failed to parse update response.");
+        if (!success) {
+            performFallback();
             return;
         }
-
-        QJsonObject jsonObj = jsonDoc.object();
-        QString tagName = jsonObj["tag_name"].toString();
-        QString body = jsonObj["body"].toString();
-        QString htmlUrl = jsonObj["html_url"].toString();
 
         if (tagName.startsWith("v")) {
             tagName = tagName.mid(1);
