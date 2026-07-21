@@ -22,7 +22,6 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QJsonArray>
-#include <memory>
 
 #ifndef APP_VERSION
 #define APP_VERSION "1.0.0"
@@ -1016,14 +1015,13 @@ void Backend::CheckForUpdateInternal(bool isManual)
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 
         QNetworkReply* fallbackReply = networkManager->get(request);
+        fallbackReply->setProperty("finalUrl", fallbackUrl);
 
-        auto finalUrl = std::make_shared<QUrl>(fallbackUrl);
-
-        connect(fallbackReply, &QNetworkReply::redirected, this, [finalUrl](const QUrl &redirectUrl) {
-            *finalUrl = redirectUrl;
+        connect(fallbackReply, &QNetworkReply::redirected, this, [fallbackReply](const QUrl &redirectUrl) {
+            fallbackReply->setProperty("finalUrl", redirectUrl);
         });
 
-        connect(fallbackReply, &QNetworkReply::finished, this, [this, fallbackReply, isManual, finalUrl]() {
+        connect(fallbackReply, &QNetworkReply::finished, this, [this, fallbackReply, isManual]() {
             fallbackReply->deleteLater();
 
             if (fallbackReply->error() != QNetworkReply::NoError) {
@@ -1035,7 +1033,8 @@ void Backend::CheckForUpdateInternal(bool isManual)
                 return;
             }
 
-            QString path = finalUrl->path();
+            QUrl finalUrl = fallbackReply->property("finalUrl").toUrl();
+            QString path = finalUrl.path();
             int index = path.indexOf("/releases/tag/");
             QString tagName;
             if (index != -1) {
@@ -1046,12 +1045,12 @@ void Backend::CheckForUpdateInternal(bool isManual)
                 tagName = tagName.mid(1);
             }
 
-            qDebug() << "[UpdateCheck] Fallback final URL:" << finalUrl->toString() << "Latest version:" << tagName << "Current version:" << APP_VERSION;
+            qDebug() << "[UpdateCheck] Fallback final URL:" << finalUrl.toString() << "Latest version:" << tagName << "Current version:" << APP_VERSION;
 
             if (!tagName.isEmpty() && tagName != QString(APP_VERSION)) {
                 qDebug() << "[UpdateCheck] Update available (via fallback)!";
                 Miscellaneous::Log("Update available: " + tagName);
-                emit updateAvailable(tagName, "", finalUrl->toString());
+                emit updateAvailable(tagName, "", finalUrl.toString());
             } else {
                 qDebug() << "[UpdateCheck] No updates available (via fallback).";
                 Miscellaneous::Log("No updates available.");
