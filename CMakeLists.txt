@@ -32,8 +32,6 @@ set(SOURCES
     src/FileExtractFromVPK.h
     src/MaterialFix.cpp
     src/MaterialFix.h
-    src/ModelImporter.cpp
-    src/ModelImporter.h
 )
 
 qt_add_executable(cs2importer MANUAL_FINALIZATION ${SOURCES})
@@ -58,7 +56,6 @@ target_include_directories(cs2importer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 set(APP_VERSION "${PROJECT_VERSION}" CACHE STRING "Application version")
 target_compile_definitions(cs2importer PRIVATE "APP_VERSION=\"${APP_VERSION}\"")
-
 
 qt_import_qml_plugins(cs2importer)
 qt_finalize_executable(cs2importer)
