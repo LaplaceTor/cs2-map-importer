@@ -8,6 +8,7 @@
 #include <QUrl>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include "Miscellaneous.h"
 
 class Backend : public QObject
 {
@@ -29,7 +30,7 @@ class Backend : public QObject
     Q_PROPERTY(bool isGoing READ GetIsGoing NOTIFY isGoingChanged)
     Q_PROPERTY(QString currentVersion READ GetCurrentVersion CONSTANT)
 
-    Q_PROPERTY(bool isModelMode READ GetIsModelMode WRITE SetIsModelMode NOTIFY isModelModeChanged)
+    Q_PROPERTY(int activeTab READ GetActiveTab WRITE SetActiveTab NOTIFY activeTabChanged)
     Q_PROPERTY(QString mdlFile READ GetMdlFile NOTIFY mdlFileChanged)
     Q_PROPERTY(QStringList cs2AddonsList READ GetCs2AddonsList NOTIFY cs2AddonsListChanged)
     Q_PROPERTY(QString selectedMdlAddon READ GetSelectedMdlAddon WRITE SetSelectedMdlAddon NOTIFY selectedMdlAddonChanged)
@@ -41,11 +42,16 @@ class Backend : public QObject
     Q_PROPERTY(bool modelWriteWeaponPrefab READ GetModelWriteWeaponPrefab WRITE SetModelWriteWeaponPrefab NOTIFY modelWriteWeaponPrefabChanged)
 
 public:
+    enum TabIndex {
+        TAB_MAP = 0,
+        TAB_MODEL = 1
+    };
+
     explicit Backend(QObject *parent = nullptr);
     ~Backend();
 
-    bool GetIsModelMode() const { return isModelMode; }
-    void SetIsModelMode(bool val) { if(isModelMode != val) { isModelMode = val; emit isModelModeChanged(); UpdateCanGo(); } }
+    int GetActiveTab() const { return activeTab; }
+    void SetActiveTab(int val) { if(activeTab != val) { activeTab = val; emit activeTabChanged(); UpdateCanGo(); } }
 
     QString GetMdlFile() const { return mdlFile; }
 
@@ -107,10 +113,13 @@ public:
     void SetGenerateNormalForTextures(bool val) { if(generateNormalForTextures != val) { generateNormalForTextures = val; emit generateNormalForTexturesChanged(); SaveToCfg(); } }
 
     bool GetCanGo() const {
-        if (isModelMode) {
+        if (activeTab == TAB_MODEL) {
             return !cs2Basefolder.isEmpty() && !GetS1gameBasefolder().isEmpty() && !mdlFile.isEmpty() && !selectedMdlAddon.isEmpty() && !isGoing;
         }
-        return !cs2Basefolder.isEmpty() && !GetS1gameBasefolder().isEmpty() && (!bspFile.isEmpty() || !contentFolder.isEmpty()) && !isGoing;
+        if (activeTab == TAB_MAP) {
+            return !cs2Basefolder.isEmpty() && !GetS1gameBasefolder().isEmpty() && (!bspFile.isEmpty() || !contentFolder.isEmpty()) && !isGoing;
+        }
+        return false;
     }
     bool GetIsGoing() const { return isGoing; }
     QString GetCurrentVersion() const;
@@ -148,7 +157,7 @@ signals:
     void canGoChanged();
     void isGoingChanged();
 
-    void isModelModeChanged();
+    void activeTabChanged();
     void mdlFileChanged();
     void cs2AddonsListChanged();
     void selectedMdlAddonChanged();
@@ -193,7 +202,7 @@ private:
     bool generateNormalForTextures = false;
     bool isGoing = false;
 
-    bool isModelMode = false;
+    int activeTab = TAB_MAP;
     QString mdlFile;
     QStringList cs2AddonsList;
     QString selectedMdlAddon;
@@ -221,6 +230,9 @@ private:
     bool IsValidS1(const QString& path, const QString& type);
     void AutoDetectPaths();
     void CheckForUpdateInternal(bool isManual);
+
+    bool RunMapImportWorkflow(Miscellaneous::Options opts);
+    bool RunModelImportWorkflow(Miscellaneous::Options opts, const QString& mdlPath);
 };
 
 #endif // UI_H

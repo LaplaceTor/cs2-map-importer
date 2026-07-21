@@ -725,7 +725,7 @@ void Backend::Start()
         emit alertMessage("Validation Error", "CSGO/CSS folder not selected.");
         return;
     }
-    if (isModelMode) {
+    if (activeTab == TAB_MODEL) {
         if (mdlFile.isEmpty()) {
             emit alertMessage("Validation Error", "Please select an MDL file.");
             return;
@@ -748,8 +748,8 @@ void Backend::Start()
     }
 
     try {
-        QString currentAddonName = isModelMode ? selectedMdlAddon : addonName;
-        if (!isModelMode && currentAddonName.trimmed().isEmpty()) {
+        QString currentAddonName = (activeTab == TAB_MODEL) ? selectedMdlAddon : addonName;
+        if (activeTab == TAB_MAP && currentAddonName.trimmed().isEmpty()) {
             currentAddonName = mapName;
             addonName = mapName;
             emit addonNameChanged();
@@ -800,7 +800,7 @@ void Backend::Start()
         opts.s1GameType = s1GameType;
         opts.appDir = appDir;
 
-        if (isModelMode) {
+        if (activeTab == TAB_MODEL) {
             opts.addonName = selectedMdlAddon;
             opts.generateNormalForTextures = generateNormalForTextures;
             opts.modelSkipAnimation = modelSkipAnimation;
@@ -831,84 +831,14 @@ void Backend::Start()
             opts.modelWriteWeaponPrefab = false;
         }
 
-        QThread* workerThread = QThread::create([this, opts, isModelModeCopy = isModelMode, mdlFileCopy = mdlFile]() mutable {
+        QThread* workerThread = QThread::create([this, opts, activeTabCopy = activeTab, mdlFileCopy = mdlFile]() mutable {
             bool success = true;
             try {
-                if (isModelModeCopy) {
-                    QString s1Subfolder = "csgo";
-                    if (opts.s1GameType == "css") s1Subfolder = "cstrike";
-                    else if (opts.s1GameType == "hl2") s1Subfolder = "hl2";
-                    else if (opts.s1GameType == "l4d") s1Subfolder = "left4dead";
-                    else if (opts.s1GameType == "l4d2") s1Subfolder = "left4dead2";
-                    else if (opts.s1GameType == "portal") s1Subfolder = "portal";
-                    else if (opts.s1GameType == "portal2") s1Subfolder = "portal2";
-                    else if (opts.s1GameType == "tf2") s1Subfolder = "tf";
-                    else if (opts.s1GameType == "gmod") s1Subfolder = "garrysmod";
-
-                    QString s1gamedir = opts.s1gameBasefolder + "\\" + s1Subfolder;
-                    s1gamedir.replace('/', '\\');
-                    opts.s1gamedir = s1gamedir;
-
-                    QString csgogamedir_path = opts.csgogamedir + "\\csgo";
-                    csgogamedir_path.replace('/', '\\');
-                    opts.csgogamedir = csgogamedir_path;
-
-                    QString modelsTempDir = opts.appDir + "\\models_temp";
-                    QDir().mkpath(modelsTempDir);
-                    opts.s1contentdir = modelsTempDir;
-
-                    opts.s2contentdir = opts.cs2Basefolder + "\\content\\csgo_addons\\" + opts.addonName;
-
-                    Miscellaneous::SetOptions(opts);
-
-                    ModelImporter importer;
-                    success = importer.Run(mdlFileCopy);
-                } else {
-                    Miscellaneous::SetOptions(opts);
-
-                    if (!opts.bspFile.isEmpty()) {
-                        if (!Miscellaneous::CheckJava()) {
-                            throw AppException("Java is not installed. Cannot decompile BSP file.");
-                        }
-                        VmfBspProcess::ProcessBsp();
-                    }
-
-                    // Get updated opts (like updated contentFolder after ProcessBsp)
-                    Miscellaneous::Options currentOpts = Miscellaneous::GetOptions();
-
-                    QString target_vmf_path = QDir(currentOpts.appDir).filePath("maps/" + currentOpts.mapName + "/maps/" + currentOpts.mapName + ".vmf");
-                    VmfBspProcess::FixEntities(target_vmf_path);
-
-                    QString s1Subfolder = "csgo";
-                    if (currentOpts.s1GameType == "css") s1Subfolder = "cstrike";
-                    else if (currentOpts.s1GameType == "hl2") s1Subfolder = "hl2";
-                    else if (currentOpts.s1GameType == "l4d") s1Subfolder = "left4dead";
-                    else if (currentOpts.s1GameType == "l4d2") s1Subfolder = "left4dead2";
-                    else if (currentOpts.s1GameType == "portal") s1Subfolder = "portal";
-                    else if (currentOpts.s1GameType == "portal2") s1Subfolder = "portal2";
-                    else if (currentOpts.s1GameType == "tf2") s1Subfolder = "tf";
-                    else if (currentOpts.s1GameType == "gmod") s1Subfolder = "garrysmod";
-
-                    QString s1gamedir = currentOpts.s1gameBasefolder + "\\" + s1Subfolder;
-                    s1gamedir.replace('/', '\\');
-                    currentOpts.s1gamedir = s1gamedir;
-
-                    QString csgogamedir_path = currentOpts.csgogamedir + "\\csgo";
-                    csgogamedir_path.replace('/', '\\');
-                    currentOpts.csgogamedir = csgogamedir_path;
-
-                    QString contentdir = currentOpts.contentFolder;
-                    contentdir.replace('/', '\\');
-                    currentOpts.s1contentdir = contentdir;
-
-                    currentOpts.s2contentdir = currentOpts.cs2Basefolder + "\\content\\csgo_addons\\" + currentOpts.addonName;
-
-                    Miscellaneous::SetOptions(currentOpts);
-
-                    MapImporter importer;
-                    success = importer.Run();
+                if (activeTabCopy == TAB_MODEL) {
+                    success = RunModelImportWorkflow(opts, mdlFileCopy);
+                } else if (activeTabCopy == TAB_MAP) {
+                    success = RunMapImportWorkflow(opts);
                 }
-
             } catch (const AppException& e) {
                 Miscellaneous::Log(QString("Error: ") + e.message());
                 success = false;
@@ -918,7 +848,7 @@ void Backend::Start()
                 }, Qt::QueuedConnection);
             }
 
-            QMetaObject::invokeMethod(this, [this, success, isModelModeCopy]() {
+            QMetaObject::invokeMethod(this, [this, success, activeTabCopy]() {
                 if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
                     Miscellaneous::RestoreVpkSignatures(cs2Basefolder);
                     vpkSignaturesMoved = false;
@@ -928,13 +858,13 @@ void Backend::Start()
                 UpdateCanGo();
 
                 if (success) {
-                    if (isModelModeCopy) {
+                    if (activeTabCopy == TAB_MODEL) {
                         Miscellaneous::Log("ModelImporter thread finished successfully.");
                     } else {
                         Miscellaneous::Log("MapImporter thread finished successfully.");
                     }
                 } else {
-                    if (isModelModeCopy) {
+                    if (activeTabCopy == TAB_MODEL) {
                         Miscellaneous::Log("ModelImporter thread finished with errors.");
                     } else {
                         Miscellaneous::Log("MapImporter thread finished with errors.");
@@ -962,6 +892,85 @@ void Backend::Start()
         Miscellaneous::Log(QString("Error: %1").arg(e.message()));
         emit alertMessage("Error", e.message());
     }
+}
+
+bool Backend::RunMapImportWorkflow(Miscellaneous::Options opts)
+{
+    Miscellaneous::SetOptions(opts);
+
+    if (!opts.bspFile.isEmpty()) {
+        if (!Miscellaneous::CheckJava()) {
+            throw AppException("Java is not installed. Cannot decompile BSP file.");
+        }
+        VmfBspProcess::ProcessBsp();
+    }
+
+    // Get updated opts (like updated contentFolder after ProcessBsp)
+    Miscellaneous::Options currentOpts = Miscellaneous::GetOptions();
+
+    QString target_vmf_path = QDir(currentOpts.appDir).filePath("maps/" + currentOpts.mapName + "/maps/" + currentOpts.mapName + ".vmf");
+    VmfBspProcess::FixEntities(target_vmf_path);
+
+    QString s1Subfolder = "csgo";
+    if (currentOpts.s1GameType == "css") s1Subfolder = "cstrike";
+    else if (currentOpts.s1GameType == "hl2") s1Subfolder = "hl2";
+    else if (currentOpts.s1GameType == "l4d") s1Subfolder = "left4dead";
+    else if (currentOpts.s1GameType == "l4d2") s1Subfolder = "left4dead2";
+    else if (currentOpts.s1GameType == "portal") s1Subfolder = "portal";
+    else if (currentOpts.s1GameType == "portal2") s1Subfolder = "portal2";
+    else if (currentOpts.s1GameType == "tf2") s1Subfolder = "tf";
+    else if (currentOpts.s1GameType == "gmod") s1Subfolder = "garrysmod";
+
+    QString s1gamedir = currentOpts.s1gameBasefolder + "\\" + s1Subfolder;
+    s1gamedir.replace('/', '\\');
+    currentOpts.s1gamedir = s1gamedir;
+
+    QString csgogamedir_path = currentOpts.csgogamedir + "\\csgo";
+    csgogamedir_path.replace('/', '\\');
+    currentOpts.csgogamedir = csgogamedir_path;
+
+    QString contentdir = currentOpts.contentFolder;
+    contentdir.replace('/', '\\');
+    currentOpts.s1contentdir = contentdir;
+
+    currentOpts.s2contentdir = currentOpts.cs2Basefolder + "\\content\\csgo_addons\\" + currentOpts.addonName;
+
+    Miscellaneous::SetOptions(currentOpts);
+
+    MapImporter importer;
+    return importer.Run();
+}
+
+bool Backend::RunModelImportWorkflow(Miscellaneous::Options opts, const QString& mdlPath)
+{
+    QString s1Subfolder = "csgo";
+    if (opts.s1GameType == "css") s1Subfolder = "cstrike";
+    else if (opts.s1GameType == "hl2") s1Subfolder = "hl2";
+    else if (opts.s1GameType == "l4d") s1Subfolder = "left4dead";
+    else if (opts.s1GameType == "l4d2") s1Subfolder = "left4dead2";
+    else if (opts.s1GameType == "portal") s1Subfolder = "portal";
+    else if (opts.s1GameType == "portal2") s1Subfolder = "portal2";
+    else if (opts.s1GameType == "tf2") s1Subfolder = "tf";
+    else if (opts.s1GameType == "gmod") s1Subfolder = "garrysmod";
+
+    QString s1gamedir = opts.s1gameBasefolder + "\\" + s1Subfolder;
+    s1gamedir.replace('/', '\\');
+    opts.s1gamedir = s1gamedir;
+
+    QString csgogamedir_path = opts.csgogamedir + "\\csgo";
+    csgogamedir_path.replace('/', '\\');
+    opts.csgogamedir = csgogamedir_path;
+
+    QString modelsTempDir = opts.appDir + "\\models_temp";
+    QDir().mkpath(modelsTempDir);
+    opts.s1contentdir = modelsTempDir;
+
+    opts.s2contentdir = opts.cs2Basefolder + "\\content\\csgo_addons\\" + opts.addonName;
+
+    Miscellaneous::SetOptions(opts);
+
+    ModelImporter importer;
+    return importer.Run(mdlPath);
 }
 
 void Backend::Stop()

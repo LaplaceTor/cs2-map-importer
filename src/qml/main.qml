@@ -277,9 +277,9 @@ ApplicationWindow {
             TabBar {
                 id: tabBar
                 Layout.fillWidth: true
-                currentIndex: backend.isModelMode ? 1 : 0
+                currentIndex: backend.activeTab
                 onCurrentIndexChanged: {
-                    backend.isModelMode = (currentIndex === 1)
+                    backend.activeTab = currentIndex
                 }
 
                 TabButton {
