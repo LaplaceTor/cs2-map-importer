@@ -815,9 +815,19 @@ void Backend::Start()
 
         QString log_dir_path = QDir(appDir).filePath("logs");
         QDir().mkpath(log_dir_path);
-        QString log_filename = QString("%1_%2.log")
-            .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss"))
-            .arg(currentAddonName);
+        QString log_filename;
+        QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss");
+        if (activeTab == TAB_MODEL) {
+            QString base = QFileInfo(mdlFile).baseName();
+            if (base.isEmpty()) base = currentAddonName;
+            log_filename = QString("%1_mdl_%2.log").arg(timestamp).arg(base);
+        } else if (activeTab == TAB_PARTICLE) {
+            QString base = QFileInfo(pcfFile).baseName();
+            if (base.isEmpty()) base = currentAddonName;
+            log_filename = QString("%1_pcf_%2.log").arg(timestamp).arg(base);
+        } else {
+            log_filename = QString("%1_%2.log").arg(timestamp).arg(currentAddonName);
+        }
         QString log_file_path = QDir(log_dir_path).filePath(log_filename);
 
         if (logStream) {
