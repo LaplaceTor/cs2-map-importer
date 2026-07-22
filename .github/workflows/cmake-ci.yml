@@ -5,7 +5,8 @@ on:
     branches-ignore:
       - main
       - python
-    paths-ignore: '*.md'
+    paths-ignore: 
+        - '*.md'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
