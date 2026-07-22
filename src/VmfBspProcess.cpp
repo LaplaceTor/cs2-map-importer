@@ -284,6 +284,77 @@ void VmfBspProcess::FixLightColor(const QString& vmfPath) {
     }
 }
 
+void VmfBspProcess::FixPhysboxMultiplayer(const QString& vmfPath) {
+    if (!QFile::exists(vmfPath)) return;
+
+    QFile infile(vmfPath);
+    if (!infile.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+
+    QStringList lines;
+    QTextStream in(&infile);
+    while (!in.atEnd()) {
+        lines.append(in.readLine());
+    }
+    infile.close();
+
+    bool in_entity = false;
+    int bracket_level = 0;
+    QStringList current_entity_block;
+    QStringList out_lines;
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i];
+        QString trimmed = line.trimmed();
+
+        if (!in_entity && trimmed == "entity") {
+            in_entity = true;
+            bracket_level = 0;
+            current_entity_block.clear();
+            current_entity_block.append(line);
+        } else if (in_entity) {
+            current_entity_block.append(line);
+
+            if (trimmed == "{") {
+                bracket_level++;
+            } else if (trimmed == "}") {
+                bracket_level--;
+                if (bracket_level == 0) {
+                    in_entity = false;
+
+                    QRegularExpression classname_regex("^(\\s*)\"classname\"\\s+\"([^\"]+)\"(.*)$");
+
+                    for (int j = 0; j < current_entity_block.size(); ++j) {
+                        QRegularExpressionMatch match = classname_regex.match(current_entity_block[j]);
+                        if (match.hasMatch()) {
+                            QString indent = match.captured(1);
+                            QString classname_val = match.captured(2);
+                            QString rest = match.captured(3);
+
+                            if (classname_val == "func_physbox_multiplayer") {
+                                current_entity_block[j] = indent + "\"classname\" \"func_physbox\"" + rest;
+                            }
+                            break;
+                        }
+                    }
+
+                    out_lines.append(current_entity_block);
+                }
+            }
+        } else {
+            out_lines.append(line);
+        }
+    }
+
+    QFile outfile(vmfPath);
+    if (outfile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&outfile);
+        for (const QString& l : out_lines) {
+            out << l << "\n";
+        }
+        outfile.close();
+    }
+}
+
 void VmfBspProcess::FixPerformanceMode(const QString& vmfPath) {
     if (!QFile::exists(vmfPath)) return;
 
@@ -622,15 +693,8 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
                             // Remove DefaultAnim if empty
                             if (anim_idx != -1) {
                                 current_entity_block.removeAt(anim_idx);
-                                // Need to adjust classname index if it was after DefaultAnim (highly unlikely due to VMF structure, but just in case)
-                                if (classname_idx > anim_idx) classname_idx--;
                             }
-
-                            // Change classname to prop_static
-                            if (classname_idx != -1) {
-                                QRegularExpressionMatch match = classname_regex.match(current_entity_block[classname_idx]);
-                                current_entity_block[classname_idx] = match.captured(1) + "prop_static" + match.captured(3);
-                            }
+                            // Do not change the classname to prop_static and skip kv create if empty
                         }
                     }
 
@@ -660,6 +724,7 @@ void VmfBspProcess::FixEntities(const QString& vmfPath) {
     FixDynamicProp(vmfPath);
     FixPerformanceMode(vmfPath);
     OldParticleFix(vmfPath);
+    FixPhysboxMultiplayer(vmfPath);
 }
 
 void VmfBspProcess::OldParticleFix(const QString& vmfPath) {
