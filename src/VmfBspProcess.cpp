@@ -505,7 +505,7 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
                                     } else if (classname == "func_wall_toggle") {
                                         solidity_val = "0";
                                     } else if (classname == "func_detail") {
-                                        solidity_val = "1";
+                                        solidity_val = "2";
                                     } else if (classname == "func_lod") {
                                         if (solid_val == "0") {
                                             solidity_val = "2";
