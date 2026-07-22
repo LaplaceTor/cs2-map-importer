@@ -39,7 +39,7 @@ set(SOURCES
 )
 
 if(WIN32)
-    list(APPEND SOURCES src/cs2importer.rc)
+    list(APPEND SOURCES icons/cs2importer.rc)
 endif()
 
 qt_add_executable(cs2importer MANUAL_FINALIZATION ${SOURCES})
