@@ -5,7 +5,7 @@ on:
     branches-ignore:
       - main
       - python
-      paths:
+    paths-ignore: 
         - '*.md'
 
 env:
