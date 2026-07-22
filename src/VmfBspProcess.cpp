@@ -653,8 +653,10 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
                 if (bracket_level == 0) {
                     in_entity = false;
 
-                    // Check if it is a prop_dynamic
+                    // Check if it is a prop_dynamic, prop_dynamic_glow, or prop_dynamic_override
                     bool is_prop_dynamic = false;
+                    bool is_prop_dynamic_glow = false;
+                    bool is_prop_dynamic_override = false;
                     int classname_idx = -1;
                     QRegularExpression classname_regex("^(\\s*\"classname\"\\s+\")([^\"]+)(\".*)$");
 
@@ -662,40 +664,101 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
                         QRegularExpressionMatch match = classname_regex.match(current_entity_block[j]);
                         if (match.hasMatch()) {
                             classname_idx = j;
-                            if (match.captured(2) == "prop_dynamic") {
+                            QString current_classname = match.captured(2);
+                            if (current_classname == "prop_dynamic") {
                                 is_prop_dynamic = true;
+                            } else if (current_classname == "prop_dynamic_glow") {
+                                is_prop_dynamic_glow = true;
+                            } else if (current_classname == "prop_dynamic_override") {
+                                is_prop_dynamic_override = true;
                             }
                             break;
                         }
                     }
 
-                    if (is_prop_dynamic) {
-                        // Fix DefaultAnim
-                        QRegularExpression anim_regex("^(\\s*)\"DefaultAnim\"\\s+\"([^\"]*)\"(.*)$");
-                        int anim_idx = -1;
-                        QString default_anim_val;
-                        QString indent;
-                        for (int j = 0; j < current_entity_block.size(); ++j) {
-                            QRegularExpressionMatch match = anim_regex.match(current_entity_block[j]);
-                            if (match.hasMatch()) {
-                                anim_idx = j;
-                                indent = match.captured(1);
-                                default_anim_val = match.captured(2);
+                    if (is_prop_dynamic || is_prop_dynamic_glow || is_prop_dynamic_override) {
+                        QRegularExpression default_anim_regex("^(\\s*)\"DefaultAnim\"\\s+\"([^\"]*)\"(.*)$");
+                        QRegularExpression hold_animation_regex("^(\\s*)\"HoldAnimation\"\\s+\"([^\"]*)\"(.*)$");
+                        QRegularExpression random_animation_regex("^(\\s*)\"RandomAnimation\"\\s+\"([^\"]*)\"(.*)$");
+                        QRegularExpression animate_every_frame_regex("^(\\s*)\"AnimateEveryFrame\"\\s+\"([^\"]*)\"(.*)$");
+                        QRegularExpression skin_regex("^(\\s*)\"skin\"\\s+\"([^\"]*)\"(.*)$");
+
+                        bool has_hold_animation = false;
+                        for (const QString& block_line : current_entity_block) {
+                            if (hold_animation_regex.match(block_line).hasMatch()) {
+                                has_hold_animation = true;
                                 break;
                             }
                         }
 
-                        if (anim_idx != -1 && !default_anim_val.isEmpty()) {
-                            // Replace DefaultAnim with IdleAnim and IdleAnimationLoopMode
-                            current_entity_block[anim_idx] = indent + "\"IdleAnim\" \"" + default_anim_val + "\"";
-                            current_entity_block.insert(anim_idx + 1, indent + "\"IdleAnimationLoopMode\" \"ANIM_LOOP_MODE_LOOPING\"");
-                        } else {
-                            // Remove DefaultAnim if empty
-                            if (anim_idx != -1) {
-                                current_entity_block.removeAt(anim_idx);
+                        QStringList new_entity_block;
+                        for (const QString& block_line : current_entity_block) {
+                            QRegularExpressionMatch classname_match = classname_regex.match(block_line);
+                            QRegularExpressionMatch default_anim_match = default_anim_regex.match(block_line);
+                            QRegularExpressionMatch hold_animation_match = hold_animation_regex.match(block_line);
+                            QRegularExpressionMatch random_animation_match = random_animation_regex.match(block_line);
+                            QRegularExpressionMatch animate_every_frame_match = animate_every_frame_regex.match(block_line);
+                            QRegularExpressionMatch skin_match = skin_regex.match(block_line);
+
+                            if (classname_match.hasMatch()) {
+                                QString indent = classname_match.captured(1);
+                                QString current_classname = classname_match.captured(2);
+                                QString rest = classname_match.captured(3);
+
+                                if (current_classname == "prop_dynamic_glow") {
+                                    new_entity_block.append(indent + "prop_dynamic" + rest);
+                                } else {
+                                    new_entity_block.append(block_line);
+                                }
+                            } else if (default_anim_match.hasMatch()) {
+                                QString indent = default_anim_match.captured(1);
+                                QString default_anim_val = default_anim_match.captured(2);
+                                QString rest = default_anim_match.captured(3);
+
+                                if (!default_anim_val.isEmpty()) {
+                                    new_entity_block.append(indent + "\"IdleAnim\" \"" + default_anim_val + "\"" + rest);
+                                    if (!has_hold_animation) {
+                                        new_entity_block.append(indent + "\"IdleAnimationLoopMode\" \"ANIM_LOOP_MODE_NOT_LOOPING\"");
+                                    }
+                                }
+                                // If empty, do not write anything
+                            } else if (hold_animation_match.hasMatch()) {
+                                QString indent = hold_animation_match.captured(1);
+                                QString hold_val = hold_animation_match.captured(2);
+                                QString rest = hold_animation_match.captured(3);
+
+                                if (hold_val == "1") {
+                                    new_entity_block.append(indent + "\"IdleAnimationLoopMode\" \"ANIM_LOOP_MODE_LOOPING\"" + rest);
+                                } else {
+                                    new_entity_block.append(indent + "\"IdleAnimationLoopMode\" \"ANIM_LOOP_MODE_NOT_LOOPING\"" + rest);
+                                }
+                            } else if (random_animation_match.hasMatch()) {
+                                QString indent = random_animation_match.captured(1);
+                                QString val = random_animation_match.captured(2);
+                                QString rest = random_animation_match.captured(3);
+
+                                new_entity_block.append(indent + "\"randomizecycle\" \"" + val + "\"" + rest);
+                            } else if (animate_every_frame_match.hasMatch()) {
+                                QString indent = animate_every_frame_match.captured(1);
+                                QString val = animate_every_frame_match.captured(2);
+                                QString rest = animate_every_frame_match.captured(3);
+
+                                new_entity_block.append(indent + "\"AnimateOnServer\" \"" + val + "\"" + rest);
+                            } else if (skin_match.hasMatch()) {
+                                QString indent = skin_match.captured(1);
+                                QString val = skin_match.captured(2);
+                                QString rest = skin_match.captured(3);
+
+                                if (val == "0") {
+                                    new_entity_block.append(indent + "\"skin\" \"default\"" + rest);
+                                } else {
+                                    new_entity_block.append(block_line);
+                                }
+                            } else {
+                                new_entity_block.append(block_line);
                             }
-                            // Do not change the classname to prop_static and skip kv create if empty
                         }
+                        current_entity_block = new_entity_block;
                     }
 
                     out_lines.append(current_entity_block);
