@@ -524,12 +524,10 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
                             converted_lines = entity_lines;
                         }
 
-                        // Remove all "side" blocks with material "tools/toolsnodraw" (case-insensitive)
+                        // Inside "side" blocks of func_brush entities, replace material "tools/toolsnodraw" with "tools/toolsblocklight" (case-insensitive)
                         QStringList filtered_lines;
                         bool inside_side = false;
                         int side_start_level = -1;
-                        QStringList side_block_lines;
-                        bool side_has_nodraw = false;
                         int current_level = 0;
 
                         QRegularExpression nodraw_regex("^\"material\"\\s+\"tools[/\\\\]toolsnodraw\"$", QRegularExpression::CaseInsensitiveOption);
@@ -547,21 +545,18 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
                             if (!inside_side && etrimmed == "side") {
                                 inside_side = true;
                                 side_start_level = current_level;
-                                side_block_lines.clear();
-                                side_has_nodraw = false;
                             }
 
                             if (inside_side) {
-                                side_block_lines.append(eline);
                                 if (nodraw_regex.match(etrimmed).hasMatch()) {
-                                    side_has_nodraw = true;
+                                    QString indent = eline.left(eline.indexOf("\"material\""));
+                                    filtered_lines.append(indent + "\"material\" \"tools/toolsblocklight\"");
+                                } else {
+                                    filtered_lines.append(eline);
                                 }
 
                                 if (etrimmed == "}" && current_level == side_start_level) {
                                     inside_side = false;
-                                    if (!side_has_nodraw) {
-                                        filtered_lines.append(side_block_lines);
-                                    }
                                 }
                             } else {
                                 filtered_lines.append(eline);
