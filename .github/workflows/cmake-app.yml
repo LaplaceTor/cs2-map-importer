@@ -68,7 +68,6 @@ jobs:
 
         # Remove unused Qt folders
         Remove-Item -Path release\translations -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path release\iconengines -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -Path release\imageformats -Recurse -Force -ErrorAction SilentlyContinue
 
         Copy-Item -Path bin -Destination release\bin -Recurse
