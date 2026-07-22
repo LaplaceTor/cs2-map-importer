@@ -17,6 +17,7 @@ public:
     static void FixPerformanceMode(const QString& vmfPath);
     static void FixEntities(const QString& vmfPath);
     static void OldParticleFix(const QString& vmfPath);
+    static void FixPhysboxMultiplayer(const QString& vmfPath);
 
 private:
     static QString ParseMapversion(const QStringList& lines, bool& found);
