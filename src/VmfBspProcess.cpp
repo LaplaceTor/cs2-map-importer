@@ -682,6 +682,8 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
                         QRegularExpression random_animation_regex("^(\\s*)\"RandomAnimation\"\\s+\"([^\"]*)\"(.*)$");
                         QRegularExpression animate_every_frame_regex("^(\\s*)\"AnimateEveryFrame\"\\s+\"([^\"]*)\"(.*)$");
                         QRegularExpression skin_regex("^(\\s*)\"skin\"\\s+\"([^\"]*)\"(.*)$");
+                        QRegularExpression glowdist_regex("^(\\s*)\"glowdist\"\\s+\"([^\"]*)\"(.*)$");
+                        QRegularExpression glowenabled_regex("^(\\s*)\"glowenabled\"\\s+\"([^\"]*)\"(.*)$");
 
                         bool has_hold_animation = false;
                         for (const QString& block_line : current_entity_block) {
@@ -699,6 +701,8 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
                             QRegularExpressionMatch random_animation_match = random_animation_regex.match(block_line);
                             QRegularExpressionMatch animate_every_frame_match = animate_every_frame_regex.match(block_line);
                             QRegularExpressionMatch skin_match = skin_regex.match(block_line);
+                            QRegularExpressionMatch glowdist_match = glowdist_regex.match(block_line);
+                            QRegularExpressionMatch glowenabled_match = glowenabled_regex.match(block_line);
 
                             if (classname_match.hasMatch()) {
                                 QString indent = classname_match.captured(1);
@@ -753,6 +757,22 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
                                     new_entity_block.append(indent + "\"skin\" \"default\"" + rest);
                                 } else {
                                     new_entity_block.append(block_line);
+                                }
+                            } else if (glowdist_match.hasMatch()) {
+                                QString indent = glowdist_match.captured(1);
+                                QString val = glowdist_match.captured(2);
+                                QString rest = glowdist_match.captured(3);
+
+                                new_entity_block.append(indent + "\"glowrange\" \"" + val + "\"" + rest);
+                            } else if (glowenabled_match.hasMatch()) {
+                                QString indent = glowenabled_match.captured(1);
+                                QString val = glowenabled_match.captured(2);
+                                QString rest = glowenabled_match.captured(3);
+
+                                if (val == "1") {
+                                    new_entity_block.append(indent + "\"glowstate\" \"3\"" + rest);
+                                } else {
+                                    new_entity_block.append(indent + "\"glowstate\" \"0\"" + rest);
                                 }
                             } else {
                                 new_entity_block.append(block_line);
