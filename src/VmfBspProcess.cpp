@@ -442,6 +442,7 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
                     QString classname = "";
                     QString solid_val = "";
                     QString base_indent = "";
+                    QStringList existing_keys;
 
                     for (int j = 0; j < entity_lines.size(); ++j) {
                         QString eline = entity_lines[j];
@@ -463,6 +464,12 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
                             QRegularExpressionMatch s_match = solid_regex.match(etrimmed);
                             if (s_match.hasMatch()) {
                                 solid_val = s_match.captured(1);
+                            }
+
+                            QRegularExpression kv_regex("^\"([^\"]+)\"\\s+\"(.*)\"$");
+                            QRegularExpressionMatch kv_match = kv_regex.match(etrimmed);
+                            if (kv_match.hasMatch()) {
+                                existing_keys.append(kv_match.captured(1));
                             }
                         }
                     }
@@ -498,7 +505,7 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
                                     } else if (classname == "func_wall_toggle") {
                                         solidity_val = "0";
                                     } else if (classname == "func_detail") {
-                                        solidity_val = "2";
+                                        solidity_val = "1";
                                     } else if (classname == "func_lod") {
                                         if (solid_val == "0") {
                                             solidity_val = "2";
@@ -509,13 +516,45 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
                                         }
                                     }
                                     new_entity_lines.append(base_indent + "\"Solidity\" \"" + solidity_val + "\"");
+
                                     if (classname == "func_detail") {
-                                        new_entity_lines.append(base_indent + "\"origin\" \"0 0 0\"");
+                                        // Add remaining full list of kv of func_brush for func_detail
+                                        QMap<QString, QString> extra_kvs = {
+                                            {"shadowdepthnocache", "0"},
+                                            {"rendermode", "kRenderNormal"},
+                                            {"renderfx", "kRenderFxNone"},
+                                            {"rendercolor", "255 255 255"},
+                                            {"renderamt", "255"},
+                                            {"origin", "0 0 0"},
+                                            {"fadescale", "1"},
+                                            {"fademindist", "-1"},
+                                            {"fademaxdist", "0"},
+                                            {"disableshadows", "0"},
+                                            {"disableshadowdepth", "0"},
+                                            {"disablereceiveshadows", "0"},
+                                            {"disableflashlight", "0"}
+                                        };
+                                        for (auto it = extra_kvs.constBegin(); it != extra_kvs.constEnd(); ++it) {
+                                            if (!existing_keys.contains(it.key())) {
+                                                new_entity_lines.append(base_indent + "\"" + it.key() + "\" \"" + it.value() + "\"");
+                                            }
+                                        }
                                     }
                                 } else if (classname == "func_lod" && solid_regex.match(etrimmed).hasMatch()) {
                                     // Remove the original solid key for func_lod
                                 } else {
-                                    new_entity_lines.append(eline);
+                                    QRegularExpression kv_regex("^\"([^\"]+)\"\\s+\"(.*)\"$");
+                                    QRegularExpressionMatch kv_match = kv_regex.match(etrimmed);
+                                    bool should_skip = false;
+                                    if (classname == "func_detail" && kv_match.hasMatch()) {
+                                        QString key = kv_match.captured(1);
+                                        if (key == "InputFilter" || key == "Solidity") {
+                                            should_skip = true;
+                                        }
+                                    }
+                                    if (!should_skip) {
+                                        new_entity_lines.append(eline);
+                                    }
                                 }
                             } else {
                                 new_entity_lines.append(eline);
