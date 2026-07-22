@@ -803,6 +803,33 @@ void Backend::Start()
         }
     }
 
+    if (activeTab == TAB_MAP) {
+        if (appDir.contains(' ')) {
+            emit alertMessage("Error", "The path to this application contains spaces:\n" + appDir + "\n\nValve binaries do not support importing when the application path contains spaces. Please move this application to a path without spaces (e.g., 'C:\\cs2importer').");
+            return;
+        }
+
+        bool filenameHasSpace = false;
+        QString problemFilename;
+        if (!bspFile.isEmpty()) {
+            QString bspFilename = QFileInfo(bspFile).fileName();
+            if (bspFilename.contains(' ')) {
+                filenameHasSpace = true;
+                problemFilename = bspFilename;
+            }
+        } else {
+            if (mapName.contains(' ')) {
+                filenameHasSpace = true;
+                problemFilename = mapName + ".vmf";
+            }
+        }
+
+        if (filenameHasSpace) {
+            emit alertMessage("Error", "The selected map filename contains spaces:\n\"" + problemFilename + "\"\n\nValve binaries do not support importing map files with spaces in their names. Please rename the map file to remove any spaces (e.g., use underscores: 'custom_map.vmf').");
+            return;
+        }
+    }
+
     try {
         QString currentAddonName = (activeTab == TAB_MODEL || activeTab == TAB_PARTICLE) ? selectedMdlAddon : addonName;
         if (activeTab == TAB_MAP && currentAddonName.trimmed().isEmpty()) {
