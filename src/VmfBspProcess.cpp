@@ -684,6 +684,8 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
                         QRegularExpression skin_regex("^(\\s*)\"skin\"\\s+\"([^\"]*)\"(.*)$");
                         QRegularExpression glowdist_regex("^(\\s*)\"glowdist\"\\s+\"([^\"]*)\"(.*)$");
                         QRegularExpression glowenabled_regex("^(\\s*)\"glowenabled\"\\s+\"([^\"]*)\"(.*)$");
+                        QRegularExpression min_anim_time_regex("^(\\s*)\"MinAnimTime\"\\s+\"([^\"]*)\"(.*)$");
+                        QRegularExpression max_anim_time_regex("^(\\s*)\"MaxAnimTime\"\\s+\"([^\"]*)\"(.*)$");
 
                         bool has_hold_animation = false;
                         for (const QString& block_line : current_entity_block) {
@@ -703,6 +705,8 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
                             QRegularExpressionMatch skin_match = skin_regex.match(block_line);
                             QRegularExpressionMatch glowdist_match = glowdist_regex.match(block_line);
                             QRegularExpressionMatch glowenabled_match = glowenabled_regex.match(block_line);
+                            QRegularExpressionMatch min_anim_time_match = min_anim_time_regex.match(block_line);
+                            QRegularExpressionMatch max_anim_time_match = max_anim_time_regex.match(block_line);
 
                             if (classname_match.hasMatch()) {
                                 QString indent = classname_match.captured(1);
@@ -774,6 +778,8 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
                                 } else {
                                     new_entity_block.append(indent + "\"glowstate\" \"0\"" + rest);
                                 }
+                            } else if (min_anim_time_match.hasMatch() || max_anim_time_match.hasMatch()) {
+                                // Remove MinAnimTime and MaxAnimTime (skip)
                             } else {
                                 new_entity_block.append(block_line);
                             }
