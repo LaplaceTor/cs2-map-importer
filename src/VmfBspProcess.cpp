@@ -509,6 +509,9 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
                                         }
                                     }
                                     new_entity_lines.append(base_indent + "\"Solidity\" \"" + solidity_val + "\"");
+                                    if (classname == "func_detail") {
+                                        new_entity_lines.append(base_indent + "\"origin\" \"0 0 0\"");
+                                    }
                                 } else if (classname == "func_lod" && solid_regex.match(etrimmed).hasMatch()) {
                                     // Remove the original solid key for func_lod
                                 } else {
