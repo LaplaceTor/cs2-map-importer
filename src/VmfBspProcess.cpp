@@ -442,7 +442,6 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
                     QString classname = "";
                     QString solid_val = "";
                     QString base_indent = "";
-                    QStringList existing_keys;
 
                     for (int j = 0; j < entity_lines.size(); ++j) {
                         QString eline = entity_lines[j];
@@ -465,102 +464,111 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
                             if (s_match.hasMatch()) {
                                 solid_val = s_match.captured(1);
                             }
-
-                            QRegularExpression kv_regex("^\"([^\"]+)\"\\s+\"(.*)\"$");
-                            QRegularExpressionMatch kv_match = kv_regex.match(etrimmed);
-                            if (kv_match.hasMatch()) {
-                                existing_keys.append(kv_match.captured(1));
-                            }
                         }
                     }
 
                     bool process_func_detail = Miscellaneous::GetOptions().keepFuncDetailAsBrush && classname == "func_detail";
+                    bool is_or_becomes_func_brush = (classname == "func_brush" || classname == "func_illusionary" || classname == "func_wall" || classname == "func_wall_toggle" || classname == "func_lod" || process_func_detail);
 
-                    if (classname == "func_illusionary" || classname == "func_wall" || classname == "func_wall_toggle" || classname == "func_lod" || process_func_detail) {
-                        QStringList new_entity_lines;
-                        inner_level = 0;
-                        for (int j = 0; j < entity_lines.size(); ++j) {
-                            QString eline = entity_lines[j];
+                    if (is_or_becomes_func_brush) {
+                        QStringList converted_lines;
+                        if (classname != "func_brush") {
+                            inner_level = 0;
+                            for (int j = 0; j < entity_lines.size(); ++j) {
+                                QString eline = entity_lines[j];
+                                QString etrimmed = eline.trimmed();
+
+                                if (etrimmed == "{") {
+                                    inner_level++;
+                                    converted_lines.append(eline);
+                                } else if (etrimmed == "}") {
+                                    inner_level--;
+                                    converted_lines.append(eline);
+                                } else if (inner_level == 1) {
+                                    QRegularExpression classname_regex("^\"classname\"\\s+\"(.*)\"$");
+                                    QRegularExpression solid_regex("^\"solid\"\\s+\"(.*)\"$");
+
+                                    if (classname_regex.match(etrimmed).hasMatch()) {
+                                        converted_lines.append(base_indent + "\"classname\" \"func_brush\"");
+                                        converted_lines.append(base_indent + "\"InputFilter\" \"32\"");
+
+                                        QString solidity_val = "2";
+                                        if (classname == "func_illusionary") {
+                                            solidity_val = "1";
+                                        } else if (classname == "func_wall") {
+                                            solidity_val = "2";
+                                        } else if (classname == "func_wall_toggle") {
+                                            solidity_val = "0";
+                                        } else if (classname == "func_detail") {
+                                            solidity_val = "2";
+                                        } else if (classname == "func_lod") {
+                                            if (solid_val == "0") {
+                                                solidity_val = "2";
+                                            } else if (solid_val == "1") {
+                                                solidity_val = "1";
+                                            } else {
+                                                solidity_val = "2";
+                                            }
+                                        }
+                                        converted_lines.append(base_indent + "\"Solidity\" \"" + solidity_val + "\"");
+                                    } else if (classname == "func_lod" && solid_regex.match(etrimmed).hasMatch()) {
+                                        // Remove the original solid key for func_lod
+                                    } else {
+                                        converted_lines.append(eline);
+                                    }
+                                } else {
+                                    converted_lines.append(eline);
+                                }
+                            }
+                        } else {
+                            converted_lines = entity_lines;
+                        }
+
+                        // Remove all "side" blocks with material "tools/toolsnodraw" (case-insensitive)
+                        QStringList filtered_lines;
+                        bool inside_side = false;
+                        int side_start_level = -1;
+                        QStringList side_block_lines;
+                        bool side_has_nodraw = false;
+                        int current_level = 0;
+
+                        QRegularExpression nodraw_regex("^\"material\"\\s+\"tools[/\\\\]toolsnodraw\"$", QRegularExpression::CaseInsensitiveOption);
+
+                        for (int j = 0; j < converted_lines.size(); ++j) {
+                            QString eline = converted_lines[j];
                             QString etrimmed = eline.trimmed();
 
                             if (etrimmed == "{") {
-                                inner_level++;
-                                new_entity_lines.append(eline);
+                                current_level++;
                             } else if (etrimmed == "}") {
-                                inner_level--;
-                                new_entity_lines.append(eline);
-                            } else if (inner_level == 1) {
-                                QRegularExpression classname_regex("^\"classname\"\\s+\"(.*)\"$");
-                                QRegularExpression solid_regex("^\"solid\"\\s+\"(.*)\"$");
+                                current_level--;
+                            }
 
-                                if (classname_regex.match(etrimmed).hasMatch()) {
-                                    new_entity_lines.append(base_indent + "\"classname\" \"func_brush\"");
-                                    new_entity_lines.append(base_indent + "\"InputFilter\" \"32\"");
+                            if (!inside_side && etrimmed == "side") {
+                                inside_side = true;
+                                side_start_level = current_level;
+                                side_block_lines.clear();
+                                side_has_nodraw = false;
+                            }
 
-                                    QString solidity_val = "2";
-                                    if (classname == "func_illusionary") {
-                                        solidity_val = "1";
-                                    } else if (classname == "func_wall") {
-                                        solidity_val = "2";
-                                    } else if (classname == "func_wall_toggle") {
-                                        solidity_val = "0";
-                                    } else if (classname == "func_detail") {
-                                        solidity_val = "2";
-                                    } else if (classname == "func_lod") {
-                                        if (solid_val == "0") {
-                                            solidity_val = "2";
-                                        } else if (solid_val == "1") {
-                                            solidity_val = "1";
-                                        } else {
-                                            solidity_val = "2";
-                                        }
-                                    }
-                                    new_entity_lines.append(base_indent + "\"Solidity\" \"" + solidity_val + "\"");
+                            if (inside_side) {
+                                side_block_lines.append(eline);
+                                if (nodraw_regex.match(etrimmed).hasMatch()) {
+                                    side_has_nodraw = true;
+                                }
 
-                                    if (classname == "func_detail") {
-                                        // Add remaining full list of kv of func_brush for func_detail
-                                        QMap<QString, QString> extra_kvs = {
-                                            {"shadowdepthnocache", "0"},
-                                            {"rendermode", "kRenderNormal"},
-                                            {"renderfx", "kRenderFxNone"},
-                                            {"rendercolor", "255 255 255"},
-                                            {"renderamt", "255"},
-                                            {"origin", "0 0 0"},
-                                            {"fadescale", "1"},
-                                            {"fademindist", "-1"},
-                                            {"fademaxdist", "0"},
-                                            {"disableshadows", "0"},
-                                            {"disableshadowdepth", "0"},
-                                            {"disablereceiveshadows", "0"},
-                                            {"disableflashlight", "0"}
-                                        };
-                                        for (auto it = extra_kvs.constBegin(); it != extra_kvs.constEnd(); ++it) {
-                                            if (!existing_keys.contains(it.key())) {
-                                                new_entity_lines.append(base_indent + "\"" + it.key() + "\" \"" + it.value() + "\"");
-                                            }
-                                        }
-                                    }
-                                } else if (classname == "func_lod" && solid_regex.match(etrimmed).hasMatch()) {
-                                    // Remove the original solid key for func_lod
-                                } else {
-                                    QRegularExpression kv_regex("^\"([^\"]+)\"\\s+\"(.*)\"$");
-                                    QRegularExpressionMatch kv_match = kv_regex.match(etrimmed);
-                                    bool should_skip = false;
-                                    if (classname == "func_detail" && kv_match.hasMatch()) {
-                                        QString key = kv_match.captured(1);
-                                        if (key == "InputFilter" || key == "Solidity") {
-                                            should_skip = true;
-                                        }
-                                    }
-                                    if (!should_skip) {
-                                        new_entity_lines.append(eline);
+                                if (etrimmed == "}" && current_level == side_start_level) {
+                                    inside_side = false;
+                                    if (!side_has_nodraw) {
+                                        filtered_lines.append(side_block_lines);
                                     }
                                 }
                             } else {
-                                new_entity_lines.append(eline);
+                                filtered_lines.append(eline);
                             }
                         }
-                        out_lines.append(new_entity_lines);
+
+                        out_lines.append(filtered_lines);
                     } else {
                         out_lines.append(entity_lines);
                     }
