@@ -729,9 +729,10 @@ void MaterialFix::GenerateNormalForTextures() {
                                      << "-colorspace" << "linear-gray"
                                      << "-define" << "convolve:scale=50%!"
                                      << "-bias" << "50%"
+                                     << "-sigmoidal-contrast" << "10x50%"
                                      << "(" << "-clone" << "0" << "-morphology" << "Convolve" << "Sobel:0" << ")"
                                      << "(" << "-clone" << "0" << "-morphology" << "Convolve" << "Sobel:-90" << ")"
-                                     << "(" << "-clone" << "0" << "-evaluate" << "set" << "50%" << ")"
+                                     << "(" << "-clone" << "0" << "-evaluate" << "set" << "100%" << ")"
                                      << "-delete" << "0"
                                      << "-combine"
                                      << normalAbsPath;
