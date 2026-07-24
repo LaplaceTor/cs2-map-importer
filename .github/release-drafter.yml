@@ -5,13 +5,13 @@ categories:
     labels:
       - 'feature'
       - 'enhancement'
-    body-content-regex: 'feat:.*'
+    body-content-regex: '^feat:'
   - title: '🐛 Bug Fixes'
     labels:
       - 'fix'
       - 'bugfix'
       - 'bug'
-    body-content-regex: 'fix:.*'
+    body-content-regex: '^fix:'
   - title: '🧰 Maintenance'
     labels:
       - 'chore'
