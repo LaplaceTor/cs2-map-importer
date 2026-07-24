@@ -188,6 +188,25 @@ ApplicationWindow {
             Layout.maximumWidth: 400
             spacing: 20
 
+            TabBar {
+                id: tabBar
+                Layout.fillWidth: true
+                currentIndex: backend.activeTab
+                onCurrentIndexChanged: {
+                    backend.activeTab = currentIndex
+                }
+
+                TabButton {
+                    text: "Map"
+                }
+                TabButton {
+                    text: "Model"
+                }
+                TabButton {
+                    text: "Particle"
+                }
+            }
+
             // Row 1: Folders
             RowLayout {
                 Layout.fillWidth: true
@@ -284,24 +303,6 @@ ApplicationWindow {
                 }
             }
 
-            TabBar {
-                id: tabBar
-                Layout.fillWidth: true
-                currentIndex: backend.activeTab
-                onCurrentIndexChanged: {
-                    backend.activeTab = currentIndex
-                }
-
-                TabButton {
-                    text: "Map"
-                }
-                TabButton {
-                    text: "Model"
-                }
-                TabButton {
-                    text: "Particle"
-                }
-            }
 
             StackLayout {
                 id: stackLayout
