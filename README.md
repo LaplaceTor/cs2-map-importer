@@ -35,8 +35,8 @@ cmake --build .
 
 ## 3rd party software using in this project
 
-[VPKEdit](https://github.com/craftablescience/VPKEdit) for extract files from vpk and bsp.
-[VTFEdit-Reload](https://github.com/Sky-rym/VTFEdit-Reloaded) for extract vtf to normal image format.
+- [VPKEdit](https://github.com/craftablescience/VPKEdit) for extract files from vpk and bsp
+- [VTFEdit-Reload](https://github.com/Sky-rym/VTFEdit-Reloaded) for extract vtf to normal image format
 
 
 ## Historical Context
