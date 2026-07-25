@@ -65,10 +65,6 @@ Backend::Backend(QObject *parent) :
     Miscellaneous::Log("Initializing CS2 Importer... Finished");
 }
 
-Backend::~Backend()
-{
-}
-
 void Backend::ValidateCs2()
 {
     QDesktopServices::openUrl(QUrl("steam://validate/730"));
