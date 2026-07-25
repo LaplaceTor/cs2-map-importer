@@ -8,6 +8,7 @@
 #include <QUrl>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <memory>
 #include "Miscellaneous.h"
 
 class Backend : public QObject
@@ -52,7 +53,6 @@ public:
     };
 
     explicit Backend(QObject *parent = nullptr);
-    ~Backend();
 
     int GetActiveTab() const { return activeTab; }
     void SetActiveTab(int val) { if(activeTab != val) { activeTab = val; emit activeTabChanged(); UpdateCanGo(); } }
@@ -236,8 +236,8 @@ private:
 
     QNetworkAccessManager* networkManager;
 
-    QFile* logFile;
-    QTextStream* logStream;
+    std::unique_ptr<QFile> logFile;
+    std::unique_ptr<QTextStream> logStream;
 
     void SetCs2Folder(const QString& path);
     void SetS1Folder(const QString& path);
