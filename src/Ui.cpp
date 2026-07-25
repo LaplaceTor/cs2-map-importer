@@ -634,7 +634,6 @@ void Backend::SaveToCfg()
     settings.setValue("usebsp", usebsp);
     settings.setValue("usebsp_nomergeinstances", usebspNomergeinstances);
     settings.setValue("skipdeps", skipdeps);
-    settings.setValue("generateNormalForTextures", generateNormalForTextures);
     settings.setValue("cs2_basefolder", cs2Basefolder);
 
     settings.setValue("modelSkipAnimation", modelSkipAnimation);
@@ -669,7 +668,6 @@ void Backend::LoadFromCfg()
     usebsp = settings.value("usebsp", true).toBool();
     usebspNomergeinstances = settings.value("usebsp_nomergeinstances", false).toBool();
     skipdeps = settings.value("skipdeps", false).toBool();
-    generateNormalForTextures = settings.value("generateNormalForTextures", false).toBool();
     cs2Basefolder = settings.value("cs2_basefolder", "").toString();
 
     modelSkipAnimation = settings.value("modelSkipAnimation", false).toBool();
@@ -744,7 +742,6 @@ void Backend::LoadFromCfg()
     emit usebspChanged();
     emit usebspNomergeinstancesChanged();
     emit skipdepsChanged();
-    emit generateNormalForTexturesChanged();
 
     emit modelSkipAnimationChanged();
     emit modelChangeBindposeChanged();
@@ -901,7 +898,6 @@ void Backend::Start()
             opts.usebsp = false;
             opts.usebspNomergeinstances = false;
             opts.skipdeps = false;
-            opts.generateNormalForTextures = false;
             opts.modelSkipAnimation = false;
             opts.modelChangeBindpose = false;
             opts.modelOverrideLean = false;
@@ -910,7 +906,6 @@ void Backend::Start()
             opts.modelWriteWeaponPrefab = false;
         } else if (activeTab == TAB_MODEL) {
             opts.addonName = selectedMdlAddon;
-            opts.generateNormalForTextures = generateNormalForTextures;
             opts.modelSkipAnimation = modelSkipAnimation;
             opts.modelChangeBindpose = modelChangeBindpose;
             opts.modelOverrideLean = modelOverrideLean;
@@ -934,7 +929,6 @@ void Backend::Start()
             opts.usebsp = usebsp && !usebspNomergeinstances;
             opts.usebspNomergeinstances = usebsp && usebspNomergeinstances;
             opts.skipdeps = skipdeps;
-            opts.generateNormalForTextures = generateNormalForTextures;
             opts.modelSkipAnimation = false;
             opts.modelChangeBindpose = false;
             opts.modelOverrideLean = false;

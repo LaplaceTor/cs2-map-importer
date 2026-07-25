@@ -235,10 +235,18 @@ bool ModelImporter::Run(const QString& mdlPath) {
 
     if (Miscellaneous::CanceLImport) return false;
 
-    // Normal textures generation
-    if (opts.generateNormalForTextures) {
-        MaterialFix::FixMaterials();
+    QStringList vmatFilesToFix;
+    for (const QString& mtl : mdlmtls) {
+        if (mtl.isEmpty() || mtl.startsWith('-')) continue;
+        QString mtlOut = opts.s2contentdir + "/" + mtl;
+        int vmtPos = mtlOut.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
+        if (vmtPos != -1) {
+            mtlOut.replace(vmtPos, 4, ".vmat");
+        }
+        vmatFilesToFix.append(QDir::cleanPath(mtlOut));
     }
+
+    FixModelMaterials(vmatFilesToFix);
 
     // Check if force compile required
     QSet<QString> global2UVMaterials;
@@ -258,4 +266,101 @@ bool ModelImporter::Run(const QString& mdlPath) {
 
     Miscellaneous::Log("Model Import process complete.");
     return true;
+}
+
+struct ModelKeyMapping {
+    QString newKey;
+    bool appendAlpha1;
+};
+
+static QMap<QString, ModelKeyMapping> legacyKeyMap = { { "\"$color2\"", { "\"g_vColorTint\"", true } } };
+
+void ModelImporter::FixModelMaterials(const QStringList& vmatFiles) {
+    for (const QString& vmatFile : vmatFiles) {
+        if (!QFile::exists(vmatFile)) {
+            continue;
+        }
+
+        QStringList lines = ReadTextFile(vmatFile);
+        bool fileModified = false;
+        bool isLegacyShader = false;
+
+        // We look for legacy keys and values
+        QMap<QString, QString> foundLegacyKeys;
+        int layer0StartIdx = -1;
+        int layer0EndIdx = -1;
+        int bracketDepth = 0;
+
+        for (int i = 0; i < lines.size(); ++i) {
+            QString line = lines[i].trimmed();
+            QString lowerLine = line.toLower();
+
+            // Track blocks
+            if (line == "{") bracketDepth++;
+            else if (line == "}") bracketDepth--;
+
+            if (lowerLine.startsWith("\"shader\"") && (lowerLine.contains("\"csgo_unlitgeneric.vfx\"") || lowerLine.contains("\"csgo_vertexlitgeneric.vfx\""))) {
+                isLegacyShader = true;
+            }
+
+            if (lowerLine == "\"layer0\"" && i + 1 < lines.size() && lines[i+1].trimmed() == "{") {
+                layer0StartIdx = i + 1; // Index of the opening brace
+                int tempDepth = bracketDepth;
+                for (int j = i + 1; j < lines.size(); ++j) {
+                    QString tLine = lines[j].trimmed();
+                    if (tLine == "{") tempDepth++;
+                    else if (tLine == "}") {
+                        tempDepth--;
+                        if (tempDepth == bracketDepth) {
+                            layer0EndIdx = j;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Check for legacy_import block inside Layer0
+            if (layer0StartIdx != -1 && layer0EndIdx != -1) {
+                for (int j = layer0StartIdx + 1; j < layer0EndIdx; ++j) {
+                    if (lines[j].trimmed().toLower() == "\"legacy_import\"") {
+                        layer0EndIdx = j; // Set the insertion point *before* legacy_import
+                        break;
+                    }
+                }
+            }
+
+            for (auto itMap = legacyKeyMap.begin(); itMap != legacyKeyMap.end(); ++itMap) {
+                if (lowerLine.startsWith(itMap.key())) {
+                    int firstQuote = line.indexOf('"', itMap.key().length());
+                    int lastQuote = line.lastIndexOf('"');
+                    if (firstQuote != -1 && lastQuote != -1 && lastQuote > firstQuote) {
+                        QString valueStr = line.mid(firstQuote, lastQuote - firstQuote + 1);
+                        foundLegacyKeys[itMap.key()] = valueStr;
+                    }
+                }
+            }
+        }
+
+        if (isLegacyShader) {
+            MaterialFix::ShaderFix(lines, fileModified);
+            MaterialFix::ComplexShaderVariablesFix(lines, fileModified);
+        }
+
+        MaterialFix::MissingKVFix(lines, fileModified);
+        MaterialFix::TranslucentAlphaTestConflictFix(lines, fileModified);
+
+        if (!foundLegacyKeys.isEmpty()) {
+            MaterialFix::ColorFix(lines, layer0StartIdx, layer0EndIdx, foundLegacyKeys, fileModified);
+        }
+
+        if (fileModified) {
+            EnsureFileWritable(vmatFile);
+            QFile file(vmatFile);
+            if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream out(&file);
+                for (const QString& l : lines) out << l << "\n";
+                file.close();
+            }
+        }
+    }
 }

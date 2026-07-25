@@ -25,7 +25,6 @@ class Backend : public QObject
     Q_PROPERTY(bool usebsp READ GetUsebsp WRITE SetUsebsp NOTIFY usebspChanged)
     Q_PROPERTY(bool usebspNomergeinstances READ GetUsebspNomergeinstances WRITE SetUsebspNomergeinstances NOTIFY usebspNomergeinstancesChanged)
     Q_PROPERTY(bool skipdeps READ GetSkipdeps WRITE SetSkipdeps NOTIFY skipdepsChanged)
-    Q_PROPERTY(bool generateNormalForTextures READ GetGenerateNormalForTextures WRITE SetGenerateNormalForTextures NOTIFY generateNormalForTexturesChanged)
     Q_PROPERTY(bool canGo READ GetCanGo NOTIFY canGoChanged)
     Q_PROPERTY(bool isGoing READ GetIsGoing NOTIFY isGoingChanged)
     Q_PROPERTY(QString currentVersion READ GetCurrentVersion CONSTANT)
@@ -123,9 +122,6 @@ public:
     bool GetSkipdeps() const { return skipdeps; }
     void SetSkipdeps(bool val) { if(skipdeps != val) { skipdeps = val; emit skipdepsChanged(); GetLaunchOptions(); SaveToCfg(); } }
 
-    bool GetGenerateNormalForTextures() const { return generateNormalForTextures; }
-    void SetGenerateNormalForTextures(bool val) { if(generateNormalForTextures != val) { generateNormalForTextures = val; emit generateNormalForTexturesChanged(); SaveToCfg(); } }
-
     bool GetCanGo() const {
         if (activeTab == TAB_MODEL) {
             return !cs2Basefolder.isEmpty() && !GetS1gameBasefolder().isEmpty() && !mdlFile.isEmpty() && !selectedMdlAddon.isEmpty() && !isGoing;
@@ -171,7 +167,6 @@ signals:
     void usebspChanged();
     void usebspNomergeinstancesChanged();
     void skipdepsChanged();
-    void generateNormalForTexturesChanged();
     void canGoChanged();
     void isGoingChanged();
 
@@ -222,7 +217,6 @@ private:
     bool usebsp = true;
     bool usebspNomergeinstances = false;
     bool skipdeps = false;
-    bool generateNormalForTextures = false;
     bool isGoing = false;
 
     int activeTab = TAB_MAP;

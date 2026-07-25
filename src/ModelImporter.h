@@ -14,6 +14,7 @@ public:
 private:
     QStringList ReadTextFile(const QString& filepath);
     void EnsureFileWritable(const QString& filepath);
+    void FixModelMaterials(const QStringList& vmatFiles);
 };
 
 #endif // MODELIMPORTER_H

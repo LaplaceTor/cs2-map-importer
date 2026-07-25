@@ -41,7 +41,6 @@ public:
         bool usebsp;
         bool usebspNomergeinstances;
         bool skipdeps;
-        bool generateNormalForTextures;
 
         bool modelSkipAnimation;
         bool modelChangeBindpose;
