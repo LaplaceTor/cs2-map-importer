@@ -53,7 +53,6 @@ public:
     };
 
     explicit Backend(QObject *parent = nullptr);
-    ~Backend() override = default;
 
     int GetActiveTab() const { return activeTab; }
     void SetActiveTab(int val) { if(activeTab != val) { activeTab = val; emit activeTabChanged(); UpdateCanGo(); } }
