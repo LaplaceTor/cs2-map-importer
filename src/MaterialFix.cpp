@@ -8,6 +8,9 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QProcess>
+#include <QImage>
+#include <QColor>
+#include <QPainter>
 
 static QString CleanRefPath(QString input) {
     int filePos = input.indexOf("\"file\"");
@@ -198,19 +201,19 @@ void MaterialFix::SkyboxFix() {
         }
 
         if (QFile::exists(vtfPath)) {
-            QString cmd = "\"bin\\vtfcmd.exe\" -file \"" + vtfPath + "\" -output \"" + s2DirPath + "\" -exportformat \"tga\"";
+            QString cmd = "\"bin\\vtfcmd.exe\" -file \"" + vtfPath + "\" -output \"" + s2DirPath + "\" -exportformat \"jpg\"";
             cmd = cmd.replace("/", "\\");
             Miscellaneous::RunCommandSync(cmd);
         }
     }
 
-    // Look for generated tga files in s2DirPath
-    QString up = s2DirPath + "/" + baseName + "up.tga";
-    QString bk = s2DirPath + "/" + baseName + "bk.tga";
-    QString rt = s2DirPath + "/" + baseName + "rt.tga";
-    QString ft = s2DirPath + "/" + baseName + "ft.tga";
-    QString lf = s2DirPath + "/" + baseName + "lf.tga";
-    QString dn = s2DirPath + "/" + baseName + "dn.tga";
+    // Look for generated jpg files in s2DirPath
+    QString up = s2DirPath + "/" + baseName + "up.jpg";
+    QString bk = s2DirPath + "/" + baseName + "bk.jpg";
+    QString rt = s2DirPath + "/" + baseName + "rt.jpg";
+    QString ft = s2DirPath + "/" + baseName + "ft.jpg";
+    QString lf = s2DirPath + "/" + baseName + "lf.jpg";
+    QString dn = s2DirPath + "/" + baseName + "dn.jpg";
 
     bool hasUp = QFile::exists(up);
     bool hasBk = QFile::exists(bk);
@@ -223,48 +226,44 @@ void MaterialFix::SkyboxFix() {
 
         Miscellaneous::Log("Rebuilding skybox cube for " + baseName + "...");
 
-        QString existingFace = "";
-        if (hasUp) existingFace = up;
-        else if (hasBk) existingFace = bk;
-        else if (hasRt) existingFace = rt;
-        else if (hasFt) existingFace = ft;
-        else if (hasLf) existingFace = lf;
-        else if (hasDn) existingFace = dn;
+        // Create a 4096x3072 QImage initialized with black color
+        QImage cubeImage(4096, 3072, QImage::Format_RGB32);
+        cubeImage.fill(Qt::black);
 
-        // Resize existing faces to 1024x1024
-        QStringList facePaths = {up, bk, rt, ft, lf, dn};
-        for (const QString& facePath : facePaths) {
-            if (QFile::exists(facePath)) {
-                QProcess resizeProcess;
-                resizeProcess.setWorkingDirectory(s2DirPath);
-                resizeProcess.start(magickPath, QStringList() << facePath << "-resize" << "1024x1024!" << facePath);
-                resizeProcess.waitForFinished(-1);
-                if (resizeProcess.exitStatus() != QProcess::NormalExit || resizeProcess.exitCode() != 0) {
-                    Miscellaneous::Log("Warning: Failed to resize face " + facePath + " to 1024x1024. Error: " + resizeProcess.readAllStandardError());
-                }
+        QPainter painter(&cubeImage);
+
+        // Define a helper lambda to load, resize, and draw each face
+        auto drawFace = [&](const QString& facePath, bool exists, int gridX, int gridY) {
+            QImage face;
+            if (exists && face.load(facePath)) {
+                // Resize the face to 1024x1024 using high-quality smooth transformation
+                QImage scaledFace = face.scaled(1024, 1024, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                painter.drawImage(gridX * 1024, gridY * 1024, scaledFace);
+            } else {
+                // If it doesn't exist or fails to load, draw black color (already filled, but explicitly make sure)
+                painter.fillRect(gridX * 1024, gridY * 1024, 1024, 1024, Qt::black);
             }
-        }
+        };
 
-        QString sizeStr = "1024x1024";
+        // Row 1: [black, up, black, black]
+        drawFace(up, hasUp, 1, 0);
 
-        QString cubeFile = s2DirPath + "/" + baseName + "cube.tga";
+        // Row 2: [bk, rt, ft, lf]
+        drawFace(bk, hasBk, 0, 1);
+        drawFace(rt, hasRt, 1, 1);
+        drawFace(ft, hasFt, 2, 1);
+        drawFace(lf, hasLf, 3, 1);
 
-        QStringList args;
-        args << "(" << "-size" << sizeStr << "xc:black" << (hasUp ? up : "xc:black") << "xc:black" << "xc:black" << "+append" << ")"
-             << "(" << "-size" << sizeStr << (hasBk ? bk : "xc:black") << (hasRt ? rt : "xc:black") << (hasFt ? ft : "xc:black") << (hasLf ? lf : "xc:black") << "+append" << ")"
-             << "(" << "-size" << sizeStr << "xc:black" << (hasDn ? dn : "xc:black") << "xc:black" << "xc:black" << "+append" << ")"
-             << "-append"
-             << cubeFile;
+        // Row 3: [black, dn, black, black]
+        drawFace(dn, hasDn, 1, 2);
 
-        QProcess process;
-        process.setWorkingDirectory(s2DirPath);
-        process.start(magickPath, args);
-        process.waitForFinished(-1);
+        painter.end();
 
-        if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
-            Miscellaneous::Log("Successfully rebuilt skybox cube: " + baseName + "cube.tga");
+        QString cubeFile = s2DirPath + "/" + baseName + "cube.jpg";
+        if (cubeImage.save(cubeFile, "JPG", 95)) {
+            Miscellaneous::Log("Successfully rebuilt skybox cube: " + baseName + "cube.jpg");
         } else {
-            Miscellaneous::Log("Failed to rebuild skybox cube for " + baseName + ". Error: " + process.readAllStandardError());
+            Miscellaneous::Log("Failed to rebuild skybox cube for " + baseName + " using QImage.");
         }
 
         // Update vmat file
@@ -276,7 +275,7 @@ void MaterialFix::SkyboxFix() {
             out << "Layer0\n";
             out << "{\n";
             out << "\tshader \"sky.vfx\"\n";
-            out << "\tSkyTexture \"materials/skybox/" << baseName << "cube.tga\"\n";
+            out << "\tSkyTexture \"materials/skybox/" << baseName << "cube.jpg\"\n";
             out << "}\n";
             file.close();
         }
