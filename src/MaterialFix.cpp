@@ -201,19 +201,19 @@ void MaterialFix::SkyboxFix() {
         }
 
         if (QFile::exists(vtfPath)) {
-            QString cmd = "\"bin\\vtfcmd.exe\" -file \"" + vtfPath + "\" -output \"" + s2DirPath + "\" -exportformat \"jpg\"";
+            QString cmd = "\"bin\\vtfcmd.exe\" -file \"" + vtfPath + "\" -output \"" + s2DirPath + "\" -exportformat \"png\"";
             cmd = cmd.replace("/", "\\");
             Miscellaneous::RunCommandSync(cmd);
         }
     }
 
-    // Look for generated jpg files in s2DirPath
-    QString up = s2DirPath + "/" + baseName + "up.jpg";
-    QString bk = s2DirPath + "/" + baseName + "bk.jpg";
-    QString rt = s2DirPath + "/" + baseName + "rt.jpg";
-    QString ft = s2DirPath + "/" + baseName + "ft.jpg";
-    QString lf = s2DirPath + "/" + baseName + "lf.jpg";
-    QString dn = s2DirPath + "/" + baseName + "dn.jpg";
+    // Look for generated png files in s2DirPath
+    QString up = s2DirPath + "/" + baseName + "up.png";
+    QString bk = s2DirPath + "/" + baseName + "bk.png";
+    QString rt = s2DirPath + "/" + baseName + "rt.png";
+    QString ft = s2DirPath + "/" + baseName + "ft.png";
+    QString lf = s2DirPath + "/" + baseName + "lf.png";
+    QString dn = s2DirPath + "/" + baseName + "dn.png";
 
     bool hasUp = QFile::exists(up);
     bool hasBk = QFile::exists(bk);
@@ -259,9 +259,9 @@ void MaterialFix::SkyboxFix() {
 
         painter.end();
 
-        QString cubeFile = s2DirPath + "/" + baseName + "cube.jpg";
-        if (cubeImage.save(cubeFile, "JPG", 95)) {
-            Miscellaneous::Log("Successfully rebuilt skybox cube: " + baseName + "cube.jpg");
+        QString cubeFile = s2DirPath + "/" + baseName + "cube.png";
+        if (cubeImage.save(cubeFile, "PNG")) {
+            Miscellaneous::Log("Successfully rebuilt skybox cube: " + baseName + "cube.png");
         } else {
             Miscellaneous::Log("Failed to rebuild skybox cube for " + baseName + " using QImage.");
         }
@@ -275,7 +275,7 @@ void MaterialFix::SkyboxFix() {
             out << "Layer0\n";
             out << "{\n";
             out << "\tshader \"sky.vfx\"\n";
-            out << "\tSkyTexture \"materials/skybox/" << baseName << "cube.jpg\"\n";
+            out << "\tSkyTexture \"materials/skybox/" << baseName << "cube.png\"\n";
             out << "}\n";
             file.close();
         }
