@@ -191,6 +191,7 @@ ApplicationWindow {
             TabBar {
                 id: tabBar
                 Layout.fillWidth: true
+                enabled: !backend.isGoing
                 currentIndex: backend.activeTab
                 onCurrentIndexChanged: {
                     backend.activeTab = currentIndex
@@ -224,6 +225,7 @@ ApplicationWindow {
 
                         ComboBox {
                             id: s1GameCombo
+                            enabled: !backend.isGoing
                             model: ["CSGO", "CSS", "HL2", "L4D", "L4D2", "Portal", "Portal2", "TF2", "GMod", "BlackMesa"]
                             Layout.fillWidth: true
                             Component.onCompleted: {
@@ -244,6 +246,7 @@ ApplicationWindow {
 
                         Button {
                             id: s1FolderButton
+                            enabled: !backend.isGoing
                             text: backend.s1gameBasefolder === "" ? "Press to Select Game Folder" : backend.s1gameBasefolder
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -257,6 +260,7 @@ ApplicationWindow {
                         }
 
                         Button {
+                            enabled: !backend.isGoing
                             text: "Validate Game File"
                             Layout.fillWidth: true
                             onClicked: backend.ValidateS1()
@@ -282,6 +286,7 @@ ApplicationWindow {
 
                         Button {
                             id: cs2FolderButton
+                            enabled: !backend.isGoing
                             text: backend.cs2Basefolder === "" ? "Press to Select Game Folder" : backend.cs2Basefolder
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -295,6 +300,7 @@ ApplicationWindow {
                         }
 
                         Button {
+                            enabled: !backend.isGoing
                             text: "Validate Game File"
                             Layout.fillWidth: true
                             onClicked: backend.ValidateCs2()
@@ -308,6 +314,7 @@ ApplicationWindow {
                 id: stackLayout
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                enabled: !backend.isGoing
                 currentIndex: tabBar.currentIndex
 
                 // Item 0: Map Tab Layout
@@ -651,6 +658,7 @@ ApplicationWindow {
 
                 Button {
                     text: "Check Update"
+                    enabled: !backend.isGoing
                     Layout.alignment: Qt.AlignVCenter
                     onClicked: backend.CheckForUpdate()
                 }
