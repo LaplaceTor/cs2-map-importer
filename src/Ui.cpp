@@ -67,17 +67,6 @@ Backend::Backend(QObject *parent) :
 
 Backend::~Backend()
 {
-    if (logStream) {
-        delete logStream;
-        logStream = nullptr;
-    }
-    if (logFile) {
-        if (logFile->isOpen()) {
-            logFile->close();
-        }
-        delete logFile;
-        logFile = nullptr;
-    }
 }
 
 void Backend::ValidateCs2()
@@ -854,24 +843,13 @@ void Backend::Start()
         }
         QString log_file_path = QDir(log_dir_path).filePath(log_filename);
 
-        if (logStream) {
-            delete logStream;
-            logStream = nullptr;
-        }
-        if (logFile) {
-            if (logFile->isOpen()) {
-                logFile->close();
-            }
-            delete logFile;
-            logFile = nullptr;
-        }
+        logStream.reset();
+        logFile.reset();
 
-        logFile = new QFile(log_file_path);
-        if (logFile->open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-            logStream = new QTextStream(logFile);
-        } else {
-            delete logFile;
-            logFile = nullptr;
+        auto tempLogFile = std::make_unique<QFile>(log_file_path);
+        if (tempLogFile->open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+            logFile = std::move(tempLogFile);
+            logStream = std::make_unique<QTextStream>(logFile.get());
         }
 
         Miscellaneous::CanceLImport = 0;
@@ -983,17 +961,8 @@ void Backend::Start()
                     }
                 }
 
-                if (logStream) {
-                    delete logStream;
-                    logStream = nullptr;
-                }
-                if (logFile) {
-                    if (logFile->isOpen()) {
-                        logFile->close();
-                    }
-                    delete logFile;
-                    logFile = nullptr;
-                }
+                logStream.reset();
+                logFile.reset();
             }, Qt::QueuedConnection);
         });
 
@@ -1003,6 +972,16 @@ void Backend::Start()
     } catch (const AppException& e) {
         Miscellaneous::Log(QString("Error: %1").arg(e.message()));
         emit alertMessage("Error", e.message());
+        isGoing = false;
+        UpdateCanGo();
+        logStream.reset();
+        logFile.reset();
+    } catch (...) {
+        emit alertMessage("Error", "An unexpected error occurred.");
+        isGoing = false;
+        UpdateCanGo();
+        logStream.reset();
+        logFile.reset();
     }
 }
 

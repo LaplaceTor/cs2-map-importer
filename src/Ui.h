@@ -8,6 +8,7 @@
 #include <QUrl>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <memory>
 #include "Miscellaneous.h"
 
 class Backend : public QObject
@@ -236,8 +237,8 @@ private:
 
     QNetworkAccessManager* networkManager;
 
-    QFile* logFile;
-    QTextStream* logStream;
+    std::unique_ptr<QFile> logFile;
+    std::unique_ptr<QTextStream> logStream;
 
     void SetCs2Folder(const QString& path);
     void SetS1Folder(const QString& path);
