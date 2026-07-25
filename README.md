@@ -33,6 +33,12 @@ cmake --build .
 6. Configure any additional launch options.
 7. Click **START** to start the import process. The log output will show the progress.
 
+## 3rd party software using in this project
+
+[VPKEdit](https://github.com/craftablescience/VPKEdit) for extract files from vpk and bsp.
+[VTFEdit-Reload](https://github.com/Sky-rym/VTFEdit-Reloaded) for extract vtf to normal image format.
+
+
 ## Historical Context
 
 The original Python version of this tool was a fork from sarim's program. It added features like automatic VPK signature check disabling, validation for CS:GO and CS2, automatic BSP decompiling, and script patching to fix known issues. That Python version is no longer supported and will not receive new features. You can still download the final Python version from the [releases page](https://github.com/LaplaceTor/cs2-map-importer/releases/tag/PythonFinal). This C++ Qt version brings those features into a native, standalone graphical application.
