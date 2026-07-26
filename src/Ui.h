@@ -11,6 +11,7 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <memory>
+#include <QPalette>
 #include "Miscellaneous.h"
 
 class Backend : public QObject
