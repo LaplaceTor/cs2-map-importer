@@ -6,6 +6,8 @@
 #include "Miscellaneous.h"
 
 #include <QDir>
+#include <QGuiApplication>
+#include <QStyleHints>
 #include <QDebug>
 #include <QFile>
 #include <QTextStream>
@@ -37,9 +39,16 @@ Backend::Backend(QObject *parent) :
     vpkSignaturesMoved(false),
     networkManager(new QNetworkAccessManager(this)),
     logFile(nullptr),
-    logStream(nullptr)
+    logStream(nullptr),
+    theme("")
 
 {
+    connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this](Qt::ColorScheme) {
+        if (theme == "system") {
+            ApplyTheme("system");
+        }
+    });
+
     connect(networkManager, &QNetworkAccessManager::sslErrors, this, [](QNetworkReply* reply, const QList<QSslError>& errors) {
         Q_UNUSED(errors);
         reply->ignoreSslErrors();
@@ -119,6 +128,27 @@ void Backend::SetS1GameType(const QString& type)
         emit s1GameTypeChanged();
         UpdateCanGo();
         SaveToCfg();
+    }
+}
+
+void Backend::SetTheme(const QString& val)
+{
+    if (theme != val) {
+        theme = val;
+        emit themeChanged();
+        ApplyTheme(theme);
+        SaveToCfg();
+    }
+}
+
+void Backend::ApplyTheme(const QString& val)
+{
+    if (val == "light") {
+        QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
+    } else if (val == "dark") {
+        QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+    } else {
+        QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Unknown);
     }
 }
 
@@ -659,6 +689,7 @@ void Backend::UpdateCanGo()
 void Backend::SaveToCfg()
 {
     QSettings settings("cs2importer.cfg", QSettings::IniFormat);
+    settings.setValue("theme", theme);
     settings.setValue("keepFuncDetailAsBrush", keepFuncDetailAsBrush);
     settings.setValue("usebsp", usebsp);
     settings.setValue("usebsp_nomergeinstances", usebspNomergeinstances);
@@ -692,6 +723,9 @@ void Backend::SaveToCfg()
 void Backend::LoadFromCfg()
 {
     QSettings settings("cs2importer.cfg", QSettings::IniFormat);
+
+    theme = settings.value("theme", "system").toString();
+    ApplyTheme(theme);
 
     keepFuncDetailAsBrush = settings.value("keepFuncDetailAsBrush", false).toBool();
     usebsp = settings.value("usebsp", true).toBool();
