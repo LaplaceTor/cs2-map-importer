@@ -180,7 +180,7 @@ void SoundscapeImport::ImportSoundscapes(MapImporter* importer, QSet<QString>& u
             continue;
         }
 
-        QStringList lines = importer->ReadTextFile(fileInfo.absoluteFilePath());
+        QStringList lines = Miscellaneous::ReadTextFile(fileInfo.absoluteFilePath());
         QStringList tokens = TokenizeVDF(lines);
         int index = 0;
         QList<std::shared_ptr<VDFNode>> roots;
@@ -290,7 +290,7 @@ void SoundscapeImport::ImportSoundscapes(MapImporter* importer, QSet<QString>& u
 
         QString outPath = Miscellaneous::GetOptions().s2contentdir + "\\soundevents\\" + baseName + ".vsndevts";
         QDir().mkpath(QFileInfo(outPath).absolutePath());
-        importer->EnsureFileWritable(outPath);
+        Miscellaneous::EnsureFileWritable(outPath);
         QFile vsndFile(outPath);
         if (vsndFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
             QTextStream out(&vsndFile);

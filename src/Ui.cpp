@@ -910,8 +910,7 @@ void Backend::Start()
         Miscellaneous::Log("Starting Miscellaneous thread...");
 
         Miscellaneous::Options opts;
-        opts.cs2Basefolder = cs2Basefolder;
-        opts.cs2Basefolder.replace("/", "\\");
+        opts.cs2Basefolder = QDir::toNativeSeparators(cs2Basefolder);
         opts.s1gameBasefolder = GetS1gameBasefolder();
         opts.csgogamedir = csgogamedir;
         opts.s1GameType = s1GameType;
@@ -1074,19 +1073,16 @@ bool Backend::RunMapImportWorkflow(Miscellaneous::Options opts)
     else if (currentOpts.s1GameType == "gmod") s1Subfolder = "garrysmod";
     else if (currentOpts.s1GameType == "blackmesa") s1Subfolder = "bms";
 
-    QString s1gamedir = currentOpts.s1gameBasefolder + "\\" + s1Subfolder;
-    s1gamedir.replace('/', '\\');
+    QString s1gamedir = QDir::toNativeSeparators(currentOpts.s1gameBasefolder + "/" + s1Subfolder);
     currentOpts.s1gamedir = s1gamedir;
 
-    QString csgogamedir_path = currentOpts.csgogamedir + "\\csgo";
-    csgogamedir_path.replace('/', '\\');
+    QString csgogamedir_path = QDir::toNativeSeparators(currentOpts.csgogamedir + "/csgo");
     currentOpts.csgogamedir = csgogamedir_path;
 
-    QString contentdir = currentOpts.contentFolder;
-    contentdir.replace('/', '\\');
+    QString contentdir = QDir::toNativeSeparators(currentOpts.contentFolder);
     currentOpts.s1contentdir = contentdir;
 
-    currentOpts.s2contentdir = currentOpts.cs2Basefolder + "\\content\\csgo_addons\\" + currentOpts.addonName;
+    currentOpts.s2contentdir = QDir::toNativeSeparators(currentOpts.cs2Basefolder + "/content/csgo_addons/" + currentOpts.addonName);
 
     Miscellaneous::SetOptions(currentOpts);
 
@@ -1107,19 +1103,17 @@ bool Backend::RunModelImportWorkflow(Miscellaneous::Options opts, const QString&
     else if (opts.s1GameType == "gmod") s1Subfolder = "garrysmod";
     else if (opts.s1GameType == "blackmesa") s1Subfolder = "bms";
 
-    QString s1gamedir = opts.s1gameBasefolder + "\\" + s1Subfolder;
-    s1gamedir.replace('/', '\\');
+    QString s1gamedir = QDir::toNativeSeparators(opts.s1gameBasefolder + "/" + s1Subfolder);
     opts.s1gamedir = s1gamedir;
 
-    QString csgogamedir_path = opts.csgogamedir + "\\csgo";
-    csgogamedir_path.replace('/', '\\');
+    QString csgogamedir_path = QDir::toNativeSeparators(opts.csgogamedir + "/csgo");
     opts.csgogamedir = csgogamedir_path;
 
-    QString modelsTempDir = opts.appDir + "\\models_temp";
+    QString modelsTempDir = QDir::toNativeSeparators(opts.appDir + "/models_temp");
     QDir().mkpath(modelsTempDir);
     opts.s1contentdir = modelsTempDir;
 
-    opts.s2contentdir = opts.cs2Basefolder + "\\content\\csgo_addons\\" + opts.addonName;
+    opts.s2contentdir = QDir::toNativeSeparators(opts.cs2Basefolder + "/content/csgo_addons/" + opts.addonName);
 
     Miscellaneous::SetOptions(opts);
 
@@ -1140,15 +1134,13 @@ bool Backend::RunParticleImportWorkflow(Miscellaneous::Options opts, const QStri
     else if (opts.s1GameType == "gmod") s1Subfolder = "garrysmod";
     else if (opts.s1GameType == "blackmesa") s1Subfolder = "bms";
 
-    QString s1gamedir = opts.s1gameBasefolder + "\\" + s1Subfolder;
-    s1gamedir.replace('/', '\\');
+    QString s1gamedir = QDir::toNativeSeparators(opts.s1gameBasefolder + "/" + s1Subfolder);
     opts.s1gamedir = s1gamedir;
 
-    QString csgogamedir_path = opts.csgogamedir + "\\csgo";
-    csgogamedir_path.replace('/', '\\');
+    QString csgogamedir_path = QDir::toNativeSeparators(opts.csgogamedir + "/csgo");
     opts.csgogamedir = csgogamedir_path;
 
-    opts.s2contentdir = opts.cs2Basefolder + "\\content\\csgo_addons\\" + opts.addonName;
+    opts.s2contentdir = QDir::toNativeSeparators(opts.cs2Basefolder + "/content/csgo_addons/" + opts.addonName);
 
     Miscellaneous::SetOptions(opts);
 

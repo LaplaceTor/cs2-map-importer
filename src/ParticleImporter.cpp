@@ -8,25 +8,22 @@ bool ParticleImporter::Run(const QString& pcfPath) {
     if (Miscellaneous::CanceLImport) return false;
     Miscellaneous::Log("Starting standalone Particle Import process.");
 
-    QString fullPcfPath = pcfPath;
-    fullPcfPath.replace('/', '\\');
+    QString fullPcfPath = QDir::toNativeSeparators(pcfPath);
 
     const auto& opts = Miscellaneous::GetOptions();
     QString filename = QFileInfo(fullPcfPath).fileName();
 
     // Create destination particles directory in s1gamedir
-    QString destDir = opts.s1gamedir + "\\particles";
-    destDir.replace('/', '\\');
+    QString destDir = QDir::toNativeSeparators(opts.s1gamedir + "/particles");
     QDir().mkpath(destDir);
 
-    QString destPcfPath = destDir + "\\" + filename;
-    destPcfPath.replace('/', '\\');
+    QString destPcfPath = QDir::toNativeSeparators(QDir(destDir).filePath(filename));
 
     bool alreadyInDest = false;
-    QString lowerPcfPath = fullPcfPath.toLower();
-    QString lowerDestDir = destDir.toLower();
-    if (!lowerDestDir.endsWith('\\')) {
-        lowerDestDir += '\\';
+    QString lowerPcfPath = QDir::fromNativeSeparators(fullPcfPath).toLower();
+    QString lowerDestDir = QDir::fromNativeSeparators(destDir).toLower();
+    if (!lowerDestDir.endsWith('/')) {
+        lowerDestDir += '/';
     }
 
     if (lowerPcfPath.startsWith(lowerDestDir)) {
@@ -50,18 +47,27 @@ bool ParticleImporter::Run(const QString& pcfPath) {
     }
 
     // Build options for source1import.exe
-    QString extraOpts;
+    QStringList arguments = {
+        "-retail",
+        "-nop4",
+        "-nop4sync",
+        "-src1gameinfodir",
+        opts.s1gamedir,
+        "-s2addon",
+        opts.addonName,
+        "-game",
+        "csgo"
+    };
     if (opts.particleAllowDepthBlend) {
-        extraOpts += " -particle_allow_depth_blend";
+        arguments << "-particle_allow_depth_blend";
     }
     if (opts.particleDisableDiffuse) {
-        extraOpts += " -particle_disable_diffuse";
+        arguments << "-particle_disable_diffuse";
     }
+    arguments << destPcfPath;
 
-    // Command: source1import.exe -retail -nop4 -nop4sync -src1gameinfodir <s1gamedir> -s2addon <addonName> -game csgo <extraOpts> <destPcfPath>
-    QString importCmd = "\"" + opts.cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + opts.s1gamedir + "\" -s2addon " + opts.addonName + " -game csgo" + extraOpts + " \"" + destPcfPath + "\"";
-
-    Miscellaneous::RunCommandSync(importCmd);
+    QString program = QDir::toNativeSeparators(opts.cs2Basefolder + "/game/bin/win64/source1import.exe");
+    Miscellaneous::RunCommandSync(program, arguments);
 
     if (Miscellaneous::CanceLImport) return false;
 

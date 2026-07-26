@@ -12,8 +12,6 @@ public:
     bool Run(const QString& mdlPath);
 
 private:
-    QStringList ReadTextFile(const QString& filepath);
-    void EnsureFileWritable(const QString& filepath);
     void FixModelMaterials(const QStringList& vmatFiles);
 };
 
