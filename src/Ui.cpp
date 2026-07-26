@@ -872,7 +872,7 @@ void Backend::Start()
         QString log_dir_path = QDir(appDir).filePath("logs");
         QDir().mkpath(log_dir_path);
         QString log_filename;
-        QString timestamp = QDateTime::currentDateTimeUtc().toString("yyyy-MM-dd_HH-mm-ss");
+        QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss");
         if (activeTab == TAB_MODEL) {
             QString base = QFileInfo(mdlFile).baseName();
             if (base.isEmpty()) base = currentAddonName;
