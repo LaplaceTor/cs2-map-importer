@@ -44,6 +44,7 @@ Backend::Backend(QObject *parent) :
 
     Miscellaneous::GlobaLLogger = [this](const QString& msg) {
         emit logMessage(msg);
+        QMutexLocker locker(&logMutex);
         if (logStream) {
             *logStream << msg << "\n";
             logStream->flush();
@@ -880,17 +881,23 @@ void Backend::Start()
         }
         QString log_file_path = QDir(log_dir_path).filePath(log_filename);
 
-        logStream.reset();
-        logFile.reset();
+        {
+            QMutexLocker locker(&logMutex);
+            logStream.reset();
+            logFile.reset();
 
-        auto tempLogFile = std::make_unique<QFile>(log_file_path);
-        if (tempLogFile->open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-            logFile = std::move(tempLogFile);
-            logStream = std::make_unique<QTextStream>(logFile.get());
+            auto tempLogFile = std::make_unique<QFile>(log_file_path);
+            if (tempLogFile->open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+                logFile = std::move(tempLogFile);
+                logStream = std::make_unique<QTextStream>(logFile.get());
+            }
         }
 
         Miscellaneous::CanceLImport = 0;
-        Miscellaneous::MoveVpkSignatures(cs2Basefolder, vpkSignaturesMoved);
+        {
+            QMutexLocker locker(&vpkMutex);
+            Miscellaneous::MoveVpkSignatures(cs2Basefolder, vpkSignaturesMoved);
+        }
 
         isGoing = true;
         UpdateCanGo();
@@ -972,9 +979,12 @@ void Backend::Start()
             }
 
             QMetaObject::invokeMethod(this, [this, success, activeTabCopy]() {
-                if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
-                    Miscellaneous::RestoreVpkSignatures(cs2Basefolder);
-                    vpkSignaturesMoved = false;
+                {
+                    QMutexLocker locker(&vpkMutex);
+                    if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
+                        Miscellaneous::RestoreVpkSignatures(cs2Basefolder);
+                        vpkSignaturesMoved = false;
+                    }
                 }
 
                 isGoing = false;
@@ -998,8 +1008,11 @@ void Backend::Start()
                     }
                 }
 
-                logStream.reset();
-                logFile.reset();
+                {
+                    QMutexLocker locker(&logMutex);
+                    logStream.reset();
+                    logFile.reset();
+                }
             }, Qt::QueuedConnection);
         });
 
@@ -1011,14 +1024,20 @@ void Backend::Start()
         emit alertMessage("Error", e.message());
         isGoing = false;
         UpdateCanGo();
-        logStream.reset();
-        logFile.reset();
+        {
+            QMutexLocker locker(&logMutex);
+            logStream.reset();
+            logFile.reset();
+        }
     } catch (...) {
         emit alertMessage("Error", "An unexpected error occurred.");
         isGoing = false;
         UpdateCanGo();
-        logStream.reset();
-        logFile.reset();
+        {
+            QMutexLocker locker(&logMutex);
+            logStream.reset();
+            logFile.reset();
+        }
     }
 }
 
@@ -1137,9 +1156,12 @@ void Backend::Stop()
     if (isGoing) {
         Miscellaneous::Log("Cancelling import...");
         Miscellaneous::CancelAll();
-        if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
-            Miscellaneous::RestoreVpkSignatures(cs2Basefolder);
-            vpkSignaturesMoved = false;
+        {
+            QMutexLocker locker(&vpkMutex);
+            if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
+                Miscellaneous::RestoreVpkSignatures(cs2Basefolder);
+                vpkSignaturesMoved = false;
+            }
         }
     }
 }
@@ -1283,8 +1305,11 @@ void Backend::CheckForUpdateInternal(bool isManual)
 void Backend::AppAboutToQuit()
 {
     Miscellaneous::CancelAll();
-    if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
-        Miscellaneous::RestoreVpkSignatures(cs2Basefolder);
-        vpkSignaturesMoved = false;
+    {
+        QMutexLocker locker(&vpkMutex);
+        if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
+            Miscellaneous::RestoreVpkSignatures(cs2Basefolder);
+            vpkSignaturesMoved = false;
+        }
     }
 }

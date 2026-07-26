@@ -8,6 +8,8 @@
 #include <QUrl>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QMutex>
+#include <QMutexLocker>
 #include <memory>
 #include "Miscellaneous.h"
 
@@ -328,6 +330,8 @@ private:
 
     std::unique_ptr<QFile> logFile;
     std::unique_ptr<QTextStream> logStream;
+    mutable QMutex logMutex;
+    mutable QMutex vpkMutex;
 
     void SetCs2Folder(const QString& path);
     void SetS1Folder(const QString& path);
