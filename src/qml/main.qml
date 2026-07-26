@@ -655,10 +655,14 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 spacing: 10
 
+                Label {
+                    text: "Theme: "
+                    Layout.alignment: Qt.AlignVCenter
+                }               
+
                 Button {
                     id: themeButton
-                    text: backend.theme === "system" ? "System Theme" : (backend.theme === "light" ? "Light Theme" : "Dark Theme")
-                    enabled: !backend.isGoing
+                    text: backend.theme === "system" ? "System" : (backend.theme === "light" ? "Light" : "Dark")
                     Layout.alignment: Qt.AlignVCenter
                     onClicked: {
                         if (backend.theme === "system") {
