@@ -13,9 +13,6 @@ public:
     bool Run();
 
 private:
-    QStringList ReadTextFile(const QString& filepath);
-    void EnsureFileWritable(const QString& filepath);
-
     void ImportAndCompileMapMDLs(const QString& filename);
     void ImportAndCompileMapRefs();
     void ImportParticles();
