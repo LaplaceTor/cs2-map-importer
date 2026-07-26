@@ -6,6 +6,9 @@
 #include "Miscellaneous.h"
 
 #include <QDir>
+#include <QGuiApplication>
+#include <QPalette>
+#include <QColor>
 #include <QDebug>
 #include <QFile>
 #include <QTextStream>
@@ -37,9 +40,12 @@ Backend::Backend(QObject *parent) :
     vpkSignaturesMoved(false),
     networkManager(new QNetworkAccessManager(this)),
     logFile(nullptr),
-    logStream(nullptr)
+    logStream(nullptr),
+    theme("")
 
 {
+    defaultPalette = QGuiApplication::palette();
+
     connect(networkManager, &QNetworkAccessManager::sslErrors, this, [](QNetworkReply* reply, const QList<QSslError>& errors) {
         Q_UNUSED(errors);
         reply->ignoreSslErrors();
@@ -119,6 +125,61 @@ void Backend::SetS1GameType(const QString& type)
         emit s1GameTypeChanged();
         UpdateCanGo();
         SaveToCfg();
+    }
+}
+
+void Backend::SetTheme(const QString& val)
+{
+    if (theme != val) {
+        theme = val;
+        emit themeChanged();
+        ApplyTheme(theme);
+        SaveToCfg();
+    }
+}
+
+void Backend::ApplyTheme(const QString& val)
+{
+    if (val == "light") {
+        QPalette lightPalette;
+        lightPalette.setColor(QPalette::Window, QColor(245, 245, 245));
+        lightPalette.setColor(QPalette::WindowText, QColor(30, 30, 30));
+        lightPalette.setColor(QPalette::Base, QColor(255, 255, 255));
+        lightPalette.setColor(QPalette::AlternateBase, QColor(240, 240, 240));
+        lightPalette.setColor(QPalette::ToolTipBase, QColor(255, 255, 255));
+        lightPalette.setColor(QPalette::ToolTipText, QColor(30, 30, 30));
+        lightPalette.setColor(QPalette::Text, QColor(30, 30, 30));
+        lightPalette.setColor(QPalette::Button, QColor(245, 245, 245));
+        lightPalette.setColor(QPalette::ButtonText, QColor(30, 30, 30));
+        lightPalette.setColor(QPalette::BrightText, Qt::red);
+        lightPalette.setColor(QPalette::Link, QColor(0, 120, 215));
+        lightPalette.setColor(QPalette::Highlight, QColor(0, 120, 215));
+        lightPalette.setColor(QPalette::HighlightedText, Qt::white);
+        lightPalette.setColor(QPalette::Disabled, QPalette::WindowText, QColor(140, 140, 140));
+        lightPalette.setColor(QPalette::Disabled, QPalette::Text, QColor(140, 140, 140));
+        lightPalette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(140, 140, 140));
+        QGuiApplication::setPalette(lightPalette);
+    } else if (val == "dark") {
+        QPalette darkPalette;
+        darkPalette.setColor(QPalette::Window, QColor(45, 45, 45));
+        darkPalette.setColor(QPalette::WindowText, QColor(220, 220, 220));
+        darkPalette.setColor(QPalette::Base, QColor(30, 30, 30));
+        darkPalette.setColor(QPalette::AlternateBase, QColor(45, 45, 45));
+        darkPalette.setColor(QPalette::ToolTipBase, QColor(30, 30, 30));
+        darkPalette.setColor(QPalette::ToolTipText, QColor(220, 220, 220));
+        darkPalette.setColor(QPalette::Text, QColor(220, 220, 220));
+        darkPalette.setColor(QPalette::Button, QColor(50, 50, 50));
+        darkPalette.setColor(QPalette::ButtonText, QColor(220, 220, 220));
+        darkPalette.setColor(QPalette::BrightText, Qt::red);
+        darkPalette.setColor(QPalette::Link, QColor(42, 130, 218));
+        darkPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));
+        darkPalette.setColor(QPalette::HighlightedText, Qt::white);
+        darkPalette.setColor(QPalette::Disabled, QPalette::WindowText, QColor(100, 100, 100));
+        darkPalette.setColor(QPalette::Disabled, QPalette::Text, QColor(100, 100, 100));
+        darkPalette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(100, 100, 100));
+        QGuiApplication::setPalette(darkPalette);
+    } else {
+        QGuiApplication::setPalette(defaultPalette);
     }
 }
 
@@ -659,6 +720,7 @@ void Backend::UpdateCanGo()
 void Backend::SaveToCfg()
 {
     QSettings settings("cs2importer.cfg", QSettings::IniFormat);
+    settings.setValue("theme", theme);
     settings.setValue("keepFuncDetailAsBrush", keepFuncDetailAsBrush);
     settings.setValue("usebsp", usebsp);
     settings.setValue("usebsp_nomergeinstances", usebspNomergeinstances);
@@ -692,6 +754,9 @@ void Backend::SaveToCfg()
 void Backend::LoadFromCfg()
 {
     QSettings settings("cs2importer.cfg", QSettings::IniFormat);
+
+    theme = settings.value("theme", "system").toString();
+    ApplyTheme(theme);
 
     keepFuncDetailAsBrush = settings.value("keepFuncDetailAsBrush", false).toBool();
     usebsp = settings.value("usebsp", true).toBool();

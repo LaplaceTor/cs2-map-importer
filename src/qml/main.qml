@@ -653,8 +653,27 @@ ApplicationWindow {
             // Row 5: UPDATE
             RowLayout {
                 Layout.fillWidth: true
-                Layout.alignment: Qt.AlignHCenter
                 spacing: 10
+
+                Button {
+                    id: themeButton
+                    text: backend.theme === "system" ? "System Theme" : (backend.theme === "light" ? "Light Theme" : "Dark Theme")
+                    enabled: !backend.isGoing
+                    Layout.alignment: Qt.AlignVCenter
+                    onClicked: {
+                        if (backend.theme === "system") {
+                            backend.theme = "light"
+                        } else if (backend.theme === "light") {
+                            backend.theme = "dark"
+                        } else {
+                            backend.theme = "system"
+                        }
+                    }
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                }
 
                 Button {
                     text: "Check Update"

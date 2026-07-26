@@ -11,6 +11,7 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <memory>
+#include <QPalette>
 #include "Miscellaneous.h"
 
 class Backend : public QObject
@@ -46,6 +47,7 @@ class Backend : public QObject
     Q_PROPERTY(QString pcfFile READ GetPcfFile NOTIFY pcfFileChanged)
     Q_PROPERTY(bool particleAllowDepthBlend READ GetParticleAllowDepthBlend WRITE SetParticleAllowDepthBlend NOTIFY particleAllowDepthBlendChanged)
     Q_PROPERTY(bool particleDisableDiffuse READ GetParticleDisableDiffuse WRITE SetParticleDisableDiffuse NOTIFY particleDisableDiffuseChanged)
+    Q_PROPERTY(QString theme READ GetTheme WRITE SetTheme NOTIFY themeChanged)
 
 public:
     enum TabIndex {
@@ -151,6 +153,9 @@ public:
         }
         if(particleDisableDiffuse != val) { particleDisableDiffuse = val; emit particleDisableDiffuseChanged(); SaveToCfg(); }
     }
+
+    QString GetTheme() const { return theme; }
+    void SetTheme(const QString& val);
 
     QString GetCs2Basefolder() const { return cs2Basefolder; }
     QString GetS1gameBasefolder() const {
@@ -276,6 +281,7 @@ signals:
     void pcfFileChanged();
     void particleAllowDepthBlendChanged();
     void particleDisableDiffuseChanged();
+    void themeChanged();
 
     void logMessage(const QString& msg);
     void alertMessage(const QString& title, const QString& msg);
@@ -316,6 +322,8 @@ private:
     QString pcfFile;
     QStringList cs2AddonsList;
     QString selectedMdlAddon;
+    QString theme;
+    QPalette defaultPalette;
     bool modelSkipAnimation = false;
     bool modelChangeBindpose = false;
     bool modelOverrideLean = false;
@@ -346,6 +354,7 @@ private:
     bool IsValidS1(const QString& path, const QString& type);
     void AutoDetectPaths();
     void CheckForUpdateInternal(bool isManual);
+    void ApplyTheme(const QString& val);
 
     bool RunMapImportWorkflow(Miscellaneous::Options opts);
     bool RunModelImportWorkflow(Miscellaneous::Options opts, const QString& mdlPath);
