@@ -8,8 +8,6 @@
 #include <QDir>
 #include <QGuiApplication>
 #include <QStyleHints>
-#include <QPalette>
-#include <QColor>
 #include <QDebug>
 #include <QFile>
 #include <QTextStream>
