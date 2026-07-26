@@ -32,7 +32,7 @@ static QString CleanRefPath(QString input) {
     QRegularExpression reTrailing("\"\\s*$");
     QRegularExpressionMatch matchTrailing = reTrailing.match(input);
     if (matchTrailing.hasMatch()) {
-        input = input.left(input.length() - matchTrailing.capturedLength());
+        input = input.left(input.size() - matchTrailing.capturedLength());
     } else {
         int end = input.lastIndexOf(QRegularExpression("[^ \\t]"));
         if (end != -1) {
@@ -331,7 +331,7 @@ void ModelImporter::FixModelMaterials(const QStringList& vmatFiles) {
 
             for (auto itMap = legacyKeyMap.begin(); itMap != legacyKeyMap.end(); ++itMap) {
                 if (lowerLine.startsWith(itMap.key())) {
-                    int firstQuote = line.indexOf('"', itMap.key().length());
+                    int firstQuote = line.indexOf('"', itMap.key().size());
                     int lastQuote = line.lastIndexOf('"');
                     if (firstQuote != -1 && lastQuote != -1 && lastQuote > firstQuote) {
                         QString valueStr = line.mid(firstQuote, lastQuote - firstQuote + 1);

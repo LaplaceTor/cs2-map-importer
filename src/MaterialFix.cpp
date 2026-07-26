@@ -34,7 +34,7 @@ static QString CleanRefPath(QString input) {
     QRegularExpression reTrailing("\"\\s*$");
     QRegularExpressionMatch matchTrailing = reTrailing.match(input);
     if (matchTrailing.hasMatch()) {
-        input = input.left(input.length() - matchTrailing.capturedLength());
+        input = input.left(input.size() - matchTrailing.capturedLength());
     } else {
         int end = input.lastIndexOf(QRegularExpression("[^ \\t]"));
         if (end != -1) {
@@ -451,7 +451,7 @@ void MaterialFix::ColorFix(QStringList& lines, int layer0StartIdx, int& layer0En
             // Format the new value
             QString newVal = legacyVal;
             if (mapping.appendAlpha1 && newVal.endsWith("]\"")) {
-                newVal = newVal.left(newVal.length() - 2) + " 1.0]\"";
+                newVal = newVal.left(newVal.size() - 2) + " 1.0]\"";
             }
 
             bool keyUpdated = false;
@@ -554,7 +554,7 @@ void MaterialFix::FixMaterials() {
 
             for (auto itMap = legacyKeyMap.begin(); itMap != legacyKeyMap.end(); ++itMap) {
                 if (lowerLine.startsWith(itMap.key())) {
-                    int firstQuote = line.indexOf('"', itMap.key().length());
+                    int firstQuote = line.indexOf('"', itMap.key().size());
                     int lastQuote = line.lastIndexOf('"');
                     if (firstQuote != -1 && lastQuote != -1 && lastQuote > firstQuote) {
                         QString valueStr = line.mid(firstQuote, lastQuote - firstQuote + 1);
@@ -640,11 +640,11 @@ void MaterialFix::OldParticleMtlFix() {
         }
     }
 
-    QList<QString> materialList;
+    QStringList materialList;
     for (const QString& modelPath : spriteMaterials) {
         QString vmtPath = modelPath;
         if (vmtPath.endsWith(".spr", Qt::CaseInsensitive)) {
-            vmtPath = vmtPath.left(vmtPath.length() - 4) + ".vmt";
+            vmtPath = vmtPath.left(vmtPath.size() - 4) + ".vmt";
         }
         if (!vmtPath.startsWith("materials/", Qt::CaseInsensitive)) {
             vmtPath = "materials/" + vmtPath;

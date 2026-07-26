@@ -25,7 +25,7 @@ static QStringList TokenizeVDF(const QStringList& lines) {
         QString currentToken = "";
         bool inQuotes = false;
 
-        for (int i = 0; i < line.length(); ++i) {
+        for (int i = 0; i < line.size(); ++i) {
             QChar c = line[i];
             if (c == '"') {
                 inQuotes = !inQuotes;
