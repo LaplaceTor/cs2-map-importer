@@ -67,11 +67,17 @@ Backend::Backend(QObject *parent) :
 
 void Backend::ValidateCs2()
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     QDesktopServices::openUrl(QUrl("steam://validate/730"));
 }
 
 void Backend::ValidateS1()
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     if (s1GameType == "css") {
         QDesktopServices::openUrl(QUrl("steam://validate/240"));
     } else if (s1GameType == "csgo") {
@@ -97,6 +103,10 @@ void Backend::ValidateS1()
 
 void Backend::SetS1GameType(const QString& type)
 {
+    if (IsGoingWarn()) {
+        emit s1GameTypeChanged();
+        return;
+    }
     if (s1GameType != type) {
         s1GameType = type;
         emit s1gameBasefolderChanged();
@@ -104,6 +114,15 @@ void Backend::SetS1GameType(const QString& type)
         UpdateCanGo();
         SaveToCfg();
     }
+}
+
+bool Backend::IsGoingWarn()
+{
+    if (isGoing) {
+        emit alertMessage("Process Running", "An import process is currently running. You cannot change any settings or options until you stop the process or it completes.");
+        return true;
+    }
+    return false;
 }
 
 bool Backend::IsValidCs2(const QString& path)
@@ -130,6 +149,9 @@ bool Backend::IsValidCs2(const QString& path)
 
 void Backend::SelectCs2FolderDialog(const QUrl& url)
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
@@ -202,6 +224,9 @@ bool Backend::IsValidS1(const QString& path, const QString& type)
 
 void Backend::SelectS1FolderDialog(const QUrl& url)
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
@@ -479,6 +504,9 @@ void Backend::SetS1Folder(const QString& path)
 
 void Backend::SelectVmfDialog(const QUrl& url)
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
@@ -518,6 +546,9 @@ void Backend::SelectVmfDialog(const QUrl& url)
 
 void Backend::SelectPcfDialog(const QUrl& url)
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
@@ -529,6 +560,9 @@ void Backend::SelectPcfDialog(const QUrl& url)
 
 void Backend::SelectMdlDialog(const QUrl& url)
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
@@ -540,6 +574,7 @@ void Backend::SelectMdlDialog(const QUrl& url)
 
 void Backend::RefreshCs2AddonsList()
 {
+    if (isGoing) return;
     QStringList list;
     if (!cs2Basefolder.isEmpty()) {
         QDir addonsDir(QDir(cs2Basefolder).filePath("content/csgo_addons"));
@@ -568,6 +603,9 @@ void Backend::RefreshCs2AddonsList()
 
 void Backend::SelectBspDialog(const QUrl& url)
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
@@ -746,6 +784,9 @@ void Backend::LoadFromCfg()
 
 void Backend::Start()
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     if (cs2Basefolder.isEmpty()) {
         emit alertMessage("Validation Error", "CS2 folder not selected.");
         return;
@@ -1110,6 +1151,9 @@ QString Backend::GetCurrentVersion() const
 
 void Backend::CheckForUpdate()
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     CheckForUpdateInternal(true);
 }
 
