@@ -7,6 +7,7 @@
 
 #include <QDir>
 #include <QGuiApplication>
+#include <QStyleHints>
 #include <QPalette>
 #include <QColor>
 #include <QDebug>
@@ -45,6 +46,14 @@ Backend::Backend(QObject *parent) :
 
 {
     defaultPalette = QGuiApplication::palette();
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+    connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this](Qt::ColorScheme) {
+        if (theme == "system") {
+            ApplyTheme("system");
+        }
+    });
+#endif
 
     connect(networkManager, &QNetworkAccessManager::sslErrors, this, [](QNetworkReply* reply, const QList<QSslError>& errors) {
         Q_UNUSED(errors);
@@ -140,7 +149,33 @@ void Backend::SetTheme(const QString& val)
 
 void Backend::ApplyTheme(const QString& val)
 {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
     if (val == "light") {
+        QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
+    } else if (val == "dark") {
+        QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+    } else {
+        QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Unknown);
+    }
+#endif
+
+    QString effectiveTheme = val;
+    if (effectiveTheme == "system") {
+        bool dark = false;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+        dark = (QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark);
+#else
+#ifdef Q_OS_WIN
+        QSettings regSettings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", QSettings::NativeFormat);
+        if (regSettings.contains("AppsUseLightTheme")) {
+            dark = (regSettings.value("AppsUseLightTheme").toInt() == 0);
+        }
+#endif
+#endif
+        effectiveTheme = dark ? "dark" : "light";
+    }
+
+    if (effectiveTheme == "light") {
         QPalette lightPalette;
         lightPalette.setColor(QPalette::Window, QColor(245, 245, 245));
         lightPalette.setColor(QPalette::WindowText, QColor(30, 30, 30));
@@ -159,7 +194,7 @@ void Backend::ApplyTheme(const QString& val)
         lightPalette.setColor(QPalette::Disabled, QPalette::Text, QColor(140, 140, 140));
         lightPalette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(140, 140, 140));
         QGuiApplication::setPalette(lightPalette);
-    } else if (val == "dark") {
+    } else if (effectiveTheme == "dark") {
         QPalette darkPalette;
         darkPalette.setColor(QPalette::Window, QColor(45, 45, 45));
         darkPalette.setColor(QPalette::WindowText, QColor(220, 220, 220));
