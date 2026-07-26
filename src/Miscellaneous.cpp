@@ -88,11 +88,7 @@ int Miscellaneous::RunCommandSync(const QString& cmd) {
     // Since we need it to behave like CreateProcess, we can just start the command natively if we are not using pipes.
     // For safety with cmd.exe, it expects /c ""command" "arg1" "arg2"". So we wrap in quotes.
     process.setProgram("cmd.exe");
-#ifdef Q_OS_WIN
     process.setNativeArguments("/S /C \"" + cmd + "\"");
-#else
-    process.setArguments({"/c", cmd});
-#endif
     process.start();
 
     QString lineBuffer;

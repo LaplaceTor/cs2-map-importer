@@ -38,6 +38,7 @@ set(SOURCES
     src/MaterialFix.h
 )
 
+# Use for agent
 if(WIN32)
     list(APPEND SOURCES icons/cs2importer.rc)
 endif()

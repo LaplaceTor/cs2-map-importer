@@ -305,11 +305,7 @@ void MapImporter::ImportAndCompileMapRefs() {
     QProcess process;
     process.setProcessChannelMode(QProcess::MergedChannels);
     process.setProgram("cmd.exe");
-#ifdef Q_OS_WIN
     process.setNativeArguments("/S /C \"" + mapImportCmd + "\"");
-#else
-    process.setArguments({"/c", mapImportCmd});
-#endif
     process.start();
 
     QString lineBuffer;
