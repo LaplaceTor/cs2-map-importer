@@ -33,7 +33,7 @@ static QString CleanRefPath(QString input) {
     QRegularExpression reTrailing("\"\\s*$");
     QRegularExpressionMatch matchTrailing = reTrailing.match(input);
     if (matchTrailing.hasMatch()) {
-        input = input.left(input.length() - matchTrailing.capturedLength());
+        input = input.left(input.size() - matchTrailing.capturedLength());
     } else {
         int end = input.lastIndexOf(QRegularExpression("[^ \\t]"));
         if (end != -1) {
@@ -309,7 +309,7 @@ void MapImporter::ImportAndCompileMapRefs() {
     process.start();
 
     QString lineBuffer;
-    QList<QString> missingMaterials;
+    QStringList missingMaterials;
 
     auto processOutput = [&](const QString& outStr) {
         for (QChar c : outStr) {
@@ -494,7 +494,7 @@ void MapImporter::ImportParticles(){
 
             QString cleanedPath = trimmedLine.mid(4).trimmed();
             if (cleanedPath.startsWith('"') && cleanedPath.endsWith('"')) {
-                cleanedPath = cleanedPath.mid(1, cleanedPath.length() - 2);
+                cleanedPath = cleanedPath.mid(1, cleanedPath.size() - 2);
             }
             if (cleanedPath.isEmpty()) continue;
 

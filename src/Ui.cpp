@@ -40,6 +40,11 @@ Backend::Backend(QObject *parent) :
     logStream(nullptr)
 
 {
+    connect(networkManager, &QNetworkAccessManager::sslErrors, this, [](QNetworkReply* reply, const QList<QSslError>& errors) {
+        Q_UNUSED(errors);
+        reply->ignoreSslErrors();
+    });
+
     appDir = QCoreApplication::applicationDirPath();
 
     Miscellaneous::GlobaLLogger = [this](const QString& msg) {
@@ -263,12 +268,12 @@ void Backend::AutoDetectPaths()
 
     struct LibraryData {
         QString path;
-        QList<QString> apps;
+        QStringList apps;
     };
     QList<LibraryData> libraries;
 
     QString currentPath;
-    QList<QString> currentApps;
+    QStringList currentApps;
     bool in_apps = false;
 
     QTextStream in2(&content);
@@ -1195,6 +1200,7 @@ void Backend::CheckForUpdateInternal(bool isManual)
 
         QUrl fallbackUrl("https://github.com/LaplaceTor/cs2-map-importer/releases/latest");
         QNetworkRequest request(fallbackUrl);
+        request.setTransferTimeout(10000);
         request.setRawHeader("User-Agent", "CS2-Map-Importer");
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 
@@ -1222,7 +1228,7 @@ void Backend::CheckForUpdateInternal(bool isManual)
             int index = path.indexOf("/releases/tag/");
             QString tagName;
             if (index != -1) {
-                tagName = path.mid(index + QString("/releases/tag/").length());
+                tagName = path.mid(index + QString("/releases/tag/").size());
             }
 
             if (tagName.startsWith("v")) {
@@ -1247,6 +1253,7 @@ void Backend::CheckForUpdateInternal(bool isManual)
 
     QUrl url("https://api.github.com/repos/LaplaceTor/cs2-map-importer/releases/latest");
     QNetworkRequest request(url);
+    request.setTransferTimeout(10000);
     request.setRawHeader("User-Agent", "CS2-Map-Importer");
 
     QNetworkReply* reply = networkManager->get(request);
