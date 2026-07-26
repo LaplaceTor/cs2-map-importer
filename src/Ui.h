@@ -323,7 +323,6 @@ private:
     QStringList cs2AddonsList;
     QString selectedMdlAddon;
     QString theme;
-    QPalette defaultPalette;
     bool modelSkipAnimation = false;
     bool modelChangeBindpose = false;
     bool modelOverrideLean = false;
