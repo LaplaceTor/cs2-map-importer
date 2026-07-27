@@ -37,10 +37,10 @@ Backend::Backend(QObject *parent) :
     s1GameType("csgo"),
     contentFolderToSave("C:\\"),
     vpkSignaturesMoved(false),
+    theme(""),
     networkManager(new QNetworkAccessManager(this)),
     logFile(nullptr),
-    logStream(nullptr),
-    theme("")
+    logStream(nullptr)
 
 {
     connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this](Qt::ColorScheme) {
