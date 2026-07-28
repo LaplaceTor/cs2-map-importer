@@ -10,116 +10,56 @@
 #include <QMap>
 #include <QProcess>
 
-static QString CleanRefPath(QString input) {
-    int filePos = input.indexOf("\"file\"");
-    if (filePos != -1) {
-        input = input.mid(filePos + 6);
-    }
-
-    QRegularExpression reLeading("^\\s*\"");
-    QRegularExpressionMatch matchLeading = reLeading.match(input);
-    if (matchLeading.hasMatch()) {
-        input = input.mid(matchLeading.capturedLength());
-    } else {
-        int start = input.indexOf(QRegularExpression("[^ \\t]"));
-        if (start != -1) {
-            input = input.mid(start);
-        } else {
-            return "";
-        }
-    }
-
-    QRegularExpression reTrailing("\"\\s*$");
-    QRegularExpressionMatch matchTrailing = reTrailing.match(input);
-    if (matchTrailing.hasMatch()) {
-        input = input.left(input.length() - matchTrailing.capturedLength());
-    } else {
-        int end = input.lastIndexOf(QRegularExpression("[^ \\t]"));
-        if (end != -1) {
-            input = input.left(end + 1);
-        }
-    }
-
-    if (input == "importfilelist" || input == "{" || input == "}") return "";
-    return input;
-}
-
-QStringList ModelImporter::ReadTextFile(const QString& filepath) {
-    QStringList lines;
-    QFile file(filepath);
-    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QTextStream in(&file);
-        while (!in.atEnd()) {
-            QString line = in.readLine();
-            if (!line.isEmpty() && line.endsWith('\r')) {
-                line.chop(1);
-            }
-            lines.append(line);
-        }
-    }
-    return lines;
-}
-
-void ModelImporter::EnsureFileWritable(const QString& filepath) {
-    QFileInfo p(filepath);
-    if (p.exists()) {
-        QFile::setPermissions(filepath, QFileDevice::WriteOwner | QFileDevice::WriteUser | QFileDevice::WriteGroup | QFileDevice::WriteOther | QFile::permissions(filepath));
-    } else {
-        QDir dir = p.dir();
-        if (!dir.exists()) {
-            dir.mkpath(".");
-        }
-    }
-}
 
 bool ModelImporter::Run(const QString& mdlPath) {
     if (Miscellaneous::CanceLImport) return false;
     Miscellaneous::Log("Starting standalone Model Import process.");
 
-    QString fullMdlPath = mdlPath;
-    fullMdlPath.replace('/', '\\');
+    QString fullMdlPath = QDir::toNativeSeparators(mdlPath);
 
-    QString relMdlPath = "models\\" + QFileInfo(fullMdlPath).fileName();
+    QString relMdlPath = QDir::toNativeSeparators("models/" + QFileInfo(fullMdlPath).fileName());
 
     Miscellaneous::Log("Input model path: " + fullMdlPath);
     Miscellaneous::Log("Relative MDL path: " + relMdlPath);
 
     // Build options for cs_mdl_import
-    QString extraOpts;
     const auto& opts = Miscellaneous::GetOptions();
-    if (opts.modelSkipAnimation) extraOpts += " -skipcommondmxwrite";
-    if (opts.modelChangeBindpose) extraOpts += " -YupToZup";
-    if (opts.modelOverrideLean) extraOpts += " -overridelean";
-    if (opts.modelHeaderHullBounds) extraOpts += " -header_hull_bounds";
-    if (opts.modelImportLods) extraOpts += " -lods";
+    QString program = QDir::toNativeSeparators(opts.cs2Basefolder + "/game/bin/win64/cs_mdl_import.exe");
+    QStringList arguments = { "-nop4" };
+    if (opts.modelSkipAnimation) arguments << "-skipcommondmxwrite";
+    if (opts.modelChangeBindpose) arguments << "-YupToZup";
+    if (opts.modelOverrideLean) arguments << "-overridelean";
+    if (opts.modelHeaderHullBounds) arguments << "-header_hull_bounds";
+    if (opts.modelImportLods) arguments << "-lods";
     if (opts.modelWriteWeaponPrefab) {
-        extraOpts += " -write_weapon_anim_prefab";
+        arguments << "-write_weapon_anim_prefab";
         QString modelBaseName = QFileInfo(relMdlPath).baseName();
-        extraOpts += " -weapon_anim_prefab \"" + modelBaseName + "_prefab\"";
+        arguments << "-weapon_anim_prefab" << (modelBaseName + "_prefab");
     }
 
-    QString outputDir = opts.s2contentdir + "\\models";
-    QString importCmd = "\"" + opts.cs2Basefolder + "\\game\\bin\\win64\\cs_mdl_import.exe\" -nop4" + extraOpts + " -o \"" + outputDir + "\" \"" + fullMdlPath + "\"";
-    Miscellaneous::RunCommandSync(importCmd);
+    QString outputDir = QDir::toNativeSeparators(opts.s2contentdir + "/models");
+    arguments << "-o" << outputDir << fullMdlPath;
+
+    Miscellaneous::RunCommandSync(program, arguments);
 
     if (Miscellaneous::CanceLImport) return false;
 
     // Define output path for refs file
-    QString refsName = outputDir + "\\" + QFileInfo(fullMdlPath).fileName();
+    QString refsName = QDir::toNativeSeparators(QDir(outputDir).filePath(QFileInfo(fullMdlPath).fileName()));
     int pos = refsName.lastIndexOf(".mdl");
     if (pos != -1) refsName.replace(pos, 4, "_refs.txt");
 
-    QString outName = outputDir + "\\" + QFileInfo(fullMdlPath).fileName();
+    QString outName = QDir::toNativeSeparators(QDir(outputDir).filePath(QFileInfo(fullMdlPath).fileName()));
     pos = outName.lastIndexOf(".mdl");
     if (pos != -1) outName.replace(pos, 4, ".vmdl");
 
     QSet<QString> mdlmtls;
     if (QFile::exists(refsName)) {
-        QStringList modelRefs = ReadTextFile(refsName);
+        QStringList modelRefs = Miscellaneous::ReadTextFile(refsName);
         for (const QString& ref : modelRefs) {
-            QString cleanedRef = CleanRefPath(ref);
+            QString cleanedRef = Miscellaneous::CleanRefPath(ref);
             if (!cleanedRef.isEmpty()) {
-                cleanedRef.replace('\\', '/');
+                cleanedRef = QDir::fromNativeSeparators(cleanedRef);
                 mdlmtls.insert(cleanedRef);
             }
         }
@@ -160,8 +100,20 @@ bool ModelImporter::Run(const QString& mdlPath) {
                 continue;
             }
 
-            QString importMtlCmd = "\"" + opts.cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + opts.s1gamedir + "\" -s2addon \"" + opts.addonName + "\" -game csgo \"" + QString(tmpVmtRel).replace('/', '\\') + "\"";
-            Miscellaneous::RunCommandSync(importMtlCmd);
+            QString program = QDir::toNativeSeparators(opts.cs2Basefolder + "/game/bin/win64/source1import.exe");
+            QStringList arguments = {
+                "-retail",
+                "-nop4",
+                "-nop4sync",
+                "-src1gameinfodir",
+                opts.s1gamedir,
+                "-s2addon",
+                opts.addonName,
+                "-game",
+                "csgo",
+                QDir::toNativeSeparators(tmpVmtRel)
+            };
+            Miscellaneous::RunCommandSync(program, arguments);
 
             QString tmpVmatRel = tmpVmtRel;
             int vmtPos = tmpVmatRel.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
@@ -180,8 +132,15 @@ bool ModelImporter::Run(const QString& mdlPath) {
                     QFile::remove(tmpVmatS2);
                 }
 
-                QString resCompCmd = "\"" + opts.cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + QString(origVmatS2).replace('/', '\\') + "\"";
-                Miscellaneous::RunCommandSync(resCompCmd);
+                QString programRc = QDir::toNativeSeparators(opts.cs2Basefolder + "/game/bin/win64/resourcecompiler.exe");
+                QStringList argumentsRc = {
+                    "-retail",
+                    "-nop4",
+                    "-game",
+                    "csgo",
+                    QDir::toNativeSeparators(origVmatS2)
+                };
+                Miscellaneous::RunCommandSync(programRc, argumentsRc);
             }
         } else {
             // Extract from VPK if missing from s1gamedir/s1contentdir
@@ -195,26 +154,38 @@ bool ModelImporter::Run(const QString& mdlPath) {
 
     if (!normalMtls.isEmpty()) {
         QString tempImportFile = opts.s1contentdir + "/temp_mtl_import.txt";
-        EnsureFileWritable(tempImportFile);
+        Miscellaneous::EnsureFileWritable(tempImportFile);
         QFile fImport(tempImportFile);
         if (fImport.open(QIODevice::WriteOnly | QIODevice::Text)) {
             QTextStream out(&fImport);
             out << "importfilelist\n{\n";
             for (const QString& mtl : normalMtls) {
-                QString formattedMtl = mtl;
-                formattedMtl.replace('\\', '/');
+                QString formattedMtl = QDir::fromNativeSeparators(mtl);
                 out << "\t\"file\"\t\"" << formattedMtl << "\"\n";
             }
             out << "}\n";
             fImport.close();
         }
 
-        QString importRefsCmd = "\"" + opts.cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + opts.s1gamedir + "\" -s2addon \"" + opts.addonName + "\" -game csgo -usefilelist \"" + QString(tempImportFile).replace('/', '\\') + "\"";
-        Miscellaneous::RunCommandSync(importRefsCmd);
+        QString programS1 = QDir::toNativeSeparators(opts.cs2Basefolder + "/game/bin/win64/source1import.exe");
+        QStringList argumentsS1 = {
+            "-retail",
+            "-nop4",
+            "-nop4sync",
+            "-src1gameinfodir",
+            opts.s1gamedir,
+            "-s2addon",
+            opts.addonName,
+            "-game",
+            "csgo",
+            "-usefilelist",
+            QDir::toNativeSeparators(tempImportFile)
+        };
+        Miscellaneous::RunCommandSync(programS1, argumentsS1);
         QFile::remove(tempImportFile);
 
         QString tempCompileFile = opts.s1contentdir + "/temp_mtl_compile.txt";
-        EnsureFileWritable(tempCompileFile);
+        Miscellaneous::EnsureFileWritable(tempCompileFile);
         QFile fCompile(tempCompileFile);
         if (fCompile.open(QIODevice::WriteOnly | QIODevice::Text)) {
             QTextStream out(&fCompile);
@@ -222,14 +193,22 @@ bool ModelImporter::Run(const QString& mdlPath) {
                 QString outName = opts.s2contentdir + "/" + mtl;
                 int vmtPos = outName.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
                 if (vmtPos != -1) outName.replace(vmtPos, 4, ".vmat");
-                outName.replace('/', '\\');
+                outName = QDir::toNativeSeparators(outName);
                 out << outName << "\n";
             }
             fCompile.close();
         }
 
-        QString resCompCmd = "\"" + opts.cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo -filelist \"" + QString(tempCompileFile).replace('/', '\\') + "\"";
-        Miscellaneous::RunCommandSync(resCompCmd);
+        QString programRc = QDir::toNativeSeparators(opts.cs2Basefolder + "/game/bin/win64/resourcecompiler.exe");
+        QStringList argumentsRc = {
+            "-retail",
+            "-nop4",
+            "-game",
+            "csgo",
+            "-filelist",
+            QDir::toNativeSeparators(tempCompileFile)
+        };
+        Miscellaneous::RunCommandSync(programRc, argumentsRc);
         QFile::remove(tempCompileFile);
     }
 
@@ -255,13 +234,16 @@ bool ModelImporter::Run(const QString& mdlPath) {
     if (Miscellaneous::CanceLImport) return false;
 
     if (QFile::exists(outName)) {
-        QString resCompCmd;
+        QString programRc = QDir::toNativeSeparators(opts.cs2Basefolder + "/game/bin/win64/resourcecompiler.exe");
+        QStringList argumentsRc = {
+            "-retail",
+            "-nop4"
+        };
         if (bForceCompile) {
-            resCompCmd = "\"" + opts.cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -f -game csgo \"" + outName + "\"";
-        } else {
-            resCompCmd = "\"" + opts.cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + outName + "\"";
+            argumentsRc << "-f";
         }
-        Miscellaneous::RunCommandSync(resCompCmd);
+        argumentsRc << "-game" << "csgo" << QDir::toNativeSeparators(outName);
+        Miscellaneous::RunCommandSync(programRc, argumentsRc);
     }
 
     Miscellaneous::Log("Model Import process complete.");
@@ -281,7 +263,7 @@ void ModelImporter::FixModelMaterials(const QStringList& vmatFiles) {
             continue;
         }
 
-        QStringList lines = ReadTextFile(vmatFile);
+        QStringList lines = Miscellaneous::ReadTextFile(vmatFile);
         bool fileModified = false;
         bool isLegacyShader = false;
 
@@ -331,7 +313,7 @@ void ModelImporter::FixModelMaterials(const QStringList& vmatFiles) {
 
             for (auto itMap = legacyKeyMap.begin(); itMap != legacyKeyMap.end(); ++itMap) {
                 if (lowerLine.startsWith(itMap.key())) {
-                    int firstQuote = line.indexOf('"', itMap.key().length());
+                    int firstQuote = line.indexOf('"', itMap.key().size());
                     int lastQuote = line.lastIndexOf('"');
                     if (firstQuote != -1 && lastQuote != -1 && lastQuote > firstQuote) {
                         QString valueStr = line.mid(firstQuote, lastQuote - firstQuote + 1);
@@ -354,7 +336,7 @@ void ModelImporter::FixModelMaterials(const QStringList& vmatFiles) {
         }
 
         if (fileModified) {
-            EnsureFileWritable(vmatFile);
+            Miscellaneous::EnsureFileWritable(vmatFile);
             QFile file(vmatFile);
             if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
                 QTextStream out(&file);

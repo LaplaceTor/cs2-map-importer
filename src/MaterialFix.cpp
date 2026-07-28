@@ -12,56 +12,6 @@
 #include <QColor>
 #include <QPainter>
 
-static QString CleanRefPath(QString input) {
-    int filePos = input.indexOf("\"file\"");
-    if (filePos != -1) {
-        input = input.mid(filePos + 6);
-    }
-
-    QRegularExpression reLeading("^\\s*\"");
-    QRegularExpressionMatch matchLeading = reLeading.match(input);
-    if (matchLeading.hasMatch()) {
-        input = input.mid(matchLeading.capturedLength());
-    } else {
-        int start = input.indexOf(QRegularExpression("[^ \\t]"));
-        if (start != -1) {
-            input = input.mid(start);
-        } else {
-            return "";
-        }
-    }
-
-    QRegularExpression reTrailing("\"\\s*$");
-    QRegularExpressionMatch matchTrailing = reTrailing.match(input);
-    if (matchTrailing.hasMatch()) {
-        input = input.left(input.length() - matchTrailing.capturedLength());
-    } else {
-        int end = input.lastIndexOf(QRegularExpression("[^ \\t]"));
-        if (end != -1) {
-            input = input.left(end + 1);
-        }
-    }
-
-    if (input == "importfilelist" || input == "{" || input == "}") return "";
-    return input;
-}
-
-static QStringList ReadTextFile(const QString& filepath) {
-    QStringList lines;
-    QFile file(filepath);
-    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QTextStream in(&file);
-        while (!in.atEnd()) {
-            lines.append(in.readLine());
-        }
-        file.close();
-    }
-    return lines;
-}
-
-static void EnsureFileWritable(const QString& filepath) {
-    QFile::setPermissions(filepath, QFile::ReadOwner | QFile::WriteOwner | QFile::ReadUser | QFile::WriteUser | QFile::ReadGroup | QFile::WriteGroup | QFile::ReadOther | QFile::WriteOther);
-}
 
 bool MaterialFix::Force2UVsIfRequired(const QString& refsName, QSet<QString>& global2UVMaterials) {
     QSet<QString> uvsUpdated;
@@ -73,13 +23,13 @@ bool MaterialFix::Force2UVsIfRequired(const QString& refsName, QSet<QString>& gl
 
     if (!QFile::exists(meshinfofilename)) return false;
 
-    QStringList meshinfo = ReadTextFile(meshinfofilename);
+    QStringList meshinfo = Miscellaneous::ReadTextFile(meshinfofilename);
     QString meshstring = meshinfo.join("");
 
     bool b2UV = false;
     if (!QFile::exists(refsName)) return false;
 
-    QStringList refsList = ReadTextFile(refsName);
+    QStringList refsList = Miscellaneous::ReadTextFile(refsName);
     int numuvs = 1; // Simplistic parsing
     if (meshstring.contains("'numuvs': 2") || meshstring.contains("\"numuvs\": 2")) {
         numuvs = 2;
@@ -87,7 +37,7 @@ bool MaterialFix::Force2UVsIfRequired(const QString& refsName, QSet<QString>& gl
 
     for (const QString& refLine : refsList) {
         if (Miscellaneous::CanceLImport) return false;
-        QString mtlfile = CleanRefPath(refLine);
+        QString mtlfile = Miscellaneous::CleanRefPath(refLine);
         if (mtlfile.isEmpty()) continue;
         if (uvsUpdated.contains(mtlfile)) continue;
 
@@ -108,8 +58,8 @@ bool MaterialFix::Force2UVsIfRequired(const QString& refsName, QSet<QString>& gl
 
                 QString vmatfilename = Miscellaneous::GetOptions().s2contentdir + "\\" + vmat;
                 if (QFile::exists(vmatfilename)) {
-                    QStringList lines = ReadTextFile(vmatfilename);
-                    EnsureFileWritable(vmatfilename);
+                    QStringList lines = Miscellaneous::ReadTextFile(vmatfilename);
+                    Miscellaneous::EnsureFileWritable(vmatfilename);
 
                     bool added = false;
                     for (int i = 0; i < lines.size(); ++i) {
@@ -201,9 +151,16 @@ void MaterialFix::SkyboxFix() {
         }
 
         if (QFile::exists(vtfPath)) {
-            QString cmd = "\"bin\\vtfcmd.exe\" -file \"" + vtfPath + "\" -output \"" + s2DirPath + "\" -exportformat \"jpg\"";
-            cmd = cmd.replace("/", "\\");
-            Miscellaneous::RunCommandSync(cmd);
+            QString program = QDir::toNativeSeparators("bin/vtfcmd.exe");
+            QStringList arguments = {
+                "-file",
+                QDir::toNativeSeparators(vtfPath),
+                "-output",
+                QDir::toNativeSeparators(s2DirPath),
+                "-exportformat",
+                "jpg"
+            };
+            Miscellaneous::RunCommandSync(program, arguments);
         }
     }
 
@@ -268,7 +225,7 @@ void MaterialFix::SkyboxFix() {
 
         // Update vmat file
         QString vmatFile = s2DirPath + "/" + baseName + ".vmat";
-        EnsureFileWritable(vmatFile);
+        Miscellaneous::EnsureFileWritable(vmatFile);
         QFile file(vmatFile);
         if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
             QTextStream out(&file);
@@ -451,7 +408,7 @@ void MaterialFix::ColorFix(QStringList& lines, int layer0StartIdx, int& layer0En
             // Format the new value
             QString newVal = legacyVal;
             if (mapping.appendAlpha1 && newVal.endsWith("]\"")) {
-                newVal = newVal.left(newVal.length() - 2) + " 1.0]\"";
+                newVal = newVal.left(newVal.size() - 2) + " 1.0]\"";
             }
 
             bool keyUpdated = false;
@@ -504,7 +461,7 @@ void MaterialFix::FixMaterials() {
         if (Miscellaneous::CanceLImport) return;
         QString vmatFile = it.next();
 
-        QStringList lines = ReadTextFile(vmatFile);
+        QStringList lines = Miscellaneous::ReadTextFile(vmatFile);
         bool fileModified = false;
         bool isLegacyShader = false;
 
@@ -554,7 +511,7 @@ void MaterialFix::FixMaterials() {
 
             for (auto itMap = legacyKeyMap.begin(); itMap != legacyKeyMap.end(); ++itMap) {
                 if (lowerLine.startsWith(itMap.key())) {
-                    int firstQuote = line.indexOf('"', itMap.key().length());
+                    int firstQuote = line.indexOf('"', itMap.key().size());
                     int lastQuote = line.lastIndexOf('"');
                     if (firstQuote != -1 && lastQuote != -1 && lastQuote > firstQuote) {
                         QString valueStr = line.mid(firstQuote, lastQuote - firstQuote + 1);
@@ -577,7 +534,7 @@ void MaterialFix::FixMaterials() {
         }
 
         if (fileModified) {
-            EnsureFileWritable(vmatFile);
+            Miscellaneous::EnsureFileWritable(vmatFile);
             QFile file(vmatFile);
             if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
                 QTextStream out(&file);
@@ -595,7 +552,7 @@ void MaterialFix::OldParticleMtlFix() {
     QString vmfPath = Miscellaneous::GetOptions().s1contentdir + "/maps/" + Miscellaneous::GetOptions().mapName + ".vmf";
     if (!QFile::exists(vmfPath)) return;
 
-    QStringList lines = ReadTextFile(vmfPath);
+    QStringList lines = Miscellaneous::ReadTextFile(vmfPath);
 
     QSet<QString> spriteMaterials;
     int bracketDepth = 0;
@@ -640,11 +597,11 @@ void MaterialFix::OldParticleMtlFix() {
         }
     }
 
-    QList<QString> materialList;
+    QStringList materialList;
     for (const QString& modelPath : spriteMaterials) {
         QString vmtPath = modelPath;
         if (vmtPath.endsWith(".spr", Qt::CaseInsensitive)) {
-            vmtPath = vmtPath.left(vmtPath.length() - 4) + ".vmt";
+            vmtPath = vmtPath.left(vmtPath.size() - 4) + ".vmt";
         }
         if (!vmtPath.startsWith("materials/", Qt::CaseInsensitive)) {
             vmtPath = "materials/" + vmtPath;
@@ -667,15 +624,34 @@ void MaterialFix::OldParticleMtlFix() {
             }
         }
 
-        QString importCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\source1import.exe\" -retail -nop4 -nop4sync -src1gameinfodir \"" + Miscellaneous::GetOptions().s1gamedir + "\" -s2addon \"" + Miscellaneous::GetOptions().addonName + "\" -game csgo \"" + QString(vmtPath).replace('/', '\\') + "\"";
-        Miscellaneous::RunCommandSync(importCmd);
+        QString program = QDir::toNativeSeparators(Miscellaneous::GetOptions().cs2Basefolder + "/game/bin/win64/source1import.exe");
+        QStringList arguments = {
+            "-retail",
+            "-nop4",
+            "-nop4sync",
+            "-src1gameinfodir",
+            Miscellaneous::GetOptions().s1gamedir,
+            "-s2addon",
+            Miscellaneous::GetOptions().addonName,
+            "-game",
+            "csgo",
+            QDir::toNativeSeparators(vmtPath)
+        };
+        Miscellaneous::RunCommandSync(program, arguments);
 
         QString vmatRel = vmtPath;
         vmatRel.replace(".vmt", ".vmat");
         QString s2VmatPath = QDir(Miscellaneous::GetOptions().s2contentdir).filePath(vmatRel);
 
-        QString resCompCmdVmat = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + QString(s2VmatPath).replace('/', '\\') + "\"";
-        Miscellaneous::RunCommandSync(resCompCmdVmat);
+        QString programRc = QDir::toNativeSeparators(Miscellaneous::GetOptions().cs2Basefolder + "/game/bin/win64/resourcecompiler.exe");
+        QStringList argumentsRc = {
+            "-retail",
+            "-nop4",
+            "-game",
+            "csgo",
+            QDir::toNativeSeparators(s2VmatPath)
+        };
+        Miscellaneous::RunCommandSync(programRc, argumentsRc);
 
         QString vtexRel = vmtPath;
         vtexRel.replace(".vmt", ".vtex");
@@ -736,8 +712,15 @@ void MaterialFix::OldParticleMtlFix() {
             file.close();
         }
 
-        QString resCompCmdVtex = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + QString(s2VtexPath).replace('/', '\\') + "\"";
-        Miscellaneous::RunCommandSync(resCompCmdVtex);
+        QString programVtex = QDir::toNativeSeparators(Miscellaneous::GetOptions().cs2Basefolder + "/game/bin/win64/resourcecompiler.exe");
+        QStringList argumentsVtex = {
+            "-retail",
+            "-nop4",
+            "-game",
+            "csgo",
+            QDir::toNativeSeparators(s2VtexPath)
+        };
+        Miscellaneous::RunCommandSync(programVtex, argumentsVtex);
     }
 }
 
@@ -745,7 +728,7 @@ void MaterialFix::OverlayFix() {
     QString vmfPath = Miscellaneous::GetOptions().s1contentdir + "/maps/" + Miscellaneous::GetOptions().mapName + ".vmf";
     if (!QFile::exists(vmfPath)) return;
 
-    QStringList lines = ReadTextFile(vmfPath);
+    QStringList lines = Miscellaneous::ReadTextFile(vmfPath);
 
     // Pass 1: find all info_overlay blocks, collect materials used, and track line indices
     QSet<QString> overlayMaterials;
@@ -805,14 +788,14 @@ void MaterialFix::OverlayFix() {
     QMap<QString, QString> materialReplacementMap;
 
     for (const QString& matName : overlayMaterials) {
-        QString vmatPath = Miscellaneous::GetOptions().s2contentdir + "/materials/" + matName + ".vmat";
+        QString vmatPath = QDir::toNativeSeparators(Miscellaneous::GetOptions().s2contentdir + "/materials/" + matName + ".vmat");
 
         if (!QFile::exists(vmatPath)) {
-            vmatPath = Miscellaneous::GetOptions().s2contentdir + "\\materials\\" + QString(matName).replace('/', '\\') + ".vmat";
+            vmatPath = QDir::toNativeSeparators(Miscellaneous::GetOptions().s2contentdir + "/materials/" + QDir::fromNativeSeparators(matName) + ".vmat");
             if (!QFile::exists(vmatPath)) continue;
         }
 
-        QStringList vmatLines = ReadTextFile(vmatPath);
+        QStringList vmatLines = Miscellaneous::ReadTextFile(vmatPath);
         bool hasFOverlay = false;
         bool hasFDecalTexture = false;
         bool isLightMapped = false;
@@ -893,8 +876,15 @@ void MaterialFix::OverlayFix() {
                     file.close();
                 }
 
-                QString resCompCmd = "\"" + Miscellaneous::GetOptions().cs2Basefolder + "\\game\\bin\\win64\\resourcecompiler.exe\" -retail -nop4 -game csgo \"" + newVmatPath + "\"";
-                Miscellaneous::RunCommandSync(resCompCmd);
+                QString programRc = QDir::toNativeSeparators(Miscellaneous::GetOptions().cs2Basefolder + "/game/bin/win64/resourcecompiler.exe");
+                QStringList argumentsRc = {
+                    "-retail",
+                    "-nop4",
+                    "-game",
+                    "csgo",
+                    QDir::toNativeSeparators(newVmatPath)
+                };
+                Miscellaneous::RunCommandSync(programRc, argumentsRc);
             }
         }
     }
@@ -915,7 +905,7 @@ void MaterialFix::OverlayFix() {
         }
 
         if (vmfModified) {
-            EnsureFileWritable(vmfPath);
+            Miscellaneous::EnsureFileWritable(vmfPath);
             QFile file(vmfPath);
             if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
                 QTextStream out(&file);

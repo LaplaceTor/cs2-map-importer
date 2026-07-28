@@ -3,9 +3,12 @@
 #include "MapImporter.h"
 #include "ModelImporter.h"
 #include "ParticleImporter.h"
+#include "MaterialImporter.h"
 #include "Miscellaneous.h"
 
 #include <QDir>
+#include <QGuiApplication>
+#include <QStyleHints>
 #include <QDebug>
 #include <QFile>
 #include <QTextStream>
@@ -35,15 +38,28 @@ Backend::Backend(QObject *parent) :
     s1GameType("csgo"),
     contentFolderToSave("C:\\"),
     vpkSignaturesMoved(false),
+    theme(""),
     networkManager(new QNetworkAccessManager(this)),
     logFile(nullptr),
     logStream(nullptr)
 
 {
+    connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this](Qt::ColorScheme) {
+        if (theme == "system") {
+            ApplyTheme("system");
+        }
+    });
+
+    connect(networkManager, &QNetworkAccessManager::sslErrors, this, [](QNetworkReply* reply, const QList<QSslError>& errors) {
+        Q_UNUSED(errors);
+        reply->ignoreSslErrors();
+    });
+
     appDir = QCoreApplication::applicationDirPath();
 
     Miscellaneous::GlobaLLogger = [this](const QString& msg) {
         emit logMessage(msg);
+        QMutexLocker locker(&logMutex);
         if (logStream) {
             *logStream << msg << "\n";
             logStream->flush();
@@ -65,28 +81,19 @@ Backend::Backend(QObject *parent) :
     Miscellaneous::Log("Initializing CS2 Importer... Finished");
 }
 
-Backend::~Backend()
-{
-    if (logStream) {
-        delete logStream;
-        logStream = nullptr;
-    }
-    if (logFile) {
-        if (logFile->isOpen()) {
-            logFile->close();
-        }
-        delete logFile;
-        logFile = nullptr;
-    }
-}
-
 void Backend::ValidateCs2()
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     QDesktopServices::openUrl(QUrl("steam://validate/730"));
 }
 
 void Backend::ValidateS1()
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     if (s1GameType == "css") {
         QDesktopServices::openUrl(QUrl("steam://validate/240"));
     } else if (s1GameType == "csgo") {
@@ -112,6 +119,10 @@ void Backend::ValidateS1()
 
 void Backend::SetS1GameType(const QString& type)
 {
+    if (IsGoingWarn()) {
+        emit s1GameTypeChanged();
+        return;
+    }
     if (s1GameType != type) {
         s1GameType = type;
         emit s1gameBasefolderChanged();
@@ -119,6 +130,36 @@ void Backend::SetS1GameType(const QString& type)
         UpdateCanGo();
         SaveToCfg();
     }
+}
+
+void Backend::SetTheme(const QString& val)
+{
+    if (theme != val) {
+        theme = val;
+        emit themeChanged();
+        ApplyTheme(theme);
+        SaveToCfg();
+    }
+}
+
+void Backend::ApplyTheme(const QString& val)
+{
+    if (val == "light") {
+        QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
+    } else if (val == "dark") {
+        QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+    } else {
+        QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Unknown);
+    }
+}
+
+bool Backend::IsGoingWarn()
+{
+    if (isGoing) {
+        emit alertMessage("Process Running", "An import process is currently running. You cannot change any settings or options until you stop the process or it completes.");
+        return true;
+    }
+    return false;
 }
 
 bool Backend::IsValidCs2(const QString& path)
@@ -145,6 +186,9 @@ bool Backend::IsValidCs2(const QString& path)
 
 void Backend::SelectCs2FolderDialog(const QUrl& url)
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
@@ -217,6 +261,9 @@ bool Backend::IsValidS1(const QString& path, const QString& type)
 
 void Backend::SelectS1FolderDialog(const QUrl& url)
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
@@ -252,12 +299,12 @@ void Backend::AutoDetectPaths()
 
     struct LibraryData {
         QString path;
-        QList<QString> apps;
+        QStringList apps;
     };
     QList<LibraryData> libraries;
 
     QString currentPath;
-    QList<QString> currentApps;
+    QStringList currentApps;
     bool in_apps = false;
 
     QTextStream in2(&content);
@@ -494,6 +541,9 @@ void Backend::SetS1Folder(const QString& path)
 
 void Backend::SelectVmfDialog(const QUrl& url)
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
@@ -531,8 +581,36 @@ void Backend::SelectVmfDialog(const QUrl& url)
     UpdateCanGo();
 }
 
+void Backend::SelectImageDialog(const QUrl& url)
+{
+    if (IsGoingWarn()) {
+        return;
+    }
+    QString path = url.toLocalFile();
+    if (path.isEmpty()) return;
+
+    materialFile = path;
+    emit materialFileChanged();
+
+    QString outPreviewPath;
+    if (MaterialImporter::ProcessImage(materialFile, appDir, outPreviewPath)) {
+        materialPreviewPath = outPreviewPath;
+        emit materialPreviewPathChanged();
+        emit materialPreviewUrlChanged();
+    } else {
+        materialPreviewPath = "";
+        emit materialPreviewPathChanged();
+        emit materialPreviewUrlChanged();
+    }
+
+    UpdateCanGo();
+}
+
 void Backend::SelectPcfDialog(const QUrl& url)
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
@@ -544,6 +622,9 @@ void Backend::SelectPcfDialog(const QUrl& url)
 
 void Backend::SelectMdlDialog(const QUrl& url)
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
@@ -555,6 +636,7 @@ void Backend::SelectMdlDialog(const QUrl& url)
 
 void Backend::RefreshCs2AddonsList()
 {
+    if (isGoing) return;
     QStringList list;
     if (!cs2Basefolder.isEmpty()) {
         QDir addonsDir(QDir(cs2Basefolder).filePath("content/csgo_addons"));
@@ -583,6 +665,9 @@ void Backend::RefreshCs2AddonsList()
 
 void Backend::SelectBspDialog(const QUrl& url)
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
@@ -630,6 +715,7 @@ void Backend::UpdateCanGo()
 void Backend::SaveToCfg()
 {
     QSettings settings("cs2importer.cfg", QSettings::IniFormat);
+    settings.setValue("theme", theme);
     settings.setValue("keepFuncDetailAsBrush", keepFuncDetailAsBrush);
     settings.setValue("usebsp", usebsp);
     settings.setValue("usebsp_nomergeinstances", usebspNomergeinstances);
@@ -663,6 +749,9 @@ void Backend::SaveToCfg()
 void Backend::LoadFromCfg()
 {
     QSettings settings("cs2importer.cfg", QSettings::IniFormat);
+
+    theme = settings.value("theme", "system").toString();
+    ApplyTheme(theme);
 
     keepFuncDetailAsBrush = settings.value("keepFuncDetailAsBrush", false).toBool();
     usebsp = settings.value("usebsp", true).toBool();
@@ -761,6 +850,9 @@ void Backend::LoadFromCfg()
 
 void Backend::Start()
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     if (cs2Basefolder.isEmpty()) {
         emit alertMessage("Validation Error", "CS2 folder not selected.");
         return;
@@ -854,28 +946,23 @@ void Backend::Start()
         }
         QString log_file_path = QDir(log_dir_path).filePath(log_filename);
 
-        if (logStream) {
-            delete logStream;
-            logStream = nullptr;
-        }
-        if (logFile) {
-            if (logFile->isOpen()) {
-                logFile->close();
-            }
-            delete logFile;
-            logFile = nullptr;
-        }
+        {
+            QMutexLocker locker(&logMutex);
+            logStream.reset();
+            logFile.reset();
 
-        logFile = new QFile(log_file_path);
-        if (logFile->open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-            logStream = new QTextStream(logFile);
-        } else {
-            delete logFile;
-            logFile = nullptr;
+            auto tempLogFile = std::make_unique<QFile>(log_file_path);
+            if (tempLogFile->open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+                logFile = std::move(tempLogFile);
+                logStream = std::make_unique<QTextStream>(logFile.get());
+            }
         }
 
         Miscellaneous::CanceLImport = 0;
-        Miscellaneous::MoveVpkSignatures(cs2Basefolder, vpkSignaturesMoved);
+        {
+            QMutexLocker locker(&vpkMutex);
+            Miscellaneous::MoveVpkSignatures(cs2Basefolder, vpkSignaturesMoved);
+        }
 
         isGoing = true;
         UpdateCanGo();
@@ -883,8 +970,7 @@ void Backend::Start()
         Miscellaneous::Log("Starting Miscellaneous thread...");
 
         Miscellaneous::Options opts;
-        opts.cs2Basefolder = cs2Basefolder;
-        opts.cs2Basefolder.replace("/", "\\");
+        opts.cs2Basefolder = QDir::toNativeSeparators(cs2Basefolder);
         opts.s1gameBasefolder = GetS1gameBasefolder();
         opts.csgogamedir = csgogamedir;
         opts.s1GameType = s1GameType;
@@ -957,9 +1043,12 @@ void Backend::Start()
             }
 
             QMetaObject::invokeMethod(this, [this, success, activeTabCopy]() {
-                if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
-                    Miscellaneous::RestoreVpkSignatures(cs2Basefolder);
-                    vpkSignaturesMoved = false;
+                {
+                    QMutexLocker locker(&vpkMutex);
+                    if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
+                        Miscellaneous::RestoreVpkSignatures(cs2Basefolder);
+                        vpkSignaturesMoved = false;
+                    }
                 }
 
                 isGoing = false;
@@ -983,16 +1072,10 @@ void Backend::Start()
                     }
                 }
 
-                if (logStream) {
-                    delete logStream;
-                    logStream = nullptr;
-                }
-                if (logFile) {
-                    if (logFile->isOpen()) {
-                        logFile->close();
-                    }
-                    delete logFile;
-                    logFile = nullptr;
+                {
+                    QMutexLocker locker(&logMutex);
+                    logStream.reset();
+                    logFile.reset();
                 }
             }, Qt::QueuedConnection);
         });
@@ -1003,6 +1086,22 @@ void Backend::Start()
     } catch (const AppException& e) {
         Miscellaneous::Log(QString("Error: %1").arg(e.message()));
         emit alertMessage("Error", e.message());
+        isGoing = false;
+        UpdateCanGo();
+        {
+            QMutexLocker locker(&logMutex);
+            logStream.reset();
+            logFile.reset();
+        }
+    } catch (...) {
+        emit alertMessage("Error", "An unexpected error occurred.");
+        isGoing = false;
+        UpdateCanGo();
+        {
+            QMutexLocker locker(&logMutex);
+            logStream.reset();
+            logFile.reset();
+        }
     }
 }
 
@@ -1034,19 +1133,16 @@ bool Backend::RunMapImportWorkflow(Miscellaneous::Options opts)
     else if (currentOpts.s1GameType == "gmod") s1Subfolder = "garrysmod";
     else if (currentOpts.s1GameType == "blackmesa") s1Subfolder = "bms";
 
-    QString s1gamedir = currentOpts.s1gameBasefolder + "\\" + s1Subfolder;
-    s1gamedir.replace('/', '\\');
+    QString s1gamedir = QDir::toNativeSeparators(currentOpts.s1gameBasefolder + "/" + s1Subfolder);
     currentOpts.s1gamedir = s1gamedir;
 
-    QString csgogamedir_path = currentOpts.csgogamedir + "\\csgo";
-    csgogamedir_path.replace('/', '\\');
+    QString csgogamedir_path = QDir::toNativeSeparators(currentOpts.csgogamedir + "/csgo");
     currentOpts.csgogamedir = csgogamedir_path;
 
-    QString contentdir = currentOpts.contentFolder;
-    contentdir.replace('/', '\\');
+    QString contentdir = QDir::toNativeSeparators(currentOpts.contentFolder);
     currentOpts.s1contentdir = contentdir;
 
-    currentOpts.s2contentdir = currentOpts.cs2Basefolder + "\\content\\csgo_addons\\" + currentOpts.addonName;
+    currentOpts.s2contentdir = QDir::toNativeSeparators(currentOpts.cs2Basefolder + "/content/csgo_addons/" + currentOpts.addonName);
 
     Miscellaneous::SetOptions(currentOpts);
 
@@ -1067,19 +1163,17 @@ bool Backend::RunModelImportWorkflow(Miscellaneous::Options opts, const QString&
     else if (opts.s1GameType == "gmod") s1Subfolder = "garrysmod";
     else if (opts.s1GameType == "blackmesa") s1Subfolder = "bms";
 
-    QString s1gamedir = opts.s1gameBasefolder + "\\" + s1Subfolder;
-    s1gamedir.replace('/', '\\');
+    QString s1gamedir = QDir::toNativeSeparators(opts.s1gameBasefolder + "/" + s1Subfolder);
     opts.s1gamedir = s1gamedir;
 
-    QString csgogamedir_path = opts.csgogamedir + "\\csgo";
-    csgogamedir_path.replace('/', '\\');
+    QString csgogamedir_path = QDir::toNativeSeparators(opts.csgogamedir + "/csgo");
     opts.csgogamedir = csgogamedir_path;
 
-    QString modelsTempDir = opts.appDir + "\\models_temp";
+    QString modelsTempDir = QDir::toNativeSeparators(opts.appDir + "/models_temp");
     QDir().mkpath(modelsTempDir);
     opts.s1contentdir = modelsTempDir;
 
-    opts.s2contentdir = opts.cs2Basefolder + "\\content\\csgo_addons\\" + opts.addonName;
+    opts.s2contentdir = QDir::toNativeSeparators(opts.cs2Basefolder + "/content/csgo_addons/" + opts.addonName);
 
     Miscellaneous::SetOptions(opts);
 
@@ -1100,15 +1194,13 @@ bool Backend::RunParticleImportWorkflow(Miscellaneous::Options opts, const QStri
     else if (opts.s1GameType == "gmod") s1Subfolder = "garrysmod";
     else if (opts.s1GameType == "blackmesa") s1Subfolder = "bms";
 
-    QString s1gamedir = opts.s1gameBasefolder + "\\" + s1Subfolder;
-    s1gamedir.replace('/', '\\');
+    QString s1gamedir = QDir::toNativeSeparators(opts.s1gameBasefolder + "/" + s1Subfolder);
     opts.s1gamedir = s1gamedir;
 
-    QString csgogamedir_path = opts.csgogamedir + "\\csgo";
-    csgogamedir_path.replace('/', '\\');
+    QString csgogamedir_path = QDir::toNativeSeparators(opts.csgogamedir + "/csgo");
     opts.csgogamedir = csgogamedir_path;
 
-    opts.s2contentdir = opts.cs2Basefolder + "\\content\\csgo_addons\\" + opts.addonName;
+    opts.s2contentdir = QDir::toNativeSeparators(opts.cs2Basefolder + "/content/csgo_addons/" + opts.addonName);
 
     Miscellaneous::SetOptions(opts);
 
@@ -1121,9 +1213,12 @@ void Backend::Stop()
     if (isGoing) {
         Miscellaneous::Log("Cancelling import...");
         Miscellaneous::CancelAll();
-        if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
-            Miscellaneous::RestoreVpkSignatures(cs2Basefolder);
-            vpkSignaturesMoved = false;
+        {
+            QMutexLocker locker(&vpkMutex);
+            if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
+                Miscellaneous::RestoreVpkSignatures(cs2Basefolder);
+                vpkSignaturesMoved = false;
+            }
         }
     }
 }
@@ -1135,6 +1230,9 @@ QString Backend::GetCurrentVersion() const
 
 void Backend::CheckForUpdate()
 {
+    if (IsGoingWarn()) {
+        return;
+    }
     CheckForUpdateInternal(true);
 }
 
@@ -1154,6 +1252,7 @@ void Backend::CheckForUpdateInternal(bool isManual)
 
         QUrl fallbackUrl("https://github.com/LaplaceTor/cs2-map-importer/releases/latest");
         QNetworkRequest request(fallbackUrl);
+        request.setTransferTimeout(10000);
         request.setRawHeader("User-Agent", "CS2-Map-Importer");
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 
@@ -1181,7 +1280,7 @@ void Backend::CheckForUpdateInternal(bool isManual)
             int index = path.indexOf("/releases/tag/");
             QString tagName;
             if (index != -1) {
-                tagName = path.mid(index + QString("/releases/tag/").length());
+                tagName = path.mid(index + QString("/releases/tag/").size());
             }
 
             if (tagName.startsWith("v")) {
@@ -1206,6 +1305,7 @@ void Backend::CheckForUpdateInternal(bool isManual)
 
     QUrl url("https://api.github.com/repos/LaplaceTor/cs2-map-importer/releases/latest");
     QNetworkRequest request(url);
+    request.setTransferTimeout(10000);
     request.setRawHeader("User-Agent", "CS2-Map-Importer");
 
     QNetworkReply* reply = networkManager->get(request);
@@ -1264,8 +1364,11 @@ void Backend::CheckForUpdateInternal(bool isManual)
 void Backend::AppAboutToQuit()
 {
     Miscellaneous::CancelAll();
-    if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
-        Miscellaneous::RestoreVpkSignatures(cs2Basefolder);
-        vpkSignaturesMoved = false;
+    {
+        QMutexLocker locker(&vpkMutex);
+        if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
+            Miscellaneous::RestoreVpkSignatures(cs2Basefolder);
+            vpkSignaturesMoved = false;
+        }
     }
 }

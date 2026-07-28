@@ -30,6 +30,8 @@ set(SOURCES
     src/ModelImporter.h
     src/ParticleImporter.cpp
     src/ParticleImporter.h
+    src/MaterialImporter.cpp
+    src/MaterialImporter.h
     src/SoundscapeImport.cpp
     src/SoundscapeImport.h
     src/FileExtractFromVPK.cpp
@@ -38,6 +40,7 @@ set(SOURCES
     src/MaterialFix.h
 )
 
+# Use for agent
 if(WIN32)
     list(APPEND SOURCES icons/cs2importer.rc)
 endif()

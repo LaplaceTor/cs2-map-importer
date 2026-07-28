@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QTextStream>
 #include <memory>
+#include <stdexcept>
 
 struct VDFNode {
     QString name;
@@ -24,7 +25,7 @@ static QStringList TokenizeVDF(const QStringList& lines) {
         QString currentToken = "";
         bool inQuotes = false;
 
-        for (int i = 0; i < line.length(); ++i) {
+        for (int i = 0; i < line.size(); ++i) {
             QChar c = line[i];
             if (c == '"') {
                 inQuotes = !inQuotes;
@@ -56,7 +57,11 @@ static QStringList TokenizeVDF(const QStringList& lines) {
     return tokens;
 }
 
-static QList<std::shared_ptr<VDFNode>> ParseVDF(const QStringList& tokens, int& index) {
+static QList<std::shared_ptr<VDFNode>> ParseVDF(const QStringList& tokens, int& index, int depth = 0) {
+    if (depth > 8) {
+        throw std::runtime_error("Maximum recursion depth (8 layers) exceeded in ParseVDF");
+    }
+
     QList<std::shared_ptr<VDFNode>> nodes;
 
     while (index < tokens.size()) {
@@ -65,15 +70,22 @@ static QList<std::shared_ptr<VDFNode>> ParseVDF(const QStringList& tokens, int& 
         }
 
         auto node = std::make_shared<VDFNode>();
+        if (index >= tokens.size()) {
+            break;
+        }
         node->name = tokens[index++];
 
         if (index < tokens.size()) {
             if (tokens[index] == "{") {
                 index++; // skip '{'
-                node->children = ParseVDF(tokens, index);
-                index++; // skip '}'
+                node->children = ParseVDF(tokens, index, depth + 1);
+                if (index < tokens.size() && tokens[index] == "}") {
+                    index++; // skip '}'
+                }
             } else {
-                node->value = tokens[index++];
+                if (index < tokens.size()) {
+                    node->value = tokens[index++];
+                }
             }
         }
 
@@ -168,10 +180,16 @@ void SoundscapeImport::ImportSoundscapes(MapImporter* importer, QSet<QString>& u
             continue;
         }
 
-        QStringList lines = importer->ReadTextFile(fileInfo.absoluteFilePath());
+        QStringList lines = Miscellaneous::ReadTextFile(fileInfo.absoluteFilePath());
         QStringList tokens = TokenizeVDF(lines);
         int index = 0;
-        QList<std::shared_ptr<VDFNode>> roots = ParseVDF(tokens, index);
+        QList<std::shared_ptr<VDFNode>> roots;
+        try {
+            roots = ParseVDF(tokens, index);
+        } catch (const std::exception& e) {
+            Miscellaneous::Log(QString("Error parsing soundscape file %1: %2. Skipping this file.").arg(fileInfo.fileName()).arg(QString::fromUtf8(e.what())));
+            continue;
+        }
 
         QString vsndevtsContent = "<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->\n{\n";
 
@@ -272,7 +290,7 @@ void SoundscapeImport::ImportSoundscapes(MapImporter* importer, QSet<QString>& u
 
         QString outPath = Miscellaneous::GetOptions().s2contentdir + "\\soundevents\\" + baseName + ".vsndevts";
         QDir().mkpath(QFileInfo(outPath).absolutePath());
-        importer->EnsureFileWritable(outPath);
+        Miscellaneous::EnsureFileWritable(outPath);
         QFile vsndFile(outPath);
         if (vsndFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
             QTextStream out(&vsndFile);

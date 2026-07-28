@@ -8,6 +8,9 @@
 #include <QUrl>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QMutex>
+#include <QMutexLocker>
+#include <memory>
 #include "Miscellaneous.h"
 
 class Backend : public QObject
@@ -43,52 +46,124 @@ class Backend : public QObject
     Q_PROPERTY(QString pcfFile READ GetPcfFile NOTIFY pcfFileChanged)
     Q_PROPERTY(bool particleAllowDepthBlend READ GetParticleAllowDepthBlend WRITE SetParticleAllowDepthBlend NOTIFY particleAllowDepthBlendChanged)
     Q_PROPERTY(bool particleDisableDiffuse READ GetParticleDisableDiffuse WRITE SetParticleDisableDiffuse NOTIFY particleDisableDiffuseChanged)
+    Q_PROPERTY(QString theme READ GetTheme WRITE SetTheme NOTIFY themeChanged)
+
+    Q_PROPERTY(QString materialFile READ GetMaterialFile NOTIFY materialFileChanged)
+    Q_PROPERTY(QString materialPreviewPath READ GetMaterialPreviewPath NOTIFY materialPreviewPathChanged)
+    Q_PROPERTY(QString materialPreviewUrl READ GetMaterialPreviewUrl NOTIFY materialPreviewUrlChanged)
 
 public:
     enum TabIndex {
         TAB_MAP = 0,
-        TAB_MODEL = 1,
-        TAB_PARTICLE = 2
+        TAB_MATERIAL = 1,
+        TAB_MODEL = 2,
+        TAB_PARTICLE = 3
     };
 
     explicit Backend(QObject *parent = nullptr);
-    ~Backend();
 
     int GetActiveTab() const { return activeTab; }
-    void SetActiveTab(int val) { if(activeTab != val) { activeTab = val; emit activeTabChanged(); UpdateCanGo(); } }
+    void SetActiveTab(int val) {
+        if (IsGoingWarn()) {
+            emit activeTabChanged();
+            return;
+        }
+        if(activeTab != val) { activeTab = val; emit activeTabChanged(); UpdateCanGo(); }
+    }
 
     QString GetMdlFile() const { return mdlFile; }
 
     QStringList GetCs2AddonsList() const { return cs2AddonsList; }
 
     QString GetSelectedMdlAddon() const { return selectedMdlAddon; }
-    void SetSelectedMdlAddon(const QString& addon) { if(selectedMdlAddon != addon) { selectedMdlAddon = addon; emit selectedMdlAddonChanged(); UpdateCanGo(); } }
+    void SetSelectedMdlAddon(const QString& addon) {
+        if (IsGoingWarn()) {
+            emit selectedMdlAddonChanged();
+            return;
+        }
+        if(selectedMdlAddon != addon) { selectedMdlAddon = addon; emit selectedMdlAddonChanged(); UpdateCanGo(); }
+    }
 
     bool GetModelSkipAnimation() const { return modelSkipAnimation; }
-    void SetModelSkipAnimation(bool val) { if(modelSkipAnimation != val) { modelSkipAnimation = val; emit modelSkipAnimationChanged(); SaveToCfg(); } }
+    void SetModelSkipAnimation(bool val) {
+        if (IsGoingWarn()) {
+            emit modelSkipAnimationChanged();
+            return;
+        }
+        if(modelSkipAnimation != val) { modelSkipAnimation = val; emit modelSkipAnimationChanged(); SaveToCfg(); }
+    }
 
     bool GetModelChangeBindpose() const { return modelChangeBindpose; }
-    void SetModelChangeBindpose(bool val) { if(modelChangeBindpose != val) { modelChangeBindpose = val; emit modelChangeBindposeChanged(); SaveToCfg(); } }
+    void SetModelChangeBindpose(bool val) {
+        if (IsGoingWarn()) {
+            emit modelChangeBindposeChanged();
+            return;
+        }
+        if(modelChangeBindpose != val) { modelChangeBindpose = val; emit modelChangeBindposeChanged(); SaveToCfg(); }
+    }
 
     bool GetModelOverrideLean() const { return modelOverrideLean; }
-    void SetModelOverrideLean(bool val) { if(modelOverrideLean != val) { modelOverrideLean = val; emit modelOverrideLeanChanged(); SaveToCfg(); } }
+    void SetModelOverrideLean(bool val) {
+        if (IsGoingWarn()) {
+            emit modelOverrideLeanChanged();
+            return;
+        }
+        if(modelOverrideLean != val) { modelOverrideLean = val; emit modelOverrideLeanChanged(); SaveToCfg(); }
+    }
 
     bool GetModelHeaderHullBounds() const { return modelHeaderHullBounds; }
-    void SetModelHeaderHullBounds(bool val) { if(modelHeaderHullBounds != val) { modelHeaderHullBounds = val; emit modelHeaderHullBoundsChanged(); SaveToCfg(); } }
+    void SetModelHeaderHullBounds(bool val) {
+        if (IsGoingWarn()) {
+            emit modelHeaderHullBoundsChanged();
+            return;
+        }
+        if(modelHeaderHullBounds != val) { modelHeaderHullBounds = val; emit modelHeaderHullBoundsChanged(); SaveToCfg(); }
+    }
 
     bool GetModelImportLods() const { return modelImportLods; }
-    void SetModelImportLods(bool val) { if(modelImportLods != val) { modelImportLods = val; emit modelImportLodsChanged(); SaveToCfg(); } }
+    void SetModelImportLods(bool val) {
+        if (IsGoingWarn()) {
+            emit modelImportLodsChanged();
+            return;
+        }
+        if(modelImportLods != val) { modelImportLods = val; emit modelImportLodsChanged(); SaveToCfg(); }
+    }
 
     bool GetModelWriteWeaponPrefab() const { return modelWriteWeaponPrefab; }
-    void SetModelWriteWeaponPrefab(bool val) { if(modelWriteWeaponPrefab != val) { modelWriteWeaponPrefab = val; emit modelWriteWeaponPrefabChanged(); SaveToCfg(); } }
+    void SetModelWriteWeaponPrefab(bool val) {
+        if (IsGoingWarn()) {
+            emit modelWriteWeaponPrefabChanged();
+            return;
+        }
+        if(modelWriteWeaponPrefab != val) { modelWriteWeaponPrefab = val; emit modelWriteWeaponPrefabChanged(); SaveToCfg(); }
+    }
 
     QString GetPcfFile() const { return pcfFile; }
 
+    QString GetMaterialFile() const { return materialFile; }
+    QString GetMaterialPreviewPath() const { return materialPreviewPath; }
+    QString GetMaterialPreviewUrl() const { return QUrl::fromLocalFile(materialPreviewPath).toString(); }
+
     bool GetParticleAllowDepthBlend() const { return particleAllowDepthBlend; }
-    void SetParticleAllowDepthBlend(bool val) { if(particleAllowDepthBlend != val) { particleAllowDepthBlend = val; emit particleAllowDepthBlendChanged(); SaveToCfg(); } }
+    void SetParticleAllowDepthBlend(bool val) {
+        if (IsGoingWarn()) {
+            emit particleAllowDepthBlendChanged();
+            return;
+        }
+        if(particleAllowDepthBlend != val) { particleAllowDepthBlend = val; emit particleAllowDepthBlendChanged(); SaveToCfg(); }
+    }
 
     bool GetParticleDisableDiffuse() const { return particleDisableDiffuse; }
-    void SetParticleDisableDiffuse(bool val) { if(particleDisableDiffuse != val) { particleDisableDiffuse = val; emit particleDisableDiffuseChanged(); SaveToCfg(); } }
+    void SetParticleDisableDiffuse(bool val) {
+        if (IsGoingWarn()) {
+            emit particleDisableDiffuseChanged();
+            return;
+        }
+        if(particleDisableDiffuse != val) { particleDisableDiffuse = val; emit particleDisableDiffuseChanged(); SaveToCfg(); }
+    }
+
+    QString GetTheme() const { return theme; }
+    void SetTheme(const QString& val);
 
     QString GetCs2Basefolder() const { return cs2Basefolder; }
     QString GetS1gameBasefolder() const {
@@ -108,21 +183,54 @@ public:
     QString GetBspFile() const { return bspFile; }
     QString GetContentFolder() const { return contentFolder; }
     QString GetAddonName() const { return addonName; }
-    void SetAddonName(const QString& name) { if(addonName != name) { addonName = name; emit addonNameChanged(); UpdateCanGo(); } }
+    void SetAddonName(const QString& name) {
+        if (IsGoingWarn()) {
+            emit addonNameChanged();
+            return;
+        }
+        if(addonName != name) { addonName = name; emit addonNameChanged(); UpdateCanGo(); }
+    }
 
     bool GetKeepFuncDetailAsBrush() const { return keepFuncDetailAsBrush; }
-    void SetKeepFuncDetailAsBrush(bool val) { if(keepFuncDetailAsBrush != val) { keepFuncDetailAsBrush = val; emit keepFuncDetailAsBrushChanged(); SaveToCfg(); } }
+    void SetKeepFuncDetailAsBrush(bool val) {
+        if (IsGoingWarn()) {
+            emit keepFuncDetailAsBrushChanged();
+            return;
+        }
+        if(keepFuncDetailAsBrush != val) { keepFuncDetailAsBrush = val; emit keepFuncDetailAsBrushChanged(); SaveToCfg(); }
+    }
 
     bool GetUsebsp() const { return usebsp; }
-    void SetUsebsp(bool val) { if(usebsp != val) { usebsp = val; emit usebspChanged(); if(!usebsp) SetUsebspNomergeinstances(false); GetLaunchOptions(); SaveToCfg(); } }
+    void SetUsebsp(bool val) {
+        if (IsGoingWarn()) {
+            emit usebspChanged();
+            return;
+        }
+        if(usebsp != val) { usebsp = val; emit usebspChanged(); if(!usebsp) SetUsebspNomergeinstances(false); GetLaunchOptions(); SaveToCfg(); }
+    }
 
     bool GetUsebspNomergeinstances() const { return usebspNomergeinstances; }
-    void SetUsebspNomergeinstances(bool val) { if(usebspNomergeinstances != val) { usebspNomergeinstances = val; emit usebspNomergeinstancesChanged(); if(usebspNomergeinstances) SetUsebsp(true); GetLaunchOptions(); SaveToCfg(); } }
+    void SetUsebspNomergeinstances(bool val) {
+        if (IsGoingWarn()) {
+            emit usebspNomergeinstancesChanged();
+            return;
+        }
+        if(usebspNomergeinstances != val) { usebspNomergeinstances = val; emit usebspNomergeinstancesChanged(); if(usebspNomergeinstances) SetUsebsp(true); GetLaunchOptions(); SaveToCfg(); }
+    }
 
     bool GetSkipdeps() const { return skipdeps; }
-    void SetSkipdeps(bool val) { if(skipdeps != val) { skipdeps = val; emit skipdepsChanged(); GetLaunchOptions(); SaveToCfg(); } }
+    void SetSkipdeps(bool val) {
+        if (IsGoingWarn()) {
+            emit skipdepsChanged();
+            return;
+        }
+        if(skipdeps != val) { skipdeps = val; emit skipdepsChanged(); GetLaunchOptions(); SaveToCfg(); }
+    }
 
     bool GetCanGo() const {
+        if (activeTab == TAB_MATERIAL) {
+            return false;
+        }
         if (activeTab == TAB_MODEL) {
             return !cs2Basefolder.isEmpty() && !GetS1gameBasefolder().isEmpty() && !mdlFile.isEmpty() && !selectedMdlAddon.isEmpty() && !isGoing;
         }
@@ -146,6 +254,7 @@ public slots:
     void SelectBspDialog(const QUrl& url);
     void SelectMdlDialog(const QUrl& url);
     void SelectPcfDialog(const QUrl& url);
+    void SelectImageDialog(const QUrl& url);
     void RefreshCs2AddonsList();
     void ValidateCs2();
     void ValidateS1();
@@ -184,6 +293,10 @@ signals:
     void pcfFileChanged();
     void particleAllowDepthBlendChanged();
     void particleDisableDiffuseChanged();
+    void themeChanged();
+    void materialFileChanged();
+    void materialPreviewPathChanged();
+    void materialPreviewUrlChanged();
 
     void logMessage(const QString& msg);
     void alertMessage(const QString& title, const QString& msg);
@@ -222,8 +335,11 @@ private:
     int activeTab = TAB_MAP;
     QString mdlFile;
     QString pcfFile;
+    QString materialFile;
+    QString materialPreviewPath;
     QStringList cs2AddonsList;
     QString selectedMdlAddon;
+    QString theme;
     bool modelSkipAnimation = false;
     bool modelChangeBindpose = false;
     bool modelOverrideLean = false;
@@ -236,8 +352,10 @@ private:
 
     QNetworkAccessManager* networkManager;
 
-    QFile* logFile;
-    QTextStream* logStream;
+    std::unique_ptr<QFile> logFile;
+    std::unique_ptr<QTextStream> logStream;
+    mutable QMutex logMutex;
+    mutable QMutex vpkMutex;
 
     void SetCs2Folder(const QString& path);
     void SetS1Folder(const QString& path);
@@ -247,10 +365,12 @@ private:
     void GetLaunchOptions();
     void UpdateCanGo();
 
+    bool IsGoingWarn();
     bool IsValidCs2(const QString& path);
     bool IsValidS1(const QString& path, const QString& type);
     void AutoDetectPaths();
     void CheckForUpdateInternal(bool isManual);
+    void ApplyTheme(const QString& val);
 
     bool RunMapImportWorkflow(Miscellaneous::Options opts);
     bool RunModelImportWorkflow(Miscellaneous::Options opts, const QString& mdlPath);

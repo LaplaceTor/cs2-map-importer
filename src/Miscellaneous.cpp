@@ -76,27 +76,29 @@ void Miscellaneous::CancelAll() {
 
 
 
-int Miscellaneous::RunCommandSync(const QString& cmd) {
+int Miscellaneous::RunCommandSync(const QString& program, const QStringList& arguments) {
     if (CanceLImport) return -1;
-    Miscellaneous::Log(cmd);
+
+    // Log the command program and arguments in a clear format
+    QString loggedCmd = program;
+    for (const QString& arg : arguments) {
+        if (arg.contains(' ') || arg.contains('\t') || arg.isEmpty()) {
+            loggedCmd += " \"" + arg + "\"";
+        } else {
+            loggedCmd += " " + arg;
+        }
+    }
+    Miscellaneous::Log(loggedCmd);
 
     QProcess process;
     process.setProcessChannelMode(QProcess::MergedChannels);
 
-    // In QProcess, if we use setNativeArguments, cmd.exe requires the whole string after /c to be quoted if there are inner quotes.
-    // However, a simpler cross-platform way is to use QProcess's own parsing if we avoid cmd.exe.
-    // Since we need it to behave like CreateProcess, we can just start the command natively if we are not using pipes.
-    // For safety with cmd.exe, it expects /c ""command" "arg1" "arg2"". So we wrap in quotes.
-    process.setProgram("cmd.exe");
-#ifdef Q_OS_WIN
-    process.setNativeArguments("/S /C \"" + cmd + "\"");
-#else
-    process.setArguments({"/c", cmd});
-#endif
+    process.setProgram(program);
+    process.setArguments(arguments);
     process.start();
 
     QString lineBuffer;
-    bool isSource1Import = cmd.contains("source1import.exe");
+    bool isSource1Import = program.contains("source1import.exe");
     bool hasParseEparError = false;
 
     auto processOutput = [&](const QString& outStr) {
@@ -186,4 +188,67 @@ bool CopyDirectoryRecursively(const QString &sourceDir, const QString &destinati
     }
 
     return success;
+}
+
+QString Miscellaneous::CleanRefPath(QString input) {
+    int filePos = input.indexOf("\"file\"");
+    if (filePos != -1) {
+        input = input.mid(filePos + 6);
+    }
+
+    QRegularExpression reLeading("^\\s*\"");
+    QRegularExpressionMatch matchLeading = reLeading.match(input);
+    if (matchLeading.hasMatch()) {
+        input = input.mid(matchLeading.capturedLength());
+    } else {
+        int start = input.indexOf(QRegularExpression("[^ \\t]"));
+        if (start != -1) {
+            input = input.mid(start);
+        } else {
+            return "";
+        }
+    }
+
+    QRegularExpression reTrailing("\"\\s*$");
+    QRegularExpressionMatch matchTrailing = reTrailing.match(input);
+    if (matchTrailing.hasMatch()) {
+        input = input.left(input.size() - matchTrailing.capturedLength());
+    } else {
+        int end = input.lastIndexOf(QRegularExpression("[^ \\t]"));
+        if (end != -1) {
+            input = input.left(end + 1);
+        }
+    }
+
+    if (input == "importfilelist" || input == "{" || input == "}") return "";
+    return input;
+}
+
+QStringList Miscellaneous::ReadTextFile(const QString& filepath) {
+    QStringList lines;
+    QFile file(filepath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&file);
+        while (!in.atEnd()) {
+            QString line = in.readLine();
+            if (!line.isEmpty() && line.endsWith('\r')) {
+                line.chop(1);
+            }
+            lines.append(line);
+        }
+        file.close();
+    }
+    return lines;
+}
+
+void Miscellaneous::EnsureFileWritable(const QString& filepath) {
+    QFileInfo p(filepath);
+    if (p.exists()) {
+        QFile::setPermissions(filepath, QFileDevice::WriteOwner | QFileDevice::WriteUser | QFileDevice::WriteGroup | QFileDevice::WriteOther | QFile::permissions(filepath));
+    } else {
+        QDir dir = p.dir();
+        if (!dir.exists()) {
+            dir.mkpath(".");
+        }
+    }
 }

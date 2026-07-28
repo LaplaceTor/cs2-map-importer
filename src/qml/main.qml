@@ -170,6 +170,15 @@ ApplicationWindow {
         }
     }
 
+    FileDialog {
+        id: imageFileDialog
+        title: "Select Image File"
+        nameFilters: ["Image files (*.tga *.png *.jpg *.jpeg *.tif *.tiff *.vtf)"]
+        onAccepted: {
+            backend.SelectImageDialog(selectedFile)
+        }
+    }
+
     MessageDialog {
         id: messageDialog
         title: "Message"
@@ -191,6 +200,7 @@ ApplicationWindow {
             TabBar {
                 id: tabBar
                 Layout.fillWidth: true
+                enabled: !backend.isGoing
                 currentIndex: backend.activeTab
                 onCurrentIndexChanged: {
                     backend.activeTab = currentIndex
@@ -198,6 +208,9 @@ ApplicationWindow {
 
                 TabButton {
                     text: "Map"
+                }
+                TabButton {
+                    text: "Material"
                 }
                 TabButton {
                     text: "Model"
@@ -214,6 +227,7 @@ ApplicationWindow {
 
                 // Source 1 Game Box
                 GroupBox {
+                    visible: backend.activeTab !== 1
                     title: "Source 1 Game"
                     Layout.preferredWidth: 165
                     Layout.preferredHeight: 180
@@ -224,6 +238,7 @@ ApplicationWindow {
 
                         ComboBox {
                             id: s1GameCombo
+                            enabled: !backend.isGoing
                             model: ["CSGO", "CSS", "HL2", "L4D", "L4D2", "Portal", "Portal2", "TF2", "GMod", "BlackMesa"]
                             Layout.fillWidth: true
                             Component.onCompleted: {
@@ -244,6 +259,7 @@ ApplicationWindow {
 
                         Button {
                             id: s1FolderButton
+                            enabled: !backend.isGoing
                             text: backend.s1gameBasefolder === "" ? "Press to Select Game Folder" : backend.s1gameBasefolder
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -257,9 +273,30 @@ ApplicationWindow {
                         }
 
                         Button {
+                            enabled: !backend.isGoing
                             text: "Validate Game File"
                             Layout.fillWidth: true
                             onClicked: backend.ValidateS1()
+                        }
+                    }
+                }
+
+                // Picture File Preview Box
+                GroupBox {
+                    visible: backend.activeTab === 1
+                    title: "Picture File Preview"
+                    Layout.preferredWidth: 165
+                    Layout.preferredHeight: 180
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        Image {
+                            id: previewImage
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            fillMode: Image.PreserveAspectFit
+                            source: backend.materialPreviewUrl !== "" ? backend.materialPreviewUrl : ""
+                            cache: false
                         }
                     }
                 }
@@ -282,6 +319,7 @@ ApplicationWindow {
 
                         Button {
                             id: cs2FolderButton
+                            enabled: !backend.isGoing
                             text: backend.cs2Basefolder === "" ? "Press to Select Game Folder" : backend.cs2Basefolder
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -295,6 +333,7 @@ ApplicationWindow {
                         }
 
                         Button {
+                            enabled: !backend.isGoing
                             text: "Validate Game File"
                             Layout.fillWidth: true
                             onClicked: backend.ValidateCs2()
@@ -308,6 +347,7 @@ ApplicationWindow {
                 id: stackLayout
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                enabled: !backend.isGoing
                 currentIndex: tabBar.currentIndex
 
                 // Item 0: Map Tab Layout
@@ -408,7 +448,123 @@ ApplicationWindow {
                     }
                 }
 
-                // Item 1: Model Tab Layout
+                // Item 1: Material Tab Layout
+                ColumnLayout {
+                    spacing: 20
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    // Row 2: Material selection and Addon dropdown
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 15
+
+                        Button {
+                            id: selectImageButton
+                            Layout.preferredWidth: 165
+                            Layout.preferredHeight: 40
+                            text: backend.materialFile === "" ? "SELECT IMAGE" : backend.materialFile.substring(backend.materialFile.lastIndexOf('/') + 1)
+                            contentItem: Text {
+                                text: parent.text
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideMiddle
+                            }
+                            onClicked: {
+                                imageFileDialog.open()
+                            }
+                        }
+
+                        Label {
+                            text: "➡"
+                            font.pixelSize: 40
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        ComboBox {
+                            id: materialAddonCombo
+                            Layout.preferredWidth: 165
+                            Layout.preferredHeight: 40
+                            model: backend.cs2AddonsList
+                            currentIndex: Math.max(0, model.indexOf(backend.selectedMdlAddon))
+                            onActivated: backend.selectedMdlAddon = currentText
+                        }
+                    }
+
+                    // Row 4: OPTIONS (Material)
+                    GroupBox {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        title: "OPTIONS"
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: 10
+
+                            TabBar {
+                                id: materialOptionsTabBar
+                                Layout.fillWidth: true
+                                currentIndex: 0
+
+                                TabButton { text: "General" }
+                                TabButton { text: "NormalMap" }
+                                TabButton { text: "HeightMap" }
+                                TabButton { text: "MetalnessMap" }
+                                TabButton { text: "RoughnessMap" }
+                            }
+
+                            StackLayout {
+                                id: materialOptionsStack
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                currentIndex: materialOptionsTabBar.currentIndex
+
+                                // General Tab
+                                ColumnLayout {
+                                    Label {
+                                        text: "COMING SOON"
+                                        font.bold: true
+                                        Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+                                    }
+                                }
+                                // NormalMap Tab
+                                ColumnLayout {
+                                    Label {
+                                        text: "COMING SOON"
+                                        font.bold: true
+                                        Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+                                    }
+                                }
+                                // HeightMap Tab
+                                ColumnLayout {
+                                    Label {
+                                        text: "COMING SOON"
+                                        font.bold: true
+                                        Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+                                    }
+                                }
+                                // MetalnessMap Tab
+                                ColumnLayout {
+                                    Label {
+                                        text: "COMING SOON"
+                                        font.bold: true
+                                        Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+                                    }
+                                }
+                                // RoughnessMap Tab
+                                ColumnLayout {
+                                    Label {
+                                        text: "COMING SOON"
+                                        font.bold: true
+                                        Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Item 2: Model Tab Layout
                 ColumnLayout {
                     spacing: 20
                     Layout.fillWidth: true
@@ -597,12 +753,29 @@ ApplicationWindow {
                 }
             }
 
-            // Row 3: START and STOP Buttons
+            // Row 3: START and STOP Buttons / CREATE Button
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 15
 
+                // CREATE Button (visible only when Material tab is active)
                 Button {
+                    visible: backend.activeTab === 1
+                    text: "CREATE"
+                    enabled: false
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+
+                    contentItem: Text {
+                        text: parent.text
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.bold: true
+                    }
+                }
+
+                Button {
+                    visible: backend.activeTab !== 1
                     id: goButton
                     text: "START"
                     enabled: backend.canGo && !backend.isGoing
@@ -624,6 +797,7 @@ ApplicationWindow {
                 }
 
                 Button {
+                    visible: backend.activeTab !== 1
                     id: stopButton
                     text: "STOP"
                     enabled: backend.isGoing
@@ -646,11 +820,35 @@ ApplicationWindow {
             // Row 5: UPDATE
             RowLayout {
                 Layout.fillWidth: true
-                Layout.alignment: Qt.AlignHCenter
                 spacing: 10
+
+                Label {
+                    text: "Theme: "
+                    Layout.alignment: Qt.AlignVCenter
+                }
+
+                Button {
+                    id: themeButton
+                    text: backend.theme === "system" ? "System" : (backend.theme === "light" ? "Light" : "Dark")
+                    Layout.alignment: Qt.AlignVCenter
+                    onClicked: {
+                        if (backend.theme === "system") {
+                            backend.theme = "light"
+                        } else if (backend.theme === "light") {
+                            backend.theme = "dark"
+                        } else {
+                            backend.theme = "system"
+                        }
+                    }
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                }
 
                 Button {
                     text: "Check Update"
+                    enabled: !backend.isGoing
                     Layout.alignment: Qt.AlignVCenter
                     onClicked: backend.CheckForUpdate()
                 }
