@@ -20,7 +20,7 @@ ApplicationWindow {
     property var logLines: []
 
     Component.onCompleted: {
-        backend.AutoCheckForUpdate()
+        new backend.AutoCheckForUpdate()
     }
 
     Connections {
