@@ -30,6 +30,7 @@ public:
         }
 
         QProcess process;
+        process.setProcessChannelMode(QProcess::MergedChannels);
         process.setProgram(vpkeditcli_exe_);
         QStringList arguments = {
             "-e",
@@ -41,12 +42,38 @@ public:
         process.setArguments(arguments);
         process.start();
         if (process.waitForStarted()) {
-            while (process.state() == QProcess::Running) {
+            QString lineBuffer;
+            auto processOutput = [&](const QString& outStr) {
+                for (QChar c : outStr) {
+                    if (c == '\n') {
+                        if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
+                        if (!lineBuffer.isEmpty()) {
+                            Miscellaneous::Log(QString("[%1/%2] %3").arg(currentIdx).arg(totalCount_).arg(lineBuffer));
+                        }
+                        lineBuffer.clear();
+                    } else {
+                        lineBuffer += c;
+                    }
+                }
+            };
+
+            while (process.waitForReadyRead(100) || process.state() == QProcess::Running) {
                 if (Miscellaneous::CanceLImport) {
                     process.kill();
                     return;
                 }
-                process.waitForFinished(100);
+                QByteArray output = process.readAll();
+                if (!output.isEmpty()) {
+                    processOutput(QString::fromUtf8(output));
+                }
+            }
+            QByteArray output = process.readAll();
+            if (!output.isEmpty()) {
+                processOutput(QString::fromUtf8(output));
+            }
+            if (!lineBuffer.isEmpty()) {
+                if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
+                Miscellaneous::Log(QString("[%1/%2] %3").arg(currentIdx).arg(totalCount_).arg(lineBuffer));
             }
         }
 
@@ -247,7 +274,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
         };
         QList<FileInfo> all_files;
 
-        QRegularExpression sizeRegex("\\s*-\\s*\\d+(\\.\\d+)?\\s*(b|kb|mb|gb|B|KB|MB|GB)\\s*$");
+        QRegularExpression sizeRegex("\\s*-\\s*\\d+(\\.\\d+)?\\s*\\w*\\s*$");
 
         for (const QString& rawLine : lines) {
             if (CanceLImport) return -1;
@@ -255,7 +282,9 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
             int name_start_idx = 0;
             while (name_start_idx < line.length()) {
                 QChar c = line[name_start_idx];
-                if (c.isSpace() || (c.unicode() >= 0x2500 && c.unicode() <= 0x257F)) {
+                if (c.isSpace() ||
+                    (c.unicode() >= 0x2500 && c.unicode() <= 0x257F) ||
+                    c == '|' || c == '+' || c == '-' || c == '\\') {
                     name_start_idx++;
                 } else {
                     break;
