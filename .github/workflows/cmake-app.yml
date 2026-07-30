@@ -54,6 +54,7 @@ jobs:
       run: |
         jlink --add-modules java.base --output jre
         Copy-Item -Path jre\bin\* -Destination bin -Recurse -Force
+        if (Test-Path jre\bin\server) { Copy-Item -Path jre\bin\server -Destination bin\server -Recurse -Force }
         Copy-Item -Path jre\lib -Destination lib -Recurse -Force
         Copy-Item -Path jre\conf -Destination conf -Recurse -Force
         Copy-Item -Path jre\legal -Destination legal -Recurse -Force
@@ -101,6 +102,7 @@ jobs:
         Remove-Item -Path release\translations -Recurse -Force -ErrorAction SilentlyContinue
 
         Copy-Item -Path bin -Destination release\bin -Recurse
+        if (Test-Path bin\server) { Copy-Item -Path bin\server -Destination release\bin\server -Recurse -Force }
         Copy-Item -Path lib -Destination release\lib -Recurse -Force
         Copy-Item -Path conf -Destination release\conf -Recurse -Force
         Copy-Item -Path legal -Destination release\legal -Recurse -Force
