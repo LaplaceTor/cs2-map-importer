@@ -43,8 +43,24 @@ jobs:
     - name: Download bspsrc
       shell: pwsh
       run: |
-        Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip" -OutFile "bspsrc.zip"
-        Expand-Archive -Path bspsrc.zip -DestinationPath bspsrc
+        Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-windows.zip" -OutFile "bspsrc.zip"
+        Expand-Archive -Path bspsrc.zip -DestinationPath bin -Force
+
+    - name: Download VTFEdit
+      shell: pwsh
+      run: |
+        $client = [System.Net.Http.HttpClient]::new()
+        $response = $client.GetAsync("https://github.com/Sky-rym/VTFEdit-Reloaded/releases/latest").Result
+        $finalUrl = $response.RequestMessage.RequestUri.AbsoluteUri
+        $version = $finalUrl.Substring($finalUrl.LastIndexOf('/') + 1)
+        $vtfeditUrl = "https://github.com/Sky-rym/VTFEdit-Reloaded/releases/download/$version/VTFEdit_Reloaded_v$version.zip"
+        try {
+            Invoke-WebRequest -Uri $vtfeditUrl -OutFile "vtfedit_reloaded.zip" -ErrorAction Stop
+        } catch {
+            $vtfeditUrl = "https://github.com/Sky-rym/VTFEdit-Reloaded/releases/download/$version/VTFEdit_Reloaded_$version.zip"
+            Invoke-WebRequest -Uri $vtfeditUrl -OutFile "vtfedit_reloaded.zip"
+        }
+        Expand-Archive -Path vtfedit_reloaded.zip -DestinationPath bin -Force
     
     - name: Download vpkeditcli
       shell: pwsh
@@ -63,7 +79,6 @@ jobs:
         Remove-Item -Path release\translations -Recurse -Force -ErrorAction SilentlyContinue
 
         Copy-Item -Path bin -Destination release\bin -Recurse
-        Copy-Item bspsrc\bspsrc.jar release\bin\
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4

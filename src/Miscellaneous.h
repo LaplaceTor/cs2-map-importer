@@ -68,7 +68,6 @@ public:
     static LogCallback GlobaLLogger;
     static void Log(const QString& msg);
 
-    static bool CheckJava();
     static void MoveVpkSignatures(const QString& cs2Basefolder, bool& vpkSignaturesMoved);
     static void RestoreVpkSignatures(const QString& cs2Basefolder);
 

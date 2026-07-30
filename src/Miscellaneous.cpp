@@ -27,13 +27,6 @@ void Miscellaneous::Log(const QString& msg) {
     }
 }
 
-bool Miscellaneous::CheckJava() {
-    QProcess process;
-    process.start("java", QStringList() << "-version");
-    process.waitForFinished();
-    QByteArray output = process.readAllStandardError() + process.readAllStandardOutput();
-    return output.contains("version");
-}
 
 void Miscellaneous::MoveVpkSignatures(const QString& cs2Basefolder, bool& vpkSignaturesMoved) {
     if (cs2Basefolder.isEmpty()) return;
@@ -108,7 +101,11 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
             }
             break;
         case PROGRAM_BSPSRC: // 6
-            programPath = "java";
+            if (appDir.isEmpty()) {
+                programPath = QDir::toNativeSeparators("bin/bspsrc.bat");
+            } else {
+                programPath = QDir::toNativeSeparators(QDir(appDir).filePath("bin/bspsrc.bat"));
+            }
             break;
         default:
             throw AppException("Unknown program ID " + QString::number(program));
@@ -130,12 +127,15 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
 
     process.setProgram(programPath);
     process.setArguments(arguments);
+    if (program == PROGRAM_SOURCE1IMPORT && isMap) {
+        QString workingDir = QDir::toNativeSeparators(cs2Basefolder + "/game/csgo/import_scripts");
+        process.setWorkingDirectory(workingDir);
+    }
     process.start();
 
     QString lineBuffer;
     bool isSource1Import = (program == PROGRAM_SOURCE1IMPORT);
     bool hasParseEparError = false;
-    bool hasJavaVersionError = false;
 
     auto processOutput = [&](const QString& outStr) {
         for (QChar c : outStr) {
@@ -148,9 +148,6 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
                     }
                     if (isSource1Import && isMap && lineBuffer.contains("ParseEpar: token too long")) {
                         hasParseEparError = true;
-                    }
-                    if (program == PROGRAM_BSPSRC && lineBuffer.contains("only recognizes class file versions up to")) {
-                        hasJavaVersionError = true;
                     }
                 }
                 lineBuffer.clear();
@@ -172,11 +169,6 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
                 process.kill();
                 Miscellaneous::CancelAll();
                 throw AppException("This map geometry is too bad to run the clean up faces process!");
-            }
-            if (hasJavaVersionError) {
-                process.kill();
-                Miscellaneous::CancelAll();
-                throw AppException("Your Java version is too old. Please upgrade your Java version to a newer one.");
             }
         } else {
             // Timed out waiting for output
