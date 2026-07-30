@@ -69,7 +69,7 @@ jobs:
     - name: Download bspsrc
       shell: pwsh
       run: |
-        Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-windows.zip" -OutFile "bspsrc.zip"
+        Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip" -OutFile "bspsrc.zip"
         Expand-Archive -Path bspsrc.zip -DestinationPath bin -Force
 
     - name: Download VTFEdit
