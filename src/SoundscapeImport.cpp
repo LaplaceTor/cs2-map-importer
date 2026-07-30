@@ -17,7 +17,6 @@ struct VDFNode {
 static QStringList TokenizeVDF(const QStringList& lines) {
     QStringList tokens;
     for (QString line : lines) {
-        if (Miscellaneous::CanceLImport) return;
         int commentPos = line.indexOf("//");
         if (commentPos != -1) {
             line = line.left(commentPos);
