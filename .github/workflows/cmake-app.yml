@@ -43,6 +43,18 @@ jobs:
     - name: Build with CMake
       run: cmake --build build --config Release
 
+    - name: Set up JDK 24
+      uses: actions/setup-java@v4
+      with:
+        java-version: '24'
+        distribution: 'oracle'
+
+    - name: Build custom JRE using jlink
+      shell: pwsh
+      run: |
+        jlink --add-modules java.base --output jre
+        Copy-Item -Path jre\* -Destination bin -Recurse -Force
+
     - name: Download bspsrc
       shell: pwsh
       run: |
