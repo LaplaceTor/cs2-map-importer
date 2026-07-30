@@ -76,7 +76,7 @@ void Miscellaneous::CancelAll() {
 
 
 
-int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, bool logOut, QStringList* logOutString) {
+int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, bool logOut, QStringList* logOutString, bool isMap, bool isCSGO) {
     if (CanceLImport) return -1;
 
     QString programPath;
@@ -135,6 +135,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
     QString lineBuffer;
     bool isSource1Import = (program == PROGRAM_SOURCE1IMPORT);
     bool hasParseEparError = false;
+    bool hasJavaVersionError = false;
 
     auto processOutput = [&](const QString& outStr) {
         for (QChar c : outStr) {
@@ -145,8 +146,11 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
                     if (logOut && logOutString) {
                         logOutString->append(lineBuffer);
                     }
-                    if (isSource1Import && lineBuffer.contains("ParseEpar: token too long")) {
+                    if (isSource1Import && isMap && lineBuffer.contains("ParseEpar: token too long")) {
                         hasParseEparError = true;
+                    }
+                    if (program == PROGRAM_BSPSRC && lineBuffer.contains("only recognizes class file versions up to")) {
+                        hasJavaVersionError = true;
                     }
                 }
                 lineBuffer.clear();
@@ -169,9 +173,14 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
                 Miscellaneous::CancelAll();
                 throw AppException("This map geometry is too bad to run the clean up faces process!");
             }
+            if (hasJavaVersionError) {
+                process.kill();
+                Miscellaneous::CancelAll();
+                throw AppException("Your Java version is too old. Please upgrade your Java version to a newer one.");
+            }
         } else {
             // Timed out waiting for output
-            if (isSource1Import && process.state() == QProcess::Running) {
+            if (!isCSGO && isSource1Import && process.state() == QProcess::Running) {
                 // We're likely stuck at the invisible "Are you sure you want to continue?" prompt
                 process.write("y\n");
             }

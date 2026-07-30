@@ -74,7 +74,7 @@ public:
 
     // Decompiles the BSP, moves unpacked files, and moves materials/models folders into s1gamedir
 
-    static int RunCommandSync(int program, const QStringList& arguments, bool logOut = false, QStringList* logOutString = nullptr);
+    static int RunCommandSync(int program, const QStringList& arguments, bool logOut = false, QStringList* logOutString = nullptr, bool isMap = false, bool isCSGO = false);
     static void CancelAll();
 
     static QAtomicInt CanceLImport;

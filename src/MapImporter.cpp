@@ -127,7 +127,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
                 "csgo",
                 QDir::toNativeSeparators(tmpVmtRel)
             };
-            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments);
+            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, false, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
 
             QString tmpVmatRel = tmpVmtRel;
             int vmtPos = tmpVmatRel.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
@@ -188,7 +188,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
             "-usefilelist",
             QDir::toNativeSeparators(tempImportFile)
         };
-        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, argumentsS1);
+        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, argumentsS1, false, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
         QFile::remove(tempImportFile);
 
         QString tempCompileFile = Miscellaneous::GetOptions().s1contentdir + "/temp_mtl_compile.txt";
@@ -290,7 +290,7 @@ void MapImporter::ImportAndCompileMapRefs() {
     arguments << QDir::toNativeSeparators("maps/" + Miscellaneous::GetOptions().mapName + ".vmf");
 
     QStringList outputLines;
-    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, true, &outputLines);
+    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, true, &outputLines, true, Miscellaneous::GetOptions().s1GameType == "csgo");
 
     QStringList missingMaterials;
     for (const QString& lineBuffer : outputLines) {
@@ -354,7 +354,7 @@ void MapImporter::ImportAndCompileMapRefs() {
                 "csgo",
                 QDir::toNativeSeparators(tmpVmtRel)
             };
-            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, argumentsMtl);
+            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, argumentsMtl, false, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
 
             QString tmpVmatRel = tmpVmtRel;
             int vmtPos = tmpVmatRel.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
@@ -415,7 +415,7 @@ void MapImporter::ImportAndCompileMapRefs() {
             "-usefilelist",
             QDir::toNativeSeparators(tempImportFile)
         };
-        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, argumentsS1);
+        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, argumentsS1, false, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
         QFile::remove(tempImportFile);
 
         QString tempCompileFile = Miscellaneous::GetOptions().s1contentdir + "/temp_missing_compile.txt";
@@ -497,7 +497,7 @@ void MapImporter::ImportParticles(){
                 "csgo",
                 QDir::toNativeSeparators(cleanedPath)
             };
-            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments);
+            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, false, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
         }
     }
 }
@@ -568,7 +568,7 @@ bool MapImporter::Run() {
     }
 
     if (!Miscellaneous::GetOptions().skipdeps) {
-        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments);
+        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, false, nullptr, true, Miscellaneous::GetOptions().s1GameType == "csgo");
 
         ImportAndCompileMapMDLs(QDir::toNativeSeparators(Miscellaneous::GetOptions().s2contentdir + "/maps/" + mMapname + "_refs.txt"));
         ImportAndCompileMapRefs();
@@ -578,7 +578,7 @@ bool MapImporter::Run() {
         MaterialFix::FixMaterials();
     }
 
-    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments);
+    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, false, nullptr, true, Miscellaneous::GetOptions().s1GameType == "csgo");
 
     Miscellaneous::Log("Import process complete.");
     return true;
