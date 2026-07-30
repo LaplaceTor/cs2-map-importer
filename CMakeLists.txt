@@ -74,3 +74,20 @@ target_compile_definitions(cs2importer PRIVATE "APP_VERSION=\"${APP_VERSION}\"")
 
 qt_import_qml_plugins(cs2importer)
 qt_finalize_executable(cs2importer)
+
+set(TEST_SOURCES
+    src/VmfBspProcess.cpp
+    src/MaterialFix.cpp
+    src/Miscellaneous.cpp
+    src/FileExtractFromVPK.cpp
+    tests/verify_tests.cpp
+)
+if(WIN32)
+    list(APPEND TEST_SOURCES icons/cs2importer.rc)
+endif()
+
+qt_add_executable(verify_tests MANUAL_FINALIZATION ${TEST_SOURCES})
+target_link_libraries(verify_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Network)
+target_include_directories(verify_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+qt_import_qml_plugins(verify_tests)
+qt_finalize_executable(verify_tests)

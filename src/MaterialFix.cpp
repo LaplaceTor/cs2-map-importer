@@ -370,6 +370,10 @@ void MaterialFix::ComplexShaderVariablesFix(QStringList& lines, bool& fileModifi
             localModified = true;
         } else if (lowerLine.startsWith("\"f_twotexture\"") && lowerLine.contains("\"1\"")) {
             localModified = true;
+        } else if (lowerLine.startsWith("\"f_notint\"") && lowerLine.contains("\"1\"")) {
+            newLines.append(prefix + "\"F_TINT_MASK\"\t\t\"1\"");
+            newLines.append(prefix + "\"TextureTintMask\"\t\t\"[0 0 0 0]\"");
+            localModified = true;
         } else {
             newLines.append(line);
         }

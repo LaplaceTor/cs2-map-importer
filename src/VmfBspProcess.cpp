@@ -681,7 +681,6 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
                         QRegularExpression hold_animation_regex("^(\\s*)\"HoldAnimation\"\\s+\"([^\"]*)\"(.*)$");
                         QRegularExpression random_animation_regex("^(\\s*)\"RandomAnimation\"\\s+\"([^\"]*)\"(.*)$");
                         QRegularExpression animate_every_frame_regex("^(\\s*)\"AnimateEveryFrame\"\\s+\"([^\"]*)\"(.*)$");
-                        QRegularExpression skin_regex("^(\\s*)\"skin\"\\s+\"([^\"]*)\"(.*)$");
                         QRegularExpression glowdist_regex("^(\\s*)\"glowdist\"\\s+\"([^\"]*)\"(.*)$");
                         QRegularExpression glowenabled_regex("^(\\s*)\"glowenabled\"\\s+\"([^\"]*)\"(.*)$");
                         QRegularExpression min_anim_time_regex("^(\\s*)\"MinAnimTime\"\\s+\"([^\"]*)\"(.*)$");
@@ -702,7 +701,6 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
                             QRegularExpressionMatch hold_animation_match = hold_animation_regex.match(block_line);
                             QRegularExpressionMatch random_animation_match = random_animation_regex.match(block_line);
                             QRegularExpressionMatch animate_every_frame_match = animate_every_frame_regex.match(block_line);
-                            QRegularExpressionMatch skin_match = skin_regex.match(block_line);
                             QRegularExpressionMatch glowdist_match = glowdist_regex.match(block_line);
                             QRegularExpressionMatch glowenabled_match = glowenabled_regex.match(block_line);
                             QRegularExpressionMatch min_anim_time_match = min_anim_time_regex.match(block_line);
@@ -752,16 +750,6 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
                                 QString rest = animate_every_frame_match.captured(3);
 
                                 new_entity_block.append(indent + "\"AnimateOnServer\" \"" + val + "\"" + rest);
-                            } else if (skin_match.hasMatch()) {
-                                QString indent = skin_match.captured(1);
-                                QString val = skin_match.captured(2);
-                                QString rest = skin_match.captured(3);
-
-                                if (val == "0") {
-                                    new_entity_block.append(indent + "\"skin\" \"default\"" + rest);
-                                } else {
-                                    new_entity_block.append(block_line);
-                                }
                             } else if (glowdist_match.hasMatch()) {
                                 QString indent = glowdist_match.captured(1);
                                 QString val = glowdist_match.captured(2);
@@ -805,12 +793,88 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
         outfile.close();
     }
 }
+
+void VmfBspProcess::SkinKVFix(const QString& vmfPath) {
+    if (!QFile::exists(vmfPath)) return;
+
+    QFile infile(vmfPath);
+    if (!infile.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+
+    QStringList lines;
+    QTextStream in(&infile);
+    while (!in.atEnd()) {
+        lines.append(in.readLine());
+    }
+    infile.close();
+
+    bool in_entity = false;
+    int bracket_level = 0;
+    QStringList current_entity_block;
+    QStringList out_lines;
+
+    QRegularExpression skin_regex("^(\\s*)\"skin\"\\s+\"([^\"]*)\"(.*)$");
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i];
+        QString trimmed = line.trimmed();
+
+        if (!in_entity && trimmed == "entity") {
+            in_entity = true;
+            bracket_level = 0;
+            current_entity_block.clear();
+            current_entity_block.append(line);
+        } else if (in_entity) {
+            current_entity_block.append(line);
+
+            if (trimmed == "{") {
+                bracket_level++;
+            } else if (trimmed == "}") {
+                bracket_level--;
+                if (bracket_level == 0) {
+                    in_entity = false;
+
+                    QStringList new_entity_block;
+                    for (const QString& block_line : current_entity_block) {
+                        QRegularExpressionMatch skin_match = skin_regex.match(block_line);
+                        if (skin_match.hasMatch()) {
+                            QString indent = skin_match.captured(1);
+                            QString val = skin_match.captured(2);
+                            QString rest = skin_match.captured(3);
+
+                            if (val == "0") {
+                                new_entity_block.append(indent + "\"skin\" \"default\"" + rest);
+                            } else {
+                                new_entity_block.append(block_line);
+                            }
+                        } else {
+                            new_entity_block.append(block_line);
+                        }
+                    }
+                    out_lines.append(new_entity_block);
+                }
+            }
+        } else {
+            out_lines.append(line);
+        }
+    }
+
+    QFile outfile(vmfPath);
+    if (outfile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&outfile);
+        for (const QString& l : out_lines) {
+            out << l << "\n";
+        }
+        outfile.close();
+    }
+}
+
 void VmfBspProcess::FixEntities(const QString& vmfPath) {
     FixSpecialTargetnames(vmfPath);
     FixLightColor(vmfPath);
     FixBrush(vmfPath);
     FixRender(vmfPath);
     FixDynamicProp(vmfPath);
+    SkinKVFix(vmfPath);
     FixPerformanceMode(vmfPath);
     OldParticleFix(vmfPath);
     FixPhysboxMultiplayer(vmfPath);
