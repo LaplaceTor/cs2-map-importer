@@ -40,6 +40,17 @@ public:
             QDir::toNativeSeparators(bspFile_)
         };
         process.setArguments(arguments);
+
+        QString loggedCmd = vpkeditcli_exe_;
+        for (const QString& arg : arguments) {
+            if (arg.contains(' ') || arg.contains('\t') || arg.isEmpty()) {
+                loggedCmd += " \"" + arg + "\"";
+            } else {
+                loggedCmd += " " + arg;
+            }
+        }
+        Miscellaneous::Log(QString("[%1/%2] Running: %3").arg(currentIdx).arg(totalCount_).arg(loggedCmd));
+
         process.start();
         if (process.waitForStarted()) {
             QString lineBuffer;
