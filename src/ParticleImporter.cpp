@@ -66,7 +66,7 @@ bool ParticleImporter::Run(const QString& pcfPath) {
     }
     arguments << destPcfPath;
 
-    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments);
+    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, false, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
 
     if (Miscellaneous::CanceLImport) return false;
 

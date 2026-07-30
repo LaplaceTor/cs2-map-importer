@@ -639,7 +639,7 @@ void MaterialFix::OldParticleMtlFix() {
             "csgo",
             QDir::toNativeSeparators(vmtPath)
         };
-        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments);
+        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, false, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
 
         QString vmatRel = vmtPath;
         vmatRel.replace(".vmt", ".vmat");
