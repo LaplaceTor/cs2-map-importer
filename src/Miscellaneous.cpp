@@ -108,6 +108,21 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
                 } else {
                     programPath = QDir::toNativeSeparators(QDir(appDir).filePath("bin/" + javaExe));
                 }
+
+                if (!QFile::exists(programPath)) {
+                    throw AppException("Could not find java executable at " + QDir::toNativeSeparators(programPath));
+                }
+
+                QString jarPath;
+                if (appDir.isEmpty()) {
+                    jarPath = QDir::toNativeSeparators("bin/bspsrc.jar");
+                } else {
+                    jarPath = QDir::toNativeSeparators(QDir(appDir).filePath("bin/bspsrc.jar"));
+                }
+
+                if (!QFile::exists(jarPath)) {
+                    throw AppException("Could not find bspsrc.jar at " + QDir::toNativeSeparators(jarPath));
+                }
             }
             break;
         default:

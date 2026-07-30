@@ -877,6 +877,7 @@ void VmfBspProcess::SkinKVFix(const QString& vmfPath) {
 }
 
 void VmfBspProcess::FixEntities(const QString& vmfPath) {
+    FixVmfFromBsp(vmfPath);
     FixSpecialTargetnames(vmfPath);
     FixLightColor(vmfPath);
     FixBrush(vmfPath);
@@ -1092,17 +1093,6 @@ void VmfBspProcess::ProcessBsp() {
     QDir().mkpath(maps_dir);
 
     QString vmf_dest = QDir(maps_dir).filePath(Miscellaneous::GetOptions().mapName + ".vmf");
-    QString javaExe =  "java.exe";
-
-    QString java_path = QDir(appDir).filePath("bin/" + javaExe);
-    QString bspsrc_jar = QDir(appDir).filePath("bin/bspsrc.jar");
-
-    if (!QFile::exists(java_path)) {
-        throw AppException("Could not find java executable at " + QDir::toNativeSeparators(java_path));
-    }
-    if (!QFile::exists(bspsrc_jar)) {
-        throw AppException("Could not find bspsrc.jar at " + QDir::toNativeSeparators(bspsrc_jar));
-    }
 
     Miscellaneous::Log("Decompiling BSP: " + Miscellaneous::GetOptions().bspFile);
 
@@ -1147,7 +1137,6 @@ void VmfBspProcess::ProcessBsp() {
         }
     }
 
-    FixVmfFromBsp(vmf_dest);
     if (Miscellaneous::CanceLImport) return;
 
     QString target_maps_dir = QDir(appDir).filePath("maps/" + Miscellaneous::GetOptions().mapName + "/maps");
