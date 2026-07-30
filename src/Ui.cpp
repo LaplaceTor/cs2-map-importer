@@ -32,7 +32,6 @@
 
 Backend::Backend(QObject *parent) :
     QObject(parent),
-    javaInstalled(false),
     vmfDefaultPath("C:\\"),
     s1GameType("csgo"),
     contentFolderToSave("C:\\"),
@@ -67,13 +66,7 @@ Backend::Backend(QObject *parent) :
 
     Miscellaneous::Log("Initializing CS2 Importer...");
 
-    javaInstalled = Miscellaneous::CheckJava();
-
     GetLaunchOptions();
-
-    if (!javaInstalled) {
-        Miscellaneous::Log("Warning: Java is missing. BSP decompilation disabled.");
-    }
 
     LoadFromCfg();
 
@@ -645,11 +638,6 @@ void Backend::SelectBspDialog(const QUrl& url)
     QString path = url.toLocalFile();
     if (path.isEmpty()) return;
 
-    if (!javaInstalled) {
-        emit alertMessage("Java Missing", "Java is not installed. Cannot decompile BSP file.");
-        return;
-    }
-
     bspFile = path;
     emit bspFileChanged();
     QFileInfo fileInfo(path);
@@ -1084,9 +1072,6 @@ bool Backend::RunMapImportWorkflow(Miscellaneous::Options opts)
     Miscellaneous::SetOptions(opts);
 
     if (!opts.bspFile.isEmpty()) {
-        if (!Miscellaneous::CheckJava()) {
-            throw AppException("Java is not installed. Cannot decompile BSP file.");
-        }
         VmfBspProcess::ProcessBsp();
     }
 

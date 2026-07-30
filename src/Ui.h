@@ -289,7 +289,6 @@ signals:
 
 private:
     QString appDir;
-    bool javaInstalled;
     QString vmfDefaultPath;
     QString cs2Basefolder;
     QString csgogamedir;

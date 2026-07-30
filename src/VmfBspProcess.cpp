@@ -1091,17 +1091,15 @@ void VmfBspProcess::ProcessBsp() {
     QDir().mkpath(maps_dir);
 
     QString vmf_dest = QDir(maps_dir).filePath(Miscellaneous::GetOptions().mapName + ".vmf");
-    QString bspsrc_jar = QDir(appDir).filePath("bin/bspsrc.jar");
+    QString bspsrc_bat = QDir(appDir).filePath("bin/bspsrc.bat");
 
-    if (!QFile::exists(bspsrc_jar)) {
-        throw AppException("Could not find bspsrc.jar at " + bspsrc_jar);
+    if (!QFile::exists(bspsrc_bat)) {
+        throw AppException("Could not find bspsrc.bat at " + bspsrc_bat);
     }
 
     Miscellaneous::Log("Decompiling BSP: " + Miscellaneous::GetOptions().bspFile);
 
     QStringList arguments = {
-        "-jar",
-        QDir::toNativeSeparators(bspsrc_jar),
         QDir::toNativeSeparators(Miscellaneous::GetOptions().bspFile),
         "-o",
         QDir::toNativeSeparators(vmf_dest)
