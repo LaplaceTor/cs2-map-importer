@@ -52,7 +52,13 @@ jobs:
     - name: Build custom JRE using jlink
       shell: pwsh
       run: |
-        jlink --add-modules java.base --output jre
+        jlink `
+          --add-modules java.base,java.desktop,java.logging,java.xml,java.management,java.naming,java.scripting `
+          --strip-debug `
+          --no-man-pages `
+          --no-header-files `
+          --compress=2 `
+          --output jre
         Copy-Item -Path jre\bin\* -Destination bin -Recurse -Force
         if (Test-Path jre\bin\server) { Copy-Item -Path jre\bin\server -Destination bin\server -Recurse -Force }
         Copy-Item -Path jre\lib -Destination lib -Recurse -Force
