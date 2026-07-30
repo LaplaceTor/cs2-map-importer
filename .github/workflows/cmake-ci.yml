@@ -63,7 +63,9 @@ jobs:
       shell: pwsh
       run: |
         Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip" -OutFile "bspsrc.zip"
-        Expand-Archive -Path bspsrc.zip -DestinationPath bin -Force
+        Expand-Archive -Path bspsrc.zip -DestinationPath bspsrc-temp -Force
+        if (!(Test-Path bin)) { New-Item -ItemType Directory -Path bin }
+        Get-ChildItem -Path bspsrc-temp -Filter "bspsrc.jar" -Recurse | Copy-Item -Destination bin -Force
 
     - name: Download VTFEdit
       shell: pwsh
@@ -79,7 +81,11 @@ jobs:
             $vtfeditUrl = "https://github.com/Sky-rym/VTFEdit-Reloaded/releases/download/$version/VTFEdit_Reloaded_$version.zip"
             Invoke-WebRequest -Uri $vtfeditUrl -OutFile "vtfedit_reloaded.zip"
         }
-        Expand-Archive -Path vtfedit_reloaded.zip -DestinationPath bin -Force
+        Expand-Archive -Path vtfedit_reloaded.zip -DestinationPath vtfedit-temp -Force
+        if (!(Test-Path bin)) { New-Item -ItemType Directory -Path bin }
+        Get-ChildItem -Path vtfedit-temp -Filter "Devil.dll" -Recurse | Copy-Item -Destination bin -Force
+        Get-ChildItem -Path vtfedit-temp -Filter "vtfcmd.exe" -Recurse | Copy-Item -Destination bin -Force
+        Get-ChildItem -Path vtfedit-temp -Filter "vtflib.dll" -Recurse | Copy-Item -Destination bin -Force
     
     - name: Download vpkeditcli
       shell: pwsh
