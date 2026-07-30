@@ -58,9 +58,9 @@ jobs:
           --no-man-pages `
           --no-header-files `
           --compress=2 `
-          --output ../jre-temp
+          --output jre
         if (!(Test-Path bin)) { New-Item -ItemType Directory -Path bin }
-        Copy-Item -Path ../jre-temp/* -Destination bin -Recurse -Force
+        Copy-Item -Path jre/* -Destination bin -Recurse -Force
 
     - name: Download bspsrc
       shell: pwsh
