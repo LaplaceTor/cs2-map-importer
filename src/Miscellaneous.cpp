@@ -259,7 +259,19 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
         Miscellaneous::Log("Reading BSP file tree using vpkeditcli...");
         QProcess treeProcess;
         treeProcess.setProgram(programPath);
-        treeProcess.setArguments({"--file-tree", QDir::toNativeSeparators(bspFile)});
+        QStringList treeArgs = {"--file-tree", QDir::toNativeSeparators(bspFile)};
+        treeProcess.setArguments(treeArgs);
+
+        QString loggedTreeCmd = programPath;
+        for (const QString& arg : treeArgs) {
+            if (arg.contains(' ') || arg.contains('\t') || arg.isEmpty()) {
+                loggedTreeCmd += " \"" + arg + "\"";
+            } else {
+                loggedTreeCmd += " " + arg;
+            }
+        }
+        Miscellaneous::Log(loggedTreeCmd);
+
         treeProcess.start();
         if (!treeProcess.waitForStarted()) {
             throw AppException("Failed to start vpkeditcli to read the BSP file tree.");
