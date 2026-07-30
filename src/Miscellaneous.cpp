@@ -101,19 +101,34 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
             }
             break;
         case PROGRAM_BSPSRC: // 6
-            if (appDir.isEmpty()) {
-                programPath = QDir::toNativeSeparators("bin/bspsrc.bat");
-            } else {
-                programPath = QDir::toNativeSeparators(QDir(appDir).filePath("bin/bspsrc.bat"));
+            {
+                QString javaExe = "java.exe";
+                if (appDir.isEmpty()) {
+                    programPath = QDir::toNativeSeparators("bin/" + javaExe);
+                } else {
+                    programPath = QDir::toNativeSeparators(QDir(appDir).filePath("bin/" + javaExe));
+                }
             }
             break;
         default:
             throw AppException("Unknown program ID " + QString::number(program));
     }
 
+    QStringList finalArguments = arguments;
+    if (program == PROGRAM_BSPSRC) {
+        QString jarPath;
+        if (appDir.isEmpty()) {
+            jarPath = QDir::toNativeSeparators("bin/bspsrc.jar");
+        } else {
+            jarPath = QDir::toNativeSeparators(QDir(appDir).filePath("bin/bspsrc.jar"));
+        }
+        finalArguments.prepend(jarPath);
+        finalArguments.prepend("-jar");
+    }
+
     // Log the command program path and arguments in a clear format
     QString loggedCmd = programPath;
-    for (const QString& arg : arguments) {
+    for (const QString& arg : finalArguments) {
         if (arg.contains(' ') || arg.contains('\t') || arg.isEmpty()) {
             loggedCmd += " \"" + arg + "\"";
         } else {
@@ -126,7 +141,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
     process.setProcessChannelMode(QProcess::MergedChannels);
 
     process.setProgram(programPath);
-    process.setArguments(arguments);
+    process.setArguments(finalArguments);
     if (program == PROGRAM_SOURCE1IMPORT && isMap) {
         QString workingDir = QDir::toNativeSeparators(cs2Basefolder + "/game/csgo/import_scripts");
         process.setWorkingDirectory(workingDir);

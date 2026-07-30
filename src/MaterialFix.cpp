@@ -143,6 +143,7 @@ void MaterialFix::SkyboxFix() {
     QStringList suffixes = {"up", "bk", "rt", "ft", "lf", "dn"};
 
     for (const QString& suffix : suffixes) {
+        if (Miscellaneous::CanceLImport) return;
         QString vtfName = baseName + suffix + ".vtf";
         QString vtfPath = dirPath + "/" + vtfName;
 
@@ -788,6 +789,7 @@ void MaterialFix::OverlayFix() {
     QMap<QString, QString> materialReplacementMap;
 
     for (const QString& matName : overlayMaterials) {
+        if (Miscellaneous::CanceLImport) return;
         QString vmatPath = QDir::toNativeSeparators(Miscellaneous::GetOptions().s2contentdir + "/materials/" + matName + ".vmat");
 
         if (!QFile::exists(vmatPath)) {

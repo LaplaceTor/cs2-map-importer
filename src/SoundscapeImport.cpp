@@ -97,6 +97,7 @@ static QList<std::shared_ptr<VDFNode>> ParseVDF(const QStringList& tokens, int& 
 
 static void ParseSoundscapeProperties(const QList<std::shared_ptr<VDFNode>>& children, QString& timeMin, QString& timeMax, QString& pitchMin, QString& pitchMax, QString& volMin, QString& volMax, QString& sndLvl, QStringList& waves) {
     for (auto c : children) {
+        if (Miscellaneous::CanceLImport) return;
         QString lowerName = c->name.toLower();
         if (lowerName == "time") {
             QString val = c->value;
@@ -194,6 +195,7 @@ void SoundscapeImport::ImportSoundscapes(MapImporter* importer, QSet<QString>& u
         QString vsndevtsContent = "<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->\n{\n";
 
         for (auto root : roots) {
+            if (Miscellaneous::CanceLImport) return;
             QString soundscapeName = root->name;
             if (soundscapeName.toLower() == "playlooping" || soundscapeName.toLower() == "playrandom") continue; // should not be at root
 
@@ -203,6 +205,7 @@ void SoundscapeImport::ImportSoundscapes(MapImporter* importer, QSet<QString>& u
             int partCount = 1;
 
             for (auto child : root->children) {
+                if (Miscellaneous::CanceLImport) return;
                 QString cName = child->name.toLower();
                 if (cName == "playlooping" || cName == "playrandom") {
                     QString partName = QString("%1.part%2").arg(soundscapeName).arg(partCount);
