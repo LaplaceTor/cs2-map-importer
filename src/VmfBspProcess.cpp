@@ -114,6 +114,7 @@ QStringList VmfBspProcess::PatchDispinfo(const QStringList& lines) {
     bool in_dispinfo_bracket = false;
     bool has_offsets = false;
     bool has_offset_normals = false;
+    int current_power = 3;
 
     for (int i = 0; i < lines.size(); ++i) {
         QString l = lines[i];
@@ -125,6 +126,7 @@ QStringList VmfBspProcess::PatchDispinfo(const QStringList& lines) {
             in_dispinfo_bracket = false;
             has_offsets = false;
             has_offset_normals = false;
+            current_power = 3;
         }
 
         if (in_dispinfo) {
@@ -139,6 +141,12 @@ QStringList VmfBspProcess::PatchDispinfo(const QStringList& lines) {
             }
             if (trimmed == "offset_normals") {
                 has_offset_normals = true;
+            }
+
+            QRegularExpression power_regex("^\"power\"\\s+\"(\\d+)\"");
+            QRegularExpressionMatch power_match = power_regex.match(trimmed);
+            if (power_match.hasMatch()) {
+                current_power = power_match.captured(1).toInt();
             }
 
             if (in_dispinfo_bracket && open_brackets_disp == 0) {
@@ -156,37 +164,36 @@ QStringList VmfBspProcess::PatchDispinfo(const QStringList& lines) {
                 }
             }
 
+            int r = (1 << current_power) + 1;
+            int m = 3 * r;
+
             if (!has_offsets) {
-                QString offsets_block =
-                    indent + "offsets\n" +
-                    indent + "{\n" +
-                    indent + "\t\"row0\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                    indent + "\t\"row1\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                    indent + "\t\"row2\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                    indent + "\t\"row3\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                    indent + "\t\"row4\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                    indent + "\t\"row5\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                    indent + "\t\"row6\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                    indent + "\t\"row7\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                    indent + "\t\"row8\" \"0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\"\n" +
-                    indent + "}";
+                QString offsets_block = indent + "offsets\n" + indent + "{\n";
+                for (int row = 0; row < r; ++row) {
+                    offsets_block += indent + QString("\t\"row%1\" \"").arg(row);
+                    QStringList zeros;
+                    for (int j = 0; j < m; ++j) {
+                        zeros.append("0");
+                    }
+                    offsets_block += zeros.join(' ') + "\"\n";
+                }
+                offsets_block += indent + "}";
                 out_lines.append(offsets_block);
             }
 
             if (!has_offset_normals) {
-                QString offset_normals_block =
-                    indent + "offset_normals\n" +
-                    indent + "{\n" +
-                    indent + "\t\"row0\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                    indent + "\t\"row1\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                    indent + "\t\"row2\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                    indent + "\t\"row3\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                    indent + "\t\"row4\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                    indent + "\t\"row5\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                    indent + "\t\"row6\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                    indent + "\t\"row7\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                    indent + "\t\"row8\" \"0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1 0 0 1\"\n" +
-                    indent + "}";
+                QString offset_normals_block = indent + "offset_normals\n" + indent + "{\n";
+                for (int row = 0; row < r; ++row) {
+                    offset_normals_block += indent + QString("\t\"row%1\" \"").arg(row);
+                    QStringList normal_tokens;
+                    for (int j = 0; j < r; ++j) {
+                        normal_tokens.append("0");
+                        normal_tokens.append("0");
+                        normal_tokens.append("1");
+                    }
+                    offset_normals_block += normal_tokens.join(' ') + "\"\n";
+                }
+                offset_normals_block += indent + "}";
                 out_lines.append(offset_normals_block);
             }
         }
@@ -878,83 +885,6 @@ void VmfBspProcess::FixEntities(const QString& vmfPath) {
     FixPerformanceMode(vmfPath);
     OldParticleFix(vmfPath);
     FixPhysboxMultiplayer(vmfPath);
-    RowKVFix(vmfPath);
-}
-
-void VmfBspProcess::RowKVFix(const QString& vmfPath) {
-    if (!QFile::exists(vmfPath)) return;
-
-    QFile infile(vmfPath);
-    if (!infile.open(QIODevice::ReadOnly | QIODevice::Text)) return;
-
-    QStringList lines;
-    QTextStream in(&infile);
-    while (!in.atEnd()) {
-        lines.append(in.readLine());
-    }
-    infile.close();
-
-    QStringList out_lines;
-    QRegularExpression row_kv_regex("^(\\s*)\"(row\\d+)\"\\s+\"([^\"]*)\"(.*)$", QRegularExpression::CaseInsensitiveOption);
-
-    bool modified = false;
-
-    for (int i = 0; i < lines.size(); ++i) {
-        QString line = lines[i];
-        QRegularExpressionMatch match = row_kv_regex.match(line);
-        if (match.hasMatch()) {
-            QString indent = match.captured(1);
-            QString key = match.captured(2);
-            QString val = match.captured(3);
-            QString rest = match.captured(4);
-
-            QStringList tokens = val.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
-            for (int k = 0; k < tokens.size(); ++k) {
-                QString token = tokens[k];
-                if (token.contains('e', Qt::CaseInsensitive)) {
-                    bool ok;
-                    double d = token.toDouble(&ok);
-                    if (ok) {
-                        QString s;
-                        if (qAbs(d) < 0.00005) {
-                            s = "0";
-                        } else {
-                            s = QString::number(d, 'f', 4);
-                            if (s.contains('.')) {
-                                while (s.endsWith('0')) {
-                                    s.chop(1);
-                                }
-                                if (s.endsWith('.')) {
-                                    s.chop(1);
-                                }
-                            }
-                        }
-                        if (s != token) {
-                            tokens[k] = s;
-                        }
-                    }
-                }
-            }
-
-            QString newVal = tokens.join(' ');
-            if (newVal != val) {
-                line = indent + "\"" + key + "\" \"" + newVal + "\"" + rest;
-                modified = true;
-            }
-        }
-        out_lines.append(line);
-    }
-
-    if (modified) {
-        QFile outfile(vmfPath);
-        if (outfile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            QTextStream out(&outfile);
-            for (const QString& l : out_lines) {
-                out << l << "\n";
-            }
-            outfile.close();
-        }
-    }
 }
 
 void VmfBspProcess::OldParticleFix(const QString& vmfPath) {
