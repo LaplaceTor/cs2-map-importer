@@ -76,11 +76,46 @@ void Miscellaneous::CancelAll() {
 
 
 
-int Miscellaneous::RunCommandSync(const QString& program, const QStringList& arguments) {
+int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, bool logOut, QStringList* logOutString) {
     if (CanceLImport) return -1;
 
-    // Log the command program and arguments in a clear format
-    QString loggedCmd = program;
+    QString programPath;
+    QString appDir = Miscellaneous::GetOptions().appDir;
+    QString cs2Basefolder = Miscellaneous::GetOptions().cs2Basefolder;
+
+    switch (program) {
+        case PROGRAM_SOURCE1IMPORT: // 1
+            programPath = QDir::toNativeSeparators(cs2Basefolder + "/game/bin/win64/source1import.exe");
+            break;
+        case PROGRAM_CS_MDL_IMPORT: // 2
+            programPath = QDir::toNativeSeparators(cs2Basefolder + "/game/bin/win64/cs_mdl_import.exe");
+            break;
+        case PROGRAM_RESOURCECOMPILER: // 3
+            programPath = QDir::toNativeSeparators(cs2Basefolder + "/game/bin/win64/resourcecompiler.exe");
+            break;
+        case PROGRAM_VPKEDITCLI: // 4
+            if (appDir.isEmpty()) {
+                programPath = QDir::toNativeSeparators("bin/vpkeditcli.exe");
+            } else {
+                programPath = QDir::toNativeSeparators(QDir(appDir).filePath("bin/vpkeditcli.exe"));
+            }
+            break;
+        case PROGRAM_VTFCMD: // 5
+            if (appDir.isEmpty()) {
+                programPath = QDir::toNativeSeparators("bin/vtfcmd.exe");
+            } else {
+                programPath = QDir::toNativeSeparators(QDir(appDir).filePath("bin/vtfcmd.exe"));
+            }
+            break;
+        case PROGRAM_BSPSRC: // 6
+            programPath = "java";
+            break;
+        default:
+            throw AppException("Unknown program ID " + QString::number(program));
+    }
+
+    // Log the command program path and arguments in a clear format
+    QString loggedCmd = programPath;
     for (const QString& arg : arguments) {
         if (arg.contains(' ') || arg.contains('\t') || arg.isEmpty()) {
             loggedCmd += " \"" + arg + "\"";
@@ -93,12 +128,12 @@ int Miscellaneous::RunCommandSync(const QString& program, const QStringList& arg
     QProcess process;
     process.setProcessChannelMode(QProcess::MergedChannels);
 
-    process.setProgram(program);
+    process.setProgram(programPath);
     process.setArguments(arguments);
     process.start();
 
     QString lineBuffer;
-    bool isSource1Import = program.contains("source1import.exe");
+    bool isSource1Import = (program == PROGRAM_SOURCE1IMPORT);
     bool hasParseEparError = false;
 
     auto processOutput = [&](const QString& outStr) {
@@ -107,6 +142,9 @@ int Miscellaneous::RunCommandSync(const QString& program, const QStringList& arg
                 if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
                 if (!lineBuffer.isEmpty()) {
                     Miscellaneous::Log(lineBuffer);
+                    if (logOut && logOutString) {
+                        logOutString->append(lineBuffer);
+                    }
                     if (isSource1Import && lineBuffer.contains("ParseEpar: token too long")) {
                         hasParseEparError = true;
                     }
@@ -148,6 +186,9 @@ int Miscellaneous::RunCommandSync(const QString& program, const QStringList& arg
     if (!lineBuffer.isEmpty()) {
         if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
         Miscellaneous::Log(lineBuffer);
+        if (logOut && logOutString) {
+            logOutString->append(lineBuffer);
+        }
     }
 
     return process.exitCode();

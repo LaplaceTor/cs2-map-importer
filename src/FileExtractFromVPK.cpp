@@ -105,7 +105,6 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath) {
             QFile::remove(contentPath);
         }
 
-        QString program = QDir::toNativeSeparators("bin/vpkeditcli.exe");
         QStringList arguments = {
             "-e",
             filepath,
@@ -113,7 +112,7 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath) {
             "-o",
             QDir::toNativeSeparators(contentPath)
         };
-        Miscellaneous::RunCommandSync(program, arguments);
+        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
 
         if (QFile::exists(contentPath)) {
             QFile::copy(contentPath, outPath);
@@ -132,7 +131,6 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath) {
                 QFile::remove(contentPath);
             }
 
-            QString program = QDir::toNativeSeparators("bin/vpkeditcli.exe");
             QStringList arguments = {
                 "-e",
                 target,
@@ -140,7 +138,7 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath) {
                 "-o",
                 QDir::toNativeSeparators(contentPath)
             };
-            Miscellaneous::RunCommandSync(program, arguments);
+            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
 
             outPath = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(target);
             if (QFile::exists(contentPath)) {
@@ -163,7 +161,6 @@ void FileExtractFromVPK::ExtractMaterial(const QString& filepath) {
             QFile::remove(contentPath);
         }
 
-        QString program = QDir::toNativeSeparators("bin/vpkeditcli.exe");
         QStringList arguments = {
             "-e",
             filepath,
@@ -171,7 +168,7 @@ void FileExtractFromVPK::ExtractMaterial(const QString& filepath) {
             "-o",
             QDir::toNativeSeparators(contentPath)
         };
-        Miscellaneous::RunCommandSync(program, arguments);
+        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
 
         if (QFile::exists(contentPath)) {
             QFileInfo fi(outPath);
@@ -198,7 +195,6 @@ void FileExtractFromVPK::ExtractParticle(const QString& filepath) {
             QFile::remove(contentPath);
         }
 
-        QString program = QDir::toNativeSeparators("bin/vpkeditcli.exe");
         QStringList arguments = {
             "-e",
             filepath,
@@ -206,7 +202,7 @@ void FileExtractFromVPK::ExtractParticle(const QString& filepath) {
             "-o",
             QDir::toNativeSeparators(contentPath)
         };
-        Miscellaneous::RunCommandSync(program, arguments);
+        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
 
         if (QFile::exists(contentPath)) {
             QFileInfo fi(outPath);
@@ -233,7 +229,6 @@ void FileExtractFromVPK::ExtractSound(const QString& filepath) {
             QFile::remove(contentPath);
         }
 
-        QString program = QDir::toNativeSeparators("bin/vpkeditcli.exe");
         QStringList arguments = {
             "-e",
             filepath,
@@ -241,7 +236,7 @@ void FileExtractFromVPK::ExtractSound(const QString& filepath) {
             "-o",
             QDir::toNativeSeparators(contentPath)
         };
-        Miscellaneous::RunCommandSync(program, arguments);
+        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
 
         if (QFile::exists(contentPath)) {
             QFileInfo fi(outPath);
