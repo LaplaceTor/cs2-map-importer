@@ -53,12 +53,16 @@ jobs:
       shell: pwsh
       run: |
         jlink --add-modules java.base --output jre
-        Copy-Item -Path jre\* -Destination bin -Recurse -Force
+        Copy-Item -Path jre\bin\* -Destination bin -Recurse -Force
+        Copy-Item -Path jre\lib -Destination bin -Recurse -Force
+        Copy-Item -Path jre\conf -Destination bin -Recurse -Force
+        Copy-Item -Path jre\legal -Destination bin -Recurse -Force
+        Copy-Item -Path jre\release -Destination bin -Force
 
     - name: Download bspsrc
       shell: pwsh
       run: |
-        Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip" -OutFile "bspsrc.zip"
+        Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-windows.zip" -OutFile "bspsrc.zip"
         Expand-Archive -Path bspsrc.zip -DestinationPath bin -Force
 
     - name: Download VTFEdit
