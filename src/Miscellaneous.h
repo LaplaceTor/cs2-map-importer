@@ -20,6 +20,15 @@ private:
 
 class Miscellaneous {
 public:
+    enum Program {
+        PROGRAM_SOURCE1IMPORT = 1,
+        PROGRAM_CS_MDL_IMPORT = 2,
+        PROGRAM_RESOURCECOMPILER = 3,
+        PROGRAM_VPKEDITCLI = 4,
+        PROGRAM_VTFCMD = 5,
+        PROGRAM_BSPSRC = 6
+    };
+
     using LogCallback = std::function<void(const QString&)>;
 
     struct Options {
@@ -65,7 +74,7 @@ public:
 
     // Decompiles the BSP, moves unpacked files, and moves materials/models folders into s1gamedir
 
-    static int RunCommandSync(const QString& program, const QStringList& arguments);
+    static int RunCommandSync(int program, const QStringList& arguments, bool logOut = false, QStringList* logOutString = nullptr);
     static void CancelAll();
 
     static QAtomicInt CanceLImport;

@@ -1099,7 +1099,6 @@ void VmfBspProcess::ProcessBsp() {
 
     Miscellaneous::Log("Decompiling BSP: " + Miscellaneous::GetOptions().bspFile);
 
-    QString program = "java";
     QStringList arguments = {
         "-jar",
         QDir::toNativeSeparators(bspsrc_jar),
@@ -1107,7 +1106,7 @@ void VmfBspProcess::ProcessBsp() {
         "-o",
         QDir::toNativeSeparators(vmf_dest)
     };
-    int ret = Miscellaneous::RunCommandSync(program, arguments);
+    int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_BSPSRC, arguments);
     if (Miscellaneous::CanceLImport) return;
     if (ret != 0) {
         throw AppException("BSP Decompilation failed.");
@@ -1123,7 +1122,6 @@ void VmfBspProcess::ProcessBsp() {
             Miscellaneous::Log("Warning: Could not find vpkeditcli.exe at " + vpkeditcli_exe);
         } else {
             Miscellaneous::Log("Extracting embedded files using vpkeditcli...");
-            QString programVpk = vpkeditcli_exe;
             QStringList argumentsVpk = {
                 "-e",
                 "/",
@@ -1131,7 +1129,7 @@ void VmfBspProcess::ProcessBsp() {
                 QDir::toNativeSeparators(maps_dir),
                 QDir::toNativeSeparators(Miscellaneous::GetOptions().bspFile)
             };
-            int vpk_ret = Miscellaneous::RunCommandSync(programVpk, argumentsVpk);
+            int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
             if (vpk_ret != 0) {
                 Miscellaneous::Log("Warning: vpkeditcli failed to extract embedded files.");
             } else {

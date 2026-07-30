@@ -66,8 +66,7 @@ bool ParticleImporter::Run(const QString& pcfPath) {
     }
     arguments << destPcfPath;
 
-    QString program = QDir::toNativeSeparators(opts.cs2Basefolder + "/game/bin/win64/source1import.exe");
-    Miscellaneous::RunCommandSync(program, arguments);
+    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments);
 
     if (Miscellaneous::CanceLImport) return false;
 

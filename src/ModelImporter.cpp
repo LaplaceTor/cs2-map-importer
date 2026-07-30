@@ -24,7 +24,6 @@ bool ModelImporter::Run(const QString& mdlPath) {
 
     // Build options for cs_mdl_import
     const auto& opts = Miscellaneous::GetOptions();
-    QString program = QDir::toNativeSeparators(opts.cs2Basefolder + "/game/bin/win64/cs_mdl_import.exe");
     QStringList arguments = { "-nop4" };
     if (opts.modelSkipAnimation) arguments << "-skipcommondmxwrite";
     if (opts.modelChangeBindpose) arguments << "-YupToZup";
@@ -40,7 +39,7 @@ bool ModelImporter::Run(const QString& mdlPath) {
     QString outputDir = QDir::toNativeSeparators(opts.s2contentdir + "/models");
     arguments << "-o" << outputDir << fullMdlPath;
 
-    Miscellaneous::RunCommandSync(program, arguments);
+    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_CS_MDL_IMPORT, arguments);
 
     if (Miscellaneous::CanceLImport) return false;
 
@@ -100,7 +99,6 @@ bool ModelImporter::Run(const QString& mdlPath) {
                 continue;
             }
 
-            QString program = QDir::toNativeSeparators(opts.cs2Basefolder + "/game/bin/win64/source1import.exe");
             QStringList arguments = {
                 "-retail",
                 "-nop4",
@@ -113,7 +111,7 @@ bool ModelImporter::Run(const QString& mdlPath) {
                 "csgo",
                 QDir::toNativeSeparators(tmpVmtRel)
             };
-            Miscellaneous::RunCommandSync(program, arguments);
+            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments);
 
             QString tmpVmatRel = tmpVmtRel;
             int vmtPos = tmpVmatRel.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
@@ -132,7 +130,6 @@ bool ModelImporter::Run(const QString& mdlPath) {
                     QFile::remove(tmpVmatS2);
                 }
 
-                QString programRc = QDir::toNativeSeparators(opts.cs2Basefolder + "/game/bin/win64/resourcecompiler.exe");
                 QStringList argumentsRc = {
                     "-retail",
                     "-nop4",
@@ -140,7 +137,7 @@ bool ModelImporter::Run(const QString& mdlPath) {
                     "csgo",
                     QDir::toNativeSeparators(origVmatS2)
                 };
-                Miscellaneous::RunCommandSync(programRc, argumentsRc);
+                Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
             }
         } else {
             // Extract from VPK if missing from s1gamedir/s1contentdir
@@ -167,7 +164,6 @@ bool ModelImporter::Run(const QString& mdlPath) {
             fImport.close();
         }
 
-        QString programS1 = QDir::toNativeSeparators(opts.cs2Basefolder + "/game/bin/win64/source1import.exe");
         QStringList argumentsS1 = {
             "-retail",
             "-nop4",
@@ -181,7 +177,7 @@ bool ModelImporter::Run(const QString& mdlPath) {
             "-usefilelist",
             QDir::toNativeSeparators(tempImportFile)
         };
-        Miscellaneous::RunCommandSync(programS1, argumentsS1);
+        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, argumentsS1);
         QFile::remove(tempImportFile);
 
         QString tempCompileFile = opts.s1contentdir + "/temp_mtl_compile.txt";
@@ -199,7 +195,6 @@ bool ModelImporter::Run(const QString& mdlPath) {
             fCompile.close();
         }
 
-        QString programRc = QDir::toNativeSeparators(opts.cs2Basefolder + "/game/bin/win64/resourcecompiler.exe");
         QStringList argumentsRc = {
             "-retail",
             "-nop4",
@@ -208,7 +203,7 @@ bool ModelImporter::Run(const QString& mdlPath) {
             "-filelist",
             QDir::toNativeSeparators(tempCompileFile)
         };
-        Miscellaneous::RunCommandSync(programRc, argumentsRc);
+        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
         QFile::remove(tempCompileFile);
     }
 
@@ -234,7 +229,6 @@ bool ModelImporter::Run(const QString& mdlPath) {
     if (Miscellaneous::CanceLImport) return false;
 
     if (QFile::exists(outName)) {
-        QString programRc = QDir::toNativeSeparators(opts.cs2Basefolder + "/game/bin/win64/resourcecompiler.exe");
         QStringList argumentsRc = {
             "-retail",
             "-nop4"
@@ -243,7 +237,7 @@ bool ModelImporter::Run(const QString& mdlPath) {
             argumentsRc << "-f";
         }
         argumentsRc << "-game" << "csgo" << QDir::toNativeSeparators(outName);
-        Miscellaneous::RunCommandSync(programRc, argumentsRc);
+        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
     }
 
     Miscellaneous::Log("Model Import process complete.");

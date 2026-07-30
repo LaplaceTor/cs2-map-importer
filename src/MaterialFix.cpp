@@ -151,7 +151,6 @@ void MaterialFix::SkyboxFix() {
         }
 
         if (QFile::exists(vtfPath)) {
-            QString program = QDir::toNativeSeparators("bin/vtfcmd.exe");
             QStringList arguments = {
                 "-file",
                 QDir::toNativeSeparators(vtfPath),
@@ -160,7 +159,7 @@ void MaterialFix::SkyboxFix() {
                 "-exportformat",
                 "jpg"
             };
-            Miscellaneous::RunCommandSync(program, arguments);
+            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VTFCMD, arguments);
         }
     }
 
@@ -628,7 +627,6 @@ void MaterialFix::OldParticleMtlFix() {
             }
         }
 
-        QString program = QDir::toNativeSeparators(Miscellaneous::GetOptions().cs2Basefolder + "/game/bin/win64/source1import.exe");
         QStringList arguments = {
             "-retail",
             "-nop4",
@@ -641,13 +639,12 @@ void MaterialFix::OldParticleMtlFix() {
             "csgo",
             QDir::toNativeSeparators(vmtPath)
         };
-        Miscellaneous::RunCommandSync(program, arguments);
+        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments);
 
         QString vmatRel = vmtPath;
         vmatRel.replace(".vmt", ".vmat");
         QString s2VmatPath = QDir(Miscellaneous::GetOptions().s2contentdir).filePath(vmatRel);
 
-        QString programRc = QDir::toNativeSeparators(Miscellaneous::GetOptions().cs2Basefolder + "/game/bin/win64/resourcecompiler.exe");
         QStringList argumentsRc = {
             "-retail",
             "-nop4",
@@ -655,7 +652,7 @@ void MaterialFix::OldParticleMtlFix() {
             "csgo",
             QDir::toNativeSeparators(s2VmatPath)
         };
-        Miscellaneous::RunCommandSync(programRc, argumentsRc);
+        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
 
         QString vtexRel = vmtPath;
         vtexRel.replace(".vmt", ".vtex");
@@ -716,7 +713,6 @@ void MaterialFix::OldParticleMtlFix() {
             file.close();
         }
 
-        QString programVtex = QDir::toNativeSeparators(Miscellaneous::GetOptions().cs2Basefolder + "/game/bin/win64/resourcecompiler.exe");
         QStringList argumentsVtex = {
             "-retail",
             "-nop4",
@@ -724,7 +720,7 @@ void MaterialFix::OldParticleMtlFix() {
             "csgo",
             QDir::toNativeSeparators(s2VtexPath)
         };
-        Miscellaneous::RunCommandSync(programVtex, argumentsVtex);
+        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsVtex);
     }
 }
 
@@ -880,7 +876,6 @@ void MaterialFix::OverlayFix() {
                     file.close();
                 }
 
-                QString programRc = QDir::toNativeSeparators(Miscellaneous::GetOptions().cs2Basefolder + "/game/bin/win64/resourcecompiler.exe");
                 QStringList argumentsRc = {
                     "-retail",
                     "-nop4",
@@ -888,7 +883,7 @@ void MaterialFix::OverlayFix() {
                     "csgo",
                     QDir::toNativeSeparators(newVmatPath)
                 };
-                Miscellaneous::RunCommandSync(programRc, argumentsRc);
+                Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
             }
         }
     }
