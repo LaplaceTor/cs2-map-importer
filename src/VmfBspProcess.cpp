@@ -878,6 +878,85 @@ void VmfBspProcess::FixEntities(const QString& vmfPath) {
     FixPerformanceMode(vmfPath);
     OldParticleFix(vmfPath);
     FixPhysboxMultiplayer(vmfPath);
+    RowKVFix(vmfPath);
+}
+
+void VmfBspProcess::RowKVFix(const QString& vmfPath) {
+    if (!QFile::exists(vmfPath)) return;
+
+    QFile infile(vmfPath);
+    if (!infile.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+
+    QStringList lines;
+    QTextStream in(&infile);
+    while (!in.atEnd()) {
+        lines.append(in.readLine());
+    }
+    infile.close();
+
+    QStringList out_lines;
+    QRegularExpression row_kv_regex("^(\\s*)\"(row\\d+)\"\\s+\"([^\"]*)\"(.*)$", QRegularExpression::CaseInsensitiveOption);
+
+    bool modified = false;
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i];
+        QRegularExpressionMatch match = row_kv_regex.match(line);
+        if (match.hasMatch()) {
+            QString indent = match.captured(1);
+            QString key = match.captured(2);
+            QString val = match.captured(3);
+            QString rest = match.captured(4);
+
+            QStringList tokens = val.split(' ');
+            bool row_modified = false;
+            for (int k = 0; k < tokens.size(); ++k) {
+                QString token = tokens[k];
+                if (token.contains('e', Qt::CaseInsensitive)) {
+                    bool ok;
+                    double d = token.toDouble(&ok);
+                    if (ok) {
+                        QString s;
+                        if (qAbs(d) < 0.00005) {
+                            s = "0";
+                        } else {
+                            s = QString::number(d, 'f', 4);
+                            if (s.contains('.')) {
+                                while (s.endsWith('0')) {
+                                    s.chop(1);
+                                }
+                                if (s.endsWith('.')) {
+                                    s.chop(1);
+                                }
+                            }
+                        }
+                        if (s != token) {
+                            tokens[k] = s;
+                            row_modified = true;
+                        }
+                    }
+                }
+            }
+
+            if (row_modified) {
+                QString newVal = tokens.join(' ');
+                line = indent + "\"" + key + "\" \"" + newVal + "\"" + rest;
+                modified = true;
+            }
+        }
+        out_lines.append(line);
+    }
+
+    if (modified) {
+        QFile outfile(vmfPath);
+        if (outfile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&outfile);
+            for (const QString& l : out_lines) {
+                out << l << "\n";
+            }
+            outfile.close();
+        }
+    }
 }
 
 void VmfBspProcess::OldParticleFix(const QString& vmfPath) {
