@@ -158,19 +158,19 @@ void MaterialFix::SkyboxFix() {
                 "-output",
                 QDir::toNativeSeparators(s2DirPath),
                 "-exportformat",
-                "jpg"
+                "png"
             };
             Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VTFCMD, arguments);
         }
     }
 
-    // Look for generated jpg files in s2DirPath
-    QString up = s2DirPath + "/" + baseName + "up.jpg";
-    QString bk = s2DirPath + "/" + baseName + "bk.jpg";
-    QString rt = s2DirPath + "/" + baseName + "rt.jpg";
-    QString ft = s2DirPath + "/" + baseName + "ft.jpg";
-    QString lf = s2DirPath + "/" + baseName + "lf.jpg";
-    QString dn = s2DirPath + "/" + baseName + "dn.jpg";
+    // Look for generated png files in s2DirPath
+    QString up = s2DirPath + "/" + baseName + "up.png";
+    QString bk = s2DirPath + "/" + baseName + "bk.png";
+    QString rt = s2DirPath + "/" + baseName + "rt.png";
+    QString ft = s2DirPath + "/" + baseName + "ft.png";
+    QString lf = s2DirPath + "/" + baseName + "lf.png";
+    QString dn = s2DirPath + "/" + baseName + "dn.png";
 
     bool hasUp = QFile::exists(up);
     bool hasBk = QFile::exists(bk);
