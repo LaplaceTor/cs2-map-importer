@@ -1092,10 +1092,8 @@ void VmfBspProcess::ProcessBsp() {
     QDir().mkpath(maps_dir);
 
     QString vmf_dest = QDir(maps_dir).filePath(Miscellaneous::GetOptions().mapName + ".vmf");
-    QString javaExe = "java";
-#ifdef Q_OS_WIN
-    javaExe = "java.exe";
-#endif
+    QString javaExe =  "java.exe";
+
     QString java_path = QDir(appDir).filePath("bin/" + javaExe);
     QString bspsrc_jar = QDir(appDir).filePath("bin/bspsrc.jar");
 

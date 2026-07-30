@@ -102,10 +102,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
             break;
         case PROGRAM_BSPSRC: // 6
             {
-                QString javaExe = "java";
-#ifdef Q_OS_WIN
-                javaExe = "java.exe";
-#endif
+                QString javaExe = "java.exe";
                 if (appDir.isEmpty()) {
                     programPath = QDir::toNativeSeparators("bin/" + javaExe);
                 } else {

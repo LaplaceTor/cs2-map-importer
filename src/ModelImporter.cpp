@@ -253,6 +253,7 @@ static QMap<QString, ModelKeyMapping> legacyKeyMap = { { "\"$color2\"", { "\"g_v
 
 void ModelImporter::FixModelMaterials(const QStringList& vmatFiles) {
     for (const QString& vmatFile : vmatFiles) {
+        if (Miscellaneous::CanceLImport) return;
         if (!QFile::exists(vmatFile)) {
             continue;
         }

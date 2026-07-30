@@ -13,10 +13,12 @@
 
 
 void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
+    if (Miscellaneous::CanceLImport) return;
     QStringList refs = Miscellaneous::ReadTextFile(filename);
     QStringList mdlfiles;
 
     for (const QString& ref : refs) {
+        if (Miscellaneous::CanceLImport) return;
         if (ref.isEmpty()) continue;
         QString cleanedRef = Miscellaneous::CleanRefPath(ref);
         if (cleanedRef.isEmpty()) continue;
@@ -38,6 +40,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     Miscellaneous::Log("Importing models");
     Miscellaneous::Log("--------------------------------");
     for (const QString& x : mdlfiles) {
+        if (Miscellaneous::CanceLImport) return;
         if (x.isEmpty() || x.startsWith('-')) continue;
         Miscellaneous::Log(x);
     }
@@ -573,26 +576,14 @@ bool MapImporter::Run() {
     if (!Miscellaneous::GetOptions().skipdeps) {
         if (Miscellaneous::CanceLImport) return false;
         Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, false, nullptr, true, Miscellaneous::GetOptions().s1GameType == "csgo");
-
-        if (Miscellaneous::CanceLImport) return false;
         ImportAndCompileMapMDLs(QDir::toNativeSeparators(Miscellaneous::GetOptions().s2contentdir + "/maps/" + mMapname + "_refs.txt"));
-
-        if (Miscellaneous::CanceLImport) return false;
         ImportAndCompileMapRefs();
-
-        if (Miscellaneous::CanceLImport) return false;
         ImportParticles();
-
-        if (Miscellaneous::CanceLImport) return false;
         ImportSounds();
-
-        if (Miscellaneous::CanceLImport) return false;
         MaterialFix::FixMaterials();
     }
-
-    if (Miscellaneous::CanceLImport) return false;
     Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, false, nullptr, true, Miscellaneous::GetOptions().s1GameType == "csgo");
-
+    if (Miscellaneous::CanceLImport) return false;
     Miscellaneous::Log("Import process complete.");
     return true;
 }

@@ -99,6 +99,7 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath) {
     QString foundVpkPath;
 
     for (const QString& vpkRel : vpkList) {
+        if (Miscellaneous::CanceLImport) return;
         QString vpkPath = QDir(baseFolder).filePath(vpkRel);
 
         if (QFile::exists(contentPath)) {
@@ -124,6 +125,7 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath) {
     if (!foundVpkPath.isEmpty()) {
         QStringList extlist = {"vvd","phy","sw.vtx","dx80.vtx","dx90.vtx","ani"};
         for (const QString& ext : extlist) {
+            if (Miscellaneous::CanceLImport) return;
             QString target = basePath + "." + ext;
             contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(target);
 
@@ -155,6 +157,7 @@ void FileExtractFromVPK::ExtractMaterial(const QString& filepath) {
     QStringList vpkList = GetVpkList();
 
     for (const QString& vpkRel : vpkList) {
+        if (Miscellaneous::CanceLImport) return;
         QString vpkPath = QDir(baseFolder).filePath(vpkRel);
 
         if (QFile::exists(contentPath)) {
@@ -189,6 +192,7 @@ void FileExtractFromVPK::ExtractParticle(const QString& filepath) {
     QStringList vpkList = GetVpkList();
 
     for (const QString& vpkRel : vpkList) {
+        if (Miscellaneous::CanceLImport) return;
         QString vpkPath = QDir(baseFolder).filePath(vpkRel);
 
         if (QFile::exists(contentPath)) {
@@ -223,6 +227,7 @@ void FileExtractFromVPK::ExtractSound(const QString& filepath) {
     QStringList vpkList = GetVpkList();
 
     for (const QString& vpkRel : vpkList) {
+        if (Miscellaneous::CanceLImport) return;
         QString vpkPath = QDir(baseFolder).filePath(vpkRel);
 
         if (QFile::exists(contentPath)) {
