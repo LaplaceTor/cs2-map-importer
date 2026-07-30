@@ -58,7 +58,9 @@ Backend::Backend(QObject *parent) :
     appDir = QCoreApplication::applicationDirPath();
 
     Miscellaneous::GlobaLLogger = [this](const QString& msg) {
-        emit logMessage(msg);
+        QMetaObject::invokeMethod(this, [this, msg]() {
+            emit logMessage(msg);
+        }, Qt::QueuedConnection);
         QMutexLocker locker(&logMutex);
         if (logStream) {
             *logStream << msg << "\n";
