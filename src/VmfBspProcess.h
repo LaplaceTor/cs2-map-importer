@@ -15,6 +15,7 @@ public:
     static void FixRender(const QString& vmfPath);
     static void FixDynamicProp(const QString& vmfPath);
     static void FixPerformanceMode(const QString& vmfPath);
+    static void SkinKVFix(const QString& vmfPath);
     static void FixEntities(const QString& vmfPath);
     static void OldParticleFix(const QString& vmfPath);
     static void FixPhysboxMultiplayer(const QString& vmfPath);
