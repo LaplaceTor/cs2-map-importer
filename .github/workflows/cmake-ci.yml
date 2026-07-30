@@ -51,15 +51,15 @@ jobs:
       run: |
         jlink --add-modules java.base --output jre
         Copy-Item -Path jre\bin\* -Destination bin -Recurse -Force
-        Copy-Item -Path jre\lib -Destination bin -Recurse -Force
-        Copy-Item -Path jre\conf -Destination bin -Recurse -Force
-        Copy-Item -Path jre\legal -Destination bin -Recurse -Force
-        Copy-Item -Path jre\release -Destination bin -Force
+        Copy-Item -Path jre\lib -Destination lib -Recurse -Force
+        Copy-Item -Path jre\conf -Destination conf -Recurse -Force
+        Copy-Item -Path jre\legal -Destination legal -Recurse -Force
+        Copy-Item -Path jre\release -Destination jre-release -Force
 
     - name: Download bspsrc
       shell: pwsh
       run: |
-        Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip" -OutFile "bspsrc.zip"
+        Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-windows.zip" -OutFile "bspsrc.zip"
         Expand-Archive -Path bspsrc.zip -DestinationPath bin -Force
 
     - name: Download VTFEdit
@@ -95,6 +95,10 @@ jobs:
         Remove-Item -Path release\translations -Recurse -Force -ErrorAction SilentlyContinue
 
         Copy-Item -Path bin -Destination release\bin -Recurse
+        Copy-Item -Path lib -Destination release\lib -Recurse -Force
+        Copy-Item -Path conf -Destination release\conf -Recurse -Force
+        Copy-Item -Path legal -Destination release\legal -Recurse -Force
+        if (Test-Path jre-release) { Copy-Item -Path jre-release -Destination release\release -Force }
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
