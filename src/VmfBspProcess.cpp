@@ -4,6 +4,7 @@
 #include <QFileInfo>
 #include <QTextStream>
 #include <QProcess>
+#include <QThread>
 #include <QRegularExpression>
 #include <QCoreApplication>
 #include <QByteArray>
@@ -1091,10 +1092,18 @@ void VmfBspProcess::ProcessBsp() {
     QDir().mkpath(maps_dir);
 
     QString vmf_dest = QDir(maps_dir).filePath(Miscellaneous::GetOptions().mapName + ".vmf");
-    QString bspsrc_bat = QDir(appDir).filePath("bin/bspsrc.bat");
+    QString javaExe = "java";
+#ifdef Q_OS_WIN
+    javaExe = "java.exe";
+#endif
+    QString java_path = QDir(appDir).filePath("bin/" + javaExe);
+    QString bspsrc_jar = QDir(appDir).filePath("bin/bspsrc.jar");
 
-    if (!QFile::exists(bspsrc_bat)) {
-        throw AppException("Could not find bspsrc.bat at " + bspsrc_bat);
+    if (!QFile::exists(java_path)) {
+        throw AppException("Could not find java executable at " + QDir::toNativeSeparators(java_path));
+    }
+    if (!QFile::exists(bspsrc_jar)) {
+        throw AppException("Could not find bspsrc.jar at " + QDir::toNativeSeparators(bspsrc_jar));
     }
 
     Miscellaneous::Log("Decompiling BSP: " + Miscellaneous::GetOptions().bspFile);
@@ -1108,6 +1117,10 @@ void VmfBspProcess::ProcessBsp() {
     if (Miscellaneous::CanceLImport) return;
     if (ret != 0) {
         throw AppException("BSP Decompilation failed.");
+    }
+
+    if (!QFile::exists(vmf_dest)) {
+        throw AppException("BSP Decompilation failed: Decompiled VMF file was not created.");
     }
 
     QString target_unpacked_dir = QDir(maps_dir).filePath(Miscellaneous::GetOptions().mapName);

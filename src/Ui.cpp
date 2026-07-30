@@ -1069,17 +1069,23 @@ void Backend::Start()
 
 bool Backend::RunMapImportWorkflow(Miscellaneous::Options opts)
 {
+    if (Miscellaneous::CanceLImport) return false;
+
     Miscellaneous::SetOptions(opts);
 
     if (!opts.bspFile.isEmpty()) {
         VmfBspProcess::ProcessBsp();
     }
 
+    if (Miscellaneous::CanceLImport) return false;
+
     // Get updated opts (like updated contentFolder after ProcessBsp)
     Miscellaneous::Options currentOpts = Miscellaneous::GetOptions();
 
     QString target_vmf_path = QDir(currentOpts.appDir).filePath("maps/" + currentOpts.mapName + "/maps/" + currentOpts.mapName + ".vmf");
     VmfBspProcess::FixEntities(target_vmf_path);
+
+    if (Miscellaneous::CanceLImport) return false;
 
     QString s1Subfolder = "csgo";
     if (currentOpts.s1GameType == "css") s1Subfolder = "cstrike";

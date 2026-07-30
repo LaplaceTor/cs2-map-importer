@@ -270,6 +270,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
 }
 
 void MapImporter::ImportAndCompileMapRefs() {
+    if (Miscellaneous::CanceLImport) return;
     QStringList arguments = {
         "-retail",
         "-nop4",
@@ -447,6 +448,7 @@ void MapImporter::ImportAndCompileMapRefs() {
 }
 
 void MapImporter::ImportParticles(){
+    if (Miscellaneous::CanceLImport) return;
     QDir mapsDir(QDir::toNativeSeparators(Miscellaneous::GetOptions().s1contentdir + "/maps"));
     if (!mapsDir.exists()) {
         return;
@@ -503,6 +505,7 @@ void MapImporter::ImportParticles(){
 }
 
 void MapImporter::ImportSounds() {
+    if (Miscellaneous::CanceLImport) return;
     Miscellaneous::Log("Importing sounds...");
     
     QSet<QString> uniqueSounds;
@@ -568,16 +571,26 @@ bool MapImporter::Run() {
     }
 
     if (!Miscellaneous::GetOptions().skipdeps) {
+        if (Miscellaneous::CanceLImport) return false;
         Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, false, nullptr, true, Miscellaneous::GetOptions().s1GameType == "csgo");
 
+        if (Miscellaneous::CanceLImport) return false;
         ImportAndCompileMapMDLs(QDir::toNativeSeparators(Miscellaneous::GetOptions().s2contentdir + "/maps/" + mMapname + "_refs.txt"));
+
+        if (Miscellaneous::CanceLImport) return false;
         ImportAndCompileMapRefs();
+
+        if (Miscellaneous::CanceLImport) return false;
         ImportParticles();
+
+        if (Miscellaneous::CanceLImport) return false;
         ImportSounds();
 
+        if (Miscellaneous::CanceLImport) return false;
         MaterialFix::FixMaterials();
     }
 
+    if (Miscellaneous::CanceLImport) return false;
     Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, false, nullptr, true, Miscellaneous::GetOptions().s1GameType == "csgo");
 
     Miscellaneous::Log("Import process complete.");
