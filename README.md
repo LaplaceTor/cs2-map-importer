@@ -36,6 +36,7 @@ cmake --build .
 
 - [VPKEdit](https://github.com/craftablescience/VPKEdit) for extract files from vpk and bsp
 - [VTFEdit-Reload](https://github.com/Sky-rym/VTFEdit-Reloaded) for extract vtf to normal image format
+- [bspsrc](https://github.com/ata4/bspsrc) for decompile bsp to vmf
 
 
 ## Historical Context
