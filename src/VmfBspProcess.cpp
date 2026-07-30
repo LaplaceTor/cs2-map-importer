@@ -9,67 +9,6 @@
 #include <QCoreApplication>
 #include <QByteArray>
 #include <QMap>
-#include <QThreadPool>
-#include <QRunnable>
-#include <QAtomicInt>
-#include <QSet>
-
-namespace {
-
-class ExtractTask : public QRunnable {
-public:
-    ExtractTask(const QString& item, bool is_folder, const QString& vpkeditcli_exe, const QString& bspFile, const QString& maps_dir, QAtomicInt& completedCount, int totalCount, QAtomicInt& successFlag)
-        : item_(item), is_folder_(is_folder), vpkeditcli_exe_(vpkeditcli_exe), bspFile_(bspFile), maps_dir_(maps_dir), completedCount_(completedCount), totalCount_(totalCount), successFlag_(successFlag) {}
-
-    void run() override {
-        if (Miscellaneous::CanceLImport || successFlag_ == 0) return;
-
-        int currentIdx = ++completedCount_;
-        if (is_folder_) {
-            Miscellaneous::Log(QString("[%1/%2] Extracting subfolder: %3/").arg(currentIdx).arg(totalCount_).arg(item_));
-        } else {
-            Miscellaneous::Log(QString("[%1/%2] Extracting file: %3").arg(currentIdx).arg(totalCount_).arg(item_));
-        }
-
-        QProcess process;
-        process.setProgram(vpkeditcli_exe_);
-        QStringList arguments = {
-            "-e",
-            is_folder_ ? (item_ + "/") : item_,
-            "-o",
-            QDir::toNativeSeparators(maps_dir_),
-            QDir::toNativeSeparators(bspFile_)
-        };
-        process.setArguments(arguments);
-        process.start();
-        if (process.waitForStarted()) {
-            while (process.state() == QProcess::Running) {
-                if (Miscellaneous::CanceLImport) {
-                    process.kill();
-                    return;
-                }
-                process.waitForFinished(100);
-            }
-        }
-
-        if (process.exitCode() != 0) {
-            Miscellaneous::Log(QString("Error: Failed to extract: %1").arg(item_));
-            successFlag_ = 0;
-        }
-    }
-
-private:
-    QString item_;
-    bool is_folder_;
-    QString vpkeditcli_exe_;
-    QString bspFile_;
-    QString maps_dir_;
-    QAtomicInt& completedCount_;
-    int totalCount_;
-    QAtomicInt& successFlag_;
-};
-
-} // namespace
 
 QString VmfBspProcess::ParseMapversion(const QStringList& lines, bool& found) {
     QString mapversion = "2";
@@ -1181,146 +1120,20 @@ void VmfBspProcess::ProcessBsp() {
         if (!QFile::exists(vpkeditcli_exe)) {
             Miscellaneous::Log("Warning: Could not find vpkeditcli.exe at " + vpkeditcli_exe);
         } else {
-            Miscellaneous::Log("Reading BSP file tree using vpkeditcli...");
-            QProcess treeProcess;
-            treeProcess.setProgram(vpkeditcli_exe);
-            treeProcess.setArguments({"--file-tree", QDir::toNativeSeparators(Miscellaneous::GetOptions().bspFile)});
-            treeProcess.start();
-            if (!treeProcess.waitForStarted()) {
-                throw AppException("Failed to start vpkeditcli to read the BSP file tree.");
-            }
-            if (!treeProcess.waitForFinished(30000)) { // 30 seconds timeout
-                treeProcess.kill();
-                throw AppException("vpkeditcli timed out reading the BSP file tree.");
-            }
-            if (treeProcess.exitCode() != 0) {
-                throw AppException("vpkeditcli failed with exit code " + QString::number(treeProcess.exitCode()) + " while reading the BSP file tree.");
-            }
-            QString treeOutput = QString::fromUtf8(treeProcess.readAllStandardOutput());
-            if (treeOutput.trimmed().isEmpty()) {
-                throw AppException("vpkeditcli returned an empty BSP file tree.");
-            }
-
-            QStringList lines = treeOutput.split(QRegularExpression("[\r\n]+"), Qt::SkipEmptyParts);
-            QMap<int, QString> dir_path_by_level;
-            QSet<QString> unique_parents;
-            struct FileInfo {
-                QString path;
-                QString parent;
+            Miscellaneous::Log("Extracting embedded files using vpkeditcli...");
+            QStringList argumentsVpk = {
+                "-e",
+                "/",
+                "-o",
+                QDir::toNativeSeparators(maps_dir),
+                QDir::toNativeSeparators(Miscellaneous::GetOptions().bspFile)
             };
-            QList<FileInfo> all_files;
-
-            QRegularExpression sizeRegex("\\s*-\\s*\\d+(\\.\\d+)?\\s*(b|kb|mb|gb|B|KB|MB|GB)\\s*$");
-
-            for (const QString& rawLine : lines) {
-                if (Miscellaneous::CanceLImport) return;
-                QString line = rawLine;
-                int name_start_idx = 0;
-                while (name_start_idx < line.length()) {
-                    QChar c = line[name_start_idx];
-                    if (c.isSpace() || (c.unicode() >= 0x2500 && c.unicode() <= 0x257F)) {
-                        name_start_idx++;
-                    } else {
-                        break;
-                    }
-                }
-
-                if (name_start_idx >= line.length()) {
-                    continue;
-                }
-
-                QString name_part = line.mid(name_start_idx).trimmed();
-                if (name_part.isEmpty()) continue;
-
-                int level = 0;
-                if (name_start_idx > 0) {
-                    level = (name_start_idx - 3) / 3;
-                }
-
-                if (level == 0) {
-                    continue;
-                }
-
-                QRegularExpressionMatch sizeMatch = sizeRegex.match(name_part);
-                bool is_file = sizeMatch.hasMatch();
-
-                if (is_file) {
-                    QString filename = name_part.left(sizeMatch.capturedStart()).trimmed();
-                    QString parent_path = "";
-                    for (int l = 1; l < level; ++l) {
-                        if (dir_path_by_level.contains(l)) {
-                            if (!parent_path.isEmpty()) parent_path += "/";
-                            parent_path += dir_path_by_level[l];
-                        }
-                    }
-                    QString full_path = parent_path.isEmpty() ? filename : (parent_path + "/" + filename);
-                    all_files.append({full_path, parent_path});
-                    if (!parent_path.isEmpty()) {
-                        unique_parents.insert(parent_path);
-                    }
-                } else {
-                    QString dir_name = name_part;
-                    dir_path_by_level[level] = dir_name;
-                    QList<int> keys = dir_path_by_level.keys();
-                    for (int k : keys) {
-                        if (k > level) {
-                            dir_path_by_level.remove(k);
-                        }
-                    }
-                }
+            int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk, false, nullptr, true);
+            if (vpk_ret != 0) {
+                Miscellaneous::Log("Warning: vpkeditcli failed to extract embedded files.");
+            } else {
+                Miscellaneous::Log("Successfully extracted embedded files to " + target_unpacked_dir);
             }
-
-            QStringList leaf_folders;
-            for (const QString& parent : unique_parents) {
-                if (Miscellaneous::CanceLImport) return;
-                bool is_leaf = true;
-                for (const QString& other : unique_parents) {
-                    if (other != parent && other.startsWith(parent + "/")) {
-                        is_leaf = false;
-                        break;
-                    }
-                }
-                if (is_leaf) {
-                    leaf_folders.append(parent);
-                }
-            }
-
-            QStringList individual_files;
-            for (const FileInfo& file : all_files) {
-                if (Miscellaneous::CanceLImport) return;
-                if (file.parent.isEmpty() || !leaf_folders.contains(file.parent)) {
-                    individual_files.append(file.path);
-                }
-            }
-
-            int totalCount = leaf_folders.size() + individual_files.size();
-            Miscellaneous::Log(QString("Found %1 subfolders and %2 individual files to extract in parallel...").arg(leaf_folders.size()).arg(individual_files.size()));
-
-            QThreadPool pool;
-            pool.setMaxThreadCount(QThread::idealThreadCount());
-
-            QAtomicInt completedCount(0);
-            QAtomicInt successFlag(1);
-
-            for (const QString& folder : leaf_folders) {
-                if (Miscellaneous::CanceLImport) break;
-                pool.start(new ExtractTask(folder, true, vpkeditcli_exe, Miscellaneous::GetOptions().bspFile, maps_dir, completedCount, totalCount, successFlag));
-            }
-
-            for (const QString& file : individual_files) {
-                if (Miscellaneous::CanceLImport) break;
-                pool.start(new ExtractTask(file, false, vpkeditcli_exe, Miscellaneous::GetOptions().bspFile, maps_dir, completedCount, totalCount, successFlag));
-            }
-
-            pool.waitForDone();
-
-            if (Miscellaneous::CanceLImport) return;
-
-            if (successFlag == 0) {
-                throw AppException("Failed to extract some embedded files from BSP.");
-            }
-
-            Miscellaneous::Log("Successfully extracted embedded files to " + target_unpacked_dir);
         }
     }
 
