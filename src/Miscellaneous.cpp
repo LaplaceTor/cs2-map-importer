@@ -258,6 +258,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
 
         Miscellaneous::Log("Reading BSP file tree using vpkeditcli...");
         QProcess treeProcess;
+        treeProcess.setProcessChannelMode(QProcess::MergedChannels);
         treeProcess.setProgram(programPath);
         QStringList treeArgs = {"--file-tree", QDir::toNativeSeparators(bspFile)};
         treeProcess.setArguments(treeArgs);
@@ -284,6 +285,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
             throw AppException("vpkeditcli failed with exit code " + QString::number(treeProcess.exitCode()) + " while reading the BSP file tree.");
         }
         QString treeOutput = QString::fromUtf8(treeProcess.readAllStandardOutput());
+        Miscellaneous::Log(QString("vpkeditcli returned %1 characters of file tree output.").arg(treeOutput.size()));
         if (treeOutput.trimmed().isEmpty()) {
             throw AppException("vpkeditcli returned an empty BSP file tree.");
         }
