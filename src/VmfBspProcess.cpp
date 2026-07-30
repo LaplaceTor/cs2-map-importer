@@ -908,8 +908,7 @@ void VmfBspProcess::RowKVFix(const QString& vmfPath) {
             QString val = match.captured(3);
             QString rest = match.captured(4);
 
-            QStringList tokens = val.split(' ');
-            bool row_modified = false;
+            QStringList tokens = val.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
             for (int k = 0; k < tokens.size(); ++k) {
                 QString token = tokens[k];
                 if (token.contains('e', Qt::CaseInsensitive)) {
@@ -932,14 +931,13 @@ void VmfBspProcess::RowKVFix(const QString& vmfPath) {
                         }
                         if (s != token) {
                             tokens[k] = s;
-                            row_modified = true;
                         }
                     }
                 }
             }
 
-            if (row_modified) {
-                QString newVal = tokens.join(' ');
+            QString newVal = tokens.join(' ');
+            if (newVal != val) {
                 line = indent + "\"" + key + "\" \"" + newVal + "\"" + rest;
                 modified = true;
             }
