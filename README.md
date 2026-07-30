@@ -9,8 +9,7 @@ This project was previously a Python program (forked from sarim's importer) but 
 To build and run this program, you will need:
 - **C++17** compatible compiler
 - **CMake** (version 3.10 or higher)
-- **Qt6** (Core, Gui, Qml, Quick, QuickControls2 modules)
-- **Java** (Required only if you intend to decompile `.bsp` files)
+- **Qt6** (version 6.8 or higher)
 
 ## Build Instructions
 
