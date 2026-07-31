@@ -1,10 +1,3 @@
-# Qt AI Skills
-
-Official agentic skills for Qt software development
-and quality assurance, designed for use with AI coding tools
-such as Claude Code, Codex CLI, Gemini CLI, and
-GitHub Copilot.
-
 ## Skills
 
 | Skill | Type | Description |
