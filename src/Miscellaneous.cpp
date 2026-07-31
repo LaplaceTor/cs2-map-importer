@@ -87,41 +87,27 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
             programPath = QDir::toNativeSeparators(cs2Basefolder + "/game/bin/win64/resourcecompiler.exe");
             break;
         case PROGRAM_VPKEDITCLI: // 4
-            if (appDir.isEmpty()) {
-                programPath = QDir::toNativeSeparators("bin/vpkeditcli.exe");
-            } else {
+            {
                 programPath = QDir::toNativeSeparators(QDir(appDir).filePath("bin/vpkeditcli.exe"));
+                if (!QFile::exists(programPath)) {
+                    throw AppException("Could not find vpkeditcli executable at " + QDir::toNativeSeparators(programPath));
+                }
             }
             break;
         case PROGRAM_VTFCMD: // 5
-            if (appDir.isEmpty()) {
-                programPath = QDir::toNativeSeparators("bin/vtfcmd.exe");
-            } else {
+            {
                 programPath = QDir::toNativeSeparators(QDir(appDir).filePath("bin/vtfcmd.exe"));
+                if (!QFile::exists(programPath)) {
+                    throw AppException("Could not find vtfcmd executable at " + QDir::toNativeSeparators(programPath));
+                }
             }
             break;
         case PROGRAM_BSPSRC: // 6
             {
                 QString javaExe = "bin/java.exe";
-                if (appDir.isEmpty()) {
-                    programPath = QDir::toNativeSeparators("bin/" + javaExe);
-                } else {
-                    programPath = QDir::toNativeSeparators(QDir(appDir).filePath("bin/" + javaExe));
-                }
-
+                programPath = QDir::toNativeSeparators(QDir(appDir).filePath("bin/" + javaExe));
                 if (!QFile::exists(programPath)) {
                     throw AppException("Could not find java executable at " + QDir::toNativeSeparators(programPath));
-                }
-
-                QString jarPath;
-                if (appDir.isEmpty()) {
-                    jarPath = QDir::toNativeSeparators("bin/bspsrc.jar");
-                } else {
-                    jarPath = QDir::toNativeSeparators(QDir(appDir).filePath("bin/bspsrc.jar"));
-                }
-
-                if (!QFile::exists(jarPath)) {
-                    throw AppException("Could not find bspsrc.jar at " + QDir::toNativeSeparators(jarPath));
                 }
             }
             break;
@@ -131,11 +117,9 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
 
     QStringList finalArguments = arguments;
     if (program == PROGRAM_BSPSRC) {
-        QString jarPath;
-        if (appDir.isEmpty()) {
-            jarPath = QDir::toNativeSeparators("bin/bspsrc.jar");
-        } else {
-            jarPath = QDir::toNativeSeparators(QDir(appDir).filePath("bin/bspsrc.jar"));
+        QString jarPath = QDir::toNativeSeparators(QDir(appDir).filePath("bin/bspsrc.jar"));
+        if (!QFile::exists(jarPath)) {
+            throw AppException("Could not find bspsrc.jar at " + QDir::toNativeSeparators(jarPath));
         }
         finalArguments.prepend(jarPath);
         finalArguments.prepend("-jar");
