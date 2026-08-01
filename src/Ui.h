@@ -26,6 +26,7 @@ class Backend : public QObject
     Q_PROPERTY(QString contentFolder READ GetContentFolder NOTIFY contentFolderChanged)
     Q_PROPERTY(QString addonName READ GetAddonName WRITE SetAddonName NOTIFY addonNameChanged)
     Q_PROPERTY(bool keepFuncDetailAsBrush READ GetKeepFuncDetailAsBrush WRITE SetKeepFuncDetailAsBrush NOTIFY keepFuncDetailAsBrushChanged)
+    Q_PROPERTY(bool cmdLogOut READ GetCmdLogOut WRITE SetCmdLogOut NOTIFY cmdLogOutChanged)
     Q_PROPERTY(bool usebsp READ GetUsebsp WRITE SetUsebsp NOTIFY usebspChanged)
     Q_PROPERTY(bool usebspNomergeinstances READ GetUsebspNomergeinstances WRITE SetUsebspNomergeinstances NOTIFY usebspNomergeinstancesChanged)
     Q_PROPERTY(bool skipdeps READ GetSkipdeps WRITE SetSkipdeps NOTIFY skipdepsChanged)
@@ -213,6 +214,15 @@ public:
         if(usebspNomergeinstances != val) { usebspNomergeinstances = val; emit usebspNomergeinstancesChanged(); if(usebspNomergeinstances) SetUsebsp(true); GetLaunchOptions(); SaveToCfg(); }
     }
 
+    bool GetCmdLogOut() const { return cmdLogOut; }
+    void SetCmdLogOut(bool val) {
+        if (IsGoingWarn()) {
+            emit cmdLogOutChanged();
+            return;
+        }
+        if(cmdLogOut != val) { cmdLogOut = val; emit cmdLogOutChanged(); SaveToCfg(); }
+    }
+
     bool GetSkipdeps() const { return skipdeps; }
     void SetSkipdeps(bool val) {
         if (IsGoingWarn()) {
@@ -267,6 +277,7 @@ signals:
     void addonNameChanged();
     void keepFuncDetailAsBrushChanged();
     void usebspChanged();
+    void cmdLogOutChanged();
     void usebspNomergeinstancesChanged();
     void skipdepsChanged();
     void canGoChanged();
@@ -316,6 +327,7 @@ private:
     bool vpkSignaturesMoved;
     QString bspFile;
     QString launchOptions;
+    bool cmdLogOut = false;
     bool keepFuncDetailAsBrush = false;
     bool usebsp = true;
     bool usebspNomergeinstances = false;

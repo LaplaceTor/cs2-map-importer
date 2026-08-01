@@ -46,6 +46,7 @@ public:
         QString s1contentdir;
         QString s2contentdir;
 
+        bool cmdLogOut;
         bool keepFuncDetailAsBrush;
         bool usebsp;
         bool usebspNomergeinstances;
@@ -73,7 +74,7 @@ public:
 
     // Decompiles the BSP, moves unpacked files, and moves materials/models folders into s1gamedir
 
-    static int RunCommandSync(int program, const QStringList& arguments, bool logOut = false, QStringList* logOutString = nullptr, bool isMap = false, bool isCSGO = false);
+    static int RunCommandSync(int program, const QStringList& arguments, QStringList* logOutString = nullptr, bool isMap = false, bool isCSGO = false);
     static void CancelAll();
 
     static QAtomicInt CanceLImport;

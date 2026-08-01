@@ -429,6 +429,14 @@ ApplicationWindow {
                                 ToolTip.text: "Optional: skips importing all dependencies/content and only generates the vmap file(s)"
                                 ToolTip.visible: hovered
                             }
+                            CheckBox {
+                                id: cmdLogOutCheckbox
+                                text: "Full log(Detail and slow mode)"
+                                checked: backend.cmdLogOut
+                                onCheckedChanged: backend.cmdLogOut = checked
+                                ToolTip.text: "Optional: outputs the full details of external commands to the log. This may slow down the process slightly."
+                                ToolTip.visible: hovered
+                            }
                             Item { Layout.fillHeight: true } // Spacer
                         }
                     }
