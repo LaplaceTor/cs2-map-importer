@@ -30,6 +30,13 @@
 #define APP_VERSION "1.0.0"
 #endif
 
+Backend* Backend::s_instance = nullptr;
+
+Backend* Backend::instance()
+{
+    return s_instance;
+}
+
 Backend::Backend(QObject *parent) :
     QObject(parent),
     vmfDefaultPath("C:\\"),
@@ -66,6 +73,8 @@ Backend::Backend(QObject *parent) :
         }
     };
 
+    s_instance = this;
+
     Miscellaneous::Log("Initializing CS2 Importer...");
 
     GetLaunchOptions();
@@ -73,6 +82,29 @@ Backend::Backend(QObject *parent) :
     LoadFromCfg();
 
     Miscellaneous::Log("Initializing CS2 Importer... Finished");
+}
+
+bool Backend::requestConfirmation(const QString& title, const QString& msg)
+{
+    QMutexLocker locker(&confirmMutex);
+    confirmResult = false;
+    confirmInProgress = true;
+
+    emit askQmlConfirmation(title, msg);
+
+    while (confirmInProgress) {
+        confirmCond.wait(&confirmMutex);
+    }
+
+    return confirmResult;
+}
+
+void Backend::setConfirmationResult(bool result)
+{
+    QMutexLocker locker(&confirmMutex);
+    confirmResult = result;
+    confirmInProgress = false;
+    confirmCond.wakeAll();
 }
 
 void Backend::ValidateCs2()

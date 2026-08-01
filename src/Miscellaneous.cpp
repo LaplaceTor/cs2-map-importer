@@ -1,10 +1,9 @@
 #include "Miscellaneous.h"
+#include "Ui.h"
 #define NOMINMAX
 #include <windows.h>
 #include <shellapi.h>
 #include <QDir>
-#include <QMessageBox>
-#include <QApplication>
 #include <QMetaObject>
 #include <QFile>
 #include <QFileInfo>
@@ -356,23 +355,19 @@ bool Miscellaneous::CreateSymlink(const QString& linkPath, const QString& target
 }
 
 bool Miscellaneous::ShowMessageBox(const QString& title, const QString& text, int iconType, bool showYesNo) {
-    QMessageBox::Icon icon = QMessageBox::Information;
-    if (iconType == 1) icon = QMessageBox::Warning;
-    else if (iconType == 2) icon = QMessageBox::Critical;
-
-    QMessageBox::StandardButtons buttons = showYesNo ? (QMessageBox::Yes | QMessageBox::No) : QMessageBox::Ok;
-
-    int result = QMessageBox::No;
-    QMetaObject::invokeMethod(qApp, [&]() {
-        QMessageBox msgBox;
-        msgBox.setWindowTitle(title);
-        msgBox.setText(text);
-        msgBox.setIcon(icon);
-        msgBox.setStandardButtons(buttons);
-        msgBox.setDefaultButton(showYesNo ? QMessageBox::No : QMessageBox::Ok);
-        msgBox.setWindowFlags(msgBox.windowFlags() | Qt::WindowStaysOnTopHint);
-        result = msgBox.exec();
-    }, Qt::BlockingQueuedConnection);
-
-    return showYesNo ? (result == QMessageBox::Yes) : (result == QMessageBox::Ok);
+    Q_UNUSED(iconType);
+    if (showYesNo) {
+        if (Backend::instance()) {
+            return Backend::instance()->requestConfirmation(title, text);
+        }
+        return false;
+    } else {
+        if (Backend::instance()) {
+            QMetaObject::invokeMethod(Backend::instance(), [=]() {
+                emit Backend::instance()->alertMessage(title, text);
+            });
+            return true;
+        }
+        return false;
+    }
 }

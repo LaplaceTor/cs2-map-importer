@@ -1,4 +1,4 @@
-#include <QApplication>
+#include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
     // Enable high DPI scaling
 
 
-    QApplication app(argc, argv);
+    QGuiApplication app(argc, argv);
     app.setWindowIcon(QIcon(":/icons/icon.png")); // Optional if we had one
     QQuickStyle::setStyle("Fusion");
 

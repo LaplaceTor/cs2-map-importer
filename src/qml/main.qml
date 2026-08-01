@@ -56,6 +56,11 @@ ApplicationWindow {
             messageDialog.text = msg
             messageDialog.open()
         }
+        function onAskQmlConfirmation(title, msg) {
+            confirmDialog.title = title
+            confirmDialog.text = msg
+            confirmDialog.open()
+        }
         function onUpdateAvailable(version, notes, url) {
             updateDialog.version = version;
             updateDialog.notes = notes;
@@ -174,6 +179,15 @@ ApplicationWindow {
         id: messageDialog
         title: "Message"
         buttons: MessageDialog.Ok
+    }
+
+    MessageDialog {
+        id: confirmDialog
+        title: "Confirmation"
+        buttons: MessageDialog.Yes | MessageDialog.No
+        onYes: backend.setConfirmationResult(true)
+        onNo: backend.setConfirmationResult(false)
+        onRejected: backend.setConfirmationResult(false)
     }
 
     RowLayout {
