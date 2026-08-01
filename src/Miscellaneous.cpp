@@ -318,11 +318,7 @@ bool Miscellaneous::IsCorrectSymlink(const QString& linkPath, const QString& tar
     QFileInfo linkInfo(linkPath);
     if (linkInfo.isSymLink()) {
         QFileInfo targetInfo(targetPath);
-        QString canonicalLink = QDir::toNativeSeparators(linkInfo.canonicalFilePath()).trimmed();
-        QString canonicalTarget = QDir::toNativeSeparators(targetInfo.canonicalFilePath()).trimmed();
-        if (canonicalLink.endsWith('\\')) canonicalLink.chop(1);
-        if (canonicalTarget.endsWith('\\')) canonicalTarget.chop(1);
-        return (canonicalLink.compare(canonicalTarget, Qt::CaseInsensitive) == 0);
+        return (linkInfo.canonicalFilePath().compare(targetInfo.canonicalFilePath(), Qt::CaseInsensitive) == 0);
     }
     return false;
 }
