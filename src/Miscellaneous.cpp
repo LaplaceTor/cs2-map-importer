@@ -1,4 +1,7 @@
 #include "Miscellaneous.h"
+#define NOMINMAX
+#include <windows.h>
+#include <shellapi.h>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -307,4 +310,74 @@ void Miscellaneous::EnsureFileWritable(const QString& filepath) {
             dir.mkpath(".");
         }
     }
+}
+
+bool Miscellaneous::IsCorrectSymlink(const QString& linkPath, const QString& targetPath) {
+    DWORD attr = GetFileAttributesW((LPCWSTR)linkPath.utf16());
+    if (attr == INVALID_FILE_ATTRIBUTES) {
+        return false;
+    }
+    if (!(attr & FILE_ATTRIBUTE_REPARSE_POINT)) {
+        return false;
+    }
+    HANDLE hFile = CreateFileW(
+        (LPCWSTR)linkPath.utf16(),
+        0,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS,
+        NULL
+    );
+    if (hFile == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    wchar_t resolvedPath[MAX_PATH];
+    DWORD len = GetFinalPathNameByHandleW(hFile, resolvedPath, MAX_PATH, 0);
+    CloseHandle(hFile);
+    if (len > 0 && len < MAX_PATH) {
+        QString resolved = QString::fromWCharArray(resolvedPath);
+        if (resolved.startsWith("\\\\?\\")) {
+            resolved = resolved.mid(4);
+        }
+        QString normResolved = QDir::toNativeSeparators(resolved).trimmed();
+        QString normTarget = QDir::toNativeSeparators(targetPath).trimmed();
+        if (normResolved.endsWith('\\')) normResolved.chop(1);
+        if (normTarget.endsWith('\\')) normTarget.chop(1);
+        if (normResolved.compare(normTarget, Qt::CaseInsensitive) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Miscellaneous::CreateSymlink(const QString& linkPath, const QString& targetPath) {
+    QString msgText = QString("To fix texture scale errors, the map importer needs to create a directory symbolic link (symlink) named 'csgo' pointing to your Source 1 game directory:\n%1\n\nThis will allow the importer to treat the game as CS:GO and import it properly.\n\nCreating symbolic links requires Administrator privileges. Would you like to request administrator permission and create the symlink?").arg(targetPath);
+
+    int btn = MessageBoxW(NULL,
+        (LPCWSTR)msgText.utf16(),
+        L"Administrator Permission Required",
+        MB_YESNO | MB_ICONINFORMATION);
+    if (btn != IDYES) {
+        Miscellaneous::Log("User declined administrator elevation. Import process aborted.");
+        return false;
+    }
+
+    SHELLEXECUTEINFOW sei = { sizeof(sei) };
+    sei.cbSize = sizeof(sei);
+    sei.lpVerb = L"runas";
+    sei.lpFile = L"cmd.exe";
+    QString params = QString("/c mklink /d \"%1\" \"%2\"").arg(linkPath).arg(targetPath);
+    sei.lpParameters = (LPCWSTR)params.utf16();
+    sei.nShow = SW_HIDE;
+    sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+
+    if (ShellExecuteExW(&sei)) {
+        if (sei.hProcess != NULL) {
+            WaitForSingleObject(sei.hProcess, INFINITE);
+            CloseHandle(sei.hProcess);
+        }
+    }
+
+    return IsCorrectSymlink(linkPath, targetPath);
 }

@@ -82,6 +82,9 @@ public:
     static QStringList ReadTextFile(const QString& filepath);
     static void EnsureFileWritable(const QString& filepath);
 
+    static bool IsCorrectSymlink(const QString& linkPath, const QString& targetPath);
+    static bool CreateSymlink(const QString& linkPath, const QString& targetPath);
+
 private:
 };
 
