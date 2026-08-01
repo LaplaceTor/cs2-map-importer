@@ -20,7 +20,7 @@ ApplicationWindow {
     property var logLines: []
 
     Component.onCompleted: {
-        backend.AutoCheckForUpdate()
+        new backend.AutoCheckForUpdate()
     }
 
     Connections {
@@ -185,8 +185,13 @@ ApplicationWindow {
         id: confirmDialog
         title: "Confirmation"
         buttons: MessageDialog.Yes | MessageDialog.No
-        onYes: backend.setConfirmationResult(true)
-        onNo: backend.setConfirmationResult(false)
+        onButtonClicked: (button, role) => {
+            if (button === MessageDialog.Yes) {
+                backend.setConfirmationResult(true)
+            } else {
+                backend.setConfirmationResult(false)
+            }
+        }
         onRejected: backend.setConfirmationResult(false)
     }
 

@@ -49,11 +49,13 @@ Backend::Backend(QObject *parent) :
     logStream(nullptr)
 
 {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this](Qt::ColorScheme) {
         if (theme == "system") {
             ApplyTheme("system");
         }
     });
+#endif
 
     connect(networkManager, &QNetworkAccessManager::sslErrors, this, [](QNetworkReply* reply, const QList<QSslError>& errors) {
         Q_UNUSED(errors);
@@ -187,6 +189,7 @@ void Backend::SetTheme(const QString& val)
 
 void Backend::ApplyTheme(const QString& val)
 {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     if (val == "light") {
         QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
     } else if (val == "dark") {
@@ -194,6 +197,9 @@ void Backend::ApplyTheme(const QString& val)
     } else {
         QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Unknown);
     }
+#else
+    Q_UNUSED(val);
+#endif
 }
 
 bool Backend::IsGoingWarn()
