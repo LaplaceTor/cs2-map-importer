@@ -9,8 +9,6 @@
 #include <QCoreApplication>
 #include <QByteArray>
 #include <QMap>
-#include <memory>
-#include <functional>
 
 QString VmfBspProcess::ParseMapversion(const QStringList& lines, bool& found) {
     QString mapversion = "2";
@@ -1200,6 +1198,200 @@ void VmfBspProcess::ProcessBsp() {
     }
 }
 
+VmfBspProcess::VmfNode* VmfBspProcess::ParseVmfTree(const QStringList& lines) {
+    VmfNode* root = new VmfNode();
+    root->isBlock = true;
+    root->name = "root";
+
+    QList<VmfNode*> stack;
+    stack.append(root);
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i];
+        QString trimmed = line.trimmed();
+
+        if (trimmed == "{") {
+            VmfNode* parent = stack.last();
+            if (!parent->children.isEmpty() && !parent->children.last()->isBlock) {
+                VmfNode* headerNode = parent->children.last();
+                parent->children.removeLast();
+
+                VmfNode* newBlock = new VmfNode();
+                newBlock->isBlock = true;
+                newBlock->name = headerNode->rawLine.trimmed();
+                newBlock->rawLine = headerNode->rawLine;
+                newBlock->openBrace = line;
+                parent->children.append(newBlock);
+                stack.append(newBlock);
+
+                delete headerNode;
+            } else {
+                VmfNode* newBlock = new VmfNode();
+                newBlock->isBlock = true;
+                newBlock->name = "";
+                newBlock->rawLine = "";
+                newBlock->openBrace = line;
+                parent->children.append(newBlock);
+                stack.append(newBlock);
+            }
+        } else if (trimmed == "}") {
+            if (stack.size() > 1) {
+                stack.last()->closeBrace = line;
+                stack.removeLast();
+            } else {
+                VmfNode* rawNode = new VmfNode();
+                rawNode->isBlock = false;
+                rawNode->rawLine = line;
+                stack.last()->children.append(rawNode);
+            }
+        } else {
+            VmfNode* rawNode = new VmfNode();
+            rawNode->isBlock = false;
+            rawNode->rawLine = line;
+            stack.last()->children.append(rawNode);
+        }
+    }
+    return root;
+}
+
+QString VmfBspProcess::GetVmfKeyValue(const QString& rawLine, const QString& key) {
+    QRegularExpression re(QString("^\\s*\"%1\"\\s+\"([^\"]*)\"").arg(QRegularExpression::escape(key)), QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatch match = re.match(rawLine);
+    if (match.hasMatch()) {
+        return match.captured(1);
+    }
+    return QString();
+}
+
+bool VmfBspProcess::IsSkipOrHintMaterial(const QString& material) {
+    QString lowered = material.toLower();
+    return (lowered == "tools/toolsskip" || lowered == "tools/toolshint");
+}
+
+bool VmfBspProcess::HasSkipOrHint(const VmfNode* node) {
+    if (node->isBlock && node->name.toLower() == "side") {
+        for (const VmfNode* child : node->children) {
+            if (!child->isBlock) {
+                QString mat = GetVmfKeyValue(child->rawLine, "material");
+                if (!mat.isEmpty() && IsSkipOrHintMaterial(mat)) {
+                    return true;
+                }
+            }
+        }
+    }
+    for (const VmfNode* child : node->children) {
+        if (HasSkipOrHint(child)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+QString VmfBspProcess::ReplaceMaterialLine(const QString& rawLine, const QString& newMaterial) {
+    QString indent = "";
+    for (int i = 0; i < rawLine.size(); ++i) {
+        if (rawLine[i].isSpace()) {
+            indent += rawLine[i];
+        } else {
+            break;
+        }
+    }
+    return indent + QString("\"material\" \"%1\"").arg(newMaterial);
+}
+
+void VmfBspProcess::ModifySolidMaterials(VmfNode* node) {
+    if (node->isBlock && node->name.toLower() == "side") {
+        for (VmfNode* child : node->children) {
+            if (!child->isBlock) {
+                QString mat = GetVmfKeyValue(child->rawLine, "material");
+                if (!mat.isEmpty() && IsSkipOrHintMaterial(mat)) {
+                    child->rawLine = ReplaceMaterialLine(child->rawLine, "tools/toolsnodraw");
+                }
+            }
+        }
+    }
+    for (VmfNode* child : node->children) {
+        if (child->isBlock) {
+            ModifySolidMaterials(child);
+        }
+    }
+}
+
+void VmfBspProcess::ProcessVmfTree(VmfNode* node, VmfContext context) {
+    VmfContext childContext = context;
+    if (node->isBlock) {
+        QString loweredName = node->name.toLower();
+        if (loweredName == "world") {
+            childContext = ContextWorld;
+        } else if (loweredName == "entity") {
+            QString classname = "";
+            for (const VmfNode* child : node->children) {
+                if (!child->isBlock) {
+                    QString val = GetVmfKeyValue(child->rawLine, "classname");
+                    if (!val.isEmpty()) {
+                        classname = val;
+                        break;
+                    }
+                }
+            }
+            if (classname.toLower() == "func_detail") {
+                childContext = ContextFuncDetail;
+            } else {
+                childContext = ContextOtherEntity;
+            }
+        }
+    }
+
+    QList<VmfNode*> newChildren;
+    for (VmfNode* child : node->children) {
+        if (child->isBlock && child->name.toLower() == "solid") {
+            if (HasSkipOrHint(child)) {
+                if (childContext == ContextWorld || childContext == ContextFuncDetail || childContext == ContextRoot) {
+                    delete child;
+                    continue;
+                } else if (childContext == ContextOtherEntity) {
+                    ModifySolidMaterials(child);
+                    newChildren.append(child);
+                } else {
+                    newChildren.append(child);
+                }
+            } else {
+                ProcessVmfTree(child, childContext);
+                newChildren.append(child);
+            }
+        } else {
+            if (child->isBlock) {
+                ProcessVmfTree(child, childContext);
+            }
+            newChildren.append(child);
+        }
+    }
+    node->children = newChildren;
+}
+
+void VmfBspProcess::SerializeVmfTree(const VmfNode* node, QStringList& out_lines) {
+    if (node->name != "root") {
+        if (!node->rawLine.isEmpty()) {
+            out_lines.append(node->rawLine);
+        }
+        if (!node->openBrace.isEmpty()) {
+            out_lines.append(node->openBrace);
+        }
+    }
+    for (const VmfNode* child : node->children) {
+        if (child->isBlock) {
+            SerializeVmfTree(child, out_lines);
+        } else {
+            out_lines.append(child->rawLine);
+        }
+    }
+    if (node->name != "root") {
+        if (!node->closeBrace.isEmpty()) {
+            out_lines.append(node->closeBrace);
+        }
+    }
+}
+
 void VmfBspProcess::RemoveSkipAndHintSolids(const QString& vmfPath) {
     if (!QFile::exists(vmfPath)) return;
 
@@ -1213,218 +1405,13 @@ void VmfBspProcess::RemoveSkipAndHintSolids(const QString& vmfPath) {
     }
     infile.close();
 
-    struct VmfNode {
-        bool isBlock = false;
-        QString name;
-        QString rawLine;
-        QList<std::shared_ptr<VmfNode>> children;
-        QString openBrace;
-        QString closeBrace;
-    };
-
-    auto parseVmf = [](const QStringList& lines) {
-        auto root = std::make_shared<VmfNode>();
-        root->isBlock = true;
-        root->name = "root";
-
-        QList<std::shared_ptr<VmfNode>> stack;
-        stack.append(root);
-
-        for (int i = 0; i < lines.size(); ++i) {
-            QString line = lines[i];
-            QString trimmed = line.trimmed();
-
-            if (trimmed == "{") {
-                auto parent = stack.last();
-                if (!parent->children.isEmpty() && !parent->children.last()->isBlock) {
-                    auto headerNode = parent->children.last();
-                    parent->children.removeLast();
-
-                    auto newBlock = std::make_shared<VmfNode>();
-                    newBlock->isBlock = true;
-                    newBlock->name = headerNode->rawLine.trimmed();
-                    newBlock->rawLine = headerNode->rawLine;
-                    newBlock->openBrace = line;
-                    parent->children.append(newBlock);
-                    stack.append(newBlock);
-                } else {
-                    auto newBlock = std::make_shared<VmfNode>();
-                    newBlock->isBlock = true;
-                    newBlock->name = "";
-                    newBlock->rawLine = "";
-                    newBlock->openBrace = line;
-                    parent->children.append(newBlock);
-                    stack.append(newBlock);
-                }
-            } else if (trimmed == "}") {
-                if (stack.size() > 1) {
-                    stack.last()->closeBrace = line;
-                    stack.removeLast();
-                } else {
-                    auto rawNode = std::make_shared<VmfNode>();
-                    rawNode->isBlock = false;
-                    rawNode->rawLine = line;
-                    stack.last()->children.append(rawNode);
-                }
-            } else {
-                auto rawNode = std::make_shared<VmfNode>();
-                rawNode->isBlock = false;
-                rawNode->rawLine = line;
-                stack.last()->children.append(rawNode);
-            }
-        }
-        return root;
-    };
-
-    auto getKeyValue = [](const QString& rawLine, const QString& key) -> QString {
-        QRegularExpression re(QString("^\\s*\"%1\"\\s+\"([^\"]*)\"").arg(QRegularExpression::escape(key)), QRegularExpression::CaseInsensitiveOption);
-        QRegularExpressionMatch match = re.match(rawLine);
-        if (match.hasMatch()) {
-            return match.captured(1);
-        }
-        return QString();
-    };
-
-    auto isSkipOrHintMaterial = [](const QString& material) -> bool {
-        QString lowered = material.toLower();
-        return (lowered == "tools/toolsskip" || lowered == "tools/toolshint");
-    };
-
-    std::function<bool(std::shared_ptr<VmfNode>)> hasSkipOrHint = [&](std::shared_ptr<VmfNode> node) -> bool {
-        if (node->isBlock && node->name.toLower() == "side") {
-            for (auto child : node->children) {
-                if (!child->isBlock) {
-                    QString mat = getKeyValue(child->rawLine, "material");
-                    if (!mat.isEmpty() && isSkipOrHintMaterial(mat)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        for (auto child : node->children) {
-            if (hasSkipOrHint(child)) {
-                return true;
-            }
-        }
-        return false;
-    };
-
-    auto replaceMaterialLine = [](const QString& rawLine, const QString& newMaterial) -> QString {
-        QString indent = "";
-        for (int i = 0; i < rawLine.size(); ++i) {
-            if (rawLine[i].isSpace()) {
-                indent += rawLine[i];
-            } else {
-                break;
-            }
-        }
-        return indent + QString("\"material\" \"%1\"").arg(newMaterial);
-    };
-
-    std::function<void(std::shared_ptr<VmfNode>)> modifySolidMaterials = [&](std::shared_ptr<VmfNode> node) {
-        if (node->isBlock && node->name.toLower() == "side") {
-            for (auto child : node->children) {
-                if (!child->isBlock) {
-                    QString mat = getKeyValue(child->rawLine, "material");
-                    if (!mat.isEmpty() && isSkipOrHintMaterial(mat)) {
-                        child->rawLine = replaceMaterialLine(child->rawLine, "tools/toolsnodraw");
-                    }
-                }
-            }
-        }
-        for (auto child : node->children) {
-            if (child->isBlock) {
-                modifySolidMaterials(child);
-            }
-        }
-    };
-
-    enum VmfContext {
-        ContextRoot,
-        ContextWorld,
-        ContextFuncDetail,
-        ContextOtherEntity
-    };
-
-    std::function<void(std::shared_ptr<VmfNode>, VmfContext)> processNodes = [&](std::shared_ptr<VmfNode> node, VmfContext context) {
-        VmfContext childContext = context;
-        if (node->isBlock) {
-            QString loweredName = node->name.toLower();
-            if (loweredName == "world") {
-                childContext = ContextWorld;
-            } else if (loweredName == "entity") {
-                QString classname = "";
-                for (auto child : node->children) {
-                    if (!child->isBlock) {
-                        QString val = getKeyValue(child->rawLine, "classname");
-                        if (!val.isEmpty()) {
-                            classname = val;
-                            break;
-                        }
-                    }
-                }
-                if (classname.toLower() == "func_detail") {
-                    childContext = ContextFuncDetail;
-                } else {
-                    childContext = ContextOtherEntity;
-                }
-            }
-        }
-
-        QList<std::shared_ptr<VmfNode>> newChildren;
-        for (auto child : node->children) {
-            if (child->isBlock && child->name.toLower() == "solid") {
-                if (hasSkipOrHint(child)) {
-                    if (childContext == ContextWorld || childContext == ContextFuncDetail || childContext == ContextRoot) {
-                        continue;
-                    } else if (childContext == ContextOtherEntity) {
-                        modifySolidMaterials(child);
-                        newChildren.append(child);
-                    } else {
-                        newChildren.append(child);
-                    }
-                } else {
-                    processNodes(child, childContext);
-                    newChildren.append(child);
-                }
-            } else {
-                if (child->isBlock) {
-                    processNodes(child, childContext);
-                }
-                newChildren.append(child);
-            }
-        }
-        node->children = newChildren;
-    };
-
-    std::function<void(std::shared_ptr<VmfNode>, QStringList&)> serializeVmf = [&](std::shared_ptr<VmfNode> node, QStringList& out_lines) {
-        if (node->name != "root") {
-            if (!node->rawLine.isEmpty()) {
-                out_lines.append(node->rawLine);
-            }
-            if (!node->openBrace.isEmpty()) {
-                out_lines.append(node->openBrace);
-            }
-        }
-        for (auto child : node->children) {
-            if (child->isBlock) {
-                serializeVmf(child, out_lines);
-            } else {
-                out_lines.append(child->rawLine);
-            }
-        }
-        if (node->name != "root") {
-            if (!node->closeBrace.isEmpty()) {
-                out_lines.append(node->closeBrace);
-            }
-        }
-    };
-
-    auto root = parseVmf(lines);
-    processNodes(root, ContextRoot);
+    VmfNode* root = ParseVmfTree(lines);
+    ProcessVmfTree(root, ContextRoot);
 
     QStringList out_lines;
-    serializeVmf(root, out_lines);
+    SerializeVmfTree(root, out_lines);
+
+    delete root;
 
     QFile outfile(vmfPath);
     if (outfile.open(QIODevice::WriteOnly | QIODevice::Text)) {

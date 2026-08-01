@@ -74,11 +74,3 @@ target_compile_definitions(cs2importer PRIVATE "APP_VERSION=\"${APP_VERSION}\"")
 
 qt_import_qml_plugins(cs2importer)
 qt_finalize_executable(cs2importer)
-
-add_executable(test_vmf
-    src/TestVmf.cpp
-    src/VmfBspProcess.cpp
-    src/Miscellaneous.cpp
-)
-target_link_libraries(test_vmf PRIVATE Qt6::Core Qt6::Gui Qt6::Network)
-target_include_directories(test_vmf PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
