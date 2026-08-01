@@ -330,7 +330,7 @@ bool Miscellaneous::IsCorrectSymlink(const QString& linkPath, const QString& tar
 bool Miscellaneous::CreateSymlink(const QString& linkPath, const QString& targetPath) {
     QString msgText = QString("To fix texture scale errors, the map importer needs to create a directory symbolic link (symlink) named 'csgo' pointing to your Source 1 game directory:\n%1\n\nThis will allow the importer to treat the game as CS:GO and import it properly.\n\nCreating symbolic links requires Administrator privileges. Would you like to request administrator permission and create the symlink?").arg(targetPath);
 
-    if (!ShowMessageBox("Administrator Permission Required", msgText, 0, true)) {
+    if (!Backend::ShowMessageBox("Administrator Permission Required", msgText, 0, true)) {
         Miscellaneous::Log("User declined administrator elevation. Import process aborted.");
         return false;
     }
@@ -352,22 +352,4 @@ bool Miscellaneous::CreateSymlink(const QString& linkPath, const QString& target
     }
 
     return IsCorrectSymlink(linkPath, targetPath);
-}
-
-bool Miscellaneous::ShowMessageBox(const QString& title, const QString& text, int iconType, bool showYesNo) {
-    Q_UNUSED(iconType);
-    if (showYesNo) {
-        if (Backend::instance()) {
-            return Backend::instance()->requestConfirmation(title, text);
-        }
-        return false;
-    } else {
-        if (Backend::instance()) {
-            QMetaObject::invokeMethod(Backend::instance(), [=]() {
-                emit Backend::instance()->alertMessage(title, text);
-            });
-            return true;
-        }
-        return false;
-    }
 }

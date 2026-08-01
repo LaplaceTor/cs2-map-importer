@@ -107,6 +107,25 @@ void Backend::setConfirmationResult(bool result)
     confirmCond.wakeAll();
 }
 
+bool Backend::ShowMessageBox(const QString& title, const QString& text, int iconType, bool showYesNo)
+{
+    Q_UNUSED(iconType);
+    if (showYesNo) {
+        if (s_instance) {
+            return s_instance->requestConfirmation(title, text);
+        }
+        return false;
+    } else {
+        if (s_instance) {
+            QMetaObject::invokeMethod(s_instance, [=]() {
+                emit s_instance->alertMessage(title, text);
+            });
+            return true;
+        }
+        return false;
+    }
+}
+
 void Backend::ValidateCs2()
 {
     if (IsGoingWarn()) {

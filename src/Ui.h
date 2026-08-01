@@ -155,6 +155,7 @@ public:
     }
 
     static Backend* instance();
+    static bool ShowMessageBox(const QString& title, const QString& text, int iconType, bool showYesNo = false);
 
     QString GetTheme() const { return theme; }
     void SetTheme(const QString& val);

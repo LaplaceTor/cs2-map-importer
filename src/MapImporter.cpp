@@ -1,6 +1,7 @@
 #include "MapImporter.h"
 #include "Miscellaneous.h"
 #include "SoundscapeImport.h"
+#include "Ui.h"
 #include "FileExtractFromVPK.h"
 #include "MaterialFix.h"
 #include <QDir>
@@ -594,14 +595,14 @@ bool MapImporter::Run() {
                         .arg(fakeCsgoPath)
                         .arg(nativeBackupPath);
 
-                    if (!Miscellaneous::ShowMessageBox("Action Required: Replace csgo Folder", msgText, 1, true)) {
+                    if (!Backend::ShowMessageBox("Action Required: Replace csgo Folder", msgText, 1, true)) {
                         Miscellaneous::Log("User declined to replace the existing 'csgo' folder. Import process aborted.");
                         return false;
                     }
 
                     if (!QDir().rename(fakeCsgoPath, nativeBackupPath)) {
                         Miscellaneous::Log("Error: Failed to rename existing csgo folder to " + nativeBackupPath);
-                        Miscellaneous::ShowMessageBox(
+                        Backend::ShowMessageBox(
                             "Error Renaming Folder",
                             QString("Failed to rename the existing 'csgo' folder to '%1'.\nImport process aborted.").arg(QFileInfo(nativeBackupPath).fileName()),
                             2
@@ -616,7 +617,7 @@ bool MapImporter::Run() {
                 targetS1gamedir = fakeCsgoPath;
             } else {
                 Miscellaneous::Log("Error: Failed to create symbolic link at " + fakeCsgoPath);
-                Miscellaneous::ShowMessageBox(
+                Backend::ShowMessageBox(
                     "Error Creating Symbolic Link",
                     "Failed to create the directory symbolic link. Please make sure you have granted Administrator privileges when prompted.\n\nImport process aborted.",
                     2
