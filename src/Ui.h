@@ -10,6 +10,7 @@
 #include <QNetworkReply>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QWaitCondition>
 #include <memory>
 #include "Miscellaneous.h"
 
@@ -153,6 +154,9 @@ public:
         if(particleDisableDiffuse != val) { particleDisableDiffuse = val; emit particleDisableDiffuseChanged(); SaveToCfg(); }
     }
 
+    static Backend* instance();
+    static bool ShowMessageBox(const QString& title, const QString& text, int iconType, bool showYesNo = false);
+
     QString GetTheme() const { return theme; }
     void SetTheme(const QString& val);
 
@@ -250,6 +254,8 @@ public slots:
     void Stop();
     void CheckForUpdate();
     void AutoCheckForUpdate();
+    bool requestConfirmation(const QString& title, const QString& msg);
+    void setConfirmationResult(bool result);
 
 signals:
     void cs2BasefolderChanged();
@@ -284,6 +290,7 @@ signals:
 
     void logMessage(const QString& msg);
     void alertMessage(const QString& title, const QString& msg);
+    void askQmlConfirmation(const QString& title, const QString& msg);
     void updateAvailable(const QString& version, const QString& notes, const QString& url);
     void noUpdateAvailable();
 
@@ -332,6 +339,12 @@ private:
     bool particleDisableDiffuse = false;
 
     QNetworkAccessManager* networkManager;
+
+    static Backend* s_instance;
+    QMutex confirmMutex;
+    QWaitCondition confirmCond;
+    bool confirmResult = false;
+    bool confirmInProgress = false;
 
     std::unique_ptr<QFile> logFile;
     std::unique_ptr<QTextStream> logStream;

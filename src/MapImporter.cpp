@@ -1,6 +1,7 @@
 #include "MapImporter.h"
 #include "Miscellaneous.h"
 #include "SoundscapeImport.h"
+#include "Ui.h"
 #include "FileExtractFromVPK.h"
 #include "MaterialFix.h"
 #include <QDir>
@@ -565,6 +566,67 @@ bool MapImporter::Run() {
     }
     
     QString targetS1gamedir = Miscellaneous::GetOptions().csgogamedir;
+
+    if (Miscellaneous::GetOptions().s1GameType.compare("csgo", Qt::CaseInsensitive) != 0) {
+        QString s1gameBasefolder = Miscellaneous::GetOptions().s1gameBasefolder;
+        QString fakeCsgoPath = QDir::toNativeSeparators(s1gameBasefolder + "/csgo");
+        QString s1gamedir = QDir::toNativeSeparators(Miscellaneous::GetOptions().s1gamedir);
+
+        if (Miscellaneous::IsCorrectSymlink(fakeCsgoPath, s1gamedir)) {
+            Miscellaneous::Log("Existing correct symbolic link found at: " + fakeCsgoPath);
+            targetS1gamedir = fakeCsgoPath;
+        } else {
+            QFileInfo fakeCsgoInfo(fakeCsgoPath);
+            bool exists = fakeCsgoInfo.exists() || fakeCsgoInfo.isSymLink();
+
+            if (exists) {
+                if (fakeCsgoInfo.isSymLink()) {
+                    Miscellaneous::Log("Removing incorrect symbolic link at: " + fakeCsgoPath);
+                    QFile::remove(fakeCsgoPath);
+                } else {
+                    QString backupPath = s1gameBasefolder + "/csgo_backup";
+                    int backupIdx = 1;
+                    while (QFileInfo::exists(backupPath)) {
+                        backupPath = s1gameBasefolder + "/csgo_backup_" + QString::number(backupIdx++);
+                    }
+                    QString nativeBackupPath = QDir::toNativeSeparators(backupPath);
+
+                    QString msgText = QString("The map importer has detected a real folder or file at:\n%1\n\nTo fix texture scale errors, we must create a directory symbolic link (symlink) named 'csgo' pointing to your Source 1 game directory so that the importer can treat it like CS:GO.\n\nSince a real folder already exists, we need to rename it to a backup directory:\n%2\n\nWould you like to proceed with renaming the existing folder and creating the symbolic link?")
+                        .arg(fakeCsgoPath)
+                        .arg(nativeBackupPath);
+
+                    if (!Backend::ShowMessageBox("Action Required: Replace csgo Folder", msgText, 1, true)) {
+                        Miscellaneous::Log("User declined to replace the existing 'csgo' folder. Import process aborted.");
+                        return false;
+                    }
+
+                    if (!QDir().rename(fakeCsgoPath, nativeBackupPath)) {
+                        Miscellaneous::Log("Error: Failed to rename existing csgo folder to " + nativeBackupPath);
+                        Backend::ShowMessageBox(
+                            "Error Renaming Folder",
+                            QString("Failed to rename the existing 'csgo' folder to '%1'.\nImport process aborted.").arg(QFileInfo(nativeBackupPath).fileName()),
+                            2
+                        );
+                        return false;
+                    }
+                }
+            }
+
+            if (Miscellaneous::CreateSymlink(fakeCsgoPath, s1gamedir)) {
+                Miscellaneous::Log("Successfully created directory symbolic link: " + fakeCsgoPath + " -> " + s1gamedir);
+                targetS1gamedir = fakeCsgoPath;
+            } else {
+                Miscellaneous::Log("Error: Failed to create symbolic link at " + fakeCsgoPath);
+                Backend::ShowMessageBox(
+                    "Error Creating Symbolic Link",
+                    "Failed to create the directory symbolic link. Please make sure you have granted Administrator privileges when prompted.\n\nImport process aborted.",
+                    2
+                );
+                return false;
+            }
+        }
+    }
+
     arguments << "-src1gameinfodir" << QDir::toNativeSeparators(targetS1gamedir);
     arguments << "-src1contentdir" << QDir::toNativeSeparators(Miscellaneous::GetOptions().s1contentdir);
     arguments << "-s2addon" << Miscellaneous::GetOptions().addonName;

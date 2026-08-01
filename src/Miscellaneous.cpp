@@ -1,5 +1,10 @@
 #include "Miscellaneous.h"
+#include "Ui.h"
+#define NOMINMAX
+#include <windows.h>
+#include <shellapi.h>
 #include <QDir>
+#include <QMetaObject>
 #include <QFile>
 #include <QFileInfo>
 #include <QTextStream>
@@ -307,4 +312,40 @@ void Miscellaneous::EnsureFileWritable(const QString& filepath) {
             dir.mkpath(".");
         }
     }
+}
+
+bool Miscellaneous::IsCorrectSymlink(const QString& linkPath, const QString& targetPath) {
+    QFileInfo linkInfo(linkPath);
+    if (linkInfo.isSymLink()) {
+        QFileInfo targetInfo(targetPath);
+        return (linkInfo.canonicalFilePath().compare(targetInfo.canonicalFilePath(), Qt::CaseInsensitive) == 0);
+    }
+    return false;
+}
+
+bool Miscellaneous::CreateSymlink(const QString& linkPath, const QString& targetPath) {
+    QString msgText = QString("To fix texture scale errors, the map importer needs to create a directory symbolic link (symlink) named 'csgo' pointing to your Source 1 game directory:\n%1\n\nThis will allow the importer to treat the game as CS:GO and import it properly.\n\nCreating symbolic links requires Administrator privileges. Would you like to request administrator permission and create the symlink?").arg(targetPath);
+
+    if (!Backend::ShowMessageBox("Administrator Permission Required", msgText, 0, true)) {
+        Miscellaneous::Log("User declined administrator elevation. Import process aborted.");
+        return false;
+    }
+
+    SHELLEXECUTEINFOW sei = { sizeof(sei) };
+    sei.cbSize = sizeof(sei);
+    sei.lpVerb = L"runas";
+    sei.lpFile = L"cmd.exe";
+    QString params = QString("/c mklink /d \"%1\" \"%2\"").arg(linkPath).arg(targetPath);
+    sei.lpParameters = (LPCWSTR)params.utf16();
+    sei.nShow = SW_HIDE;
+    sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+
+    if (ShellExecuteExW(&sei)) {
+        if (sei.hProcess != NULL) {
+            WaitForSingleObject(sei.hProcess, INFINITE);
+            CloseHandle(sei.hProcess);
+        }
+    }
+
+    return IsCorrectSymlink(linkPath, targetPath);
 }
