@@ -541,9 +541,6 @@ void MapImporter::ImportSounds() {
     }
 }
 
-#define NOMINMAX
-#include <windows.h>
-
 bool MapImporter::Run() {
     if (Miscellaneous::CanceLImport) return false;
     Miscellaneous::Log("Starting Map Import process.");
@@ -578,17 +575,17 @@ bool MapImporter::Run() {
             Miscellaneous::Log("Existing correct symbolic link found at: " + fakeCsgoPath);
             targetS1gamedir = fakeCsgoPath;
         } else {
-            DWORD attr = GetFileAttributesW((LPCWSTR)fakeCsgoPath.utf16());
-            bool exists = (attr != INVALID_FILE_ATTRIBUTES);
+            QFileInfo fakeCsgoInfo(fakeCsgoPath);
+            bool exists = fakeCsgoInfo.exists() || fakeCsgoInfo.isSymLink();
 
             if (exists) {
-                if (attr & FILE_ATTRIBUTE_REPARSE_POINT) {
+                if (fakeCsgoInfo.isSymLink()) {
                     Miscellaneous::Log("Removing incorrect symbolic link at: " + fakeCsgoPath);
-                    RemoveDirectoryW((LPCWSTR)fakeCsgoPath.utf16());
+                    QFile::remove(fakeCsgoPath);
                 } else {
                     QString backupPath = s1gameBasefolder + "/csgo_backup";
                     int backupIdx = 1;
-                    while (GetFileAttributesW((LPCWSTR)QDir::toNativeSeparators(backupPath).utf16()) != INVALID_FILE_ATTRIBUTES) {
+                    while (QFileInfo::exists(backupPath)) {
                         backupPath = s1gameBasefolder + "/csgo_backup_" + QString::number(backupIdx++);
                     }
                     QString nativeBackupPath = QDir::toNativeSeparators(backupPath);
@@ -602,7 +599,7 @@ bool MapImporter::Run() {
                         return false;
                     }
 
-                    if (!MoveFileW((LPCWSTR)fakeCsgoPath.utf16(), (LPCWSTR)nativeBackupPath.utf16())) {
+                    if (!QDir().rename(fakeCsgoPath, nativeBackupPath)) {
                         Miscellaneous::Log("Error: Failed to rename existing csgo folder to " + nativeBackupPath);
                         Miscellaneous::ShowMessageBox(
                             "Error Renaming Folder",

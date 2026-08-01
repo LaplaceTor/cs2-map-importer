@@ -316,38 +316,14 @@ void Miscellaneous::EnsureFileWritable(const QString& filepath) {
 }
 
 bool Miscellaneous::IsCorrectSymlink(const QString& linkPath, const QString& targetPath) {
-    DWORD attr = GetFileAttributesW((LPCWSTR)linkPath.utf16());
-    if (attr == INVALID_FILE_ATTRIBUTES) {
-        return false;
-    }
-    if (!(attr & FILE_ATTRIBUTE_REPARSE_POINT)) {
-        return false;
-    }
-    HANDLE hFile = CreateFileW(
-        (LPCWSTR)linkPath.utf16(),
-        0,
-        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-        NULL,
-        OPEN_EXISTING,
-        FILE_FLAG_BACKUP_SEMANTICS,
-        NULL
-    );
-    if (hFile == INVALID_HANDLE_VALUE) {
-        return false;
-    }
-    wchar_t resolvedPath[MAX_PATH];
-    DWORD len = GetFinalPathNameByHandleW(hFile, resolvedPath, MAX_PATH, 0);
-    CloseHandle(hFile);
-    if (len > 0 && len < MAX_PATH) {
-        QString resolved = QString::fromWCharArray(resolvedPath);
-        if (resolved.startsWith("\\\\?\\")) {
-            resolved = resolved.mid(4);
-        }
-        QString normResolved = QDir::toNativeSeparators(resolved).trimmed();
-        QString normTarget = QDir::toNativeSeparators(targetPath).trimmed();
-        if (normResolved.endsWith('\\')) normResolved.chop(1);
+    QFileInfo info(linkPath);
+    if (info.isSymLink()) {
+        QString target = info.symLinkTarget();
+        QString normTarget = QDir::toNativeSeparators(target).trimmed();
+        QString normExpected = QDir::toNativeSeparators(targetPath).trimmed();
         if (normTarget.endsWith('\\')) normTarget.chop(1);
-        if (normResolved.compare(normTarget, Qt::CaseInsensitive) == 0) {
+        if (normExpected.endsWith('\\')) normExpected.chop(1);
+        if (normTarget.compare(normExpected, Qt::CaseInsensitive) == 0) {
             return true;
         }
     }
