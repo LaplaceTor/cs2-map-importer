@@ -597,21 +597,18 @@ bool MapImporter::Run() {
                         .arg(fakeCsgoPath)
                         .arg(nativeBackupPath);
 
-                    int btn = MessageBoxW(NULL,
-                        (LPCWSTR)msgText.utf16(),
-                        L"Action Required: Replace csgo Folder",
-                        MB_YESNO | MB_ICONWARNING);
-                    if (btn != IDYES) {
+                    if (!Miscellaneous::ShowMessageBox("Action Required: Replace csgo Folder", msgText, 1, true)) {
                         Miscellaneous::Log("User declined to replace the existing 'csgo' folder. Import process aborted.");
                         return false;
                     }
 
                     if (!MoveFileW((LPCWSTR)fakeCsgoPath.utf16(), (LPCWSTR)nativeBackupPath.utf16())) {
                         Miscellaneous::Log("Error: Failed to rename existing csgo folder to " + nativeBackupPath);
-                        MessageBoxW(NULL,
-                            (LPCWSTR)QString("Failed to rename the existing 'csgo' folder to '%1'.\nImport process aborted.").arg(QFileInfo(nativeBackupPath).fileName()).utf16(),
-                            L"Error Renaming Folder",
-                            MB_OK | MB_ICONERROR);
+                        Miscellaneous::ShowMessageBox(
+                            "Error Renaming Folder",
+                            QString("Failed to rename the existing 'csgo' folder to '%1'.\nImport process aborted.").arg(QFileInfo(nativeBackupPath).fileName()),
+                            2
+                        );
                         return false;
                     }
                 }
@@ -622,10 +619,11 @@ bool MapImporter::Run() {
                 targetS1gamedir = fakeCsgoPath;
             } else {
                 Miscellaneous::Log("Error: Failed to create symbolic link at " + fakeCsgoPath);
-                MessageBoxW(NULL,
-                    L"Failed to create the directory symbolic link. Please make sure you have granted Administrator privileges when prompted.\n\nImport process aborted.",
-                    L"Error Creating Symbolic Link",
-                    MB_OK | MB_ICONERROR);
+                Miscellaneous::ShowMessageBox(
+                    "Error Creating Symbolic Link",
+                    "Failed to create the directory symbolic link. Please make sure you have granted Administrator privileges when prompted.\n\nImport process aborted.",
+                    2
+                );
                 return false;
             }
         }

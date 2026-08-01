@@ -3,6 +3,9 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <QDir>
+#include <QMessageBox>
+#include <QApplication>
+#include <QMetaObject>
 #include <QFile>
 #include <QFileInfo>
 #include <QTextStream>
@@ -354,11 +357,7 @@ bool Miscellaneous::IsCorrectSymlink(const QString& linkPath, const QString& tar
 bool Miscellaneous::CreateSymlink(const QString& linkPath, const QString& targetPath) {
     QString msgText = QString("To fix texture scale errors, the map importer needs to create a directory symbolic link (symlink) named 'csgo' pointing to your Source 1 game directory:\n%1\n\nThis will allow the importer to treat the game as CS:GO and import it properly.\n\nCreating symbolic links requires Administrator privileges. Would you like to request administrator permission and create the symlink?").arg(targetPath);
 
-    int btn = MessageBoxW(NULL,
-        (LPCWSTR)msgText.utf16(),
-        L"Administrator Permission Required",
-        MB_YESNO | MB_ICONINFORMATION);
-    if (btn != IDYES) {
+    if (!ShowMessageBox("Administrator Permission Required", msgText, 0, true)) {
         Miscellaneous::Log("User declined administrator elevation. Import process aborted.");
         return false;
     }
@@ -380,4 +379,26 @@ bool Miscellaneous::CreateSymlink(const QString& linkPath, const QString& target
     }
 
     return IsCorrectSymlink(linkPath, targetPath);
+}
+
+bool Miscellaneous::ShowMessageBox(const QString& title, const QString& text, int iconType, bool showYesNo) {
+    QMessageBox::Icon icon = QMessageBox::Information;
+    if (iconType == 1) icon = QMessageBox::Warning;
+    else if (iconType == 2) icon = QMessageBox::Critical;
+
+    QMessageBox::StandardButtons buttons = showYesNo ? (QMessageBox::Yes | QMessageBox::No) : QMessageBox::Ok;
+
+    int result = QMessageBox::No;
+    QMetaObject::invokeMethod(qApp, [&]() {
+        QMessageBox msgBox;
+        msgBox.setWindowTitle(title);
+        msgBox.setText(text);
+        msgBox.setIcon(icon);
+        msgBox.setStandardButtons(buttons);
+        msgBox.setDefaultButton(showYesNo ? QMessageBox::No : QMessageBox::Ok);
+        msgBox.setWindowFlags(msgBox.windowFlags() | Qt::WindowStaysOnTopHint);
+        result = msgBox.exec();
+    }, Qt::BlockingQueuedConnection);
+
+    return showYesNo ? (result == QMessageBox::Yes) : (result == QMessageBox::Ok);
 }

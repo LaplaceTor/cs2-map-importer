@@ -84,6 +84,7 @@ public:
 
     static bool IsCorrectSymlink(const QString& linkPath, const QString& targetPath);
     static bool CreateSymlink(const QString& linkPath, const QString& targetPath);
+    static bool ShowMessageBox(const QString& title, const QString& text, int iconType, bool showYesNo = false);
 
 private:
 };
