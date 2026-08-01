@@ -277,21 +277,17 @@ void MapImporter::ImportAndCompileMapRefs() {
     QStringList arguments = {
         "-retail",
         "-nop4",
-        "-nop4sync"
+        "-nop4sync",
+        "-src1gameinfodir",
+        QDir::toNativeSeparators(Miscellaneous::GetOptions().s1gamedir),
+        "-src1contentdir",
+        QDir::toNativeSeparators(Miscellaneous::GetOptions().s1contentdir),
+        "-s2addon",
+        Miscellaneous::GetOptions().addonName,
+        "-game",
+        "csgo",
+        QDir::toNativeSeparators("maps/" + Miscellaneous::GetOptions().mapName + ".vmf")
     };
-    if (Miscellaneous::GetOptions().usebsp) {
-        arguments << "-usebsp";
-    }
-    if (Miscellaneous::GetOptions().usebspNomergeinstances) {
-        arguments << "-usebsp_nomergeinstances";
-    }
-
-    QString targetS1gamedir = Miscellaneous::GetOptions().csgogamedir;
-    arguments << "-src1gameinfodir" << QDir::toNativeSeparators(targetS1gamedir);
-    arguments << "-src1contentdir" << QDir::toNativeSeparators(Miscellaneous::GetOptions().s1contentdir);
-    arguments << "-s2addon" << Miscellaneous::GetOptions().addonName;
-    arguments << "-game" << "csgo";
-    arguments << QDir::toNativeSeparators("maps/" + Miscellaneous::GetOptions().mapName + ".vmf");
 
     QStringList outputLines;
     Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, true, &outputLines, true, Miscellaneous::GetOptions().s1GameType == "csgo");
@@ -547,8 +543,16 @@ void MapImporter::ImportSounds() {
 
 bool MapImporter::Run() {
     if (Miscellaneous::CanceLImport) return false;
-    Miscellaneous::Log("Starting Map Import process via C++.");
+    Miscellaneous::Log("Starting Map Import process.");
 
+    if (!Miscellaneous::GetOptions().skipdeps) {
+        if (Miscellaneous::CanceLImport) return false;
+        ImportAndCompileMapRefs();
+        ImportAndCompileMapMDLs(QDir::toNativeSeparators(Miscellaneous::GetOptions().s2contentdir + "/maps/" + Miscellaneous::GetOptions().mapName + "_refs.txt"));
+        ImportParticles();
+        ImportSounds();
+        MaterialFix::FixMaterials();
+    }
     QStringList arguments = {
         "-retail",
         "-nop4",
@@ -566,22 +570,9 @@ bool MapImporter::Run() {
     arguments << "-s2addon" << Miscellaneous::GetOptions().addonName;
     arguments << "-game" << "csgo";
     arguments << QDir::toNativeSeparators("maps/" + Miscellaneous::GetOptions().mapName + ".vmf");
-
-    QString mMapname = Miscellaneous::GetOptions().mapName;
-    int pos = mMapname.indexOf("instances");
-    if (pos != -1) {
-        mMapname.replace(pos, 9, "prefabs");
-    }
-
-    if (!Miscellaneous::GetOptions().skipdeps) {
-        if (Miscellaneous::CanceLImport) return false;
-        ImportAndCompileMapRefs();
-        ImportAndCompileMapMDLs(QDir::toNativeSeparators(Miscellaneous::GetOptions().s2contentdir + "/maps/" + mMapname + "_refs.txt"));
-        ImportParticles();
-        ImportSounds();
-        MaterialFix::FixMaterials();
-    }
+    
     Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, false, nullptr, true, Miscellaneous::GetOptions().s1GameType == "csgo");
+
     if (Miscellaneous::CanceLImport) return false;
     Miscellaneous::Log("Import process complete.");
     return true;
