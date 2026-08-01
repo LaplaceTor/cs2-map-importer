@@ -541,6 +541,51 @@ void MapImporter::ImportSounds() {
     }
 }
 
+#define NOMINMAX
+#include <windows.h>
+#include <shellapi.h>
+
+namespace {
+bool IsCorrectSymlink(const QString& linkPath, const QString& targetPath) {
+    DWORD attr = GetFileAttributesW((LPCWSTR)linkPath.utf16());
+    if (attr == INVALID_FILE_ATTRIBUTES) {
+        return false;
+    }
+    if (!(attr & FILE_ATTRIBUTE_REPARSE_POINT)) {
+        return false;
+    }
+    HANDLE hFile = CreateFileW(
+        (LPCWSTR)linkPath.utf16(),
+        0,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        NULL,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS,
+        NULL
+    );
+    if (hFile == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    wchar_t resolvedPath[MAX_PATH];
+    DWORD len = GetFinalPathNameByHandleW(hFile, resolvedPath, MAX_PATH, 0);
+    CloseHandle(hFile);
+    if (len > 0 && len < MAX_PATH) {
+        QString resolved = QString::fromWCharArray(resolvedPath);
+        if (resolved.startsWith("\\\\?\\")) {
+            resolved = resolved.mid(4);
+        }
+        QString normResolved = QDir::toNativeSeparators(resolved).trimmed();
+        QString normTarget = QDir::toNativeSeparators(targetPath).trimmed();
+        if (normResolved.endsWith('\\')) normResolved.chop(1);
+        if (normTarget.endsWith('\\')) normTarget.chop(1);
+        if (normResolved.compare(normTarget, Qt::CaseInsensitive) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+}
+
 bool MapImporter::Run() {
     if (Miscellaneous::CanceLImport) return false;
     Miscellaneous::Log("Starting Map Import process.");
@@ -565,6 +610,96 @@ bool MapImporter::Run() {
     }
     
     QString targetS1gamedir = Miscellaneous::GetOptions().csgogamedir;
+
+    if (Miscellaneous::GetOptions().s1GameType.compare("csgo", Qt::CaseInsensitive) != 0) {
+        QString s1gameBasefolder = Miscellaneous::GetOptions().s1gameBasefolder;
+        QString fakeCsgoPath = QDir::toNativeSeparators(s1gameBasefolder + "/csgo");
+        QString s1gamedir = QDir::toNativeSeparators(Miscellaneous::GetOptions().s1gamedir);
+
+        if (IsCorrectSymlink(fakeCsgoPath, s1gamedir)) {
+            Miscellaneous::Log("Existing correct symbolic link found at: " + fakeCsgoPath);
+            targetS1gamedir = fakeCsgoPath;
+        } else {
+            DWORD attr = GetFileAttributesW((LPCWSTR)fakeCsgoPath.utf16());
+            bool exists = (attr != INVALID_FILE_ATTRIBUTES);
+
+            if (exists) {
+                if (attr & FILE_ATTRIBUTE_REPARSE_POINT) {
+                    Miscellaneous::Log("Removing incorrect symbolic link at: " + fakeCsgoPath);
+                    RemoveDirectoryW((LPCWSTR)fakeCsgoPath.utf16());
+                } else {
+                    QString backupPath = s1gameBasefolder + "/csgo_backup";
+                    int backupIdx = 1;
+                    while (GetFileAttributesW((LPCWSTR)QDir::toNativeSeparators(backupPath).utf16()) != INVALID_FILE_ATTRIBUTES) {
+                        backupPath = s1gameBasefolder + "/csgo_backup_" + QString::number(backupIdx++);
+                    }
+                    QString nativeBackupPath = QDir::toNativeSeparators(backupPath);
+
+                    QString msgText = QString("The map importer has detected a real folder or file at:\n%1\n\nTo fix texture scale errors, we must create a directory symbolic link (symlink) named 'csgo' pointing to your Source 1 game directory so that the importer can treat it like CS:GO.\n\nSince a real folder already exists, we need to rename it to a backup directory:\n%2\n\nWould you like to proceed with renaming the existing folder and creating the symbolic link?")
+                        .arg(fakeCsgoPath)
+                        .arg(nativeBackupPath);
+
+                    int btn = MessageBoxW(NULL,
+                        (LPCWSTR)msgText.utf16(),
+                        L"Action Required: Replace csgo Folder",
+                        MB_YESNO | MB_ICONWARNING);
+                    if (btn != IDYES) {
+                        Miscellaneous::Log("User declined to replace the existing 'csgo' folder. Import process aborted.");
+                        return false;
+                    }
+
+                    if (!MoveFileW((LPCWSTR)fakeCsgoPath.utf16(), (LPCWSTR)nativeBackupPath.utf16())) {
+                        Miscellaneous::Log("Error: Failed to rename existing csgo folder to " + nativeBackupPath);
+                        MessageBoxW(NULL,
+                            (LPCWSTR)QString("Failed to rename the existing 'csgo' folder to '%1'.\nImport process aborted.").arg(QFileInfo(nativeBackupPath).fileName()).utf16(),
+                            L"Error Renaming Folder",
+                            MB_OK | MB_ICONERROR);
+                        return false;
+                    }
+                }
+            }
+
+            QString msgText = QString("To fix texture scale errors, the map importer needs to create a directory symbolic link (symlink) named 'csgo' pointing to your Source 1 game directory:\n%1\n\nThis will allow the importer to treat the game as CS:GO and import it properly.\n\nCreating symbolic links requires Administrator privileges. Would you like to request administrator permission and create the symlink?").arg(s1gamedir);
+
+            int btn = MessageBoxW(NULL,
+                (LPCWSTR)msgText.utf16(),
+                L"Administrator Permission Required",
+                MB_YESNO | MB_ICONINFORMATION);
+            if (btn != IDYES) {
+                Miscellaneous::Log("User declined administrator elevation. Import process aborted.");
+                return false;
+            }
+
+            SHELLEXECUTEINFOW sei = { sizeof(sei) };
+            sei.cbSize = sizeof(sei);
+            sei.lpVerb = L"runas";
+            sei.lpFile = L"cmd.exe";
+            QString params = QString("/c mklink /d \"%1\" \"%2\"").arg(fakeCsgoPath).arg(s1gamedir);
+            sei.lpParameters = (LPCWSTR)params.utf16();
+            sei.nShow = SW_HIDE;
+            sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+
+            if (ShellExecuteExW(&sei)) {
+                if (sei.hProcess != NULL) {
+                    WaitForSingleObject(sei.hProcess, INFINITE);
+                    CloseHandle(sei.hProcess);
+                }
+            }
+
+            if (IsCorrectSymlink(fakeCsgoPath, s1gamedir)) {
+                Miscellaneous::Log("Successfully created directory symbolic link: " + fakeCsgoPath + " -> " + s1gamedir);
+                targetS1gamedir = fakeCsgoPath;
+            } else {
+                Miscellaneous::Log("Error: Failed to create symbolic link at " + fakeCsgoPath);
+                MessageBoxW(NULL,
+                    L"Failed to create the directory symbolic link. Please make sure you have granted Administrator privileges when prompted.\n\nImport process aborted.",
+                    L"Error Creating Symbolic Link",
+                    MB_OK | MB_ICONERROR);
+                return false;
+            }
+        }
+    }
+
     arguments << "-src1gameinfodir" << QDir::toNativeSeparators(targetS1gamedir);
     arguments << "-src1contentdir" << QDir::toNativeSeparators(Miscellaneous::GetOptions().s1contentdir);
     arguments << "-s2addon" << Miscellaneous::GetOptions().addonName;
