@@ -27,9 +27,9 @@ static bool SearchAndExtractFile(const QString& filepath, const QString& content
                 "-o",
                 QDir::toNativeSeparators(contentPath)
             };
-            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
+            int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
 
-            if (QFile::exists(contentPath)) {
+            if (ret == 100) {
                 QFileInfo fi(outPath);
                 QDir().mkpath(fi.absolutePath());
                 if (QFile::exists(outPath)) {
@@ -74,9 +74,9 @@ static bool SearchAndExtractFile(const QString& filepath, const QString& content
                     "-o",
                     QDir::toNativeSeparators(contentPath)
                 };
-                Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
+                int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
 
-                if (QFile::exists(contentPath)) {
+                if (ret == 100) {
                     QFileInfo fi(outPath);
                     QDir().mkpath(fi.absolutePath());
                     if (QFile::exists(outPath)) {
@@ -124,9 +124,9 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath) {
                 "-o",
                 QDir::toNativeSeparators(contentPath)
             };
-            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
+            int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
 
-            if (QFile::exists(contentPath)) {
+            if (ret == 100) {
                 QFileInfo fiOut(outPath);
                 QDir().mkpath(fiOut.absolutePath());
                 if (QFile::exists(outPath)) {
@@ -176,9 +176,9 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath) {
                     "-o",
                     QDir::toNativeSeparators(contentPath)
                 };
-                Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
+                int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
 
-                if (QFile::exists(contentPath)) {
+                if (ret == 100) {
                     QFileInfo fiOut(outPath);
                     QDir().mkpath(fiOut.absolutePath());
                     if (QFile::exists(outPath)) {
@@ -214,9 +214,9 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath) {
                     "-o",
                     QDir::toNativeSeparators(contentPath)
                 };
-                Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
+                int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
 
-                if (QFile::exists(contentPath)) {
+                if (ret == 100) {
                     QFileInfo fiOut(outPath);
                     QDir().mkpath(fiOut.absolutePath());
                     if (QFile::exists(outPath)) {

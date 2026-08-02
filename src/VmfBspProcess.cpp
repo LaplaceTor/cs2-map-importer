@@ -1130,7 +1130,7 @@ void VmfBspProcess::ProcessBsp() {
                 QDir::toNativeSeparators(Miscellaneous::GetOptions().bspFile)
             };
             int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
-            if (vpk_ret != 0) {
+            if (vpk_ret != 100) {
                 Miscellaneous::Log("Warning: vpkeditcli failed to extract embedded files.");
             } else {
                 Miscellaneous::Log("Successfully extracted embedded files to " + target_unpacked_dir);

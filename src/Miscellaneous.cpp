@@ -387,6 +387,8 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
     bool isSource1Import = (program == PROGRAM_SOURCE1IMPORT);
     bool hasParseEparError = false;
 
+    QStringList vpkeditcliLines;
+
     auto processOutput = [&](const QString& outStr) {
         for (QChar c : outStr) {
             if (c == '\n') {
@@ -397,6 +399,9 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
                     }
                     if (logOutString) {
                         logOutString->append(lineBuffer);
+                    }
+                    if (program == PROGRAM_VPKEDITCLI) {
+                        vpkeditcliLines.append(lineBuffer);
                     }
                     if (isSource1Import && isMap && lineBuffer.contains("ParseEpar: token too long")) {
                         hasParseEparError = true;
@@ -443,6 +448,33 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
         }
         if (logOutString) {
             logOutString->append(lineBuffer);
+        }
+        if (program == PROGRAM_VPKEDITCLI) {
+            vpkeditcliLines.append(lineBuffer);
+        }
+    }
+
+    if (program == PROGRAM_VPKEDITCLI) {
+        bool hasSuccess = false;
+        bool hasNotFound = false;
+        for (const QString& line : vpkeditcliLines) {
+            QString lowerLine = line.toLower();
+            if (lowerLine.contains("extracted file at") || lowerLine.contains("extracted pack file contents under")) {
+                hasSuccess = true;
+            } else if (lowerLine.contains("could not find file at")) {
+                hasNotFound = true;
+            }
+        }
+        if (hasSuccess) {
+            return 100;
+        } else if (hasNotFound) {
+            return 99;
+        } else {
+            QString errOutput = vpkeditcliLines.join("\n");
+            if (errOutput.isEmpty()) {
+                errOutput = "(No output)";
+            }
+            throw AppException("VPKEditCLI execution failed with unexpected output:\n" + errOutput);
         }
     }
 
