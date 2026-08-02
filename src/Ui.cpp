@@ -775,6 +775,8 @@ void Backend::SaveToCfg()
     settings.setValue("gmodgamedir", gmodgamedir);
     settings.setValue("blackmesagamedir", blackmesagamedir);
     settings.setValue("othergameinfo", othergameinfo);
+    settings.setValue("othergamedir", othergamedir);
+    settings.setValue("otherbasefolder", otherbasefolder);
     settings.setValue("content_folder_to_save", contentFolderToSave);
     settings.setValue("s1_game_type", s1GameType);
 }
@@ -814,6 +816,8 @@ void Backend::LoadFromCfg()
     gmodgamedir = settings.value("gmodgamedir", "").toString();
     blackmesagamedir = settings.value("blackmesagamedir", "").toString();
     othergameinfo = settings.value("othergameinfo", "").toString();
+    othergamedir = settings.value("othergamedir", "").toString();
+    otherbasefolder = settings.value("otherbasefolder", "").toString();
     contentFolderToSave = settings.value("content_folder_to_save", "C:\\").toString();
     vmfDefaultPath = contentFolderToSave;
     s1GameType = settings.value("s1_game_type", "csgo").toString();
