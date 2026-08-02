@@ -48,6 +48,8 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     Miscellaneous::Log("--------------------------------");
 
     QSet<QString> mdlmtls;
+    QStringList successfullyImportedMdlFiles;
+    QStringList errorMdlFiles;
 
     for (const QString& m : mdlfiles) {
         if (Miscellaneous::CanceLImport) return;
@@ -72,7 +74,12 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
             QDir::toNativeSeparators(Miscellaneous::GetOptions().s2contentdir),
             infile
         };
-        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_CS_MDL_IMPORT, arguments);
+        int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_CS_MDL_IMPORT, arguments);
+        if (ret != 100) {
+            errorMdlFiles.append(m);
+            continue;
+        }
+        successfullyImportedMdlFiles.append(m);
 
         if (QFile::exists(refsName)) {
             QStringList modelRefs = Miscellaneous::ReadTextFile(refsName);
@@ -225,7 +232,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     QSet<QString> global2UVMaterials;
     QMap<QString, bool> mdlForceCompile;
 
-    for (const QString& m : mdlfiles) {
+    for (const QString& m : successfullyImportedMdlFiles) {
         if (Miscellaneous::CanceLImport) return;
         if (m.isEmpty() || m.startsWith('-')) continue;
         QString mdlfile = Miscellaneous::CleanRefPath(m);
@@ -247,7 +254,9 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
 
     global2UVMaterials.clear();
 
-    for (const QString& m : mdlfiles) {
+    QStringList failedCompileMdlFiles;
+
+    for (const QString& m : successfullyImportedMdlFiles) {
         if (Miscellaneous::CanceLImport) return;
         if (m.isEmpty() || m.startsWith('-')) continue;
         QString mdlfile = Miscellaneous::CleanRefPath(m);
@@ -257,7 +266,10 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         int pos = outName.lastIndexOf(".mdl");
         if (pos != -1) outName.replace(pos, 4, ".vmdl");
 
-        if (!QFile::exists(outName)) continue;
+        if (!QFile::exists(outName)) {
+            failedCompileMdlFiles.append(m);
+            continue;
+        }
 
         bool bForceCompile = mdlForceCompile.value(m, false);
 
@@ -269,7 +281,35 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
             argumentsRc << "-f";
         }
         argumentsRc << "-game" << "csgo" << QDir::toNativeSeparators(outName);
-        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
+        int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
+        if (ret != 100) {
+            failedCompileMdlFiles.append(m);
+        }
+    }
+
+    for (const QString& m : failedCompileMdlFiles) {
+        successfullyImportedMdlFiles.removeAll(m);
+        errorMdlFiles.append(m);
+    }
+
+    Miscellaneous::Log("Imported models");
+    Miscellaneous::Log("--------------------------------");
+    for (const QString& x : successfullyImportedMdlFiles) {
+        if (Miscellaneous::CanceLImport) return;
+        if (x.isEmpty() || x.startsWith('-')) continue;
+        Miscellaneous::Log(x);
+    }
+    Miscellaneous::Log("--------------------------------");
+
+    if (!errorMdlFiles.isEmpty()) {
+        Miscellaneous::Log("Failed/Error models");
+        Miscellaneous::Log("--------------------------------");
+        for (const QString& x : errorMdlFiles) {
+            if (Miscellaneous::CanceLImport) return;
+            if (x.isEmpty() || x.startsWith('-')) continue;
+            Miscellaneous::Log(x);
+        }
+        Miscellaneous::Log("--------------------------------");
     }
 }
 

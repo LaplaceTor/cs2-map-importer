@@ -39,9 +39,13 @@ bool ModelImporter::Run(const QString& mdlPath) {
     QString outputDir = QDir::toNativeSeparators(opts.s2contentdir + "/models");
     arguments << "-o" << outputDir << fullMdlPath;
 
-    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_CS_MDL_IMPORT, arguments);
+    int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_CS_MDL_IMPORT, arguments);
 
     if (Miscellaneous::CanceLImport) return false;
+    if (ret != 100) {
+        Miscellaneous::Log("Model import failed or model was not found.");
+        return false;
+    }
 
     // Define output path for refs file
     QString refsName = QDir::toNativeSeparators(QDir(outputDir).filePath(QFileInfo(fullMdlPath).fileName()));

@@ -1104,7 +1104,7 @@ void VmfBspProcess::ProcessBsp() {
     };
     int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_BSPSRC, arguments);
     if (Miscellaneous::CanceLImport) return;
-    if (ret != 0) {
+    if (ret != 100) {
         throw AppException("BSP Decompilation failed.");
     }
 
@@ -1130,8 +1130,8 @@ void VmfBspProcess::ProcessBsp() {
                 QDir::toNativeSeparators(Miscellaneous::GetOptions().bspFile)
             };
             int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
-            if (vpk_ret != 0) {
-                Miscellaneous::Log("Warning: vpkeditcli failed to extract embedded files.");
+            if (vpk_ret != 100) {
+                throw AppException("vpkeditcli failed to extract embedded files.");
             } else {
                 Miscellaneous::Log("Successfully extracted embedded files to " + target_unpacked_dir);
             }

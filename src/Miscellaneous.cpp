@@ -387,6 +387,8 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
     bool isSource1Import = (program == PROGRAM_SOURCE1IMPORT);
     bool hasParseEparError = false;
 
+    QStringList cmdOutputLines;
+
     auto processOutput = [&](const QString& outStr) {
         for (QChar c : outStr) {
             if (c == '\n') {
@@ -397,6 +399,9 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
                     }
                     if (logOutString) {
                         logOutString->append(lineBuffer);
+                    }
+                    if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER || program == PROGRAM_BSPSRC || program == PROGRAM_VTFCMD) {
+                        cmdOutputLines.append(lineBuffer);
                     }
                     if (isSource1Import && isMap && lineBuffer.contains("ParseEpar: token too long")) {
                         hasParseEparError = true;
@@ -443,6 +448,108 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
         }
         if (logOutString) {
             logOutString->append(lineBuffer);
+        }
+        if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER || program == PROGRAM_BSPSRC || program == PROGRAM_VTFCMD) {
+            cmdOutputLines.append(lineBuffer);
+        }
+    }
+
+    if (program == PROGRAM_VPKEDITCLI) {
+        bool hasSuccess = false;
+        bool hasNotFound = false;
+        for (const QString& line : cmdOutputLines) {
+            QString lowerLine = line.toLower();
+            if (lowerLine.contains("extracted file at") || lowerLine.contains("extracted pack file contents under")) {
+                hasSuccess = true;
+            } else if (lowerLine.contains("could not find file at")) {
+                hasNotFound = true;
+            }
+        }
+        if (hasSuccess) {
+            return 100;
+        } else if (hasNotFound) {
+            return 99;
+        } else {
+            return 98;
+        }
+    }
+
+    if (program == PROGRAM_CS_MDL_IMPORT) {
+        bool hasSuccess = false;
+        bool hasNotFound = false;
+        for (const QString& line : cmdOutputLines) {
+            QString lowerLine = line.toLower();
+            if (lowerLine.contains("mdl files successfully converted")) {
+                hasSuccess = true;
+            } else if (lowerLine.contains("no input files found")) {
+                hasNotFound = true;
+            }
+        }
+        if (hasSuccess) {
+            return 100;
+        } else if (hasNotFound) {
+            return 99;
+        } else {
+            return 98;
+        }
+    }
+
+    if (program == PROGRAM_RESOURCECOMPILER) {
+        bool hasSuccess = false;
+        bool hasNotFound = false;
+        bool hasError = false;
+        for (const QString& line : cmdOutputLines) {
+            QString lowerLine = line.toLower().trimmed();
+            if (lowerLine.contains("ok:")) {
+                hasSuccess = true;
+            } else if (lowerLine.contains("found no files matching specification")) {
+                hasNotFound = true;
+            } else if (lowerLine.contains("error:")) {
+                hasError = true;
+            }
+        }
+        if (hasSuccess) {
+            return 100;
+        } else if (hasNotFound) {
+            return 99;
+        } else if (hasError) {
+            return 98;
+        } else {
+            return 97;
+        }
+    }
+
+    if (program == PROGRAM_BSPSRC) {
+        bool hasSuccess = false;
+        for (const QString& line : cmdOutputLines) {
+            if (line.toLower().contains("decompiled successfully")) {
+                hasSuccess = true;
+                break;
+            }
+        }
+        if (hasSuccess) {
+            return 100;
+        } else {
+            QString errOutput = cmdOutputLines.join("\n");
+            if (errOutput.isEmpty()) {
+                errOutput = "(No output)";
+            }
+            throw AppException("BSP Decompilation failed with unexpected output:\n" + errOutput);
+        }
+    }
+
+    if (program == PROGRAM_VTFCMD) {
+        bool hasSuccess = false;
+        for (const QString& line : cmdOutputLines) {
+            if (line.toLower().contains("files completed")) {
+                hasSuccess = true;
+                break;
+            }
+        }
+        if (hasSuccess) {
+            return 100;
+        } else {
+            return 98;
         }
     }
 
