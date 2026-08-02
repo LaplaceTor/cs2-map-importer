@@ -1,6 +1,5 @@
 #include "SoundscapeImport.h"
 #include "Miscellaneous.h"
-#include "MapImporter.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -321,7 +320,7 @@ static QString FormatVsndPath(QString wavePath) {
     return wavePath;
 }
 
-void SoundscapeImport::ImportSoundscapes(MapImporter* importer, QSet<QString>& uniqueSounds) {
+void SoundscapeImport::ImportSoundscapes(QSet<QString>& uniqueSounds) {
     QString vmfPath = QDir(Miscellaneous::GetOptions().appDir).filePath("maps/" + Miscellaneous::GetOptions().mapName + "/maps/" + Miscellaneous::GetOptions().mapName + ".vmf");
     ProcessVmfConnections(vmfPath, uniqueSounds);
 

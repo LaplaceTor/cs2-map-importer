@@ -514,7 +514,7 @@ void MapImporter::ImportSounds() {
     Miscellaneous::Log("Importing sounds...");
     
     QSet<QString> uniqueSounds;
-    SoundscapeImport::ImportSoundscapes(this, uniqueSounds);
+    SoundscapeImport::ImportSoundscapes(uniqueSounds);
 
     if (!uniqueSounds.isEmpty()) {
         QString soundListFile = QDir::toNativeSeparators(Miscellaneous::GetOptions().s2contentdir + "/maps/" + Miscellaneous::GetOptions().mapName + "_sound_list.txt");
