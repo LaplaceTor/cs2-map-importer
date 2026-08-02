@@ -400,7 +400,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
                     if (logOutString) {
                         logOutString->append(lineBuffer);
                     }
-                    if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER || program == PROGRAM_BSPSRC) {
+                    if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER || program == PROGRAM_BSPSRC || program == PROGRAM_VTFCMD) {
                         cmdOutputLines.append(lineBuffer);
                     }
                     if (isSource1Import && isMap && lineBuffer.contains("ParseEpar: token too long")) {
@@ -449,7 +449,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
         if (logOutString) {
             logOutString->append(lineBuffer);
         }
-        if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER || program == PROGRAM_BSPSRC) {
+        if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER || program == PROGRAM_BSPSRC || program == PROGRAM_VTFCMD) {
             cmdOutputLines.append(lineBuffer);
         }
     }
@@ -539,6 +539,21 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
                 errOutput = "(No output)";
             }
             throw AppException("BSP Decompilation failed with unexpected output:\n" + errOutput);
+        }
+    }
+
+    if (program == PROGRAM_VTFCMD) {
+        bool hasSuccess = false;
+        for (const QString& line : cmdOutputLines) {
+            if (line.toLower().contains("files completed")) {
+                hasSuccess = true;
+                break;
+            }
+        }
+        if (hasSuccess) {
+            return 100;
+        } else {
+            return 98;
         }
     }
 
