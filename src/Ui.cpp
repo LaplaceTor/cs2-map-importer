@@ -264,6 +264,10 @@ bool Backend::IsValidS1(const QString& path, const QString& type)
 {
     if (path.isEmpty()) return false;
 
+    if (type == "other") {
+        return path.endsWith("gameinfo.txt", Qt::CaseInsensitive) && QFileInfo(path).exists();
+    }
+
     bool valid = false;
 
     auto checkGameinfo = [&](const QString& folder, const QString& gamename) {
@@ -317,7 +321,11 @@ void Backend::SelectS1FolderDialog(const QUrl& url)
     if (path.isEmpty()) return;
 
     if (!IsValidS1(path, s1GameType)) {
-        emit alertMessage("Invalid Source 1 Folder", "The selected folder is not a valid installation for the selected game.\nPlease make sure it is the correct directory containing the gameinfo.txt.");
+        if (s1GameType == "other") {
+            emit alertMessage("Invalid gameinfo.txt", "The selected file is not a valid gameinfo.txt file.");
+        } else {
+            emit alertMessage("Invalid Source 1 Folder", "The selected folder is not a valid installation for the selected game.\nPlease make sure it is the correct directory containing the gameinfo.txt.");
+        }
         return;
     }
 
@@ -579,6 +587,8 @@ void Backend::SetS1Folder(const QString& path)
             gmodgamedir = path;
         } else if (s1GameType == "blackmesa") {
             blackmesagamedir = path;
+        } else if (s1GameType == "other") {
+            othergameinfo = path;
         } else {
             csgogamedir = path;
         }
@@ -762,6 +772,7 @@ void Backend::SaveToCfg()
     settings.setValue("tf2gamedir", tf2gamedir);
     settings.setValue("gmodgamedir", gmodgamedir);
     settings.setValue("blackmesagamedir", blackmesagamedir);
+    settings.setValue("othergameinfo", othergameinfo);
     settings.setValue("content_folder_to_save", contentFolderToSave);
     settings.setValue("s1_game_type", s1GameType);
 }
@@ -800,11 +811,12 @@ void Backend::LoadFromCfg()
     tf2gamedir = settings.value("tf2gamedir", "").toString();
     gmodgamedir = settings.value("gmodgamedir", "").toString();
     blackmesagamedir = settings.value("blackmesagamedir", "").toString();
+    othergameinfo = settings.value("othergameinfo", "").toString();
     contentFolderToSave = settings.value("content_folder_to_save", "C:\\").toString();
     vmfDefaultPath = contentFolderToSave;
     s1GameType = settings.value("s1_game_type", "csgo").toString();
 
-    QStringList valid_games = {"csgo", "css", "hl2", "l4d", "l4d2", "portal", "portal2", "tf2", "gmod", "blackmesa"};
+    QStringList valid_games = {"csgo", "css", "hl2", "l4d", "l4d2", "portal", "portal2", "tf2", "gmod", "blackmesa", "other"};
     if (!valid_games.contains(s1GameType)) {
         s1GameType = "csgo";
     }
@@ -841,6 +853,9 @@ void Backend::LoadFromCfg()
     }
     if (!blackmesagamedir.isEmpty() && !IsValidS1(blackmesagamedir, "blackmesa")) {
         blackmesagamedir = "";
+    }
+    if (!othergameinfo.isEmpty() && !IsValidS1(othergameinfo, "other")) {
+        othergameinfo = "";
     }
 
     AutoDetectPaths();
@@ -991,12 +1006,45 @@ void Backend::Start()
 
         Miscellaneous::Log("Starting Miscellaneous thread...");
 
+        QList<Miscellaneous::SearchTarget> searchTargets;
+        if (!skipdeps) {
+            QString gameinfoFile;
+            if (s1GameType == "other") {
+                gameinfoFile = GetS1gameBasefolder();
+            } else {
+                QString s1Subfolder = "csgo";
+                if (s1GameType == "css") s1Subfolder = "cstrike";
+                else if (s1GameType == "hl2") s1Subfolder = "hl2";
+                else if (s1GameType == "l4d") s1Subfolder = "left4dead";
+                else if (s1GameType == "l4d2") s1Subfolder = "left4dead2";
+                else if (s1GameType == "portal") s1Subfolder = "portal";
+                else if (s1GameType == "portal2") s1Subfolder = "portal2";
+                else if (s1GameType == "tf2") s1Subfolder = "tf";
+                else if (s1GameType == "gmod") s1Subfolder = "garrysmod";
+                else if (s1GameType == "blackmesa") s1Subfolder = "bms";
+
+                gameinfoFile = QDir(GetS1gameBasefolder()).filePath(s1Subfolder + "/gameinfo.txt");
+                if (!QFile::exists(gameinfoFile)) {
+                    gameinfoFile = QDir(GetS1gameBasefolder()).filePath(s1Subfolder + "/gameinfo.gi");
+                }
+            }
+
+            if (!gameinfoFile.isEmpty() && QFile::exists(gameinfoFile)) {
+                Miscellaneous::Log("Parsing gameinfo from: " + gameinfoFile);
+                Miscellaneous::ParseGameInfo(gameinfoFile, searchTargets);
+                Miscellaneous::Log(QString("Found %1 search targets from gameinfo.").arg(searchTargets.size()));
+            } else {
+                Miscellaneous::Log("Warning: gameinfo.txt/gi not found at: " + gameinfoFile);
+            }
+        }
+
         Miscellaneous::Options opts;
         opts.cs2Basefolder = QDir::toNativeSeparators(cs2Basefolder);
         opts.s1gameBasefolder = GetS1gameBasefolder();
         opts.csgogamedir = csgogamedir;
         opts.s1GameType = s1GameType;
         opts.appDir = appDir;
+        opts.searchTargets = searchTargets;
 
         if (activeTab == TAB_PARTICLE) {
             opts.addonName = selectedMdlAddon;
@@ -1150,18 +1198,22 @@ bool Backend::RunMapImportWorkflow(Miscellaneous::Options opts)
 
     if (Miscellaneous::CanceLImport) return false;
 
-    QString s1Subfolder = "csgo";
-    if (currentOpts.s1GameType == "css") s1Subfolder = "cstrike";
-    else if (currentOpts.s1GameType == "hl2") s1Subfolder = "hl2";
-    else if (currentOpts.s1GameType == "l4d") s1Subfolder = "left4dead";
-    else if (currentOpts.s1GameType == "l4d2") s1Subfolder = "left4dead2";
-    else if (currentOpts.s1GameType == "portal") s1Subfolder = "portal";
-    else if (currentOpts.s1GameType == "portal2") s1Subfolder = "portal2";
-    else if (currentOpts.s1GameType == "tf2") s1Subfolder = "tf";
-    else if (currentOpts.s1GameType == "gmod") s1Subfolder = "garrysmod";
-    else if (currentOpts.s1GameType == "blackmesa") s1Subfolder = "bms";
-
-    QString s1gamedir = QDir::toNativeSeparators(currentOpts.s1gameBasefolder + "/" + s1Subfolder);
+    QString s1gamedir;
+    if (currentOpts.s1GameType == "other") {
+        s1gamedir = QFileInfo(currentOpts.s1gameBasefolder).absolutePath();
+    } else {
+        QString s1Subfolder = "csgo";
+        if (currentOpts.s1GameType == "css") s1Subfolder = "cstrike";
+        else if (currentOpts.s1GameType == "hl2") s1Subfolder = "hl2";
+        else if (currentOpts.s1GameType == "l4d") s1Subfolder = "left4dead";
+        else if (currentOpts.s1GameType == "l4d2") s1Subfolder = "left4dead2";
+        else if (currentOpts.s1GameType == "portal") s1Subfolder = "portal";
+        else if (currentOpts.s1GameType == "portal2") s1Subfolder = "portal2";
+        else if (currentOpts.s1GameType == "tf2") s1Subfolder = "tf";
+        else if (currentOpts.s1GameType == "gmod") s1Subfolder = "garrysmod";
+        else if (currentOpts.s1GameType == "blackmesa") s1Subfolder = "bms";
+        s1gamedir = QDir::toNativeSeparators(currentOpts.s1gameBasefolder + "/" + s1Subfolder);
+    }
     currentOpts.s1gamedir = s1gamedir;
 
     QString csgogamedir_path = QDir::toNativeSeparators(currentOpts.csgogamedir + "/csgo");
@@ -1180,18 +1232,22 @@ bool Backend::RunMapImportWorkflow(Miscellaneous::Options opts)
 
 bool Backend::RunModelImportWorkflow(Miscellaneous::Options opts, const QString& mdlPath)
 {
-    QString s1Subfolder = "csgo";
-    if (opts.s1GameType == "css") s1Subfolder = "cstrike";
-    else if (opts.s1GameType == "hl2") s1Subfolder = "hl2";
-    else if (opts.s1GameType == "l4d") s1Subfolder = "left4dead";
-    else if (opts.s1GameType == "l4d2") s1Subfolder = "left4dead2";
-    else if (opts.s1GameType == "portal") s1Subfolder = "portal";
-    else if (opts.s1GameType == "portal2") s1Subfolder = "portal2";
-    else if (opts.s1GameType == "tf2") s1Subfolder = "tf";
-    else if (opts.s1GameType == "gmod") s1Subfolder = "garrysmod";
-    else if (opts.s1GameType == "blackmesa") s1Subfolder = "bms";
-
-    QString s1gamedir = QDir::toNativeSeparators(opts.s1gameBasefolder + "/" + s1Subfolder);
+    QString s1gamedir;
+    if (opts.s1GameType == "other") {
+        s1gamedir = QFileInfo(opts.s1gameBasefolder).absolutePath();
+    } else {
+        QString s1Subfolder = "csgo";
+        if (opts.s1GameType == "css") s1Subfolder = "cstrike";
+        else if (opts.s1GameType == "hl2") s1Subfolder = "hl2";
+        else if (opts.s1GameType == "l4d") s1Subfolder = "left4dead";
+        else if (opts.s1GameType == "l4d2") s1Subfolder = "left4dead2";
+        else if (opts.s1GameType == "portal") s1Subfolder = "portal";
+        else if (opts.s1GameType == "portal2") s1Subfolder = "portal2";
+        else if (opts.s1GameType == "tf2") s1Subfolder = "tf";
+        else if (opts.s1GameType == "gmod") s1Subfolder = "garrysmod";
+        else if (opts.s1GameType == "blackmesa") s1Subfolder = "bms";
+        s1gamedir = QDir::toNativeSeparators(opts.s1gameBasefolder + "/" + s1Subfolder);
+    }
     opts.s1gamedir = s1gamedir;
 
     QString csgogamedir_path = QDir::toNativeSeparators(opts.csgogamedir + "/csgo");
@@ -1211,18 +1267,22 @@ bool Backend::RunModelImportWorkflow(Miscellaneous::Options opts, const QString&
 
 bool Backend::RunParticleImportWorkflow(Miscellaneous::Options opts, const QString& pcfPath)
 {
-    QString s1Subfolder = "csgo";
-    if (opts.s1GameType == "css") s1Subfolder = "cstrike";
-    else if (opts.s1GameType == "hl2") s1Subfolder = "hl2";
-    else if (opts.s1GameType == "l4d") s1Subfolder = "left4dead";
-    else if (opts.s1GameType == "l4d2") s1Subfolder = "left4dead2";
-    else if (opts.s1GameType == "portal") s1Subfolder = "portal";
-    else if (opts.s1GameType == "portal2") s1Subfolder = "portal2";
-    else if (opts.s1GameType == "tf2") s1Subfolder = "tf";
-    else if (opts.s1GameType == "gmod") s1Subfolder = "garrysmod";
-    else if (opts.s1GameType == "blackmesa") s1Subfolder = "bms";
-
-    QString s1gamedir = QDir::toNativeSeparators(opts.s1gameBasefolder + "/" + s1Subfolder);
+    QString s1gamedir;
+    if (opts.s1GameType == "other") {
+        s1gamedir = QFileInfo(opts.s1gameBasefolder).absolutePath();
+    } else {
+        QString s1Subfolder = "csgo";
+        if (opts.s1GameType == "css") s1Subfolder = "cstrike";
+        else if (opts.s1GameType == "hl2") s1Subfolder = "hl2";
+        else if (opts.s1GameType == "l4d") s1Subfolder = "left4dead";
+        else if (opts.s1GameType == "l4d2") s1Subfolder = "left4dead2";
+        else if (opts.s1GameType == "portal") s1Subfolder = "portal";
+        else if (opts.s1GameType == "portal2") s1Subfolder = "portal2";
+        else if (opts.s1GameType == "tf2") s1Subfolder = "tf";
+        else if (opts.s1GameType == "gmod") s1Subfolder = "garrysmod";
+        else if (opts.s1GameType == "blackmesa") s1Subfolder = "bms";
+        s1gamedir = QDir::toNativeSeparators(opts.s1gameBasefolder + "/" + s1Subfolder);
+    }
     opts.s1gamedir = s1gamedir;
 
     QString csgogamedir_path = QDir::toNativeSeparators(opts.csgogamedir + "/csgo");

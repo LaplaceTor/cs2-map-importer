@@ -5,87 +5,90 @@
 #include <QFileInfo>
 #include <QStringList>
 
-static QStringList GetVpkList() {
-    if (Miscellaneous::GetOptions().s1GameType == "css") {
-        return {
-            "cstrike/cstrike_pak_dir.vpk",
-            "hl2/hl2_textures_dir.vpk",
-            "hl2/hl2_sound_misc_dir.vpk",
-            "hl2/hl2_misc_dir.vpk",
-            "hl2/hl2_sound_vo_english_dir.vpk"
-        };
-    } else if (Miscellaneous::GetOptions().s1GameType == "hl2") {
-        return {
-            "hl2/hl2_sound_vo_english_dir.vpk",
-            "hl2/hl2_pak_dir.vpk",
-            "hl2/hl2_textures_dir.vpk",
-            "hl2/hl2_sound_misc_dir.vpk",
-            "hl2/hl2_misc_dir.vpk"
-        };
-    } else if (Miscellaneous::GetOptions().s1GameType == "l4d") {
-        return {
-            "left4dead/pak01_dir.vpk",
-            "left4dead_dlc3/pak01_dir.vpk"
-        };
-    } else if (Miscellaneous::GetOptions().s1GameType == "l4d2") {
-        return {
-            "left4dead2/pak01_dir.vpk",
-            "left4dead2_dlc1/pak01_dir.vpk",
-            "left4dead2_dlc2/pak01_dir.vpk",
-            "left4dead2_dlc3/pak01_dir.vpk",
-            "update/pak01_dir.vpk"
-        };
-    } else if (Miscellaneous::GetOptions().s1GameType == "portal") {
-        return {
-            "portal/portal_pak_dir.vpk",
-            "hl2/hl2_sound_vo_english_dir.vpk",
-            "hl2/hl2_textures_dir.vpk",
-            "hl2/hl2_sound_misc_dir.vpk",
-            "hl2/hl2_misc_dir.vpk"
-        };
-    } else if (Miscellaneous::GetOptions().s1GameType == "portal2") {
-        return {
-            "portal2/pak01_dir.vpk",
-            "portal2_dlc1/pak01_dir.vpk",
-            "portal2_dlc2/pak01_dir.vpk"
-        };
-    } else if (Miscellaneous::GetOptions().s1GameType == "tf2") {
-        return {
-            "tf/tf2_textures_dir.vpk",
-            "tf/tf2_sound_vo_english_dir.vpk",
-            "tf/tf2_sound_misc_dir.vpk",
-            "tf/tf2_misc_dir.vpk",
-            "hl2/hl2_sound_vo_english_dir.vpk",
-            "hl2/hl2_textures_dir.vpk",
-            "hl2/hl2_sound_misc_dir.vpk",
-            "hl2/hl2_misc_dir.vpk"
-        };
-    } else if (Miscellaneous::GetOptions().s1GameType == "gmod") {
-        return {
-            "garrysmod/garrysmod_dir.vpk",
-            "sourceengine/hl2_textures_dir.vpk",
-            "sourceengine/hl2_sound_vo_english_dir.vpk",
-            "sourceengine/hl2_sound_misc_dir.vpk",
-            "sourceengine/hl2_misc_dir.vpk"
-        };
-    } else if (Miscellaneous::GetOptions().s1GameType == "blackmesa") {
-        return {
-            "bms/bms_textures_dir.vpk",
-            "bms/bms_materials_dir.vpk",
-            "bms/bms_models_dir.vpk",
-            "bms/bms_misc_dir.vpk",
-            "bms/bms_sounds_misc_dir.vpk",
-            "bms/bms_sound_vo_english_dir.vpk",
-            "bms/bms_maps_dir.vpk",
-            "hl2/hl2_misc_dir.vpk",
-            "hl2/hl2_sound_misc_dir.vpk",
-            "hl2/hl2_textures_dir.vpk",
-            "hl2/hl2_materials_dir.vpk",
-            "hl2/hl2_models_dir.vpk"
-        };
-    } else {
-        return { "csgo/pak01_dir.vpk" };
+static bool SearchAndExtractFile(const QString& filepath, const QString& contentPath, const QString& outPath) {
+    const auto& opts = Miscellaneous::GetOptions();
+    const auto& targets = opts.searchTargets;
+
+    for (const auto& target : targets) {
+        if (Miscellaneous::CanceLImport) return false;
+
+        if (target.isVpk) {
+            QString vpkPath = target.path;
+            if (!QFile::exists(vpkPath)) continue;
+
+            if (QFile::exists(contentPath)) {
+                QFile::remove(contentPath);
+            }
+
+            QStringList arguments = {
+                "-e",
+                filepath,
+                QDir::toNativeSeparators(vpkPath),
+                "-o",
+                QDir::toNativeSeparators(contentPath)
+            };
+            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
+
+            if (QFile::exists(contentPath)) {
+                QFileInfo fi(outPath);
+                QDir().mkpath(fi.absolutePath());
+                if (QFile::exists(outPath)) {
+                    QFile::remove(outPath);
+                }
+                QFile::copy(contentPath, outPath);
+                return true; // Found and extracted successfully!
+            }
+        } else {
+            // Folder target
+            // 1. Check raw folder first
+            QString folderPath = target.path;
+            QString rawFilePath = QDir(folderPath).filePath(filepath);
+            if (QFile::exists(rawFilePath)) {
+                QFileInfo fiContent(contentPath);
+                QDir().mkpath(fiContent.absolutePath());
+                if (QFile::exists(contentPath)) {
+                    QFile::remove(contentPath);
+                }
+                if (QFile::copy(rawFilePath, contentPath)) {
+                    QFileInfo fiOut(outPath);
+                    QDir().mkpath(fiOut.absolutePath());
+                    if (QFile::exists(outPath)) {
+                        QFile::remove(outPath);
+                    }
+                    QFile::copy(contentPath, outPath);
+                    return true; // Found and copied successfully!
+                }
+            }
+
+            // 2. Check pak01_dir.vpk in that folder
+            QString pakVpkPath = QDir(folderPath).filePath("pak01_dir.vpk");
+            if (QFile::exists(pakVpkPath)) {
+                if (QFile::exists(contentPath)) {
+                    QFile::remove(contentPath);
+                }
+
+                QStringList arguments = {
+                    "-e",
+                    filepath,
+                    QDir::toNativeSeparators(pakVpkPath),
+                    "-o",
+                    QDir::toNativeSeparators(contentPath)
+                };
+                Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
+
+                if (QFile::exists(contentPath)) {
+                    QFileInfo fi(outPath);
+                    QDir().mkpath(fi.absolutePath());
+                    if (QFile::exists(outPath)) {
+                        QFile::remove(outPath);
+                    }
+                    QFile::copy(contentPath, outPath);
+                    return true; // Found and extracted successfully!
+                }
+            }
+        }
     }
+    return false;
 }
 
 void FileExtractFromVPK::ExtractModel(const QString& filepath) {
@@ -94,57 +97,151 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath) {
     QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(filepath);
     QString outPath = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(filepath);
 
-    QString baseFolder = QFileInfo(Miscellaneous::GetOptions().s1gamedir).dir().absolutePath();
-    QStringList vpkList = GetVpkList();
+    const auto& opts = Miscellaneous::GetOptions();
+    const auto& targets = opts.searchTargets;
+
+    bool found = false;
+    bool foundInVpk = false;
     QString foundVpkPath;
+    QString foundFolderPath;
 
-    for (const QString& vpkRel : vpkList) {
+    for (const auto& target : targets) {
         if (Miscellaneous::CanceLImport) return;
-        QString vpkPath = QDir(baseFolder).filePath(vpkRel);
 
-        if (QFile::exists(contentPath)) {
-            QFile::remove(contentPath);
-        }
-
-        QStringList arguments = {
-            "-e",
-            filepath,
-            QDir::toNativeSeparators(vpkPath),
-            "-o",
-            QDir::toNativeSeparators(contentPath)
-        };
-        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
-
-        if (QFile::exists(contentPath)) {
-            QFile::copy(contentPath, outPath);
-            foundVpkPath = vpkPath;
-            break;
-        }
-    }
-
-    if (!foundVpkPath.isEmpty()) {
-        QStringList extlist = {"vvd","phy","sw.vtx","dx80.vtx","dx90.vtx","ani"};
-        for (const QString& ext : extlist) {
-            if (Miscellaneous::CanceLImport) return;
-            QString target = basePath + "." + ext;
-            contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(target);
+        if (target.isVpk) {
+            QString vpkPath = target.path;
+            if (!QFile::exists(vpkPath)) continue;
 
             if (QFile::exists(contentPath)) {
                 QFile::remove(contentPath);
             }
 
+            // Extract main .mdl file
             QStringList arguments = {
                 "-e",
-                target,
-                QDir::toNativeSeparators(foundVpkPath),
+                filepath,
+                QDir::toNativeSeparators(vpkPath),
                 "-o",
                 QDir::toNativeSeparators(contentPath)
             };
             Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
 
-            outPath = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(target);
             if (QFile::exists(contentPath)) {
+                QFileInfo fiOut(outPath);
+                QDir().mkpath(fiOut.absolutePath());
+                if (QFile::exists(outPath)) {
+                    QFile::remove(outPath);
+                }
                 QFile::copy(contentPath, outPath);
+                found = true;
+                foundInVpk = true;
+                foundVpkPath = vpkPath;
+                break;
+            }
+        } else {
+            // Folder target
+            // 1. Raw folder
+            QString folderPath = target.path;
+            QString rawFilePath = QDir(folderPath).filePath(filepath);
+            if (QFile::exists(rawFilePath)) {
+                QFileInfo fiContent(contentPath);
+                QDir().mkpath(fiContent.absolutePath());
+                if (QFile::exists(contentPath)) {
+                    QFile::remove(contentPath);
+                }
+                if (QFile::copy(rawFilePath, contentPath)) {
+                    QFileInfo fiOut(outPath);
+                    QDir().mkpath(fiOut.absolutePath());
+                    if (QFile::exists(outPath)) {
+                        QFile::remove(outPath);
+                    }
+                    QFile::copy(contentPath, outPath);
+                    found = true;
+                    foundFolderPath = folderPath;
+                    break;
+                }
+            }
+
+            // 2. pak01_dir.vpk inside raw folder
+            QString pakVpkPath = QDir(folderPath).filePath("pak01_dir.vpk");
+            if (QFile::exists(pakVpkPath)) {
+                if (QFile::exists(contentPath)) {
+                    QFile::remove(contentPath);
+                }
+
+                QStringList arguments = {
+                    "-e",
+                    filepath,
+                    QDir::toNativeSeparators(pakVpkPath),
+                    "-o",
+                    QDir::toNativeSeparators(contentPath)
+                };
+                Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
+
+                if (QFile::exists(contentPath)) {
+                    QFileInfo fiOut(outPath);
+                    QDir().mkpath(fiOut.absolutePath());
+                    if (QFile::exists(outPath)) {
+                        QFile::remove(outPath);
+                    }
+                    QFile::copy(contentPath, outPath);
+                    found = true;
+                    foundInVpk = true;
+                    foundVpkPath = pakVpkPath;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (found) {
+        QStringList extlist = {"vvd", "phy", "sw.vtx", "dx80.vtx", "dx90.vtx", "ani"};
+        for (const QString& ext : extlist) {
+            if (Miscellaneous::CanceLImport) return;
+            QString targetFile = basePath + "." + ext;
+            contentPath = QDir(opts.s1contentdir).filePath(targetFile);
+            outPath = QDir(opts.s1gamedir).filePath(targetFile);
+
+            if (foundInVpk) {
+                if (QFile::exists(contentPath)) {
+                    QFile::remove(contentPath);
+                }
+
+                QStringList arguments = {
+                    "-e",
+                    targetFile,
+                    QDir::toNativeSeparators(foundVpkPath),
+                    "-o",
+                    QDir::toNativeSeparators(contentPath)
+                };
+                Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
+
+                if (QFile::exists(contentPath)) {
+                    QFileInfo fiOut(outPath);
+                    QDir().mkpath(fiOut.absolutePath());
+                    if (QFile::exists(outPath)) {
+                        QFile::remove(outPath);
+                    }
+                    QFile::copy(contentPath, outPath);
+                }
+            } else {
+                // Copy from found raw folder
+                QString rawFilePath = QDir(foundFolderPath).filePath(targetFile);
+                if (QFile::exists(rawFilePath)) {
+                    QFileInfo fiContent(contentPath);
+                    QDir().mkpath(fiContent.absolutePath());
+                    if (QFile::exists(contentPath)) {
+                        QFile::remove(contentPath);
+                    }
+                    if (QFile::copy(rawFilePath, contentPath)) {
+                        QFileInfo fiOut(outPath);
+                        QDir().mkpath(fiOut.absolutePath());
+                        if (QFile::exists(outPath)) {
+                            QFile::remove(outPath);
+                        }
+                        QFile::copy(contentPath, outPath);
+                    }
+                }
             }
         }
     }
@@ -153,104 +250,17 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath) {
 void FileExtractFromVPK::ExtractMaterial(const QString& filepath) {
     QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(filepath);
     QString outPath = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(filepath);
-    QString baseFolder = QFileInfo(Miscellaneous::GetOptions().s1gamedir).dir().absolutePath();
-    QStringList vpkList = GetVpkList();
-
-    for (const QString& vpkRel : vpkList) {
-        if (Miscellaneous::CanceLImport) return;
-        QString vpkPath = QDir(baseFolder).filePath(vpkRel);
-
-        if (QFile::exists(contentPath)) {
-            QFile::remove(contentPath);
-        }
-
-        QStringList arguments = {
-            "-e",
-            filepath,
-            QDir::toNativeSeparators(vpkPath),
-            "-o",
-            QDir::toNativeSeparators(contentPath)
-        };
-        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
-
-        if (QFile::exists(contentPath)) {
-            QFileInfo fi(outPath);
-            QDir().mkpath(fi.absolutePath());
-            if (QFile::exists(outPath)) {
-                QFile::remove(outPath);
-            }
-            QFile::copy(contentPath, outPath);
-            break;
-        }
-    }
+    SearchAndExtractFile(filepath, contentPath, outPath);
 }
 
 void FileExtractFromVPK::ExtractParticle(const QString& filepath) {
     QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(filepath);
     QString outPath = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(filepath);
-    QString baseFolder = QFileInfo(Miscellaneous::GetOptions().s1gamedir).dir().absolutePath();
-    QStringList vpkList = GetVpkList();
-
-    for (const QString& vpkRel : vpkList) {
-        if (Miscellaneous::CanceLImport) return;
-        QString vpkPath = QDir(baseFolder).filePath(vpkRel);
-
-        if (QFile::exists(contentPath)) {
-            QFile::remove(contentPath);
-        }
-
-        QStringList arguments = {
-            "-e",
-            filepath,
-            QDir::toNativeSeparators(vpkPath),
-            "-o",
-            QDir::toNativeSeparators(contentPath)
-        };
-        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
-
-        if (QFile::exists(contentPath)) {
-            QFileInfo fi(outPath);
-            QDir().mkpath(fi.absolutePath());
-            if (QFile::exists(outPath)) {
-                QFile::remove(outPath);
-            }
-            QFile::copy(contentPath, outPath);
-            break;
-        }
-    }
+    SearchAndExtractFile(filepath, contentPath, outPath);
 }
 
 void FileExtractFromVPK::ExtractSound(const QString& filepath) {
     QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(filepath);
     QString outPath = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(filepath);
-    QString baseFolder = QFileInfo(Miscellaneous::GetOptions().s1gamedir).dir().absolutePath();
-    QStringList vpkList = GetVpkList();
-
-    for (const QString& vpkRel : vpkList) {
-        if (Miscellaneous::CanceLImport) return;
-        QString vpkPath = QDir(baseFolder).filePath(vpkRel);
-
-        if (QFile::exists(contentPath)) {
-            QFile::remove(contentPath);
-        }
-
-        QStringList arguments = {
-            "-e",
-            filepath,
-            QDir::toNativeSeparators(vpkPath),
-            "-o",
-            QDir::toNativeSeparators(contentPath)
-        };
-        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, arguments);
-
-        if (QFile::exists(contentPath)) {
-            QFileInfo fi(outPath);
-            QDir().mkpath(fi.absolutePath());
-            if (QFile::exists(outPath)) {
-                QFile::remove(outPath);
-            }
-            QFile::copy(contentPath, outPath);
-            break;
-        }
-    }
+    SearchAndExtractFile(filepath, contentPath, outPath);
 }

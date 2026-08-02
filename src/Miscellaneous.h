@@ -31,6 +31,11 @@ public:
 
     using LogCallback = std::function<void(const QString&)>;
 
+    struct SearchTarget {
+        bool isVpk;
+        QString path;
+    };
+
     struct Options {
         QString cs2Basefolder;
         QString s1gameBasefolder;
@@ -61,9 +66,12 @@ public:
 
         bool particleAllowDepthBlend;
         bool particleDisableDiffuse;
+
+        QList<SearchTarget> searchTargets;
     };
 
     static const Options& GetOptions();
+    static bool ParseGameInfo(const QString& gameinfoPath, QList<SearchTarget>& targets);
     static void SetOptions(const Options& options);
 
     static LogCallback GlobaLLogger;
