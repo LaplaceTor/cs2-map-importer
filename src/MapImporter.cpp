@@ -49,6 +49,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
 
     QSet<QString> mdlmtls;
     QStringList successfullyImportedMdlFiles;
+    QStringList errorMdlFiles;
 
     for (const QString& m : mdlfiles) {
         if (Miscellaneous::CanceLImport) return;
@@ -75,6 +76,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         };
         int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_CS_MDL_IMPORT, arguments);
         if (ret != 100) {
+            errorMdlFiles.append(m);
             continue;
         }
         successfullyImportedMdlFiles.append(m);
@@ -285,6 +287,17 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         Miscellaneous::Log(x);
     }
     Miscellaneous::Log("--------------------------------");
+
+    if (!errorMdlFiles.isEmpty()) {
+        Miscellaneous::Log("Failed/Error models");
+        Miscellaneous::Log("--------------------------------");
+        for (const QString& x : errorMdlFiles) {
+            if (Miscellaneous::CanceLImport) return;
+            if (x.isEmpty() || x.startsWith('-')) continue;
+            Miscellaneous::Log(x);
+        }
+        Miscellaneous::Log("--------------------------------");
+    }
 }
 
 QStringList MapImporter::GetRefsList() {
