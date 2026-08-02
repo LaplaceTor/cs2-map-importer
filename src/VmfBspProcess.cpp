@@ -1131,7 +1131,7 @@ void VmfBspProcess::ProcessBsp() {
             };
             int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
             if (vpk_ret != 100) {
-                Miscellaneous::Log("Warning: vpkeditcli failed to extract embedded files.");
+                throw AppException("vpkeditcli failed to extract embedded files.");
             } else {
                 Miscellaneous::Log("Successfully extracted embedded files to " + target_unpacked_dir);
             }

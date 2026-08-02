@@ -470,11 +470,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
         } else if (hasNotFound) {
             return 99;
         } else {
-            QString errOutput = cmdOutputLines.join("\n");
-            if (errOutput.isEmpty()) {
-                errOutput = "(No output)";
-            }
-            throw AppException("VPKEditCLI execution failed with unexpected output:\n" + errOutput);
+            return 98;
         }
     }
 
