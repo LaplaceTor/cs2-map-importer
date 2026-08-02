@@ -280,34 +280,26 @@ void SoundscapeImport::ImportSoundscapes(MapImporter* importer, QSet<QString>& u
                         childrenBlocks += "\t\tposition = [0.0, 0.0, 0.0]\n";
                     }
 
-                    if (cName == "playlooping") {
-                        if (!volMin.isEmpty()) {
-                            childrenBlocks += QString("\t\tvolume = %1\n").arg(volMin);
-                        } else {
-                            childrenBlocks += "\t\tvolume = 1.0\n";
-                        }
-                        if (!pitchMin.isEmpty()) {
-                            childrenBlocks += QString("\t\tpitch = %1\n").arg(pitchMin);
-                        } else {
-                            childrenBlocks += "\t\tpitch = 1.0\n";
-                        }
+                    if (!timeMin.isEmpty() && !timeMax.isEmpty()) {
+                        childrenBlocks += QString("\t\tretrigger_interval_min = %1\n").arg(timeMin);
+                        childrenBlocks += QString("\t\tretrigger_interval_max = %1\n").arg(timeMax);
+                    }
+                    if (!pitchMin.isEmpty() && !pitchMax.isEmpty() && pitchMin != pitchMax) {
+                        childrenBlocks += QString("\t\tpitch_random_min = %1\n").arg(pitchMin);
+                        childrenBlocks += QString("\t\tpitch_random_max = %1\n").arg(pitchMax);
+                    } else if (!pitchMin.isEmpty()) {
+                        childrenBlocks += QString("\t\tpitch = %1\n").arg(pitchMin);
                     } else {
-                        if (!timeMin.isEmpty() && !timeMax.isEmpty()) {
-                            childrenBlocks += QString("\t\tretrigger_interval_min = %1\n").arg(timeMin);
-                            childrenBlocks += QString("\t\tretrigger_interval_max = %1\n").arg(timeMax);
-                        }
-                        if (!pitchMin.isEmpty() && !pitchMax.isEmpty()) {
-                            childrenBlocks += QString("\t\tpitch_random_min = %1\n").arg(pitchMin);
-                            childrenBlocks += QString("\t\tpitch_random_max = %1\n").arg(pitchMax);
-                        } else if (!pitchMin.isEmpty()) {
-                            childrenBlocks += QString("\t\tpitch = %1\n").arg(pitchMin);
-                        }
-                        if (!volMin.isEmpty() && !volMax.isEmpty()) {
-                            childrenBlocks += QString("\t\tvolume_random_min = %1\n").arg(volMin);
-                            childrenBlocks += QString("\t\tvolume_random_max = %1\n").arg(volMax);
-                        } else if (!volMin.isEmpty()) {
-                            childrenBlocks += QString("\t\tvolume = %1\n").arg(volMin);
-                        }
+                        childrenBlocks += "\t\tpitch = 1.0\n";
+                    }
+
+                    if (!volMin.isEmpty() && !volMax.isEmpty() && volMin != volMax) {
+                        childrenBlocks += QString("\t\tvolume_random_min = %1\n").arg(volMin);
+                        childrenBlocks += QString("\t\tvolume_random_max = %1\n").arg(volMax);
+                    } else if (!volMin.isEmpty()) {
+                        childrenBlocks += QString("\t\tvolume = %1\n").arg(volMin);
+                    } else {
+                        childrenBlocks += "\t\tvolume = 1.0\n";
                     }
 
                     if (waves.size() == 1) {
