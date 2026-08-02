@@ -387,7 +387,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
     bool isSource1Import = (program == PROGRAM_SOURCE1IMPORT);
     bool hasParseEparError = false;
 
-    QStringList vpkeditcliLines;
+    QStringList cmdOutputLines;
 
     auto processOutput = [&](const QString& outStr) {
         for (QChar c : outStr) {
@@ -400,8 +400,8 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
                     if (logOutString) {
                         logOutString->append(lineBuffer);
                     }
-                    if (program == PROGRAM_VPKEDITCLI) {
-                        vpkeditcliLines.append(lineBuffer);
+                    if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT) {
+                        cmdOutputLines.append(lineBuffer);
                     }
                     if (isSource1Import && isMap && lineBuffer.contains("ParseEpar: token too long")) {
                         hasParseEparError = true;
@@ -449,15 +449,15 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
         if (logOutString) {
             logOutString->append(lineBuffer);
         }
-        if (program == PROGRAM_VPKEDITCLI) {
-            vpkeditcliLines.append(lineBuffer);
+        if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT) {
+            cmdOutputLines.append(lineBuffer);
         }
     }
 
     if (program == PROGRAM_VPKEDITCLI) {
         bool hasSuccess = false;
         bool hasNotFound = false;
-        for (const QString& line : vpkeditcliLines) {
+        for (const QString& line : cmdOutputLines) {
             QString lowerLine = line.toLower();
             if (lowerLine.contains("extracted file at") || lowerLine.contains("extracted pack file contents under")) {
                 hasSuccess = true;
@@ -470,11 +470,31 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
         } else if (hasNotFound) {
             return 99;
         } else {
-            QString errOutput = vpkeditcliLines.join("\n");
+            QString errOutput = cmdOutputLines.join("\n");
             if (errOutput.isEmpty()) {
                 errOutput = "(No output)";
             }
             throw AppException("VPKEditCLI execution failed with unexpected output:\n" + errOutput);
+        }
+    }
+
+    if (program == PROGRAM_CS_MDL_IMPORT) {
+        bool hasSuccess = false;
+        bool hasNotFound = false;
+        for (const QString& line : cmdOutputLines) {
+            QString lowerLine = line.toLower();
+            if (lowerLine.contains("mdl files successfully converted")) {
+                hasSuccess = true;
+            } else if (lowerLine.contains("no input files found")) {
+                hasNotFound = true;
+            }
+        }
+        if (hasSuccess) {
+            return 100;
+        } else if (hasNotFound) {
+            return 99;
+        } else {
+            return 98;
         }
     }
 
