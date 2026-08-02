@@ -589,6 +589,8 @@ void Backend::SetS1Folder(const QString& path)
             blackmesagamedir = path;
         } else if (s1GameType == "other") {
             othergameinfo = path;
+            othergamedir = QFileInfo(path).absolutePath();
+            otherbasefolder = Miscellaneous::GetBaseFolderFromGameInfo(path);
         } else {
             csgogamedir = path;
         }
@@ -857,6 +859,13 @@ void Backend::LoadFromCfg()
     if (!othergameinfo.isEmpty() && !IsValidS1(othergameinfo, "other")) {
         othergameinfo = "";
     }
+    if (!othergameinfo.isEmpty()) {
+        othergamedir = QFileInfo(othergameinfo).absolutePath();
+        otherbasefolder = Miscellaneous::GetBaseFolderFromGameInfo(othergameinfo);
+    } else {
+        othergamedir = "";
+        otherbasefolder = "";
+    }
 
     AutoDetectPaths();
 
@@ -1010,7 +1019,7 @@ void Backend::Start()
         if (!skipdeps) {
             QString gameinfoFile;
             if (s1GameType == "other") {
-                gameinfoFile = GetS1gameBasefolder();
+                gameinfoFile = othergameinfo;
             } else {
                 QString s1Subfolder = "csgo";
                 if (s1GameType == "css") s1Subfolder = "cstrike";
@@ -1043,6 +1052,7 @@ void Backend::Start()
         opts.s1gameBasefolder = GetS1gameBasefolder();
         opts.csgogamedir = csgogamedir;
         opts.s1GameType = s1GameType;
+        opts.othergamedir = othergamedir;
         opts.appDir = appDir;
         opts.searchTargets = searchTargets;
 
@@ -1200,7 +1210,7 @@ bool Backend::RunMapImportWorkflow(Miscellaneous::Options opts)
 
     QString s1gamedir;
     if (currentOpts.s1GameType == "other") {
-        s1gamedir = QFileInfo(currentOpts.s1gameBasefolder).absolutePath();
+        s1gamedir = QDir::toNativeSeparators(currentOpts.othergamedir);
     } else {
         QString s1Subfolder = "csgo";
         if (currentOpts.s1GameType == "css") s1Subfolder = "cstrike";
@@ -1234,7 +1244,7 @@ bool Backend::RunModelImportWorkflow(Miscellaneous::Options opts, const QString&
 {
     QString s1gamedir;
     if (opts.s1GameType == "other") {
-        s1gamedir = QFileInfo(opts.s1gameBasefolder).absolutePath();
+        s1gamedir = QDir::toNativeSeparators(opts.othergamedir);
     } else {
         QString s1Subfolder = "csgo";
         if (opts.s1GameType == "css") s1Subfolder = "cstrike";
@@ -1269,7 +1279,7 @@ bool Backend::RunParticleImportWorkflow(Miscellaneous::Options opts, const QStri
 {
     QString s1gamedir;
     if (opts.s1GameType == "other") {
-        s1gamedir = QFileInfo(opts.s1gameBasefolder).absolutePath();
+        s1gamedir = QDir::toNativeSeparators(opts.othergamedir);
     } else {
         QString s1Subfolder = "csgo";
         if (opts.s1GameType == "css") s1Subfolder = "cstrike";

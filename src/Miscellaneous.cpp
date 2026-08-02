@@ -18,13 +18,11 @@
 QAtomicInt Miscellaneous::CanceLImport(0);
 Miscellaneous::LogCallback Miscellaneous::GlobaLLogger = nullptr;
 
-bool Miscellaneous::ParseGameInfo(const QString& gameinfoPath, QList<SearchTarget>& targets) {
-    targets.clear();
-
+QString Miscellaneous::GetBaseFolderFromGameInfo(const QString& gameinfoPath) {
     QString gameinfo_path = QFileInfo(gameinfoPath).absolutePath();
     QStringList lines = ReadTextFile(gameinfoPath);
 
-    // Pass 1: Find the value of "game+game_write"
+    // Find the value of "game+game_write"
     QString game_game_write_val;
     int currentDepth = 0;
     bool insideGameInfo = false;
@@ -94,7 +92,7 @@ bool Miscellaneous::ParseGameInfo(const QString& gameinfoPath, QList<SearchTarge
                 QString val = tokens[1].trimmed();
                 if (key.compare("game+game_write", Qt::CaseInsensitive) == 0) {
                     game_game_write_val = val;
-                    break; // Found it, can stop Pass 1
+                    break;
                 }
             }
         }
@@ -115,7 +113,17 @@ bool Miscellaneous::ParseGameInfo(const QString& gameinfoPath, QList<SearchTarge
     } else {
         basefolder = QFileInfo(gameinfo_path).dir().absolutePath();
     }
-    basefolder = QDir::cleanPath(basefolder);
+    return QDir::cleanPath(basefolder);
+}
+
+bool Miscellaneous::ParseGameInfo(const QString& gameinfoPath, QList<SearchTarget>& targets) {
+    targets.clear();
+
+    QString gameinfo_path = QFileInfo(gameinfoPath).absolutePath();
+    QStringList lines = ReadTextFile(gameinfoPath);
+
+    // Determine basefolder
+    QString basefolder = GetBaseFolderFromGameInfo(gameinfoPath);
 
     // "check gaminfofolder first anyway"
     // Add gameinfo_path as the very first folder target!
@@ -130,11 +138,11 @@ bool Miscellaneous::ParseGameInfo(const QString& gameinfoPath, QList<SearchTarge
     targets.append(gameinfoTarget);
 
     // Pass 2: Collect all search targets
-    currentDepth = 0;
-    insideGameInfo = false;
-    insideSearchPaths = false;
-    gameInfoDepth = -1;
-    searchPathsDepth = -1;
+    int currentDepth = 0;
+    bool insideGameInfo = false;
+    bool insideSearchPaths = false;
+    int gameInfoDepth = -1;
+    int searchPathsDepth = -1;
 
     for (const QString& origLine : lines) {
         QString line = origLine;

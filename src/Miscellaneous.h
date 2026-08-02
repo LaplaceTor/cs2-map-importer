@@ -41,6 +41,7 @@ public:
         QString s1gameBasefolder;
         QString csgogamedir;
         QString s1GameType; // "css" or "csgo"
+        QString othergamedir;
         QString contentFolder;
         QString mapName;
         QString bspFile;
@@ -72,6 +73,7 @@ public:
 
     static const Options& GetOptions();
     static bool ParseGameInfo(const QString& gameinfoPath, QList<SearchTarget>& targets);
+    static QString GetBaseFolderFromGameInfo(const QString& gameinfoPath);
     static void SetOptions(const Options& options);
 
     static LogCallback GlobaLLogger;
