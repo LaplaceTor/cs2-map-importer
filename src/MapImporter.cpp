@@ -273,8 +273,9 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     }
 }
 
-void MapImporter::ImportAndCompileMapRefs() {
-    if (Miscellaneous::CanceLImport) return;
+QStringList MapImporter::GetRefsList() {
+    QStringList missingMaterials;
+    if (Miscellaneous::CanceLImport) return missingMaterials;
     QStringList arguments = {
         "-retail",
         "-nop4",
@@ -293,7 +294,6 @@ void MapImporter::ImportAndCompileMapRefs() {
     QStringList outputLines;
     Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, &outputLines, true, Miscellaneous::GetOptions().s1GameType == "csgo");
 
-    QStringList missingMaterials;
     for (const QString& lineBuffer : outputLines) {
         if (lineBuffer.startsWith("Failed loading resource \"materials/")) {
             if (lineBuffer.endsWith("vmat_c\" (ERROR_FILEOPEN: File not found)")) {
@@ -309,10 +309,15 @@ void MapImporter::ImportAndCompileMapRefs() {
             }
         }
     }
+    return missingMaterials;
+}
+
+void MapImporter::ImportAndCompileMapRefs(const QStringList& missingMaterials) {
+    if (Miscellaneous::CanceLImport) return;
 
     QStringList normalMissing;
 
-    for (QString& vmtPath : missingMaterials) {
+    for (QString vmtPath : missingMaterials) {
         if (Miscellaneous::CanceLImport) return;
 
         vmtPath = QDir::fromNativeSeparators(vmtPath);
@@ -548,7 +553,8 @@ bool MapImporter::Run() {
 
     if (!Miscellaneous::GetOptions().skipdeps) {
         if (Miscellaneous::CanceLImport) return false;
-        ImportAndCompileMapRefs();
+        QStringList refsList = GetRefsList();
+        ImportAndCompileMapRefs(refsList);
         ImportAndCompileMapMDLs(QDir::toNativeSeparators(Miscellaneous::GetOptions().s2contentdir + "/maps/" + Miscellaneous::GetOptions().mapName + "_refs.txt"));
         ImportParticles();
         ImportSounds();
