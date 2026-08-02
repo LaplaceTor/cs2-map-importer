@@ -9,6 +9,7 @@ class MapImporter;
 class SoundscapeImport {
 public:
     static void ImportSoundscapes(MapImporter* importer, QSet<QString>& uniqueSounds);
+    static void ProcessVmfConnections(const QString& vmfPath, QSet<QString>& uniqueSounds);
 };
 
 #endif // SOUNDSCAPEIMPORT_H

@@ -142,6 +142,165 @@ static void ParseSoundscapeProperties(const QList<QSharedPointer<VDFNode>>& chil
     }
 }
 
+static QString FormatVsndPath(QString wavePath);
+
+void SoundscapeImport::ProcessVmfConnections(const QString& vmfPath, QSet<QString>& uniqueSounds) {
+    if (Miscellaneous::CanceLImport) return;
+    if (!QFile::exists(vmfPath)) return;
+
+    QStringList lines = Miscellaneous::ReadTextFile(vmfPath);
+    int max_id = 0;
+    QRegularExpression id_regex("\"id\"\\s+\"(\\d+)\"");
+    for (const QString& line : lines) {
+        QRegularExpressionMatch match = id_regex.match(line);
+        if (match.hasMatch()) {
+            int id = match.captured(1).toInt();
+            if (id > max_id) {
+                max_id = id;
+            }
+        }
+    }
+
+    int depth = 0;
+    bool inEntity = false;
+    bool inConnections = false;
+    QString entityOrigin = "0 0 0";
+
+    QRegularExpression originRegex("^\\s*\"origin\"\\s+\"([^\"]*)\"", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpression connRegex("^(\\s*\"[^\"]*\")\\s+\"([^\"]*)\"");
+
+    QStringList outputLines;
+    QStringList newEntities;
+    QMap<QString, QString> vsndevtsBlocks;
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i];
+        QString trimmed = line.trimmed();
+
+        if (trimmed == "entity") {
+            if (depth == 0) {
+                inEntity = true;
+                entityOrigin = "0 0 0";
+            }
+        }
+
+        int openBraces = line.count('{');
+        int closeBraces = line.count('}');
+
+        if (inEntity && depth == 1 && trimmed == "connections") {
+            inConnections = true;
+        }
+
+        depth += openBraces;
+        depth -= closeBraces;
+
+        if (inEntity) {
+            if (depth == 1 && openBraces == 0 && closeBraces == 0) {
+                QRegularExpressionMatch originMatch = originRegex.match(line);
+                if (originMatch.hasMatch()) {
+                    entityOrigin = originMatch.captured(1);
+                }
+            } else if (inConnections && depth == 2 && openBraces == 0 && closeBraces == 0) {
+                QRegularExpressionMatch connMatch = connRegex.match(line);
+                if (connMatch.hasMatch()) {
+                    QString value = connMatch.captured(2);
+                    QStringList parts = value.split("\x1b");
+                    if (parts.size() >= 3 && parts[1] == "Command" && parts[2].trimmed().startsWith("play ", Qt::CaseInsensitive)) {
+                        QString playCmd = parts[2].trimmed();
+                        QString soundPath = playCmd.mid(5).trimmed();
+
+                        QFileInfo soundFileInfo(soundPath);
+                        QString xxx = soundFileInfo.baseName();
+
+                        // Modify connection to PlaySound on ambient_generic
+                        parts[0] = "playsound" + xxx;
+                        parts[1] = "PlaySound";
+                        parts[2] = ""; // empty parameter
+
+                        QString newValue = parts.join("\x1b");
+                        line = connMatch.captured(1) + " \"" + newValue + "\"";
+
+                        // Add sound to uniqueSounds for automatic copy/extraction
+                        QString wNorm = soundPath;
+                        wNorm.replace("\\", "/");
+                        if (!wNorm.startsWith("sound/")) {
+                            wNorm = "sound/" + wNorm;
+                        }
+                        uniqueSounds.insert(wNorm);
+
+                        // Queue new ambient_generic entity
+                        max_id++;
+                        QString newEnt = QString(
+                            "entity\n"
+                            "{\n"
+                            "\t\"id\" \"%1\"\n"
+                            "\t\"classname\" \"ambient_generic\"\n"
+                            "\t\"targetname\" \"playsound%2\"\n"
+                            "\t\"origin\" \"%3\"\n"
+                            "\t\"message\" \"soundscape.%4\"\n"
+                            "\t\"spawnflags\" \"49\"\n"
+                            "}"
+                        ).arg(max_id).arg(xxx).arg(entityOrigin).arg(xxx);
+                        newEntities.append(newEnt);
+
+                        // Generate vsndevts block
+                        QString vsndPath = FormatVsndPath(soundPath);
+                        QString block = QString(
+                            "\t\"soundscape.%1\" =\n"
+                            "\t{\n"
+                            "\t\ttype = \"csgo_mega\"\n"
+                            "\t\tmixgroup = \"Amb_Common\"\n"
+                            "\t\tvsnd_files_track_01 = \"%2\"\n"
+                            "\t\tvolume = 3.0\n"
+                            "\t\tdistance_effect_mix = 0.0\n"
+                            "\t}\n"
+                        ).arg(xxx).arg(vsndPath);
+                        vsndevtsBlocks.insert(xxx, block);
+                    }
+                }
+            }
+
+            if (depth == 0) {
+                inEntity = false;
+                inConnections = false;
+            }
+        }
+
+        outputLines.append(line);
+    }
+
+    if (!newEntities.isEmpty()) {
+        outputLines.append(newEntities);
+        Miscellaneous::EnsureFileWritable(vmfPath);
+        QFile writeFile(vmfPath);
+        if (writeFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&writeFile);
+            for (const QString& oLine : outputLines) {
+                out << oLine << "\n";
+            }
+            writeFile.close();
+        }
+    }
+
+    if (!vsndevtsBlocks.isEmpty()) {
+        QString vsndevtsContent = "<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->\n{\n";
+        for (const QString& block : vsndevtsBlocks) {
+            vsndevtsContent += block + "\n";
+        }
+        vsndevtsContent += "}\n";
+
+        QString outPath = Miscellaneous::GetOptions().s2contentdir + "/soundevents/soundevents_" + Miscellaneous::GetOptions().mapName + "_connections.vsndevts";
+        QDir().mkpath(QFileInfo(outPath).absolutePath());
+        Miscellaneous::EnsureFileWritable(outPath);
+        QFile vsndFile(outPath);
+        if (vsndFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&vsndFile);
+            out << vsndevtsContent;
+            vsndFile.close();
+        }
+    }
+}
+
 static QString FormatVsndPath(QString wavePath) {
     wavePath.replace("\\", "/");
     if (!wavePath.startsWith("sounds/")) {
