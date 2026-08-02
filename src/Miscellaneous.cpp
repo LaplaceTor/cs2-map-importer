@@ -12,9 +12,236 @@
 #include <QRegularExpression>
 #include <QCoreApplication>
 #include <QByteArray>
+#include <QSet>
+#include <QList>
 
 QAtomicInt Miscellaneous::CanceLImport(0);
 Miscellaneous::LogCallback Miscellaneous::GlobaLLogger = nullptr;
+
+QString Miscellaneous::GetBaseFolderFromGameInfo(const QString& gameinfoPath) {
+    QString gameinfo_path = QFileInfo(gameinfoPath).absolutePath();
+    QStringList lines = ReadTextFile(gameinfoPath);
+
+    // Find the value of "game+game_write"
+    QString game_game_write_val;
+    int currentDepth = 0;
+    bool insideGameInfo = false;
+    bool insideSearchPaths = false;
+    int gameInfoDepth = -1;
+    int searchPathsDepth = -1;
+
+    for (const QString& origLine : lines) {
+        QString line = origLine;
+        int commentIdx = line.indexOf("//");
+        if (commentIdx != -1) {
+            line = line.left(commentIdx);
+        }
+        line = line.trimmed();
+        if (line.isEmpty()) continue;
+
+        if (line == "{") {
+            currentDepth++;
+            continue;
+        } else if (line == "}") {
+            if (insideSearchPaths && currentDepth == searchPathsDepth) {
+                insideSearchPaths = false;
+                searchPathsDepth = -1;
+            }
+            if (insideGameInfo && currentDepth == gameInfoDepth) {
+                insideGameInfo = false;
+                gameInfoDepth = -1;
+            }
+            currentDepth--;
+            continue;
+        }
+
+        if (!insideGameInfo && currentDepth == 0) {
+            if (line.compare("GameInfo", Qt::CaseInsensitive) == 0 || line.compare("\"GameInfo\"", Qt::CaseInsensitive) == 0) {
+                insideGameInfo = true;
+                gameInfoDepth = currentDepth + 1;
+            }
+        } else if (insideGameInfo && !insideSearchPaths && currentDepth == gameInfoDepth) {
+            if (line.compare("SearchPaths", Qt::CaseInsensitive) == 0 || line.compare("\"SearchPaths\"", Qt::CaseInsensitive) == 0) {
+                insideSearchPaths = true;
+                searchPathsDepth = currentDepth + 1;
+            }
+        } else if (insideSearchPaths && currentDepth == searchPathsDepth) {
+            // Tokenize line to get key and value
+            QStringList tokens;
+            QString currentToken;
+            bool insideQuotes = false;
+            for (int i = 0; i < line.length(); ++i) {
+                QChar c = line[i];
+                if (c == '"') {
+                    insideQuotes = !insideQuotes;
+                } else if (!insideQuotes && (c == ' ' || c == '\t')) {
+                    if (!currentToken.isEmpty()) {
+                        tokens.append(currentToken);
+                        currentToken.clear();
+                    }
+                } else {
+                    currentToken.append(c);
+                }
+            }
+            if (!currentToken.isEmpty()) {
+                tokens.append(currentToken);
+            }
+
+            if (tokens.size() >= 2) {
+                QString key = tokens[0].trimmed();
+                QString val = tokens[1].trimmed();
+                if (key.compare("game+game_write", Qt::CaseInsensitive) == 0) {
+                    game_game_write_val = val;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Determine basefolder
+    QString basefolder;
+    if (!game_game_write_val.isEmpty()) {
+        QString gpath = QDir::fromNativeSeparators(gameinfo_path);
+        QString suffix = QDir::fromNativeSeparators(game_game_write_val);
+        if (gpath.endsWith("/" + suffix, Qt::CaseInsensitive)) {
+            basefolder = gpath.left(gpath.size() - suffix.size() - 1);
+        } else if (gpath.endsWith(suffix, Qt::CaseInsensitive)) {
+            basefolder = gpath.left(gpath.size() - suffix.size());
+        } else {
+            basefolder = QFileInfo(gameinfo_path).dir().absolutePath();
+        }
+    } else {
+        basefolder = QFileInfo(gameinfo_path).dir().absolutePath();
+    }
+    return QDir::cleanPath(basefolder);
+}
+
+bool Miscellaneous::ParseGameInfo(const QString& gameinfoPath, QList<SearchTarget>& targets) {
+    targets.clear();
+
+    QString gameinfo_path = QFileInfo(gameinfoPath).absolutePath();
+    QStringList lines = ReadTextFile(gameinfoPath);
+
+    // Determine basefolder
+    QString basefolder = GetBaseFolderFromGameInfo(gameinfoPath);
+
+    // "check gaminfofolder first anyway"
+    // Add gameinfo_path as the very first folder target!
+    QSet<QString> addedFolders;
+    QSet<QString> addedVpks;
+
+    QString cleanGameinfoPath = QDir::cleanPath(gameinfo_path);
+    addedFolders.insert(cleanGameinfoPath);
+    SearchTarget gameinfoTarget;
+    gameinfoTarget.isVpk = false;
+    gameinfoTarget.path = cleanGameinfoPath;
+    targets.append(gameinfoTarget);
+
+    // Pass 2: Collect all search targets
+    int currentDepth = 0;
+    bool insideGameInfo = false;
+    bool insideSearchPaths = false;
+    int gameInfoDepth = -1;
+    int searchPathsDepth = -1;
+
+    for (const QString& origLine : lines) {
+        QString line = origLine;
+        int commentIdx = line.indexOf("//");
+        if (commentIdx != -1) {
+            line = line.left(commentIdx);
+        }
+        line = line.trimmed();
+        if (line.isEmpty()) continue;
+
+        if (line == "{") {
+            currentDepth++;
+            continue;
+        } else if (line == "}") {
+            if (insideSearchPaths && currentDepth == searchPathsDepth) {
+                insideSearchPaths = false;
+                searchPathsDepth = -1;
+            }
+            if (insideGameInfo && currentDepth == gameInfoDepth) {
+                insideGameInfo = false;
+                gameInfoDepth = -1;
+            }
+            currentDepth--;
+            continue;
+        }
+
+        if (!insideGameInfo && currentDepth == 0) {
+            if (line.compare("GameInfo", Qt::CaseInsensitive) == 0 || line.compare("\"GameInfo\"", Qt::CaseInsensitive) == 0) {
+                insideGameInfo = true;
+                gameInfoDepth = currentDepth + 1;
+            }
+        } else if (insideGameInfo && !insideSearchPaths && currentDepth == gameInfoDepth) {
+            if (line.compare("SearchPaths", Qt::CaseInsensitive) == 0 || line.compare("\"SearchPaths\"", Qt::CaseInsensitive) == 0) {
+                insideSearchPaths = true;
+                searchPathsDepth = currentDepth + 1;
+            }
+        } else if (insideSearchPaths && currentDepth == searchPathsDepth) {
+            QStringList tokens;
+            QString currentToken;
+            bool insideQuotes = false;
+            for (int i = 0; i < line.length(); ++i) {
+                QChar c = line[i];
+                if (c == '"') {
+                    insideQuotes = !insideQuotes;
+                } else if (!insideQuotes && (c == ' ' || c == '\t')) {
+                    if (!currentToken.isEmpty()) {
+                        tokens.append(currentToken);
+                        currentToken.clear();
+                    }
+                } else {
+                    currentToken.append(c);
+                }
+            }
+            if (!currentToken.isEmpty()) {
+                tokens.append(currentToken);
+            }
+
+            if (tokens.size() >= 2) {
+                QString val = tokens[1].trimmed();
+
+                // Clean placeholder |gameinfo_path| and remove others
+                val.replace("|gameinfo_path|", gameinfo_path, Qt::CaseInsensitive);
+                QRegularExpression placeholderRe("\\|[^|]+\\|");
+                val.replace(placeholderRe, "");
+
+                val = QDir::fromNativeSeparators(val);
+                QString absPath;
+                if (QFileInfo(val).isAbsolute()) {
+                    absPath = QDir::cleanPath(val);
+                } else {
+                    absPath = QDir::cleanPath(QDir(basefolder).filePath(val));
+                }
+
+                if (absPath.endsWith(".vpk", Qt::CaseInsensitive)) {
+                    if (!absPath.endsWith("_dir.vpk", Qt::CaseInsensitive)) {
+                        absPath.replace(absPath.size() - 4, 4, "_dir.vpk");
+                    }
+                    if (!addedVpks.contains(absPath)) {
+                        addedVpks.insert(absPath);
+                        SearchTarget target;
+                        target.isVpk = true;
+                        target.path = absPath;
+                        targets.append(target);
+                    }
+                } else {
+                    if (!addedFolders.contains(absPath)) {
+                        addedFolders.insert(absPath);
+                        SearchTarget target;
+                        target.isVpk = false;
+                        target.path = absPath;
+                        targets.append(target);
+                    }
+                }
+            }
+        }
+    }
+
+    return !targets.isEmpty();
+}
 
 static Miscellaneous::Options globalOptions;
 

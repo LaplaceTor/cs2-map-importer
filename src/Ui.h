@@ -172,6 +172,7 @@ public:
         if (s1GameType == "tf2") return tf2gamedir;
         if (s1GameType == "gmod") return gmodgamedir;
         if (s1GameType == "blackmesa") return blackmesagamedir;
+        if (s1GameType == "other") return otherbasefolder;
         return csgogamedir;
     }
     QString GetS1GameType() const { return s1GameType; }
@@ -319,6 +320,9 @@ private:
     QString tf2gamedir;
     QString gmodgamedir;
     QString blackmesagamedir;
+    QString othergameinfo;
+    QString otherbasefolder;
+    QString othergamedir;
     QString s1GameType; // "csgo", "css", etc.
     QString contentFolder;
     QString contentFolderToSave;

@@ -142,6 +142,13 @@ ApplicationWindow {
     }
 
     FileDialog {
+        id: gameinfoFileDialog
+        title: "Select gameinfo.txt"
+        nameFilters: ["gameinfo.txt"]
+        onAccepted: backend.SelectS1FolderDialog(selectedFile)
+    }
+
+    FileDialog {
         id: mapFileDialog
         title: "Select VMF or BSP"
         nameFilters: ["Map files (*.vmf *.bsp)"]
@@ -245,7 +252,7 @@ ApplicationWindow {
                         ComboBox {
                             id: s1GameCombo
                             enabled: !backend.isGoing
-                            model: ["CSGO", "CSS", "HL2", "L4D", "L4D2", "Portal", "Portal2", "TF2", "GMod", "BlackMesa"]
+                            model: ["CSGO", "CSS", "HL2", "L4D", "L4D2", "Portal", "Portal2", "TF2", "GMod", "BlackMesa", "Other Source 1 game"]
                             Layout.fillWidth: true
                             Component.onCompleted: {
                                 let type = backend.s1GameType.toLowerCase();
@@ -258,15 +265,27 @@ ApplicationWindow {
                                 else if (type === "tf2") currentIndex = 7;
                                 else if (type === "gmod") currentIndex = 8;
                                 else if (type === "blackmesa") currentIndex = 9;
+                                else if (type === "other") currentIndex = 10;
                                 else currentIndex = 0;
                             }
-                            onActivated: backend.SetS1GameType(currentText.toLowerCase())
+                            onActivated: {
+                                if (currentText === "Other Source 1 game") {
+                                    backend.SetS1GameType("other");
+                                } else {
+                                    backend.SetS1GameType(currentText.toLowerCase());
+                                }
+                            }
                         }
 
                         Button {
                             id: s1FolderButton
                             enabled: !backend.isGoing
-                            text: backend.s1gameBasefolder === "" ? "Press to Select Game Folder" : backend.s1gameBasefolder
+                            text: {
+                                if (backend.s1gameBasefolder === "") {
+                                    return backend.s1GameType === "other" ? "Press to Select gameinfo.txt" : "Press to Select Game Folder";
+                                }
+                                return backend.s1gameBasefolder;
+                            }
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             contentItem: Text {
@@ -275,11 +294,17 @@ ApplicationWindow {
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
                             }
-                            onClicked: s1FolderDialog.open()
+                            onClicked: {
+                                if (backend.s1GameType === "other") {
+                                    gameinfoFileDialog.open();
+                                } else {
+                                    s1FolderDialog.open();
+                                }
+                            }
                         }
 
                         Button {
-                            enabled: !backend.isGoing
+                            enabled: !backend.isGoing && backend.s1GameType !== "other"
                             text: "Validate Game File"
                             Layout.fillWidth: true
                             onClicked: backend.ValidateS1()
