@@ -735,6 +735,7 @@ void Backend::SaveToCfg()
 {
     QSettings settings("cs2importer.cfg", QSettings::IniFormat);
     settings.setValue("theme", theme);
+    settings.setValue("cmdLogOut", cmdLogOut);
     settings.setValue("keepFuncDetailAsBrush", keepFuncDetailAsBrush);
     settings.setValue("usebsp", usebsp);
     settings.setValue("usebsp_nomergeinstances", usebspNomergeinstances);
@@ -772,6 +773,7 @@ void Backend::LoadFromCfg()
     theme = settings.value("theme", "system").toString();
     ApplyTheme(theme);
 
+    cmdLogOut = settings.value("cmdLogOut", false).toBool();
     keepFuncDetailAsBrush = settings.value("keepFuncDetailAsBrush", false).toBool();
     usebsp = settings.value("usebsp", true).toBool();
     usebspNomergeinstances = settings.value("usebsp_nomergeinstances", false).toBool();
@@ -848,6 +850,7 @@ void Backend::LoadFromCfg()
     emit s1GameTypeChanged();
     emit vmfDefaultPathUrlChanged();
     emit usebspChanged();
+    emit cmdLogOutChanged();
     emit usebspNomergeinstancesChanged();
     emit skipdepsChanged();
 
@@ -997,6 +1000,7 @@ void Backend::Start()
 
         if (activeTab == TAB_PARTICLE) {
             opts.addonName = selectedMdlAddon;
+            opts.cmdLogOut = true; // Always true for non-map imports to preserve default logging
             opts.particleAllowDepthBlend = particleAllowDepthBlend;
             opts.particleDisableDiffuse = particleDisableDiffuse;
             opts.keepFuncDetailAsBrush = false;
@@ -1011,6 +1015,7 @@ void Backend::Start()
             opts.modelWriteWeaponPrefab = false;
         } else if (activeTab == TAB_MODEL) {
             opts.addonName = selectedMdlAddon;
+            opts.cmdLogOut = true; // Always true for non-map imports to preserve default logging
             opts.modelSkipAnimation = modelSkipAnimation;
             opts.modelChangeBindpose = modelChangeBindpose;
             opts.modelOverrideLean = modelOverrideLean;
@@ -1025,6 +1030,7 @@ void Backend::Start()
             opts.skipdeps = false;
         } else {
             opts.contentFolder = contentFolder;
+            opts.cmdLogOut = cmdLogOut;
             opts.particleAllowDepthBlend = false;
             opts.particleDisableDiffuse = false;
             opts.mapName = mapName;

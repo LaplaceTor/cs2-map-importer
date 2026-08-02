@@ -111,7 +111,7 @@ bool ModelImporter::Run(const QString& mdlPath) {
                 "csgo",
                 QDir::toNativeSeparators(tmpVmtRel)
             };
-            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, false, nullptr, false, opts.s1GameType == "csgo");
+            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, opts.s1GameType == "csgo");
 
             QString tmpVmatRel = tmpVmtRel;
             int vmtPos = tmpVmatRel.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
@@ -177,7 +177,7 @@ bool ModelImporter::Run(const QString& mdlPath) {
             "-usefilelist",
             QDir::toNativeSeparators(tempImportFile)
         };
-        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, argumentsS1, false, nullptr, false, opts.s1GameType == "csgo");
+        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, argumentsS1, nullptr, false, opts.s1GameType == "csgo");
         QFile::remove(tempImportFile);
 
         QString tempCompileFile = opts.s1contentdir + "/temp_mtl_compile.txt";

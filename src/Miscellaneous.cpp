@@ -74,7 +74,7 @@ void Miscellaneous::CancelAll() {
 
 
 
-int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, bool logOut, QStringList* logOutString, bool isMap, bool isCSGO) {
+int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QStringList* logOutString, bool isMap, bool isCSGO) {
     if (CanceLImport) return -1;
 
     QString programPath;
@@ -130,6 +130,8 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
         finalArguments.prepend("-jar");
     }
 
+    bool cmdLogOut = Miscellaneous::GetOptions().cmdLogOut;
+
     // Log the command program path and arguments in a clear format
     QString loggedCmd = programPath;
     for (const QString& arg : finalArguments) {
@@ -139,7 +141,9 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
             loggedCmd += " " + arg;
         }
     }
-    Miscellaneous::Log(loggedCmd);
+    if (cmdLogOut) {
+        Miscellaneous::Log(loggedCmd);
+    }
 
     QProcess process;
     process.setProcessChannelMode(QProcess::MergedChannels);
@@ -161,8 +165,10 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
             if (c == '\n') {
                 if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
                 if (!lineBuffer.isEmpty()) {
-                    Miscellaneous::Log(lineBuffer);
-                    if (logOut && logOutString) {
+                    if (cmdLogOut) {
+                        Miscellaneous::Log(lineBuffer);
+                    }
+                    if (logOutString) {
                         logOutString->append(lineBuffer);
                     }
                     if (isSource1Import && isMap && lineBuffer.contains("ParseEpar: token too long")) {
@@ -205,8 +211,10 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, boo
 
     if (!lineBuffer.isEmpty()) {
         if (lineBuffer.endsWith('\r')) lineBuffer.chop(1);
-        Miscellaneous::Log(lineBuffer);
-        if (logOut && logOutString) {
+        if (cmdLogOut) {
+            Miscellaneous::Log(lineBuffer);
+        }
+        if (logOutString) {
             logOutString->append(lineBuffer);
         }
     }

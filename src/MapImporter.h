@@ -13,8 +13,9 @@ public:
     bool Run();
 
 private:
+    QStringList GetRefsList();
     void ImportAndCompileMapMDLs(const QString& filename);
-    void ImportAndCompileMapRefs();
+    void ImportAndCompileMapRefs(const QStringList& missingMaterials);
     void ImportParticles();
     void ImportSounds();
 
