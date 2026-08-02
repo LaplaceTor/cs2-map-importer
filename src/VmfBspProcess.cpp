@@ -1104,7 +1104,7 @@ void VmfBspProcess::ProcessBsp() {
     };
     int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_BSPSRC, arguments);
     if (Miscellaneous::CanceLImport) return;
-    if (ret != 0) {
+    if (ret != 100) {
         throw AppException("BSP Decompilation failed.");
     }
 

@@ -400,7 +400,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
                     if (logOutString) {
                         logOutString->append(lineBuffer);
                     }
-                    if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER) {
+                    if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER || program == PROGRAM_BSPSRC) {
                         cmdOutputLines.append(lineBuffer);
                     }
                     if (isSource1Import && isMap && lineBuffer.contains("ParseEpar: token too long")) {
@@ -449,7 +449,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
         if (logOutString) {
             logOutString->append(lineBuffer);
         }
-        if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER) {
+        if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER || program == PROGRAM_BSPSRC) {
             cmdOutputLines.append(lineBuffer);
         }
     }
@@ -503,12 +503,12 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
         bool hasNotFound = false;
         bool hasError = false;
         for (const QString& line : cmdOutputLines) {
-            QString lowerLine = line.toLower();
-            if (lowerLine.contains(" ok:")) {
+            QString lowerLine = line.toLower().trimmed();
+            if (lowerLine.contains("ok:")) {
                 hasSuccess = true;
             } else if (lowerLine.contains("found no files matching specification")) {
                 hasNotFound = true;
-            } else if (lowerLine.contains(" error:")) {
+            } else if (lowerLine.contains("error:")) {
                 hasError = true;
             }
         }
@@ -520,6 +520,25 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
             return 98;
         } else {
             return 97;
+        }
+    }
+
+    if (program == PROGRAM_BSPSRC) {
+        bool hasSuccess = false;
+        for (const QString& line : cmdOutputLines) {
+            if (line.toLower().contains("decompiled successfully")) {
+                hasSuccess = true;
+                break;
+            }
+        }
+        if (hasSuccess) {
+            return 100;
+        } else {
+            QString errOutput = cmdOutputLines.join("\n");
+            if (errOutput.isEmpty()) {
+                errOutput = "(No output)";
+            }
+            throw AppException("BSP Decompilation failed with unexpected output:\n" + errOutput);
         }
     }
 
