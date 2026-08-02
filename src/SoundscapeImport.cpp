@@ -322,6 +322,9 @@ static QString FormatVsndPath(QString wavePath) {
 }
 
 void SoundscapeImport::ImportSoundscapes(MapImporter* importer, QSet<QString>& uniqueSounds) {
+    QString vmfPath = QDir(Miscellaneous::GetOptions().appDir).filePath("maps/" + Miscellaneous::GetOptions().mapName + "/maps/" + Miscellaneous::GetOptions().mapName + ".vmf");
+    ProcessVmfConnections(vmfPath, uniqueSounds);
+
     QDir scriptsDir(Miscellaneous::GetOptions().s1contentdir + "\\scripts");
     if (!scriptsDir.exists()) {
         return;

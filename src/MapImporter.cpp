@@ -514,8 +514,6 @@ void MapImporter::ImportSounds() {
     Miscellaneous::Log("Importing sounds...");
     
     QSet<QString> uniqueSounds;
-    QString vmfPath = QDir(Miscellaneous::GetOptions().appDir).filePath("maps/" + Miscellaneous::GetOptions().mapName + "/maps/" + Miscellaneous::GetOptions().mapName + ".vmf");
-    SoundscapeImport::ProcessVmfConnections(vmfPath, uniqueSounds);
     SoundscapeImport::ImportSoundscapes(this, uniqueSounds);
 
     if (!uniqueSounds.isEmpty()) {
