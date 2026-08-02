@@ -275,7 +275,9 @@ void Miscellaneous::MoveVpkSignatures(const QString& cs2Basefolder, bool& vpkSig
         if (QFile::exists(tempVpkPath)) {
             QFile::remove(tempVpkPath);
         }
-        QFile::rename(vpkPath, tempVpkPath);
+        if (!QFile::rename(vpkPath, tempVpkPath)) {
+            throw AppException("Failed to move vpk.signatures. This is likely because Counter-Strike 2 is running. Please close CS2 before clicking START.");
+        }
         vpkSignaturesMoved = true;
     }
 }
