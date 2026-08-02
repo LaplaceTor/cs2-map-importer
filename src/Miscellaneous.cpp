@@ -400,7 +400,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
                     if (logOutString) {
                         logOutString->append(lineBuffer);
                     }
-                    if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT) {
+                    if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER) {
                         cmdOutputLines.append(lineBuffer);
                     }
                     if (isSource1Import && isMap && lineBuffer.contains("ParseEpar: token too long")) {
@@ -449,7 +449,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
         if (logOutString) {
             logOutString->append(lineBuffer);
         }
-        if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT) {
+        if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER) {
             cmdOutputLines.append(lineBuffer);
         }
     }
@@ -495,6 +495,31 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
             return 99;
         } else {
             return 98;
+        }
+    }
+
+    if (program == PROGRAM_RESOURCECOMPILER) {
+        bool hasSuccess = false;
+        bool hasNotFound = false;
+        bool hasError = false;
+        for (const QString& line : cmdOutputLines) {
+            QString lowerLine = line.toLower();
+            if (lowerLine.contains(" ok:")) {
+                hasSuccess = true;
+            } else if (lowerLine.contains("found no files matching specification")) {
+                hasNotFound = true;
+            } else if (lowerLine.contains(" error:")) {
+                hasError = true;
+            }
+        }
+        if (hasSuccess) {
+            return 100;
+        } else if (hasNotFound) {
+            return 99;
+        } else if (hasError) {
+            return 98;
+        } else {
+            return 97;
         }
     }
 
