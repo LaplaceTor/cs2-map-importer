@@ -402,7 +402,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
                     if (logOutString) {
                         logOutString->append(lineBuffer);
                     }
-                    if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER || program == PROGRAM_BSPSRC || program == PROGRAM_VTFCMD) {
+                    if (program == PROGRAM_SOURCE1IMPORT || program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER || program == PROGRAM_BSPSRC || program == PROGRAM_VTFCMD) {
                         cmdOutputLines.append(lineBuffer);
                     }
                     if (isSource1Import && isMap && lineBuffer.contains("ParseEpar: token too long")) {
@@ -451,8 +451,33 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
         if (logOutString) {
             logOutString->append(lineBuffer);
         }
-        if (program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER || program == PROGRAM_BSPSRC || program == PROGRAM_VTFCMD) {
+        if (program == PROGRAM_SOURCE1IMPORT || program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER || program == PROGRAM_BSPSRC || program == PROGRAM_VTFCMD) {
             cmdOutputLines.append(lineBuffer);
+        }
+    }
+
+    if (program == PROGRAM_SOURCE1IMPORT) {
+        bool hasSuccess = false;
+        bool hasNotFound = false;
+        bool hasError = false;
+        for (const QString& line : cmdOutputLines) {
+            QString lowerLine = line.toLower().trimmed();
+            if (lowerLine.contains("ok:")) {
+                hasSuccess = true;
+            } else if (lowerLine.contains("found no files matching specification") || lowerLine.contains("found no files matching specifications")) {
+                hasNotFound = true;
+            } else if (lowerLine.contains("error:") || lowerLine.contains("parseepar: token too long")) {
+                hasError = true;
+            }
+        }
+        if (hasSuccess) {
+            return 100;
+        } else if (hasNotFound) {
+            return 99;
+        } else if (hasError) {
+            return 98;
+        } else {
+            return 97;
         }
     }
 
