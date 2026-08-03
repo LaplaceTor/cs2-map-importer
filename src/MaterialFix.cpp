@@ -655,12 +655,48 @@ void MaterialFix::OldParticleMtlFix() {
         };
         Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
 
+        if (!QFile::exists(s2VmatPath)) {
+            continue;
+        }
+
+        QStringList vmatLines = Miscellaneous::ReadTextFile(s2VmatPath);
+        if (vmatLines.isEmpty()) {
+            continue;
+        }
+
+        QString tgaRel;
+        for (const QString& line : vmatLines) {
+            int idx = 0;
+            bool found = false;
+            while (true) {
+                int firstQuote = line.indexOf('"', idx);
+                if (firstQuote == -1) break;
+                int secondQuote = line.indexOf('"', firstQuote + 1);
+                if (secondQuote == -1) break;
+
+                QString candidate = line.mid(firstQuote + 1, secondQuote - firstQuote - 1);
+                QString normCandidate = candidate;
+                normCandidate.replace('\\', '/');
+                QString lowerCandidate = normCandidate.toLower();
+                if (lowerCandidate.startsWith("materials/") && lowerCandidate.endsWith("_color.tga")) {
+                    tgaRel = normCandidate;
+                    found = true;
+                    break;
+                }
+                idx = secondQuote + 1;
+            }
+            if (found) {
+                break;
+            }
+        }
+
+        if (tgaRel.isEmpty()) {
+            continue;
+        }
+
         QString vtexRel = vmtPath;
         vtexRel.replace(".vmt", ".vtex");
         QString s2VtexPath = QDir(Miscellaneous::GetOptions().s2contentdir).filePath(vtexRel);
-
-        QString tgaRel = vmtPath;
-        tgaRel.replace(".vmt", "_color.tga");
 
         QFile file(s2VtexPath);
         if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
