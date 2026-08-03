@@ -209,10 +209,10 @@ void SoundscapeImport::ProcessVmfConnections(const QString& vmfPath, QSet<QStrin
                         QString soundPath = playCmd.mid(5).trimmed();
 
                         QFileInfo soundFileInfo(soundPath);
-                        QString xxx = soundFileInfo.baseName();
+                        QString soundName = soundFileInfo.baseName();
 
                         // Modify connection to PlaySound on ambient_generic
-                        parts[0] = "playsound" + xxx;
+                        parts[0] = "playsound" + soundName;
                         parts[1] = "PlaySound";
                         parts[2] = ""; // empty parameter
 
@@ -237,9 +237,8 @@ void SoundscapeImport::ProcessVmfConnections(const QString& vmfPath, QSet<QStrin
                             "\t\"targetname\" \"playsound%2\"\n"
                             "\t\"origin\" \"%3\"\n"
                             "\t\"message\" \"soundscape.%4\"\n"
-                            "\t\"spawnflags\" \"49\"\n"
                             "}"
-                        ).arg(max_id).arg(xxx).arg(entityOrigin).arg(xxx);
+                        ).arg(max_id).arg(soundName).arg(entityOrigin).arg(soundName);
                         newEntities.append(newEnt);
 
                         // Generate vsndevts block
@@ -253,8 +252,8 @@ void SoundscapeImport::ProcessVmfConnections(const QString& vmfPath, QSet<QStrin
                             "\t\tvolume = 3.0\n"
                             "\t\tdistance_effect_mix = 0.0\n"
                             "\t}\n"
-                        ).arg(xxx).arg(vsndPath);
-                        vsndevtsBlocks.insert(xxx, block);
+                        ).arg(soundName).arg(vsndPath);
+                        vsndevtsBlocks.insert(soundName, block);
                     }
                 }
             }
@@ -500,7 +499,7 @@ void SoundscapeImport::ImportSoundscapes(QSet<QString>& uniqueSounds) {
 
         vsndevtsContent += "}\n";
 
-        QString baseName = fileInfo.baseName(); // soundscapes_xxx
+        QString baseName = fileInfo.baseName();
         if (baseName.startsWith("soundscapes_")) {
             baseName.replace(0, 12, "soundevents_");
         } else {
