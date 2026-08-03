@@ -402,9 +402,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
                     if (logOutString) {
                         logOutString->append(lineBuffer);
                     }
-                    if (program == PROGRAM_SOURCE1IMPORT || program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER || program == PROGRAM_BSPSRC || program == PROGRAM_VTFCMD) {
-                        cmdOutputLines.append(lineBuffer);
-                    }
+                    cmdOutputLines.append(lineBuffer);
                     if (isSource1Import && isMap && lineBuffer.contains("ParseEpar: token too long")) {
                         hasParseEparError = true;
                     }
@@ -451,9 +449,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
         if (logOutString) {
             logOutString->append(lineBuffer);
         }
-        if (program == PROGRAM_SOURCE1IMPORT || program == PROGRAM_VPKEDITCLI || program == PROGRAM_CS_MDL_IMPORT || program == PROGRAM_RESOURCECOMPILER || program == PROGRAM_BSPSRC || program == PROGRAM_VTFCMD) {
-            cmdOutputLines.append(lineBuffer);
-        }
+        cmdOutputLines.append(lineBuffer);
     }
 
     if (program == PROGRAM_SOURCE1IMPORT) {
