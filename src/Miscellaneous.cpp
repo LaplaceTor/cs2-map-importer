@@ -460,9 +460,9 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
             QString lowerLine = line.toLower().trimmed();
             if (lowerLine.contains("ok:")) {
                 hasSuccess = true;
-            } else if (lowerLine.contains("found no files matching specification") || lowerLine.contains("found no files matching specifications")) {
+            } else if (lowerLine.contains("found no files matching specifications")) {
                 hasNotFound = true;
-            } else if (lowerLine.contains("error:") || lowerLine.contains("parseepar: token too long")) {
+            } else if (lowerLine.contains("error:")) {
                 hasError = true;
             }
         }
