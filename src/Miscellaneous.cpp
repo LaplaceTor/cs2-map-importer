@@ -360,6 +360,9 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
     }
 
     bool cmdLogOut = Miscellaneous::GetOptions().cmdLogOut;
+    if (program == PROGRAM_VPKEDITCLI && arguments.contains("--file-tree")) {
+        cmdLogOut = false;
+    }
 
     // Log the command program path and arguments in a clear format
     QString loggedCmd = programPath;

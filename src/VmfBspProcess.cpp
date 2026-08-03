@@ -1186,6 +1186,7 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
         }
 
         if (depth <= 0) {
+            // Root line, e.g., kz_otakuroom_v3_skipfix.bsp
             continue;
         }
 
@@ -1243,6 +1244,22 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
         if (folderPath.isEmpty()) {
             // Skip single files directly in the BSP main tree root
             continue;
+        }
+
+        // Skip the maps/ folder and any of its subfolders
+        if (folderPath.startsWith("maps/", Qt::CaseInsensitive)) {
+            continue;
+        }
+
+        if (info.subfolders.isEmpty()) {
+            foldersToExtract.append(folderPath);
+        } else {
+            for (const QString& file : info.files) {
+                // Skip files inside maps/ folder
+                if (!file.startsWith("maps/", Qt::CaseInsensitive)) {
+                    filesToExtract.append(file);
+                }
+            }
         }
     }
 
