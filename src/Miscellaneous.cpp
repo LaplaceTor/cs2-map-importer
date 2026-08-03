@@ -482,7 +482,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
         bool hasNotFound = false;
         for (const QString& line : cmdOutputLines) {
             QString lowerLine = line.toLower();
-            if (lowerLine.contains("extracted file at") || lowerLine.contains("extracted pack file contents under")) {
+            if (lowerLine.contains("extracted file at") || lowerLine.contains("extracted pack file contents under") || lowerLine.contains("extracted directory under")) {
                 hasSuccess = true;
             } else if (lowerLine.contains("could not find file at")) {
                 hasNotFound = true;
