@@ -1174,15 +1174,9 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
 
         if (nameStart >= line.length()) continue;
 
-        bool hasBranchMarker = line.left(nameStart).contains(QChar(0x251C)) || line.left(nameStart).contains(QChar(0x2514)); // '├' or '└'
-
         int depth = 0;
         if (nameStart > 0) {
-            if (hasBranchMarker) {
-                depth = (nameStart - baseOffset) / stepSize;
-            } else {
-                depth = nameStart / stepSize;
-            }
+            depth = (nameStart - baseOffset) / stepSize;
         }
 
         if (depth <= 0) {

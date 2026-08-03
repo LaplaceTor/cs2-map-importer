@@ -1,8 +1,10 @@
 #include "Miscellaneous.h"
 #include "Ui.h"
+#ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
 #include <shellapi.h>
+#endif
 #include <QDir>
 #include <QMetaObject>
 #include <QFile>
@@ -692,6 +694,7 @@ bool Miscellaneous::IsCorrectSymlink(const QString& linkPath, const QString& tar
 }
 
 bool Miscellaneous::CreateSymlink(const QString& linkPath, const QString& targetPath) {
+#ifdef _WIN32
     QString msgText = QString("To fix texture scale errors, the map importer needs to create a directory symbolic link (symlink) named 'csgo' pointing to your Source 1 game directory:\n%1\n\nThis will allow the importer to treat the game as CS:GO and import it properly.\n\nCreating symbolic links requires Administrator privileges. Would you like to request administrator permission and create the symlink?").arg(targetPath);
 
     if (!Backend::ShowMessageBox("Administrator Permission Required", msgText, 0, true)) {
@@ -716,4 +719,7 @@ bool Miscellaneous::CreateSymlink(const QString& linkPath, const QString& target
     }
 
     return IsCorrectSymlink(linkPath, targetPath);
+#else
+    return QFile::link(targetPath, linkPath);
+#endif
 }
