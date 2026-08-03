@@ -1094,16 +1094,25 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
     Miscellaneous::Log("Listing embedded files tree using vpkeditcli...");
     int tree_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, {"--file-tree", QDir::toNativeSeparators(bspFile)}, &treeOutput);
 
-    // Parse treeOutput
+    // Strip ANSI escape codes
+    QRegularExpression ansiRegex("\\x1B\\[[0-9;]*[a-zA-Z]");
+    QStringList cleanTreeOutput;
+    for (const QString& line : treeOutput) {
+        QString cleanLine = line;
+        cleanLine.replace(ansiRegex, "");
+        if (!cleanLine.trimmed().isEmpty()) {
+            cleanTreeOutput.append(cleanLine);
+        }
+    }
+
+    // Parse cleanTreeOutput
     QMap<QString, FolderInfo> folders;
     folders[""] = FolderInfo{"", QStringList(), QStringList()}; // register root folder
 
     QStringList currentPath;
     QRegularExpression sizeRegex("\\s*-\\s*[\\d\\.]+\\s*(b|kb|mb|gb)\\s*$", QRegularExpression::CaseInsensitiveOption);
 
-    for (const QString& line : treeOutput) {
-        if (line.trimmed().isEmpty()) continue;
-
+    for (const QString& line : cleanTreeOutput) {
         // Find prefix length by skipping box drawing and spaces
         int nameStart = 0;
         while (nameStart < line.length()) {
@@ -1118,8 +1127,17 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
 
         if (nameStart >= line.length()) continue;
 
-        int depth = (nameStart - 3) / 3;
-        if (depth < 0) {
+        // Count depth based on vertical line and branch characters in prefix
+        int depth = 0;
+        for (int i = 0; i < nameStart; ++i) {
+            QChar c = line[i];
+            ushort val = c.unicode();
+            if (val == 0x2502 || val == 0x251C || val == 0x2514) { // '│', '├', '└'
+                depth++;
+            }
+        }
+
+        if (depth == 0) {
             // Root line, e.g., kz_otakuroom_v3_skipfix.bsp
             continue;
         }
