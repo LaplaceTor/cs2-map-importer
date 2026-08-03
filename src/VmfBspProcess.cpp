@@ -1250,13 +1250,14 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
         QString destFile = QDir::toNativeSeparators(targetUnpackedDir + "/" + file);
         QFileInfo fi(destFile);
         fi.dir().mkpath(".");
+        QString parentDir = QDir::toNativeSeparators(fi.absolutePath());
 
         QStringList argumentsVpk = {
             "-e",
             file,
             QDir::toNativeSeparators(bspFile),
             "-o",
-            destFile
+            parentDir
         };
 
         int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
