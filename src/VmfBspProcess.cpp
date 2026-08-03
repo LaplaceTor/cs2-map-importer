@@ -1105,6 +1105,53 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
         }
     }
 
+    // Dynamically detect indentation step size and base offset
+    int firstIndent = -1;
+    int secondIndent = -1;
+    for (const QString& line : cleanTreeOutput) {
+        int nameStart = 0;
+        while (nameStart < line.length()) {
+            QChar c = line[nameStart];
+            ushort val = c.unicode();
+            if (c.isSpace() || (val >= 0x2500 && val <= 0x257F)) {
+                nameStart++;
+            } else {
+                break;
+            }
+        }
+        if (nameStart > 0) {
+            if (firstIndent == -1) {
+                firstIndent = nameStart;
+            } else if (secondIndent == -1 && nameStart != firstIndent) {
+                secondIndent = nameStart;
+            }
+        }
+    }
+
+    int stepSize = 2;
+    int baseOffset = 1;
+    if (firstIndent != -1) {
+        if (secondIndent != -1) {
+            stepSize = secondIndent - firstIndent;
+            baseOffset = firstIndent - stepSize;
+        } else {
+            if (firstIndent == 6) {
+                stepSize = 3;
+                baseOffset = 3;
+            } else if (firstIndent == 3) {
+                stepSize = 2;
+                baseOffset = 1;
+            } else {
+                stepSize = 2;
+                baseOffset = firstIndent - 2;
+            }
+        }
+    }
+    if (stepSize <= 0) {
+        stepSize = 2;
+        baseOffset = 1;
+    }
+
     // Parse cleanTreeOutput
     QMap<QString, FolderInfo> folders;
     folders[""] = FolderInfo{"", QStringList(), QStringList()}; // register root folder
@@ -1127,17 +1174,18 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
 
         if (nameStart >= line.length()) continue;
 
-        // Count depth based on vertical line and branch characters in prefix
+        bool hasBranchMarker = line.left(nameStart).contains(QChar(0x251C)) || line.left(nameStart).contains(QChar(0x2514)); // '├' or '└'
+
         int depth = 0;
-        for (int i = 0; i < nameStart; ++i) {
-            QChar c = line[i];
-            ushort val = c.unicode();
-            if (val == 0x2502 || val == 0x251C || val == 0x2514) { // '│', '├', '└'
-                depth++;
+        if (nameStart > 0) {
+            if (hasBranchMarker) {
+                depth = (nameStart - baseOffset) / stepSize;
+            } else {
+                depth = nameStart / stepSize;
             }
         }
 
-        if (depth == 0) {
+        if (depth <= 0) {
             // Root line, e.g., kz_otakuroom_v3_skipfix.bsp
             continue;
         }
