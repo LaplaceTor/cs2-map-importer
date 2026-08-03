@@ -1239,9 +1239,12 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
         const FolderInfo& info = it.value();
 
         if (folderPath.isEmpty()) {
-            for (const QString& file : info.files) {
-                filesToExtract.append(file);
-            }
+            // Skip single files directly in the BSP main tree root
+            continue;
+        }
+
+        // Skip the maps/ folder and any of its subfolders
+        if (folderPath.startsWith("maps/", Qt::CaseInsensitive)) {
             continue;
         }
 
@@ -1249,7 +1252,10 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
             foldersToExtract.append(folderPath);
         } else {
             for (const QString& file : info.files) {
-                filesToExtract.append(file);
+                // Skip files inside maps/ folder
+                if (!file.startsWith("maps/", Qt::CaseInsensitive)) {
+                    filesToExtract.append(file);
+                }
             }
         }
     }
