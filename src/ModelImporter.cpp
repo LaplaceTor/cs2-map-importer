@@ -184,31 +184,43 @@ bool ModelImporter::Run(const QString& mdlPath) {
         Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, argumentsS1, nullptr, false, opts.s1GameType == "csgo");
         QFile::remove(tempImportFile);
 
-        QString tempCompileFile = opts.s1contentdir + "/temp_mtl_compile.txt";
-        Miscellaneous::EnsureFileWritable(tempCompileFile);
-        QFile fCompile(tempCompileFile);
-        if (fCompile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            QTextStream out(&fCompile);
-            for (const QString& mtl : normalMtls) {
-                QString outName = opts.s2contentdir + "/" + mtl;
-                int vmtPos = outName.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
-                if (vmtPos != -1) outName.replace(vmtPos, 4, ".vmat");
-                outName = QDir::toNativeSeparators(outName);
-                out << outName << "\n";
+        QStringList successfulNormalMtls;
+        for (const QString& mtl : normalMtls) {
+            QString outName = opts.s2contentdir + "/" + mtl;
+            int vmtPos = outName.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
+            if (vmtPos != -1) outName.replace(vmtPos, 4, ".vmat");
+            if (QFile::exists(outName)) {
+                successfulNormalMtls.append(mtl);
             }
-            fCompile.close();
         }
 
-        QStringList argumentsRc = {
-            "-retail",
-            "-nop4",
-            "-game",
-            "csgo",
-            "-filelist",
-            QDir::toNativeSeparators(tempCompileFile)
-        };
-        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
-        QFile::remove(tempCompileFile);
+        if (!successfulNormalMtls.isEmpty()) {
+            QString tempCompileFile = opts.s1contentdir + "/temp_mtl_compile.txt";
+            Miscellaneous::EnsureFileWritable(tempCompileFile);
+            QFile fCompile(tempCompileFile);
+            if (fCompile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                QTextStream out(&fCompile);
+                for (const QString& mtl : successfulNormalMtls) {
+                    QString outName = opts.s2contentdir + "/" + mtl;
+                    int vmtPos = outName.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
+                    if (vmtPos != -1) outName.replace(vmtPos, 4, ".vmat");
+                    outName = QDir::toNativeSeparators(outName);
+                    out << outName << "\n";
+                }
+                fCompile.close();
+            }
+
+            QStringList argumentsRc = {
+                "-retail",
+                "-nop4",
+                "-game",
+                "csgo",
+                "-filelist",
+                QDir::toNativeSeparators(tempCompileFile)
+            };
+            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
+            QFile::remove(tempCompileFile);
+        }
     }
 
     if (Miscellaneous::CanceLImport) return false;
