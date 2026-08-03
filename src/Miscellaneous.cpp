@@ -1,8 +1,10 @@
 #include "Miscellaneous.h"
 #include "Ui.h"
+#ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
 #include <shellapi.h>
+#endif
 #include <QDir>
 #include <QMetaObject>
 #include <QFile>
@@ -360,6 +362,9 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
     }
 
     bool cmdLogOut = Miscellaneous::GetOptions().cmdLogOut;
+    if (program == PROGRAM_VPKEDITCLI && arguments.contains("--file-tree")) {
+        cmdLogOut = false;
+    }
 
     // Log the command program path and arguments in a clear format
     QString loggedCmd = programPath;
@@ -482,7 +487,7 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
         bool hasNotFound = false;
         for (const QString& line : cmdOutputLines) {
             QString lowerLine = line.toLower();
-            if (lowerLine.contains("extracted file at") || lowerLine.contains("extracted pack file contents under")) {
+            if (lowerLine.contains("extracted file at") || lowerLine.contains("extracted pack file contents under") || lowerLine.contains("extracted directory under")) {
                 hasSuccess = true;
             } else if (lowerLine.contains("could not find file at")) {
                 hasNotFound = true;
@@ -689,6 +694,7 @@ bool Miscellaneous::IsCorrectSymlink(const QString& linkPath, const QString& tar
 }
 
 bool Miscellaneous::CreateSymlink(const QString& linkPath, const QString& targetPath) {
+#ifdef _WIN32
     QString msgText = QString("To fix texture scale errors, the map importer needs to create a directory symbolic link (symlink) named 'csgo' pointing to your Source 1 game directory:\n%1\n\nThis will allow the importer to treat the game as CS:GO and import it properly.\n\nCreating symbolic links requires Administrator privileges. Would you like to request administrator permission and create the symlink?").arg(targetPath);
 
     if (!Backend::ShowMessageBox("Administrator Permission Required", msgText, 0, true)) {
@@ -713,4 +719,7 @@ bool Miscellaneous::CreateSymlink(const QString& linkPath, const QString& target
     }
 
     return IsCorrectSymlink(linkPath, targetPath);
+#else
+    return QFile::link(targetPath, linkPath);
+#endif
 }

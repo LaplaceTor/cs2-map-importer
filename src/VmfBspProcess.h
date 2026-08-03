@@ -5,8 +5,17 @@
 
 class VmfBspProcess {
 public:
+    struct FolderInfo {
+        QString path;
+        QStringList subfolders;
+        QStringList files;
+    };
+
     // Decompiles the BSP, moves unpacked files, and moves materials/models folders into s1gamedir
     static void ProcessBsp();
+
+    // Extracts embedded files from BSP using detailed logging
+    static void ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QString& bspFile, const QString& targetUnpackedDir);
 
     static void FixVmfFromBsp(const QString& vmfPath);
     static void FixSpecialTargetnames(const QString& vmfPath);
