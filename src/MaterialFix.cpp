@@ -666,27 +666,31 @@ void MaterialFix::OldParticleMtlFix() {
 
         QString tgaRel;
         for (const QString& line : vmatLines) {
+            QStringList tokens;
             int idx = 0;
-            bool found = false;
             while (true) {
                 int firstQuote = line.indexOf('"', idx);
                 if (firstQuote == -1) break;
                 int secondQuote = line.indexOf('"', firstQuote + 1);
                 if (secondQuote == -1) break;
 
-                QString candidate = line.mid(firstQuote + 1, secondQuote - firstQuote - 1);
-                QString normCandidate = candidate;
-                normCandidate.replace('\\', '/');
-                QString lowerCandidate = normCandidate.toLower();
-                if (lowerCandidate.startsWith("materials/") && lowerCandidate.endsWith("_color.tga")) {
-                    tgaRel = normCandidate;
-                    found = true;
-                    break;
-                }
+                tokens.append(line.mid(firstQuote + 1, secondQuote - firstQuote - 1));
                 idx = secondQuote + 1;
             }
-            if (found) {
-                break;
+
+            if (tokens.size() >= 2) {
+                QString key = tokens[0];
+                QString val = tokens[1];
+                QString lowerKey = key.toLower();
+                if (lowerKey.contains("texture") && lowerKey.contains("color")) {
+                    QString normVal = val;
+                    normVal.replace('\\', '/');
+                    QString lowerVal = normVal.toLower();
+                    if (lowerVal.startsWith("materials/") && lowerVal.endsWith("_color.tga")) {
+                        tgaRel = normVal;
+                        break;
+                    }
+                }
             }
         }
 
