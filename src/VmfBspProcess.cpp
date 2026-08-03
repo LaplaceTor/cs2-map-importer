@@ -1200,19 +1200,22 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
             cleanName = itemRaw;
         }
 
-        // Adjust currentPath size to exactly depth
-        while (currentPath.size() > depth) {
-            currentPath.removeLast();
+        // Adjust currentPath size to exactly depth (folders only)
+        if (!isFile) {
+            while (currentPath.size() > depth) {
+                currentPath.removeLast();
+            }
+            while (currentPath.size() < depth) {
+                currentPath.append("");
+            }
+            currentPath[depth - 1] = cleanName;
         }
-        while (currentPath.size() < depth) {
-            currentPath.append("");
-        }
-
-        currentPath[depth - 1] = cleanName;
 
         QString parentPath = "";
         for (int i = 0; i < depth - 1; ++i) {
-            parentPath += currentPath[i] + "/";
+            if (i < currentPath.size()) {
+                parentPath += currentPath[i] + "/";
+            }
         }
 
         QString itemPath = parentPath + cleanName;
