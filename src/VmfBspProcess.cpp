@@ -9,9 +9,6 @@
 #include <QCoreApplication>
 #include <QByteArray>
 #include <QMap>
-#include <QMutex>
-#include <QMutexLocker>
-#include <memory>
 
 QString VmfBspProcess::ParseMapversion(const QStringList& lines, bool& found) {
     QString mapversion = "2";
