@@ -1,0 +1,114 @@
+================================================================================
+GAMEINFO PARSING OUTPUTS (FIXED CODE)
+================================================================================
+
+1. FILE: gameinfo_csgo.txt
+   BaseFolder: /tmp/file_attachments
+   Targets:
+     [DIR] /tmp/file_attachments/gameinfo_example
+     [DIR] /tmp/file_attachments/csgo
+
+================================================================================
+
+2. FILE: gameinfo_css.txt
+   BaseFolder: /tmp/file_attachments
+   Targets:
+     [DIR] /tmp/file_attachments/gameinfo_example
+     [VPK] /tmp/file_attachments/cstrike/cstrike_english_dir.vpk
+     [VPK] /tmp/file_attachments/cstrike/cstrike_pak_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_textures_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_sound_vo_english_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_sound_misc_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_misc_dir.vpk
+     [VPK] /tmp/file_attachments/platform/platform_misc_dir.vpk
+     [DIR] /tmp/file_attachments/cstrike
+     [DIR] /tmp/file_attachments/cstrike/bin
+     [DIR] /tmp/file_attachments/hl2
+     [DIR] /tmp/file_attachments/platform
+     [DIR] /tmp/file_attachments/cstrike/download
+
+================================================================================
+
+3. FILE: gameinfo_hl2.txt
+   BaseFolder: /tmp/file_attachments
+   Targets:
+     [DIR] /tmp/file_attachments/gameinfo_example
+     [VPK] /tmp/file_attachments/hl2/hl2_lv_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_sound_vo_english_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_pak_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_textures_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_sound_misc_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_misc_dir.vpk
+     [VPK] /tmp/file_attachments/platform/platform_misc_dir.vpk
+     [DIR] /tmp/file_attachments/hl2
+     [DIR] /tmp/file_attachments/hl2/bin
+     [DIR] /tmp/file_attachments/platform
+
+================================================================================
+
+4. FILE: gameinfo_l4d.txt
+   BaseFolder: /tmp/file_attachments
+   Targets:
+     [DIR] /tmp/file_attachments/gameinfo_example
+     [DIR] /tmp/file_attachments/left4dead_dlc3
+     [DIR] /tmp/file_attachments/hl2
+
+================================================================================
+
+5. FILE: gameinfo_l4d2.txt
+   BaseFolder: /tmp/file_attachments
+   Targets:
+     [DIR] /tmp/file_attachments/gameinfo_example
+     [DIR] /tmp/file_attachments/update
+     [DIR] /tmp/file_attachments/left4dead2_dlc3
+     [DIR] /tmp/file_attachments/left4dead2_dlc2
+     [DIR] /tmp/file_attachments/left4dead2_dlc1
+     [DIR] /tmp/file_attachments/hl2
+
+================================================================================
+
+6. FILE: gameinfo_portal.txt
+   BaseFolder: /tmp/file_attachments
+   Targets:
+     [DIR] /tmp/file_attachments/gameinfo_example
+     [VPK] /tmp/file_attachments/portal/portal_lv_dir.vpk
+     [VPK] /tmp/file_attachments/portal/portal_sound_vo_english_dir.vpk
+     [VPK] /tmp/file_attachments/portal/portal_pak_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_textures_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_sound_vo_english_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_sound_misc_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_misc_dir.vpk
+     [VPK] /tmp/file_attachments/platform/platform_misc_dir.vpk
+     [DIR] /tmp/file_attachments/portal
+     [DIR] /tmp/file_attachments/portal/bin
+     [DIR] /tmp/file_attachments/hl2
+     [DIR] /tmp/file_attachments/platform
+
+================================================================================
+
+7. FILE: gameinfo_portal2.txt
+   BaseFolder: /tmp/file_attachments
+   Targets:
+     [DIR] /tmp/file_attachments/gameinfo_example
+
+================================================================================
+
+8. FILE: gameinfo_tf2.txt
+   BaseFolder: /tmp/file_attachments
+   Targets:
+     [DIR] /tmp/file_attachments/gameinfo_example
+     [VPK] /tmp/file_attachments/tf/tf2_lv_dir.vpk
+     [VPK] /tmp/file_attachments/tf/tf2_textures_dir.vpk
+     [VPK] /tmp/file_attachments/tf/tf2_sound_vo_english_dir.vpk
+     [VPK] /tmp/file_attachments/tf/tf2_sound_misc_dir.vpk
+     [VPK] /tmp/file_attachments/tf/tf2_misc_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_textures_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_sound_vo_english_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_sound_misc_dir.vpk
+     [VPK] /tmp/file_attachments/hl2/hl2_misc_dir.vpk
+     [VPK] /tmp/file_attachments/platform/platform_misc_dir.vpk
+     [DIR] /tmp/file_attachments/tf
+     [DIR] /tmp/file_attachments/tf/bin
+     [DIR] /tmp/file_attachments/hl2
+     [DIR] /tmp/file_attachments/platform
+     [DIR] /tmp/file_attachments/tf/download
