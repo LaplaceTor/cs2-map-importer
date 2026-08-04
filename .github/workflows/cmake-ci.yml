@@ -105,18 +105,8 @@ jobs:
 
         Copy-Item -Path bin -Destination release\bin -Recurse
 
-        # Pack cs2importer.exe in release folder as exeonly
-        mkdir release\exeonly
-        Copy-Item build\Release\cs2importer.exe release\exeonly\
-
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: CS2-Importer-Dev-${{ steps.vars.outputs.sha_short }}
         path: release
-
-    - name: Upload ExeOnly Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: CS2-Importer-ExeOnly-${{ steps.vars.outputs.sha_short }}
-        path: release/exeonly

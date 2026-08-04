@@ -616,16 +616,6 @@ void MaterialFix::OldParticleMtlFix() {
     for (const QString& vmtPath : materialList) {
         if (Miscellaneous::CanceLImport) return;
 
-        QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(vmtPath);
-        if (QFile::exists(contentPath)) {
-            QString s1GameDirVmt = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(vmtPath);
-            if (!QFile::exists(s1GameDirVmt)) {
-                QFileInfo fi(s1GameDirVmt);
-                QDir().mkpath(fi.absolutePath());
-                QFile::copy(contentPath, s1GameDirVmt);
-            }
-        }
-
         QStringList arguments = {
             "-retail",
             "-nop4",
