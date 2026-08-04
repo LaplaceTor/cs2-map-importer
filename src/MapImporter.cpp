@@ -11,6 +11,7 @@
 #include <QRegularExpression>
 #include <QMap>
 #include <QProcess>
+#include <QSet>
 
 
 void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
@@ -657,42 +658,98 @@ void MapImporter::ImportParticles(){
 
     Miscellaneous::Log("Importing particles...");
 
-    for (const QFileInfo& fileInfo : particleFiles) {
-        if (Miscellaneous::CanceLImport) return;
+    if (!Miscellaneous::GetOptions().cmdLogOut) {
+        // Multi-threaded mode
+        QSet<QString> uniqueParticles;
 
-        QStringList lines = Miscellaneous::ReadTextFile(fileInfo.absoluteFilePath());
-        for (const QString& line : lines) {
+        for (const QFileInfo& fileInfo : particleFiles) {
             if (Miscellaneous::CanceLImport) return;
 
-            QString trimmedLine = line.trimmed();
-            if (!trimmedLine.startsWith("file", Qt::CaseInsensitive)) continue;
+            QStringList lines = Miscellaneous::ReadTextFile(fileInfo.absoluteFilePath());
+            for (const QString& line : lines) {
+                QString trimmedLine = line.trimmed();
+                if (!trimmedLine.startsWith("file", Qt::CaseInsensitive)) continue;
 
-            QString cleanedPath = trimmedLine.mid(4).trimmed();
-            if (cleanedPath.startsWith('"') && cleanedPath.endsWith('"')) {
-                cleanedPath = cleanedPath.mid(1, cleanedPath.size() - 2);
+                QString cleanedPath = trimmedLine.mid(4).trimmed();
+                if (cleanedPath.startsWith('"') && cleanedPath.endsWith('"')) {
+                    cleanedPath = cleanedPath.mid(1, cleanedPath.size() - 2);
+                }
+                if (cleanedPath.isEmpty()) continue;
+
+                uniqueParticles.insert(cleanedPath);
             }
-            if (cleanedPath.isEmpty()) continue;
+        }
 
-            QString fullPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(cleanedPath);
-            
-            if(!QFile::exists(fullPath)){
-                FileExtractFromVPK::ExtractParticle(cleanedPath);
-                if(!QFile::exists(fullPath)) continue;
+        if (uniqueParticles.isEmpty()) {
+            return;
+        }
+
+        QList<std::function<void()>> tasks;
+        for (const QString& cleanedPath : uniqueParticles) {
+            tasks.append([cleanedPath]() {
+                QString fullPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(cleanedPath);
+
+                if (!QFile::exists(fullPath)) {
+                    FileExtractFromVPK::ExtractParticle(cleanedPath);
+                    if (!QFile::exists(fullPath)) return;
+                }
+
+                QStringList arguments = {
+                    "-retail",
+                    "-nop4",
+                    "-nop4sync",
+                    "-src1gameinfodir",
+                    Miscellaneous::GetOptions().s1gamedir,
+                    "-s2addon",
+                    Miscellaneous::GetOptions().addonName,
+                    "-game",
+                    "csgo",
+                    QDir::toNativeSeparators(cleanedPath)
+                };
+                Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
+            });
+        }
+
+        Miscellaneous::RunParallelTasks(tasks);
+    } else {
+        // Sequential mode (original logic)
+        for (const QFileInfo& fileInfo : particleFiles) {
+            if (Miscellaneous::CanceLImport) return;
+
+            QStringList lines = Miscellaneous::ReadTextFile(fileInfo.absoluteFilePath());
+            for (const QString& line : lines) {
+                if (Miscellaneous::CanceLImport) return;
+
+                QString trimmedLine = line.trimmed();
+                if (!trimmedLine.startsWith("file", Qt::CaseInsensitive)) continue;
+
+                QString cleanedPath = trimmedLine.mid(4).trimmed();
+                if (cleanedPath.startsWith('"') && cleanedPath.endsWith('"')) {
+                    cleanedPath = cleanedPath.mid(1, cleanedPath.size() - 2);
+                }
+                if (cleanedPath.isEmpty()) continue;
+
+                QString fullPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(cleanedPath);
+
+                if (!QFile::exists(fullPath)) {
+                    FileExtractFromVPK::ExtractParticle(cleanedPath);
+                    if (!QFile::exists(fullPath)) continue;
+                }
+
+                QStringList arguments = {
+                    "-retail",
+                    "-nop4",
+                    "-nop4sync",
+                    "-src1gameinfodir",
+                    Miscellaneous::GetOptions().s1gamedir,
+                    "-s2addon",
+                    Miscellaneous::GetOptions().addonName,
+                    "-game",
+                    "csgo",
+                    QDir::toNativeSeparators(cleanedPath)
+                };
+                Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
             }
-
-            QStringList arguments = {
-                "-retail",
-                "-nop4",
-                "-nop4sync",
-                "-src1gameinfodir",
-                Miscellaneous::GetOptions().s1gamedir,
-                "-s2addon",
-                Miscellaneous::GetOptions().addonName,
-                "-game",
-                "csgo",
-                QDir::toNativeSeparators(cleanedPath)
-            };
-            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
         }
     }
 }
