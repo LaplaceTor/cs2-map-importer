@@ -81,7 +81,7 @@ Backend::Backend(QObject *parent) :
 
     LoadFromCfg();
 
-    Miscellaneous::Log("Initializing CS2 Importer... Finished");
+    Miscellaneous::Log("Finished.");
 }
 
 bool Backend::requestConfirmation(const QString& title, const QString& msg)

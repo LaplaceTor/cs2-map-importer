@@ -56,7 +56,6 @@ void MaterialFix::Force2UVsIfRequired(const QStringList& force2UVMaterials) {
             }
 
             if (added) {
-                Miscellaneous::Log("Added F_FORCE_UV2 to " + vmatfilename);
                 QFile file(vmatfilename);
                 if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
                     QTextStream out(&file);
@@ -428,6 +427,7 @@ void MaterialFix::ShaderFix(QStringList& lines, bool& fileModified) {
 }
 
 void MaterialFix::FixMaterials() {
+    Miscellaneous::Log("Starting material fixes...");
     SkyboxFix();
 
     QString materialsDir = Miscellaneous::GetOptions().s2contentdir + "/materials";
@@ -522,6 +522,7 @@ void MaterialFix::FixMaterials() {
 
     OverlayFix();
     OldParticleMtlFix();
+    Miscellaneous::Log("Material fixes completed.");
 }
 
 void MaterialFix::OldParticleMtlFix() {

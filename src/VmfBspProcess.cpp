@@ -877,7 +877,8 @@ void VmfBspProcess::SkinKVFix(const QString& vmfPath) {
 }
 
 void VmfBspProcess::FixEntities(const QString& vmfPath) {
-    FixVmfFromBsp(vmfPath);
+    Miscellaneous::Log("Fixing entities in VMF: " + vmfPath);
+    FixVmfBase(vmfPath);
     FixSpecialTargetnames(vmfPath);
     FixLightColor(vmfPath);
     FixBrush(vmfPath);
@@ -888,6 +889,7 @@ void VmfBspProcess::FixEntities(const QString& vmfPath) {
     OldParticleFix(vmfPath);
     FixPhysboxMultiplayer(vmfPath);
     RemoveSkipAndHintSolids(vmfPath);
+    Miscellaneous::Log("Finished fixing entities in VMF: " + vmfPath);
 }
 
 void VmfBspProcess::OldParticleFix(const QString& vmfPath) {
@@ -989,8 +991,6 @@ void VmfBspProcess::FixSpecialTargetnames(const QString& vmfPath) {
         return; // Nothing to do
     }
 
-    Miscellaneous::Log("Found special targetnames in VMF. Fixing...");
-
     // Find the last entity block
     int last_entity_idx = -1;
     for (int i = 0; i < lines.size(); ++i) {
@@ -1044,7 +1044,7 @@ void VmfBspProcess::FixSpecialTargetnames(const QString& vmfPath) {
     }
 }
 
-void VmfBspProcess::FixVmfFromBsp(const QString& vmfPath) {
+void VmfBspProcess::FixVmfBase(const QString& vmfPath) {
     if (!QFile::exists(vmfPath)) return;
 
     QFile infile(vmfPath);
@@ -1091,7 +1091,6 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
     if (Miscellaneous::CanceLImport) return;
 
     QStringList treeOutput;
-    Miscellaneous::Log("Listing embedded files tree using vpkeditcli...");
     int tree_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, {"--file-tree", QDir::toNativeSeparators(bspFile)}, &treeOutput);
 
     // Strip ANSI escape codes
@@ -1414,6 +1413,8 @@ void VmfBspProcess::ProcessBsp() {
         throw AppException("BSP Decompilation failed: Decompiled VMF file was not created.");
     }
 
+    Miscellaneous::Log("Decompiled VMF created at: " + vmf_dest);
+
     QString target_unpacked_dir = QDir(maps_dir).filePath(Miscellaneous::GetOptions().mapName);
 
     if (!Miscellaneous::GetOptions().skipdeps) {
@@ -1423,6 +1424,7 @@ void VmfBspProcess::ProcessBsp() {
         if (!QFile::exists(vpkeditcli_exe)) {
             Miscellaneous::Log("Warning: Could not find vpkeditcli.exe at " + vpkeditcli_exe);
         } else {
+            Miscellaneous::Log("Extracting embedded files from BSP using vpkeditcli...");
             ExtractEmbeddedFiles(vpkeditcli_exe, Miscellaneous::GetOptions().bspFile, target_unpacked_dir);
         }
     }

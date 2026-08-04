@@ -1312,11 +1312,13 @@ void MapImporter::ImportSounds() {
     if (QDir(sourceSoundDir).exists()) {
         CopyDirectoryRecursively(sourceSoundDir, destSoundDir);
     }
+
+    Miscellaneous::Log("Finished importing sounds.");
 }
 
 bool MapImporter::Run() {
     if (Miscellaneous::CanceLImport) return false;
-    Miscellaneous::Log("Starting Map Import process.");
+    Miscellaneous::Log("Starting Map Import process...");
 
     if (!Miscellaneous::GetOptions().skipdeps) {
         if (Miscellaneous::CanceLImport) return false;
