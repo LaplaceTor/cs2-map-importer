@@ -1037,9 +1037,6 @@ void Backend::Start()
                 else if (s1GameType == "blackmesa") s1Subfolder = "bms";
 
                 gameinfoFile = QDir(GetS1gameBasefolder()).filePath(s1Subfolder + "/gameinfo.txt");
-                if (!QFile::exists(gameinfoFile)) {
-                    gameinfoFile = QDir(GetS1gameBasefolder()).filePath(s1Subfolder + "/gameinfo.gi");
-                }
             }
 
             if (!gameinfoFile.isEmpty() && QFile::exists(gameinfoFile)) {
@@ -1047,7 +1044,7 @@ void Backend::Start()
                 Miscellaneous::ParseGameInfo(gameinfoFile, searchTargets);
                 Miscellaneous::Log(QString("Found %1 search targets from gameinfo.").arg(searchTargets.size()));
             } else {
-                Miscellaneous::Log("Warning: gameinfo.txt/gi not found at: " + gameinfoFile);
+                Miscellaneous::Log("Warning: gameinfo.txt not found at: " + gameinfoFile);
             }
         }
 
