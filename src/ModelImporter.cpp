@@ -82,9 +82,7 @@ bool ModelImporter::Run(const QString& mdlPath) {
         if (isDevOrTool) {
             QString s1GameDirMtl = QDir(opts.s1gamedir).filePath(mtlfile);
             if (!QFile::exists(s1GameDirMtl)) {
-                if(!FileExtractFromVPK::ExtractMaterial(mtlfile)) {
-                    continue;
-                }
+                FileExtractFromVPK::ExtractMaterial(mtlfile);
             }
 
             QString tmpVmtRel = mtlfile;
