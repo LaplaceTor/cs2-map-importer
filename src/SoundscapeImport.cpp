@@ -203,62 +203,71 @@ void SoundscapeImport::ProcessVmfConnections(const QString& vmfPath, QSet<QStrin
                 QRegularExpressionMatch connMatch = connRegex.match(line);
                 if (connMatch.hasMatch()) {
                     QString value = connMatch.captured(2);
-                    QStringList parts = value.split("\x1b");
-                    if (parts.size() >= 3 && parts[1] == "Command" && parts[2].trimmed().startsWith("play ", Qt::CaseInsensitive)) {
-                        QString playCmd = parts[2].trimmed();
-                        QString soundPath = playCmd.mid(5).trimmed();
+                    int cmdIndex = value.indexOf("Command");
+                    while (cmdIndex > 0) {
+                        QString delimiter = QString(value[cmdIndex - 1]);
+                        QStringList parts = value.split(delimiter);
+                        if (parts.size() >= 3 && parts[1] == "Command") {
+                            QString playCmd = parts[2].trimmed();
+                            if (playCmd.startsWith("play ", Qt::CaseInsensitive) &&
+                                (playCmd.endsWith(".mp3", Qt::CaseInsensitive) || playCmd.endsWith(".wav", Qt::CaseInsensitive))) {
+                                QString soundPath = playCmd.mid(5).trimmed();
 
-                        QFileInfo soundFileInfo(soundPath);
-                        QString soundName = soundFileInfo.baseName();
+                                QFileInfo soundFileInfo(soundPath);
+                                QString soundName = soundFileInfo.baseName();
 
-                        // Modify connection to PlaySound on ambient_generic
-                        parts[0] = "playsound" + soundName;
-                        parts[1] = "PlaySound";
-                        parts[2] = ""; // empty parameter
+                                // Modify connection to PlaySound on ambient_generic
+                                parts[0] = "playsound" + soundName;
+                                parts[1] = "PlaySound";
+                                parts[2] = ""; // empty parameter
 
-                        QString newValue = parts.join("\x1b");
-                        line = connMatch.captured(1) + " \"" + newValue + "\"";
+                                QString newValue = parts.join(delimiter);
+                                line = connMatch.captured(1) + " \"" + newValue + "\"";
 
-                        // Add sound to uniqueSounds for automatic copy/extraction
-                        QString wNorm = soundPath;
-                        wNorm.replace("\\", "/");
-                        if (!wNorm.startsWith("sound/")) {
-                            wNorm = "sound/" + wNorm;
+                                // Add sound to uniqueSounds for automatic copy/extraction
+                                QString wNorm = soundPath;
+                                wNorm.replace("\\", "/");
+                                if (!wNorm.startsWith("sound/")) {
+                                    wNorm = "sound/" + wNorm;
+                                }
+                                uniqueSounds.insert(wNorm);
+
+                                // Queue new ambient_generic entity
+                                max_id++;
+                                QString newEnt = QString(
+                                    "entity\n"
+                                    "{\n"
+                                    "\t\"id\" \"%1\"\n"
+                                    "\t\"classname\" \"ambient_generic\"\n"
+                                    "\t\"targetname\" \"playsound%2\"\n"
+                                    "\t\"origin\" \"%3\"\n"
+                                    "\t\"message\" \"soundscape.%4\"\n"
+                                    "}"
+                                ).arg(max_id).arg(soundName).arg(entityOrigin).arg(soundName);
+                                newEntities.append(newEnt);
+
+                                // Generate vsndevts block
+                                QString vsndPath = FormatVsndPath(soundPath);
+                                QString block = QString(
+                                    "\t\"soundscape.%1\" =\n"
+                                    "\t{\n"
+                                    "\t\ttype = \"csgo_mega\"\n"
+                                    "\t\tmixgroup = \"Amb_Common\"\n"
+                                    "\t\tvsnd_files_track_01 = \"%2\"\n"
+                                    "\t\tvolume = 3.0\n"
+                                    "\t\tdistance_effect_mix = 0.0\n"
+                                    "\t}\n"
+                                ).arg(soundName).arg(vsndPath);
+                                vsndevtsBlocks.insert(soundName, block);
+                                break;
+                            }
                         }
-                        uniqueSounds.insert(wNorm);
-
-                        // Queue new ambient_generic entity
-                        max_id++;
-                        QString newEnt = QString(
-                            "entity\n"
-                            "{\n"
-                            "\t\"id\" \"%1\"\n"
-                            "\t\"classname\" \"ambient_generic\"\n"
-                            "\t\"targetname\" \"playsound%2\"\n"
-                            "\t\"origin\" \"%3\"\n"
-                            "\t\"message\" \"soundscape.%4\"\n"
-                            "}"
-                        ).arg(max_id).arg(soundName).arg(entityOrigin).arg(soundName);
-                        newEntities.append(newEnt);
-
-                        // Generate vsndevts block
-                        QString vsndPath = FormatVsndPath(soundPath);
-                        QString block = QString(
-                            "\t\"soundscape.%1\" =\n"
-                            "\t{\n"
-                            "\t\ttype = \"csgo_mega\"\n"
-                            "\t\tmixgroup = \"Amb_Common\"\n"
-                            "\t\tvsnd_files_track_01 = \"%2\"\n"
-                            "\t\tvolume = 3.0\n"
-                            "\t\tdistance_effect_mix = 0.0\n"
-                            "\t}\n"
-                        ).arg(soundName).arg(vsndPath);
-                        vsndevtsBlocks.insert(soundName, block);
+                        cmdIndex = value.indexOf("Command", cmdIndex + 1);
                     }
                 }
             }
 
-            if (depth == 0) {
+            if (depth == 0 && trimmed != "entity") {
                 inEntity = false;
                 inConnections = false;
             }

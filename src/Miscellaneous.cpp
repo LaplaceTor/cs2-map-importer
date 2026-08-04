@@ -66,7 +66,7 @@ QString Miscellaneous::GetBaseFolderFromGameInfo(const QString& gameinfoPath) {
                 insideGameInfo = true;
                 gameInfoDepth = currentDepth + 1;
             }
-        } else if (insideGameInfo && !insideSearchPaths && currentDepth == gameInfoDepth) {
+        } else if (insideGameInfo && !insideSearchPaths) {
             if (line.compare("SearchPaths", Qt::CaseInsensitive) == 0 || line.compare("\"SearchPaths\"", Qt::CaseInsensitive) == 0) {
                 insideSearchPaths = true;
                 searchPathsDepth = currentDepth + 1;
@@ -180,7 +180,7 @@ bool Miscellaneous::ParseGameInfo(const QString& gameinfoPath, QList<SearchTarge
                 insideGameInfo = true;
                 gameInfoDepth = currentDepth + 1;
             }
-        } else if (insideGameInfo && !insideSearchPaths && currentDepth == gameInfoDepth) {
+        } else if (insideGameInfo && !insideSearchPaths) {
             if (line.compare("SearchPaths", Qt::CaseInsensitive) == 0 || line.compare("\"SearchPaths\"", Qt::CaseInsensitive) == 0) {
                 insideSearchPaths = true;
                 searchPathsDepth = currentDepth + 1;
@@ -209,7 +209,8 @@ bool Miscellaneous::ParseGameInfo(const QString& gameinfoPath, QList<SearchTarge
             if (tokens.size() >= 2) {
                 QString val = tokens[1].trimmed();
 
-                // Clean placeholder |gameinfo_path| and remove others
+                // Clean placeholder |gameinfo_path|. then |gameinfo_path| and remove others
+                val.replace("|gameinfo_path|.", gameinfo_path, Qt::CaseInsensitive);
                 val.replace("|gameinfo_path|", gameinfo_path, Qt::CaseInsensitive);
                 QRegularExpression placeholderRe("\\|[^|]+\\|");
                 val.replace(placeholderRe, "");
@@ -220,6 +221,10 @@ bool Miscellaneous::ParseGameInfo(const QString& gameinfoPath, QList<SearchTarge
                     absPath = QDir::cleanPath(val);
                 } else {
                     absPath = QDir::cleanPath(QDir(basefolder).filePath(val));
+                }
+
+                if (absPath.endsWith("/*")) {
+                    continue;
                 }
 
                 if (absPath.endsWith(".vpk", Qt::CaseInsensitive)) {
