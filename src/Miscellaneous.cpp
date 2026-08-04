@@ -348,13 +348,13 @@ private:
     QMutex& m_errorMutex;
 };
 
-bool Miscellaneous::RunParallelTasks(const QList<std::function<void()>>& tasks) {
+bool Miscellaneous::RunParallelTasks(const QList<std::function<void()>>& tasks, int threads) {
     if (tasks.isEmpty()) {
         return true;
     }
 
     QThreadPool pool;
-    pool.setMaxThreadCount(8); // Hardcode max thread count as 8
+    pool.setMaxThreadCount(threads); // Use the threads parameter!
 
     QAtomicInt activeCancel(0);
     QString sharedError;

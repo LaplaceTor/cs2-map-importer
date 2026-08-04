@@ -1284,10 +1284,10 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
         }
 
         // Multi-threaded mode
-        QList<std::function<void()>> tasks;
+        QList<std::function<void()>> folderTasks;
 
         for (const QString& folder : foldersToExtract) {
-            tasks.append([folder, targetUnpackedDir, bspFile]() {
+            folderTasks.append([folder, targetUnpackedDir, bspFile]() {
                 QString destFolder = QDir::toNativeSeparators(targetUnpackedDir + "/" + folder);
 
                 QStringList argumentsVpk = {
@@ -1305,8 +1305,10 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
             });
         }
 
+        QList<std::function<void()>> fileTasks;
+
         for (const QString& file : filesToExtract) {
-            tasks.append([file, targetUnpackedDir, bspFile]() {
+            fileTasks.append([file, targetUnpackedDir, bspFile]() {
                 QString destFile = QDir::toNativeSeparators(targetUnpackedDir + "/" + file);
 
                 QStringList argumentsVpk = {
@@ -1324,7 +1326,8 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
             });
         }
 
-        Miscellaneous::RunParallelTasks(tasks);
+        Miscellaneous::RunParallelTasks(folderTasks);
+        Miscellaneous::RunParallelTasks(fileTasks, 32);
     } else {
         // Sequential mode
         int currentItem = 0;
