@@ -87,7 +87,7 @@ public:
     static int RunCommandSync(int program, const QStringList& arguments, QStringList* logOutString = nullptr, bool isMap = false, bool isCSGO = false);
     static void CancelAll();
 
-    static bool RunParallelTasks(const QList<std::function<void()>>& tasks);
+    static bool RunParallelTasks(const QList<std::function<void()>>& tasks, int threads = 8);
 
     static QAtomicInt CanceLImport;
 
