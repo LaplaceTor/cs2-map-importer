@@ -1268,60 +1268,109 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
     }
 
     int totalItems = foldersToExtract.size() + filesToExtract.size();
-    int currentItem = 0;
-
     Miscellaneous::Log(QString("Found %1 folders and %2 files to extract.").arg(foldersToExtract.size()).arg(filesToExtract.size()));
 
-    // Extract folders
-    for (const QString& folder : foldersToExtract) {
-        if (Miscellaneous::CanceLImport) return;
+    if (!Miscellaneous::GetOptions().cmdLogOut) {
+        // Multi-threaded mode
+        QList<std::function<void()>> tasks;
 
-        currentItem++;
-        if (!Miscellaneous::GetOptions().cmdLogOut) {
-            Miscellaneous::Log(QString("Extracting embedded files (%1/%2): %3").arg(currentItem).arg(totalItems).arg(folder));
+        for (const QString& folder : foldersToExtract) {
+            tasks.append([folder, targetUnpackedDir, bspFile]() {
+                QString destFolder = QDir::toNativeSeparators(targetUnpackedDir + "/" + folder);
+                QDir().mkpath(destFolder);
+
+                QStringList argumentsVpk = {
+                    "-e",
+                    folder,
+                    QDir::toNativeSeparators(bspFile),
+                    "-o",
+                    destFolder
+                };
+
+                int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
+                if (vpk_ret != 100) {
+                    throw AppException("vpkeditcli failed to extract embedded folder: " + folder);
+                }
+            });
         }
 
-        QString destFolder = QDir::toNativeSeparators(targetUnpackedDir + "/" + folder);
-        QDir().mkpath(destFolder);
+        for (const QString& file : filesToExtract) {
+            tasks.append([file, targetUnpackedDir, bspFile]() {
+                QString destFile = QDir::toNativeSeparators(targetUnpackedDir + "/" + file);
+                QFileInfo fi(destFile);
+                fi.dir().mkpath(".");
 
-        QStringList argumentsVpk = {
-            "-e",
-            folder,
-            QDir::toNativeSeparators(bspFile),
-            "-o",
-            destFolder
-        };
+                QStringList argumentsVpk = {
+                    "-e",
+                    file,
+                    QDir::toNativeSeparators(bspFile),
+                    "-o",
+                    destFile
+                };
 
-        int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
-        if (vpk_ret != 100) {
-            throw AppException("vpkeditcli failed to extract embedded folder: " + folder);
-        }
-    }
-
-    // Extract files
-    for (const QString& file : filesToExtract) {
-        if (Miscellaneous::CanceLImport) return;
-
-        currentItem++;
-        if (!Miscellaneous::GetOptions().cmdLogOut) {
-            Miscellaneous::Log(QString("Extracting embedded files (%1/%2): %3").arg(currentItem).arg(totalItems).arg(file));
+                int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
+                if (vpk_ret != 100) {
+                    throw AppException("vpkeditcli failed to extract embedded file: " + file);
+                }
+            });
         }
 
-        QString destFile = QDir::toNativeSeparators(targetUnpackedDir + "/" + file);
-        QFileInfo fi(destFile);
-        fi.dir().mkpath(".");
+        Miscellaneous::RunParallelTasks(tasks);
+    } else {
+        // Sequential mode
+        int currentItem = 0;
 
-        QStringList argumentsVpk = {
-            "-e",
-            file,
-            QDir::toNativeSeparators(bspFile),
-            "-o",
-            destFile
-        };
+        // Extract folders
+        for (const QString& folder : foldersToExtract) {
+            if (Miscellaneous::CanceLImport) return;
 
-        int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
-        if (vpk_ret != 100) {
-            throw AppException("vpkeditcli failed to extract embedded file: " + file);
+            currentItem++;
+            if (!Miscellaneous::GetOptions().cmdLogOut) {
+                Miscellaneous::Log(QString("Extracting embedded files (%1/%2): %3").arg(currentItem).arg(totalItems).arg(folder));
+            }
+
+            QString destFolder = QDir::toNativeSeparators(targetUnpackedDir + "/" + folder);
+            QDir().mkpath(destFolder);
+
+            QStringList argumentsVpk = {
+                "-e",
+                folder,
+                QDir::toNativeSeparators(bspFile),
+                "-o",
+                destFolder
+            };
+
+            int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
+            if (vpk_ret != 100) {
+                throw AppException("vpkeditcli failed to extract embedded folder: " + folder);
+            }
+        }
+
+        // Extract files
+        for (const QString& file : filesToExtract) {
+            if (Miscellaneous::CanceLImport) return;
+
+            currentItem++;
+            if (!Miscellaneous::GetOptions().cmdLogOut) {
+                Miscellaneous::Log(QString("Extracting embedded files (%1/%2): %3").arg(currentItem).arg(totalItems).arg(file));
+            }
+
+            QString destFile = QDir::toNativeSeparators(targetUnpackedDir + "/" + file);
+            QFileInfo fi(destFile);
+            fi.dir().mkpath(".");
+
+            QStringList argumentsVpk = {
+                "-e",
+                file,
+                QDir::toNativeSeparators(bspFile),
+                "-o",
+                destFile
+            };
+
+            int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
+            if (vpk_ret != 100) {
+                throw AppException("vpkeditcli failed to extract embedded file: " + file);
+            }
         }
     }
 

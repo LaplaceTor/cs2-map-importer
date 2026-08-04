@@ -16,6 +16,10 @@
 #include <QByteArray>
 #include <QSet>
 #include <QList>
+#include <QThreadPool>
+#include <QRunnable>
+#include <QMutex>
+#include <QMutexLocker>
 
 QAtomicInt Miscellaneous::CanceLImport(0);
 Miscellaneous::LogCallback Miscellaneous::GlobaLLogger = nullptr;
@@ -303,7 +307,83 @@ void Miscellaneous::CancelAll() {
     CanceLImport = 1;
 }
 
+class ParallelTaskRunnable : public QRunnable {
+public:
+    ParallelTaskRunnable(std::function<void()> func, QAtomicInt& activeCancel, QString& sharedError, QMutex& errorMutex)
+        : m_func(func), m_activeCancel(activeCancel), m_sharedError(sharedError), m_errorMutex(errorMutex) {
+        setAutoDelete(true);
+    }
 
+    void run() override {
+        if (m_activeCancel.loadRelaxed()) {
+            return;
+        }
+        try {
+            m_func();
+        } catch (const AppException& e) {
+            QMutexLocker locker(&m_errorMutex);
+            if (m_sharedError.isEmpty()) {
+                m_sharedError = e.message();
+            }
+            m_activeCancel.storeRelaxed(1);
+        } catch (const std::exception& e) {
+            QMutexLocker locker(&m_errorMutex);
+            if (m_sharedError.isEmpty()) {
+                m_sharedError = QString::fromStdString(e.what());
+            }
+            m_activeCancel.storeRelaxed(1);
+        } catch (...) {
+            QMutexLocker locker(&m_errorMutex);
+            if (m_sharedError.isEmpty()) {
+                m_sharedError = "An unknown error occurred in a background task.";
+            }
+            m_activeCancel.storeRelaxed(1);
+        }
+    }
+
+private:
+    std::function<void()> m_func;
+    QAtomicInt& m_activeCancel;
+    QString& m_sharedError;
+    QMutex& m_errorMutex;
+};
+
+bool Miscellaneous::RunParallelTasks(const QList<std::function<void()>>& tasks) {
+    if (tasks.isEmpty()) {
+        return true;
+    }
+
+    QThreadPool pool;
+    pool.setMaxThreadCount(8); // Hardcode max thread count as 8
+
+    QAtomicInt activeCancel(0);
+    QString sharedError;
+    QMutex errorMutex;
+
+    for (const auto& task : tasks) {
+        if (CanceLImport.loadRelaxed() || activeCancel.loadRelaxed()) {
+            break;
+        }
+        pool.start(new ParallelTaskRunnable(task, activeCancel, sharedError, errorMutex));
+    }
+
+    while (!pool.waitForDone(100)) {
+        if (CanceLImport.loadRelaxed() || activeCancel.loadRelaxed()) {
+            activeCancel.storeRelaxed(1);
+            pool.clear();
+        }
+    }
+
+    if (CanceLImport.loadRelaxed()) {
+        return false;
+    }
+
+    if (!sharedError.isEmpty()) {
+        throw AppException(sharedError);
+    }
+
+    return true;
+}
 
 int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QStringList* logOutString, bool isMap, bool isCSGO) {
     if (CanceLImport) return -1;
