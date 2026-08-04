@@ -1273,21 +1273,25 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
     int totalItems = foldersToExtract.size() + filesToExtract.size();
     Miscellaneous::Log(QString("Found %1 folders and %2 files to extract.").arg(foldersToExtract.size()).arg(filesToExtract.size()));
 
-    QString testLogPath = QDir(Miscellaneous::GetOptions().appDir).filePath("logs/test.log");
-
     if (!Miscellaneous::GetOptions().cmdLogOut) {
-        // Clear/reset the test.log file
-        QDir().mkpath(QFileInfo(testLogPath).absolutePath());
-        QFile::remove(testLogPath);
+        // Pre-create all directories on the main thread to avoid concurrent mkpath race conditions
+        QDir().mkpath(targetUnpackedDir);
+        for (const QString& folder : foldersToExtract) {
+            QString destFolder = QDir::toNativeSeparators(targetUnpackedDir + "/" + folder);
+            QDir().mkpath(destFolder);
+        }
+        for (const QString& file : filesToExtract) {
+            QString destFile = QDir::toNativeSeparators(targetUnpackedDir + "/" + file);
+            QFileInfo fi(destFile);
+            fi.dir().mkpath(".");
+        }
 
         // Multi-threaded mode
         QList<std::function<void()>> tasks;
-        auto fileMutex = std::make_shared<QMutex>();
 
         for (const QString& folder : foldersToExtract) {
-            tasks.append([folder, targetUnpackedDir, bspFile, testLogPath, fileMutex]() {
+            tasks.append([folder, targetUnpackedDir, bspFile]() {
                 QString destFolder = QDir::toNativeSeparators(targetUnpackedDir + "/" + folder);
-                QDir().mkpath(destFolder);
 
                 QStringList argumentsVpk = {
                     "-e",
@@ -1297,32 +1301,16 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
                     destFolder
                 };
 
-                QStringList cmdOutput;
-                int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk, &cmdOutput);
-
+                int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
                 if (vpk_ret != 100) {
-                    {
-                        QMutexLocker locker(fileMutex.get());
-                        QFile logFile(testLogPath);
-                        if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-                            QTextStream stream(&logFile);
-                            stream << "=== Failed to Extract Folder: " << folder << " ===\n";
-                            for (const QString& line : cmdOutput) {
-                                stream << line << "\n";
-                            }
-                            stream << "=== Result: FAILED ===\n\n";
-                        }
-                    }
                     throw AppException("vpkeditcli failed to extract embedded folder: " + folder);
                 }
             });
         }
 
         for (const QString& file : filesToExtract) {
-            tasks.append([file, targetUnpackedDir, bspFile, testLogPath, fileMutex]() {
+            tasks.append([file, targetUnpackedDir, bspFile]() {
                 QString destFile = QDir::toNativeSeparators(targetUnpackedDir + "/" + file);
-                QFileInfo fi(destFile);
-                fi.dir().mkpath(".");
 
                 QStringList argumentsVpk = {
                     "-e",
@@ -1332,22 +1320,8 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
                     destFile
                 };
 
-                QStringList cmdOutput;
-                int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk, &cmdOutput);
-
+                int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
                 if (vpk_ret != 100) {
-                    {
-                        QMutexLocker locker(fileMutex.get());
-                        QFile logFile(testLogPath);
-                        if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-                            QTextStream stream(&logFile);
-                            stream << "=== Failed to Extract File: " << file << " ===\n";
-                            for (const QString& line : cmdOutput) {
-                                stream << line << "\n";
-                            }
-                            stream << "=== Result: FAILED ===\n\n";
-                        }
-                    }
                     throw AppException("vpkeditcli failed to extract embedded file: " + file);
                 }
             });
