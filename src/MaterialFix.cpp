@@ -617,9 +617,7 @@ void MaterialFix::OldParticleMtlFix() {
         if (Miscellaneous::CanceLImport) return;
 
         QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(vmtPath);
-        if (!QFile::exists(contentPath)) {
-            FileExtractFromVPK::ExtractMaterial(vmtPath);
-        } else {
+        if (QFile::exists(contentPath)) {
             QString s1GameDirVmt = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(vmtPath);
             if (!QFile::exists(s1GameDirVmt)) {
                 QFileInfo fi(s1GameDirVmt);
@@ -640,7 +638,10 @@ void MaterialFix::OldParticleMtlFix() {
             "csgo",
             QDir::toNativeSeparators(vmtPath)
         };
-        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
+        int s1Ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
+        if (s1Ret != 100) {
+            continue;
+        }
 
         QString vmatRel = vmtPath;
         vmatRel.replace(".vmt", ".vmat");
