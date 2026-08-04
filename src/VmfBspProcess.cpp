@@ -1300,7 +1300,7 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
 
                 int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
                 if (vpk_ret != 100) {
-                    throw AppException("vpkeditcli failed to extract embedded folder: " + folder);
+                    throw AppException("vpkeditcli failed to extract embedded files");
                 }
             });
         }
@@ -1321,7 +1321,7 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
 
                 int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
                 if (vpk_ret != 100) {
-                    throw AppException("vpkeditcli failed to extract embedded file: " + file);
+                    throw AppException("vpkeditcli failed to extract embedded files");
                 }
             });
         }
