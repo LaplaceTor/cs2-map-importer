@@ -9,6 +9,9 @@
 #include <QCoreApplication>
 #include <QByteArray>
 #include <QMap>
+#include <QMutex>
+#include <QMutexLocker>
+#include <memory>
 
 QString VmfBspProcess::ParseMapversion(const QStringList& lines, bool& found) {
     QString mapversion = "2";
@@ -1270,12 +1273,19 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
     int totalItems = foldersToExtract.size() + filesToExtract.size();
     Miscellaneous::Log(QString("Found %1 folders and %2 files to extract.").arg(foldersToExtract.size()).arg(filesToExtract.size()));
 
+    QString testLogPath = QDir(Miscellaneous::GetOptions().appDir).filePath("logs/test.log");
+
     if (!Miscellaneous::GetOptions().cmdLogOut) {
+        // Clear/reset the test.log file
+        QDir().mkpath(QFileInfo(testLogPath).absolutePath());
+        QFile::remove(testLogPath);
+
         // Multi-threaded mode
         QList<std::function<void()>> tasks;
+        auto fileMutex = std::make_shared<QMutex>();
 
         for (const QString& folder : foldersToExtract) {
-            tasks.append([folder, targetUnpackedDir, bspFile]() {
+            tasks.append([folder, targetUnpackedDir, bspFile, testLogPath, fileMutex]() {
                 QString destFolder = QDir::toNativeSeparators(targetUnpackedDir + "/" + folder);
                 QDir().mkpath(destFolder);
 
@@ -1287,7 +1297,22 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
                     destFolder
                 };
 
-                int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
+                QStringList cmdOutput;
+                int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk, &cmdOutput);
+
+                {
+                    QMutexLocker locker(fileMutex.get());
+                    QFile logFile(testLogPath);
+                    if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+                        QTextStream stream(&logFile);
+                        stream << "=== Extracting Folder: " << folder << " ===\n";
+                        for (const QString& line : cmdOutput) {
+                            stream << line << "\n";
+                        }
+                        stream << "=== Result: " << (vpk_ret == 100 ? "SUCCESS" : "FAILED") << " ===\n\n";
+                    }
+                }
+
                 if (vpk_ret != 100) {
                     throw AppException("vpkeditcli failed to extract embedded folder: " + folder);
                 }
@@ -1295,7 +1320,7 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
         }
 
         for (const QString& file : filesToExtract) {
-            tasks.append([file, targetUnpackedDir, bspFile]() {
+            tasks.append([file, targetUnpackedDir, bspFile, testLogPath, fileMutex]() {
                 QString destFile = QDir::toNativeSeparators(targetUnpackedDir + "/" + file);
                 QFileInfo fi(destFile);
                 fi.dir().mkpath(".");
@@ -1308,7 +1333,22 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QS
                     destFile
                 };
 
-                int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
+                QStringList cmdOutput;
+                int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk, &cmdOutput);
+
+                {
+                    QMutexLocker locker(fileMutex.get());
+                    QFile logFile(testLogPath);
+                    if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+                        QTextStream stream(&logFile);
+                        stream << "=== Extracting File: " << file << " ===\n";
+                        for (const QString& line : cmdOutput) {
+                            stream << line << "\n";
+                        }
+                        stream << "=== Result: " << (vpk_ret == 100 ? "SUCCESS" : "FAILED") << " ===\n\n";
+                    }
+                }
+
                 if (vpk_ret != 100) {
                     throw AppException("vpkeditcli failed to extract embedded file: " + file);
                 }
