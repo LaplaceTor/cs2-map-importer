@@ -106,7 +106,7 @@ bool FileExtractFromVPK::ExtractModel(const QString& filepath) {
     QString foundFolderPath;
 
     for (const auto& target : targets) {
-        if (Miscellaneous::CanceLImport) return;
+        if (Miscellaneous::CanceLImport) return false;
 
         if (target.isVpk) {
             QString vpkPath = target.path;
@@ -197,7 +197,7 @@ bool FileExtractFromVPK::ExtractModel(const QString& filepath) {
     if (found) {
         QStringList extlist = {"vvd", "phy", "sw.vtx", "dx80.vtx", "dx90.vtx", "ani"};
         for (const QString& ext : extlist) {
-            if (Miscellaneous::CanceLImport) return;
+            if (Miscellaneous::CanceLImport) return false;
             QString targetFile = basePath + "." + ext;
             contentPath = QDir(opts.s1contentdir).filePath(targetFile);
             outPath = QDir(opts.s1gamedir).filePath(targetFile);

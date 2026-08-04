@@ -352,9 +352,6 @@ void SoundscapeImport::ImportSoundscapes(QSet<QString>& uniqueSounds) {
         } catch (const AppException& e) {
             Miscellaneous::Log(QString("Error parsing soundscape file %1: %2. Skipping this file.").arg(fileInfo.fileName()).arg(e.message()));
             continue;
-        } catch (const QException& e) {
-            Miscellaneous::Log(QString("Error parsing soundscape file %1. Skipping this file.").arg(fileInfo.fileName()));
-            continue;
         }
 
         QString vsndevtsContent = "<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:generic:version{7412167c-06e9-4698-aff2-e63eb59037e7} -->\n{\n";
