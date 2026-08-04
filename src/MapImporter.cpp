@@ -26,11 +26,21 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         if (cleanedRef.isEmpty()) continue;
         QString lowerRef = cleanedRef.toLower();
         if (lowerRef.contains(".mdl")) {
-            mdlfiles.append(cleanedRef);
+            QString vmdlcRef = cleanedRef;
+            int pos = vmdlcRef.lastIndexOf(".mdl", -1, Qt::CaseInsensitive);
+            if (pos != -1) {
+                vmdlcRef.replace(pos, 4, ".vmdl_c");
+            }
+            QString compiledPath = QDir(Miscellaneous::GetOptions().cs2Basefolder).filePath("game/csgo_addons/" + Miscellaneous::GetOptions().addonName + "/" + vmdlcRef);
+            if (QFile::exists(compiledPath)) {
+                continue;
+            }
+
             QString fullPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(cleanedRef);
             if (!QFileInfo::exists(fullPath)) {
                 FileExtractFromVPK::ExtractModel(cleanedRef);
             }
+            mdlfiles.append(cleanedRef);
         }
     }
 
@@ -303,11 +313,35 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         pos = refsName.lastIndexOf(".mdl");
         if (pos != -1) refsName.replace(pos, 4, "_refs.txt");
 
-        bool bForceCompile = MaterialFix::Force2UVsIfRequired(refsName, global2UVMaterials);
+        QString meshinfofilename = refsName;
+        int p = meshinfofilename.lastIndexOf("_refs.txt");
+        if (p != -1) {
+            meshinfofilename.replace(p, 9, "_refs/mesh/meshinfo.txt");
+        }
+
+        bool bForceCompile = false;
+        if (QFile::exists(meshinfofilename)) {
+            QStringList meshinfo = Miscellaneous::ReadTextFile(meshinfofilename);
+            QString meshstring = meshinfo.join("");
+            if (meshstring.contains("'numuvs': 2") || meshstring.contains("\"numuvs\": 2")) {
+                bForceCompile = true;
+                if (QFile::exists(refsName)) {
+                    QStringList modelRefs = Miscellaneous::ReadTextFile(refsName);
+                    for (const QString& refLine : modelRefs) {
+                        QString mtlfile = Miscellaneous::CleanRefPath(refLine);
+                        if (!mtlfile.isEmpty()) {
+                            global2UVMaterials.insert(mtlfile);
+                        }
+                    }
+                }
+            }
+        }
         mdlForceCompile[m] = bForceCompile;
     }
 
-    global2UVMaterials.clear();
+    if (!global2UVMaterials.isEmpty()) {
+        MaterialFix::Force2UVsIfRequired(global2UVMaterials.values());
+    }
 
     QStringList failedCompileMdlFiles;
 
