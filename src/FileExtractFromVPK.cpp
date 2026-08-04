@@ -91,7 +91,7 @@ static bool SearchAndExtractFile(const QString& filepath, const QString& content
     return false;
 }
 
-void FileExtractFromVPK::ExtractModel(const QString& filepath) {
+bool FileExtractFromVPK::ExtractModel(const QString& filepath) {
     QFileInfo fi(filepath);
     QString basePath = fi.path() + "/" + fi.baseName();
     QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(filepath);
@@ -244,23 +244,26 @@ void FileExtractFromVPK::ExtractModel(const QString& filepath) {
                 }
             }
         }
+    }else {
+        return false; // Model not found in any target
     }
+    return true; // Model and associated files extracted/copied successfully
 }
 
-void FileExtractFromVPK::ExtractMaterial(const QString& filepath) {
+bool FileExtractFromVPK::ExtractMaterial(const QString& filepath) {
     QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(filepath);
     QString outPath = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(filepath);
-    SearchAndExtractFile(filepath, contentPath, outPath);
+    return SearchAndExtractFile(filepath, contentPath, outPath);
 }
 
-void FileExtractFromVPK::ExtractParticle(const QString& filepath) {
+bool FileExtractFromVPK::ExtractParticle(const QString& filepath) {
     QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(filepath);
     QString outPath = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(filepath);
-    SearchAndExtractFile(filepath, contentPath, outPath);
+    return SearchAndExtractFile(filepath, contentPath, outPath);
 }
 
-void FileExtractFromVPK::ExtractSound(const QString& filepath) {
+bool FileExtractFromVPK::ExtractSound(const QString& filepath) {
     QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(filepath);
     QString outPath = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(filepath);
-    SearchAndExtractFile(filepath, contentPath, outPath);
+    return SearchAndExtractFile(filepath, contentPath, outPath);
 }

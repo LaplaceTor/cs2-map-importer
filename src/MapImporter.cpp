@@ -18,6 +18,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
     if (Miscellaneous::CanceLImport) return;
     QStringList refs = Miscellaneous::ReadTextFile(filename);
     QStringList mdlfiles;
+    QStringList errorMdlFiles;
 
     for (const QString& ref : refs) {
         if (Miscellaneous::CanceLImport) return;
@@ -38,7 +39,10 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
 
             QString fullPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(cleanedRef);
             if (!QFileInfo::exists(fullPath)) {
-                FileExtractFromVPK::ExtractModel(cleanedRef);
+                if(!FileExtractFromVPK::ExtractModel(cleanedRef)) {
+                    errorMdlFiles.append(cleanedRef);
+                    continue;
+                }
             }
             mdlfiles.append(cleanedRef);
         }
@@ -60,7 +64,6 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
 
     QSet<QString> mdlmtls;
     QStringList successfullyImportedMdlFiles;
-    QStringList errorMdlFiles;
 
     for (const QString& m : mdlfiles) {
         if (Miscellaneous::CanceLImport) return;
@@ -127,7 +130,10 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         if (isDevOrTool) {
             QString s1GameDirMtl = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(mtlfile);
             if (!QFile::exists(s1GameDirMtl)) {
-                FileExtractFromVPK::ExtractMaterial(mtlfile);
+                if(!FileExtractFromVPK::ExtractMaterial(mtlfile)) {
+                    failedMtlFiles.append(mtlfile);
+                    continue;
+                }
             }
 
             QString tmpVmtRel = mtlfile;
@@ -148,7 +154,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
                 failedMtlFiles.append(mtlfile);
                 continue;
             }
-
+            
             QStringList arguments = {
                 "-retail",
                 "-nop4",
@@ -463,7 +469,10 @@ QStringList MapImporter::GetRefsList() {
 
 void MapImporter::ImportAndCompileMapRefs(const QStringList& missingMaterials) {
     if (Miscellaneous::CanceLImport) return;
-
+    if(missingMaterials.isEmpty()) {
+        Miscellaneous::Log("No missing materials to import");
+        return;
+    }
     Miscellaneous::Log("Importing materials");
     Miscellaneous::Log("--------------------------------");
     for (const QString& x : missingMaterials) {
@@ -487,7 +496,10 @@ void MapImporter::ImportAndCompileMapRefs(const QStringList& missingMaterials) {
         if (isDevOrTool) {
             QString s1GameDirMtl = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(vmtPath);
             if (!QFile::exists(s1GameDirMtl)) {
-                FileExtractFromVPK::ExtractMaterial(vmtPath);
+                if (!FileExtractFromVPK::ExtractMaterial(vmtPath)) {
+                    failedMtlFiles.append(vmtPath);
+                    continue;
+                }
             }
 
             QString tmpVmtRel = vmtPath;
@@ -690,8 +702,6 @@ void MapImporter::ImportParticles(){
         return;
     }
 
-    Miscellaneous::Log("Importing particles...");
-
     QSet<QString> uniqueParticles;
 
     for (const QFileInfo& fileInfo : particleFiles) {
@@ -716,16 +726,28 @@ void MapImporter::ImportParticles(){
         return;
     }
 
+    Miscellaneous::Log("Importing particles");
+    Miscellaneous::Log("--------------------------------");
+    for (const QString& x : uniqueParticles) {
+        if (Miscellaneous::CanceLImport) return;
+        if (x.isEmpty() || x.startsWith('-')) continue;
+        Miscellaneous::Log(x);
+    }
+    Miscellaneous::Log("--------------------------------");
+
+    QStringList successfullyImportedParticles;
+    QStringList failedParticles;
     if (!Miscellaneous::GetOptions().cmdLogOut) {
         // Multi-threaded mode
         QList<std::function<void()>> tasks;
         for (const QString& cleanedPath : uniqueParticles) {
-            tasks.append([cleanedPath]() {
+            tasks.append([cleanedPath, &failedParticles, &successfullyImportedParticles]() {
                 QString fullPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(cleanedPath);
 
                 if (!QFile::exists(fullPath)) {
-                    FileExtractFromVPK::ExtractParticle(cleanedPath);
-                    if (!QFile::exists(fullPath)) return;
+                    if(!FileExtractFromVPK::ExtractParticle(cleanedPath)) {
+                        return; // Skip this particle if extraction fails
+                    }
                 }
 
                 QStringList arguments = {
@@ -740,7 +762,12 @@ void MapImporter::ImportParticles(){
                     "csgo",
                     QDir::toNativeSeparators(cleanedPath)
                 };
-                Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
+                int result = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
+                if (result != 100) {
+                    failedParticles.append(cleanedPath);
+                } else {
+                    successfullyImportedParticles.append(cleanedPath);
+                }
             });
         }
 
@@ -753,8 +780,9 @@ void MapImporter::ImportParticles(){
             QString fullPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(cleanedPath);
 
             if (!QFile::exists(fullPath)) {
-                FileExtractFromVPK::ExtractParticle(cleanedPath);
-                if (!QFile::exists(fullPath)) continue;
+                if(!FileExtractFromVPK::ExtractParticle(cleanedPath)) {
+                    continue;
+                }
             }
 
             QStringList arguments = {
@@ -769,8 +797,32 @@ void MapImporter::ImportParticles(){
                 "csgo",
                 QDir::toNativeSeparators(cleanedPath)
             };
-            Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
+            int result = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
+            if (result != 100) {
+                failedParticles.append(cleanedPath);
+            } else {
+                successfullyImportedParticles.append(cleanedPath);
+            }
         }
+    }
+
+    Miscellaneous::Log("Imported particles");
+    Miscellaneous::Log("--------------------------------");
+    for (const QString& x : successfullyImportedParticles) {
+        if (Miscellaneous::CanceLImport) return;
+        if (x.isEmpty() || x.startsWith('-')) continue;
+        Miscellaneous::Log(x);
+    }
+    Miscellaneous::Log("--------------------------------");
+    if (!failedParticles.isEmpty()) {
+        Miscellaneous::Log("Failed/Error particles");
+        Miscellaneous::Log("--------------------------------");
+        for (const QString& x : failedParticles) {
+            if (Miscellaneous::CanceLImport) return;
+            if (x.isEmpty() || x.startsWith('-')) continue;
+            Miscellaneous::Log(x);
+        }
+        Miscellaneous::Log("--------------------------------");
     }
 }
 

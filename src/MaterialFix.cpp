@@ -118,7 +118,9 @@ void MaterialFix::SkyboxFix() {
         QString vtfPath = dirPath + "/" + vtfName;
 
         if (!QFile::exists(vtfPath)) {
-            FileExtractFromVPK::ExtractMaterial("materials/skybox/" + vtfName);
+            if(!FileExtractFromVPK::ExtractMaterial("materials/skybox/" + vtfName)) {
+                continue;
+            }
         }
 
         if (QFile::exists(vtfPath)) {
