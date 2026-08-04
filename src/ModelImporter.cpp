@@ -82,7 +82,9 @@ bool ModelImporter::Run(const QString& mdlPath) {
         if (isDevOrTool) {
             QString s1GameDirMtl = QDir(opts.s1gamedir).filePath(mtlfile);
             if (!QFile::exists(s1GameDirMtl)) {
-                FileExtractFromVPK::ExtractMaterial(mtlfile);
+                if(!FileExtractFromVPK::ExtractMaterial(mtlfile)) {
+                    continue;
+                }
             }
 
             QString tmpVmtRel = mtlfile;
@@ -147,7 +149,9 @@ bool ModelImporter::Run(const QString& mdlPath) {
             // Extract from VPK if missing from s1gamedir/s1contentdir
             QString s1gamedirMtl = QDir(opts.s1gamedir).filePath(mtlfile);
             if (!QFileInfo::exists(s1gamedirMtl)) {
-                FileExtractFromVPK::ExtractMaterial(mtlfile);
+                if(!FileExtractFromVPK::ExtractMaterial(mtlfile)) {
+                    continue;
+                }
             }
             normalMtls.append(mtlfile);
         }
@@ -240,7 +244,34 @@ bool ModelImporter::Run(const QString& mdlPath) {
 
     // Check if force compile required
     QSet<QString> global2UVMaterials;
-    bool bForceCompile = MaterialFix::Force2UVsIfRequired(refsName, global2UVMaterials);
+    bool bForceCompile = false;
+
+    QString meshinfofilename = refsName;
+    int p = meshinfofilename.lastIndexOf("_refs.txt");
+    if (p != -1) {
+        meshinfofilename.replace(p, 9, "_refs/mesh/meshinfo.txt");
+    }
+
+    if (QFile::exists(meshinfofilename)) {
+        QStringList meshinfo = Miscellaneous::ReadTextFile(meshinfofilename);
+        QString meshstring = meshinfo.join("");
+        if (meshstring.contains("'numuvs': 2") || meshstring.contains("\"numuvs\": 2")) {
+            bForceCompile = true;
+            if (QFile::exists(refsName)) {
+                QStringList modelRefs = Miscellaneous::ReadTextFile(refsName);
+                for (const QString& refLine : modelRefs) {
+                    QString mtlfile = Miscellaneous::CleanRefPath(refLine);
+                    if (!mtlfile.isEmpty()) {
+                        global2UVMaterials.insert(mtlfile);
+                    }
+                }
+            }
+        }
+    }
+
+    if (!global2UVMaterials.isEmpty()) {
+        MaterialFix::Force2UVsIfRequired(global2UVMaterials.values());
+    }
 
     if (Miscellaneous::CanceLImport) return false;
 
