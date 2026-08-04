@@ -15,6 +15,7 @@ public:
 private:
     QStringList GetRefsList();
     void ImportAndCompileMapMDLs(const QString& filename);
+    void ImportAndCompileMapMDLsMulti(const QString& filename);
     void ImportAndCompileMapRefs(const QStringList& missingMaterials);
     void ImportParticles();
     void ImportSounds();
