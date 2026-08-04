@@ -1317,13 +1317,6 @@ void MapImporter::ImportSounds() {
 bool MapImporter::Run() {
     if (Miscellaneous::CanceLImport) return false;
     Miscellaneous::Log("Starting Map Import process.");
-    const auto& opts = Miscellaneous::GetOptions();
-    const auto& targets = opts.searchTargets;
-    for(const auto& target : targets) {
-        for(QString path : target.path) {
-            Miscellaneous::Log("Searching for files in: " + path);
-        }
-    }
 
     if (!Miscellaneous::GetOptions().skipdeps) {
         if (Miscellaneous::CanceLImport) return false;
