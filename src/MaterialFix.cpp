@@ -616,18 +616,6 @@ void MaterialFix::OldParticleMtlFix() {
     for (const QString& vmtPath : materialList) {
         if (Miscellaneous::CanceLImport) return;
 
-        QString contentPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(vmtPath);
-        if (!QFile::exists(contentPath)) {
-            FileExtractFromVPK::ExtractMaterial(vmtPath);
-        } else {
-            QString s1GameDirVmt = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(vmtPath);
-            if (!QFile::exists(s1GameDirVmt)) {
-                QFileInfo fi(s1GameDirVmt);
-                QDir().mkpath(fi.absolutePath());
-                QFile::copy(contentPath, s1GameDirVmt);
-            }
-        }
-
         QStringList arguments = {
             "-retail",
             "-nop4",
@@ -640,7 +628,10 @@ void MaterialFix::OldParticleMtlFix() {
             "csgo",
             QDir::toNativeSeparators(vmtPath)
         };
-        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
+        int s1Ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
+        if (s1Ret != 100) {
+            continue;
+        }
 
         QString vmatRel = vmtPath;
         vmatRel.replace(".vmt", ".vmat");
@@ -655,12 +646,52 @@ void MaterialFix::OldParticleMtlFix() {
         };
         Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
 
+        if (!QFile::exists(s2VmatPath)) {
+            continue;
+        }
+
+        QStringList vmatLines = Miscellaneous::ReadTextFile(s2VmatPath);
+        if (vmatLines.isEmpty()) {
+            continue;
+        }
+
+        QString tgaRel;
+        for (const QString& line : vmatLines) {
+            QStringList tokens;
+            int idx = 0;
+            while (true) {
+                int firstQuote = line.indexOf('"', idx);
+                if (firstQuote == -1) break;
+                int secondQuote = line.indexOf('"', firstQuote + 1);
+                if (secondQuote == -1) break;
+
+                tokens.append(line.mid(firstQuote + 1, secondQuote - firstQuote - 1));
+                idx = secondQuote + 1;
+            }
+
+            if (tokens.size() >= 2) {
+                QString key = tokens[0];
+                QString val = tokens[1];
+                QString lowerKey = key.toLower();
+                if (lowerKey.contains("texture") && lowerKey.contains("color")) {
+                    QString normVal = val;
+                    normVal.replace('\\', '/');
+                    QString lowerVal = normVal.toLower();
+                    if (lowerVal.startsWith("materials/") && lowerVal.endsWith("_color.tga")) {
+                        tgaRel = normVal;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (tgaRel.isEmpty()) {
+            continue;
+        }
+
         QString vtexRel = vmtPath;
         vtexRel.replace(".vmt", ".vtex");
         QString s2VtexPath = QDir(Miscellaneous::GetOptions().s2contentdir).filePath(vtexRel);
-
-        QString tgaRel = vmtPath;
-        tgaRel.replace(".vmt", "_color.tga");
 
         QFile file(s2VtexPath);
         if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
