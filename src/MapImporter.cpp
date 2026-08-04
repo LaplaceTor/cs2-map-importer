@@ -156,7 +156,10 @@ void MapImporter::ImportAndCompileMapMDLsMulti(const QString& filename) {
         if (isDevOrTool) {
             QString s1GameDirMtl = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(mtlfile);
             if (!QFile::exists(s1GameDirMtl)) {
-                FileExtractFromVPK::ExtractMaterial(mtlfile);
+                if(!FileExtractFromVPK::ExtractMaterial(mtlfile)) {
+                    failedMtlFiles.append(mtlfile);
+                    continue;
+                }
             }
 
             QString tmpVmtRel = mtlfile;
@@ -577,7 +580,10 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
         if (isDevOrTool) {
             QString s1GameDirMtl = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(mtlfile);
             if (!QFile::exists(s1GameDirMtl)) {
-                FileExtractFromVPK::ExtractMaterial(mtlfile);
+                if(!FileExtractFromVPK::ExtractMaterial(mtlfile)) {
+                    failedMtlFiles.append(mtlfile);
+                    continue;
+                }
             }
 
             QString tmpVmtRel = mtlfile;
@@ -940,7 +946,10 @@ void MapImporter::ImportAndCompileMapRefs(const QStringList& missingMaterials) {
         if (isDevOrTool) {
             QString s1GameDirMtl = QDir(Miscellaneous::GetOptions().s1gamedir).filePath(vmtPath);
             if (!QFile::exists(s1GameDirMtl)) {
-                FileExtractFromVPK::ExtractMaterial(vmtPath);
+                if (!FileExtractFromVPK::ExtractMaterial(vmtPath)) {
+                    failedMtlFiles.append(vmtPath);
+                    continue;
+                }
             }
 
             QString tmpVmtRel = vmtPath;
