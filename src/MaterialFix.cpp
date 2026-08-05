@@ -427,9 +427,9 @@ void MaterialFix::ShaderFix(QStringList& lines, bool& fileModified) {
 }
 
 void MaterialFix::FixMaterials() {
-    Miscellaneous::Log("Starting material fixes...");
     SkyboxFix();
-
+    Miscellaneous::Log("Starting material fixes...");
+    
     QString materialsDir = Miscellaneous::GetOptions().s2contentdir + "/materials";
     QDirIterator it(materialsDir, QStringList() << "*.vmat", QDir::Files, QDirIterator::Subdirectories);
 

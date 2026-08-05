@@ -1321,6 +1321,7 @@ bool MapImporter::Run() {
     Miscellaneous::Log("Starting Map Import process...");
 
     if (!Miscellaneous::GetOptions().skipdeps) {
+        Miscellaneous::Log("Importing map dependencies...");
         if (Miscellaneous::CanceLImport) return false;
         QStringList refsList = GetRefsList();
         ImportAndCompileMapRefs(refsList);
@@ -1412,6 +1413,7 @@ bool MapImporter::Run() {
     arguments << "-game" << "csgo";
     arguments << QDir::toNativeSeparators("maps/" + Miscellaneous::GetOptions().mapName + ".vmf");
     
+    Miscellaneous::Log("Building map geometry...");
     Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, true, Miscellaneous::GetOptions().s1GameType == "csgo");
 
     if (Miscellaneous::CanceLImport) return false;
