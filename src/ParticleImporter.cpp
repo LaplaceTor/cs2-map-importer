@@ -66,9 +66,15 @@ bool ParticleImporter::Run(const QString& pcfPath) {
     }
     arguments << destPcfPath;
 
-    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
+    int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
 
     if (Miscellaneous::CanceLImport) return false;
+    if (ret != 100) {
+        if (Miscellaneous::GetOptions().cmdLogOut) {
+            Miscellaneous::Log("Error: Particle import process failed.");
+        }
+        return false;
+    }
 
     Miscellaneous::Log("Particle Import process complete.");
     return true;

@@ -134,16 +134,20 @@ bool ModelImporter::Run(const QString& mdlPath) {
                 if (QFile::exists(origVmatS2)) QFile::remove(origVmatS2);
                 if (QFile::copy(tmpVmatS2, origVmatS2)) {
                     QFile::remove(tmpVmatS2);
-                }
 
-                QStringList argumentsRc = {
-                    "-retail",
-                    "-nop4",
-                    "-game",
-                    "csgo",
-                    QDir::toNativeSeparators(origVmatS2)
-                };
-                Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
+                    QStringList argumentsRc = {
+                        "-retail",
+                        "-nop4",
+                        "-game",
+                        "csgo",
+                        QDir::toNativeSeparators(origVmatS2)
+                    };
+                    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
+                } else {
+                    if (opts.cmdLogOut) {
+                        Miscellaneous::Log("Failed to copy from " + tmpVmatS2 + " to " + origVmatS2);
+                    }
+                }
             }
         } else {
             // Extract from VPK if missing from s1gamedir/s1contentdir
@@ -290,13 +294,6 @@ bool ModelImporter::Run(const QString& mdlPath) {
     Miscellaneous::Log("Model Import process complete.");
     return true;
 }
-
-struct ModelKeyMapping {
-    QString newKey;
-    bool appendAlpha1;
-};
-
-static QMap<QString, ModelKeyMapping> legacyKeyMap = { { "\"$color2\"", { "\"g_vColorTint\"", true } } };
 
 void ModelImporter::FixModelMaterials(const QStringList& vmatFiles) {
     for (const QString& vmatFile : vmatFiles) {

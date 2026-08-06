@@ -21,6 +21,8 @@
 #include <QMutex>
 #include <QMutexLocker>
 
+const QMap<QString, KeyMapping> legacyKeyMap = { { "\"$color2\"", { "\"g_vColorTint\"", true } } };
+
 QAtomicInt Miscellaneous::CanceLImport(0);
 Miscellaneous::LogCallback Miscellaneous::GlobaLLogger = nullptr;
 
@@ -127,6 +129,7 @@ bool Miscellaneous::ParseGameInfo(const QString& gameinfoPath, QList<SearchTarge
 
     QString gameinfo_path = QFileInfo(gameinfoPath).absolutePath();
     QStringList lines = ReadTextFile(gameinfoPath);
+    QRegularExpression placeholderRe("\\|[^|]+\\|");
 
     // Determine basefolder
     QString basefolder = GetBaseFolderFromGameInfo(gameinfoPath);
@@ -212,7 +215,6 @@ bool Miscellaneous::ParseGameInfo(const QString& gameinfoPath, QList<SearchTarge
                 // Clean placeholder |gameinfo_path|. then |gameinfo_path| and remove others
                 val.replace("|gameinfo_path|.", gameinfo_path, Qt::CaseInsensitive);
                 val.replace("|gameinfo_path|", gameinfo_path, Qt::CaseInsensitive);
-                QRegularExpression placeholderRe("\\|[^|]+\\|");
                 val.replace(placeholderRe, "");
 
                 val = QDir::fromNativeSeparators(val);
@@ -255,13 +257,30 @@ bool Miscellaneous::ParseGameInfo(const QString& gameinfoPath, QList<SearchTarge
 }
 
 static Miscellaneous::Options globalOptions;
+static QMutex optionsMutex;
 
-const Miscellaneous::Options& Miscellaneous::GetOptions() {
+Miscellaneous::Options Miscellaneous::GetOptions() {
+    QMutexLocker locker(&optionsMutex);
     return globalOptions;
 }
 
 void Miscellaneous::SetOptions(const Miscellaneous::Options& options) {
+    QMutexLocker locker(&optionsMutex);
     globalOptions = options;
+}
+
+QString Miscellaneous::GetS1Subfolder(const QString& gameType) {
+    QString s1Subfolder = "csgo";
+    if (gameType == "css") s1Subfolder = "cstrike";
+    else if (gameType == "hl2") s1Subfolder = "hl2";
+    else if (gameType == "l4d") s1Subfolder = "left4dead";
+    else if (gameType == "l4d2") s1Subfolder = "left4dead2";
+    else if (gameType == "portal") s1Subfolder = "portal";
+    else if (gameType == "portal2") s1Subfolder = "portal2";
+    else if (gameType == "tf2") s1Subfolder = "tf";
+    else if (gameType == "gmod") s1Subfolder = "garrysmod";
+    else if (gameType == "blackmesa") s1Subfolder = "bms";
+    return s1Subfolder;
 }
 
 void Miscellaneous::Log(const QString& msg) {
@@ -712,12 +731,15 @@ QString Miscellaneous::CleanRefPath(QString input) {
         input = input.mid(filePos + 6);
     }
 
-    QRegularExpression reLeading("^\\s*\"");
+    static const QRegularExpression reLeading("^\\s*\"");
+    static const QRegularExpression nonSpaceRe("[^ \\t]");
+    static const QRegularExpression reTrailing("\"\\s*$");
+
     QRegularExpressionMatch matchLeading = reLeading.match(input);
     if (matchLeading.hasMatch()) {
         input = input.mid(matchLeading.capturedLength());
     } else {
-        int start = input.indexOf(QRegularExpression("[^ \\t]"));
+        int start = input.indexOf(nonSpaceRe);
         if (start != -1) {
             input = input.mid(start);
         } else {
@@ -725,12 +747,11 @@ QString Miscellaneous::CleanRefPath(QString input) {
         }
     }
 
-    QRegularExpression reTrailing("\"\\s*$");
     QRegularExpressionMatch matchTrailing = reTrailing.match(input);
     if (matchTrailing.hasMatch()) {
         input = input.left(input.size() - matchTrailing.capturedLength());
     } else {
-        int end = input.lastIndexOf(QRegularExpression("[^ \\t]"));
+        int end = input.lastIndexOf(nonSpaceRe);
         if (end != -1) {
             input = input.left(end + 1);
         }

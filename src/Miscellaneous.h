@@ -2,9 +2,17 @@
 
 #include <QString>
 #include <QStringList>
+#include <QMap>
 #include <functional>
 #include <QAtomicInt>
 #include <QException>
+
+struct KeyMapping {
+    QString newKey;
+    bool appendAlpha1;
+};
+
+extern const QMap<QString, KeyMapping> legacyKeyMap;
 
 class AppException : public QException {
 public:
@@ -52,29 +60,30 @@ public:
         QString s1contentdir;
         QString s2contentdir;
 
-        bool cmdLogOut;
-        bool keepFuncDetailAsBrush;
-        bool usebsp;
-        bool usebspNomergeinstances;
-        bool skipdeps;
+        bool cmdLogOut = false;
+        bool keepFuncDetailAsBrush = false;
+        bool usebsp = false;
+        bool usebspNomergeinstances = false;
+        bool skipdeps = false;
 
-        bool modelSkipAnimation;
-        bool modelChangeBindpose;
-        bool modelOverrideLean;
-        bool modelHeaderHullBounds;
-        bool modelImportLods;
-        bool modelWriteWeaponPrefab;
+        bool modelSkipAnimation = false;
+        bool modelChangeBindpose = false;
+        bool modelOverrideLean = false;
+        bool modelHeaderHullBounds = false;
+        bool modelImportLods = false;
+        bool modelWriteWeaponPrefab = false;
 
-        bool particleAllowDepthBlend;
-        bool particleDisableDiffuse;
+        bool particleAllowDepthBlend = false;
+        bool particleDisableDiffuse = false;
 
         QList<SearchTarget> searchTargets;
     };
 
-    static const Options& GetOptions();
+    static Options GetOptions();
     static bool ParseGameInfo(const QString& gameinfoPath, QList<SearchTarget>& targets);
     static QString GetBaseFolderFromGameInfo(const QString& gameinfoPath);
     static void SetOptions(const Options& options);
+    static QString GetS1Subfolder(const QString& gameType);
 
     static LogCallback GlobaLLogger;
     static void Log(const QString& msg);
