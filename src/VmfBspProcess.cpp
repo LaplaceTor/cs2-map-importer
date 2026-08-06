@@ -117,6 +117,7 @@ QStringList VmfBspProcess::PatchDispinfo(const QStringList& lines) {
     bool has_offset_normals = false;
     int current_power = 3;
 
+    QRegularExpression power_regex("^\"power\"\\s+\"(\\d+)\"");
     for (int i = 0; i < lines.size(); ++i) {
         QString l = lines[i];
         QString trimmed = l.trimmed();
@@ -144,7 +145,6 @@ QStringList VmfBspProcess::PatchDispinfo(const QStringList& lines) {
                 has_offset_normals = true;
             }
 
-            QRegularExpression power_regex("^\"power\"\\s+\"(\\d+)\"");
             QRegularExpressionMatch power_match = power_regex.match(trimmed);
             if (power_match.hasMatch()) {
                 current_power = power_match.captured(1).toInt();
@@ -225,6 +225,8 @@ void VmfBspProcess::FixLightColor(const QString& vmfPath) {
     QString indent_str = "";
 
     QStringList out_lines;
+    QRegularExpression classname_regex("^\"classname\"\\s+\"(light|light_spot)\"$");
+    QRegularExpression colormode_regex("^\"colormode\"\\s+\"(.*)\"$");
 
     for (int i = 0; i < lines.size(); ++i) {
         QString line = lines[i];
@@ -261,11 +263,9 @@ void VmfBspProcess::FixLightColor(const QString& vmfPath) {
                 }
             } else {
                 if (bracket_level == 1) {
-                    QRegularExpression classname_regex("^\"classname\"\\s+\"(light|light_spot)\"$");
                     if (classname_regex.match(trimmed).hasMatch()) {
                         is_light = true;
                     }
-                    QRegularExpression colormode_regex("^\"colormode\"\\s+\"(.*)\"$");
                     QRegularExpressionMatch match = colormode_regex.match(trimmed);
                     if (match.hasMatch()) {
                         colormode_idx = out_lines.size(); // Index in out_lines where it will be appended
@@ -309,6 +309,7 @@ void VmfBspProcess::FixPhysboxMultiplayer(const QString& vmfPath) {
     int bracket_level = 0;
     QStringList current_entity_block;
     QStringList out_lines;
+    QRegularExpression classname_regex("^(\\s*)\"classname\"\\s+\"([^\"]+)\"(.*)$");
 
     for (int i = 0; i < lines.size(); ++i) {
         QString line = lines[i];
@@ -328,8 +329,6 @@ void VmfBspProcess::FixPhysboxMultiplayer(const QString& vmfPath) {
                 bracket_level--;
                 if (bracket_level == 0) {
                     in_entity = false;
-
-                    QRegularExpression classname_regex("^(\\s*)\"classname\"\\s+\"([^\"]+)\"(.*)$");
 
                     for (int j = 0; j < current_entity_block.size(); ++j) {
                         QRegularExpressionMatch match = classname_regex.match(current_entity_block[j]);
@@ -424,6 +423,8 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
     int bracket_level = 0;
     QStringList entity_lines;
     QStringList out_lines;
+    QRegularExpression classname_regex("^\"classname\"\\s+\"(.*)\"$");
+    QRegularExpression solid_regex("^\"solid\"\\s+\"(.*)\"$");
 
     for (int i = 0; i < lines.size(); ++i) {
         QString line = lines[i];
@@ -460,14 +461,12 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
                         } else if (etrimmed == "}") {
                             inner_level--;
                         } else if (inner_level == 1) {
-                            QRegularExpression classname_regex("^\"classname\"\\s+\"(.*)\"$");
                             QRegularExpressionMatch c_match = classname_regex.match(etrimmed);
                             if (c_match.hasMatch()) {
                                 classname = c_match.captured(1);
                                 base_indent = eline.left(eline.indexOf(etrimmed));
                             }
 
-                            QRegularExpression solid_regex("^\"solid\"\\s+\"(.*)\"$");
                             QRegularExpressionMatch s_match = solid_regex.match(etrimmed);
                             if (s_match.hasMatch()) {
                                 solid_val = s_match.captured(1);
@@ -491,9 +490,6 @@ void VmfBspProcess::FixBrush(const QString& vmfPath) {
                                 inner_level--;
                                 new_entity_lines.append(eline);
                             } else if (inner_level == 1) {
-                                QRegularExpression classname_regex("^\"classname\"\\s+\"(.*)\"$");
-                                QRegularExpression solid_regex("^\"solid\"\\s+\"(.*)\"$");
-
                                 if (classname_regex.match(etrimmed).hasMatch()) {
                                     new_entity_lines.append(base_indent + "\"classname\" \"func_brush\"");
                                     new_entity_lines.append(base_indent + "\"InputFilter\" \"32\"");
@@ -642,6 +638,16 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
     QStringList current_entity_block;
     QStringList out_lines;
 
+    QRegularExpression classname_regex("^(\\s*\"classname\"\\s+\")([^\"]+)(\".*)$");
+    QRegularExpression default_anim_regex("^(\\s*)\"DefaultAnim\"\\s+\"([^\"]*)\"(.*)$");
+    QRegularExpression hold_animation_regex("^(\\s*)\"HoldAnimation\"\\s+\"([^\"]*)\"(.*)$");
+    QRegularExpression random_animation_regex("^(\\s*)\"RandomAnimation\"\\s+\"([^\"]*)\"(.*)$");
+    QRegularExpression animate_every_frame_regex("^(\\s*)\"AnimateEveryFrame\"\\s+\"([^\"]*)\"(.*)$");
+    QRegularExpression glowdist_regex("^(\\s*)\"glowdist\"\\s+\"([^\"]*)\"(.*)$");
+    QRegularExpression glowenabled_regex("^(\\s*)\"glowenabled\"\\s+\"([^\"]*)\"(.*)$");
+    QRegularExpression min_anim_time_regex("^(\\s*)\"MinAnimTime\"\\s+\"([^\"]*)\"(.*)$");
+    QRegularExpression max_anim_time_regex("^(\\s*)\"MaxAnimTime\"\\s+\"([^\"]*)\"(.*)$");
+
     for (int i = 0; i < lines.size(); ++i) {
         QString line = lines[i];
         QString trimmed = line.trimmed();
@@ -666,7 +672,6 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
                     bool is_prop_dynamic_glow = false;
                     bool is_prop_dynamic_override = false;
                     int classname_idx = -1;
-                    QRegularExpression classname_regex("^(\\s*\"classname\"\\s+\")([^\"]+)(\".*)$");
 
                     for (int j = 0; j < current_entity_block.size(); ++j) {
                         QRegularExpressionMatch match = classname_regex.match(current_entity_block[j]);
@@ -685,15 +690,6 @@ void VmfBspProcess::FixDynamicProp(const QString& vmfPath) {
                     }
 
                     if (is_prop_dynamic || is_prop_dynamic_glow || is_prop_dynamic_override) {
-                        QRegularExpression default_anim_regex("^(\\s*)\"DefaultAnim\"\\s+\"([^\"]*)\"(.*)$");
-                        QRegularExpression hold_animation_regex("^(\\s*)\"HoldAnimation\"\\s+\"([^\"]*)\"(.*)$");
-                        QRegularExpression random_animation_regex("^(\\s*)\"RandomAnimation\"\\s+\"([^\"]*)\"(.*)$");
-                        QRegularExpression animate_every_frame_regex("^(\\s*)\"AnimateEveryFrame\"\\s+\"([^\"]*)\"(.*)$");
-                        QRegularExpression glowdist_regex("^(\\s*)\"glowdist\"\\s+\"([^\"]*)\"(.*)$");
-                        QRegularExpression glowenabled_regex("^(\\s*)\"glowenabled\"\\s+\"([^\"]*)\"(.*)$");
-                        QRegularExpression min_anim_time_regex("^(\\s*)\"MinAnimTime\"\\s+\"([^\"]*)\"(.*)$");
-                        QRegularExpression max_anim_time_regex("^(\\s*)\"MaxAnimTime\"\\s+\"([^\"]*)\"(.*)$");
-
                         bool has_hold_animation = false;
                         for (const QString& block_line : current_entity_block) {
                             if (hold_animation_regex.match(block_line).hasMatch()) {
@@ -909,6 +905,7 @@ void VmfBspProcess::OldParticleFix(const QString& vmfPath) {
     int bracket_level = 0;
     QStringList current_entity_block;
     QStringList out_lines;
+    QRegularExpression classname_regex("^(\\s*)\"classname\"\\s+\"([^\"]+)\"(.*)$");
 
     for (int i = 0; i < lines.size(); ++i) {
         QString line = lines[i];
@@ -928,8 +925,6 @@ void VmfBspProcess::OldParticleFix(const QString& vmfPath) {
                 bracket_level--;
                 if (bracket_level == 0) {
                     in_entity = false;
-
-                    QRegularExpression classname_regex("^(\\s*)\"classname\"\\s+\"([^\"]+)\"(.*)$");
 
                     for (int j = 0; j < current_entity_block.size(); ++j) {
                         QRegularExpressionMatch match = classname_regex.match(current_entity_block[j]);
@@ -1452,16 +1447,7 @@ void VmfBspProcess::ProcessBsp() {
 
     if (!Miscellaneous::GetOptions().skipdeps) {
         // Copy materials and models to s1gamedir
-        QString s1Subfolder = "csgo";
-        if (Miscellaneous::GetOptions().s1GameType == "css") s1Subfolder = "cstrike";
-        else if (Miscellaneous::GetOptions().s1GameType == "hl2") s1Subfolder = "hl2";
-        else if (Miscellaneous::GetOptions().s1GameType == "l4d") s1Subfolder = "left4dead";
-        else if (Miscellaneous::GetOptions().s1GameType == "l4d2") s1Subfolder = "left4dead2";
-        else if (Miscellaneous::GetOptions().s1GameType == "portal") s1Subfolder = "portal";
-        else if (Miscellaneous::GetOptions().s1GameType == "portal2") s1Subfolder = "portal2";
-        else if (Miscellaneous::GetOptions().s1GameType == "tf2") s1Subfolder = "tf";
-        else if (Miscellaneous::GetOptions().s1GameType == "gmod") s1Subfolder = "garrysmod";
-        else if (Miscellaneous::GetOptions().s1GameType == "blackmesa") s1Subfolder = "bms";
+        QString s1Subfolder = Miscellaneous::GetS1Subfolder(Miscellaneous::GetOptions().s1GameType);
         QString s1gamedir = QDir(Miscellaneous::GetOptions().s1gameBasefolder).filePath(s1Subfolder);
 
         if (QDir(target_unpacked_dir).exists()) {
@@ -1546,10 +1532,27 @@ VmfBspProcess::VmfNode* VmfBspProcess::ParseVmfTree(const QStringList& lines) {
 }
 
 QString VmfBspProcess::GetVmfKeyValue(const QString& rawLine, const QString& key) {
-    QRegularExpression re(QString("^\\s*\"%1\"\\s+\"([^\"]*)\"").arg(QRegularExpression::escape(key)), QRegularExpression::CaseInsensitiveOption);
-    QRegularExpressionMatch match = re.match(rawLine);
-    if (match.hasMatch()) {
-        return match.captured(1);
+    static const QRegularExpression materialRe("^\\s*\"material\"\\s+\"([^\"]*)\"", QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression classnameRe("^\\s*\"classname\"\\s+\"([^\"]*)\"", QRegularExpression::CaseInsensitiveOption);
+
+    const QRegularExpression* rePtr = nullptr;
+    if (key.compare("material", Qt::CaseInsensitive) == 0) {
+        rePtr = &materialRe;
+    } else if (key.compare("classname", Qt::CaseInsensitive) == 0) {
+        rePtr = &classnameRe;
+    }
+
+    if (rePtr) {
+        QRegularExpressionMatch match = rePtr->match(rawLine);
+        if (match.hasMatch()) {
+            return match.captured(1);
+        }
+    } else {
+        QRegularExpression dynamicRe(QString("^\\s*\"%1\"\\s+\"([^\"]*)\"").arg(QRegularExpression::escape(key)), QRegularExpression::CaseInsensitiveOption);
+        QRegularExpressionMatch match = dynamicRe.match(rawLine);
+        if (match.hasMatch()) {
+            return match.captured(1);
+        }
     }
     return QString();
 }

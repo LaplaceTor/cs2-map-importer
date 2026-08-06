@@ -207,21 +207,27 @@ void MapImporter::ImportAndCompileMapMDLsMulti(const QString& filename) {
             QString origVmatS2 = QDir(Miscellaneous::GetOptions().s2contentdir).filePath(origVmatRel);
 
             if (QFile::exists(tmpVmatS2)) {
-                source1ImportOk = true;
                 QDir().mkpath(QFileInfo(origVmatS2).absolutePath());
                 if (QFile::exists(origVmatS2)) QFile::remove(origVmatS2);
                 if (QFile::copy(tmpVmatS2, origVmatS2)) {
                     QFile::remove(tmpVmatS2);
+                    source1ImportOk = true;
+                } else {
+                    if (Miscellaneous::GetOptions().cmdLogOut) {
+                        Miscellaneous::Log("Failed to copy from " + tmpVmatS2 + " to " + origVmatS2);
+                    }
                 }
 
-                QStringList argumentsRc = {
-                    "-retail",
-                    "-nop4",
-                    "-game",
-                    "csgo",
-                    QDir::toNativeSeparators(origVmatS2)
-                };
-                Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
+                if (source1ImportOk) {
+                    QStringList argumentsRc = {
+                        "-retail",
+                        "-nop4",
+                        "-game",
+                        "csgo",
+                        QDir::toNativeSeparators(origVmatS2)
+                    };
+                    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
+                }
             }
 
             if (!source1ImportOk) {
@@ -631,21 +637,27 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
             QString origVmatS2 = QDir(Miscellaneous::GetOptions().s2contentdir).filePath(origVmatRel);
 
             if (QFile::exists(tmpVmatS2)) {
-                source1ImportOk = true;
                 QDir().mkpath(QFileInfo(origVmatS2).absolutePath());
                 if (QFile::exists(origVmatS2)) QFile::remove(origVmatS2);
                 if (QFile::copy(tmpVmatS2, origVmatS2)) {
                     QFile::remove(tmpVmatS2);
+                    source1ImportOk = true;
+                } else {
+                    if (Miscellaneous::GetOptions().cmdLogOut) {
+                        Miscellaneous::Log("Failed to copy from " + tmpVmatS2 + " to " + origVmatS2);
+                    }
                 }
 
-                QStringList argumentsRc = {
-                    "-retail",
-                    "-nop4",
-                    "-game",
-                    "csgo",
-                    QDir::toNativeSeparators(origVmatS2)
-                };
-                Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
+                if (source1ImportOk) {
+                    QStringList argumentsRc = {
+                        "-retail",
+                        "-nop4",
+                        "-game",
+                        "csgo",
+                        QDir::toNativeSeparators(origVmatS2)
+                    };
+                    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
+                }
             }
 
             if (!source1ImportOk) {
@@ -879,6 +891,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
 }
 
 QStringList MapImporter::GetRefsList() {
+    Miscellaneous::Log("Getting missing materials from map");
     QStringList missingMaterials;
     if (Miscellaneous::CanceLImport) return missingMaterials;
     QStringList arguments = {
@@ -897,8 +910,10 @@ QStringList MapImporter::GetRefsList() {
     };
 
     QStringList outputLines;
-    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, &outputLines, true, Miscellaneous::GetOptions().s1GameType == "csgo");
-
+    int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, &outputLines, true, Miscellaneous::GetOptions().s1GameType == "csgo");
+    if (ret != 100) {
+        throw AppException("Failed to get missing materials from map. It's probably the map geo is too bad or the map is too old.");
+    }
     for (const QString& lineBuffer : outputLines) {
         if (lineBuffer.startsWith("Failed loading resource \"materials/")) {
             if (lineBuffer.endsWith("vmat_c\" (ERROR_FILEOPEN: File not found)")) {
@@ -997,21 +1012,27 @@ void MapImporter::ImportAndCompileMapRefs(const QStringList& missingMaterials) {
             QString origVmatS2 = QDir(Miscellaneous::GetOptions().s2contentdir).filePath(origVmatRel);
 
             if (QFile::exists(tmpVmatS2)) {
-                source1ImportOk = true;
                 QDir().mkpath(QFileInfo(origVmatS2).absolutePath());
                 if (QFile::exists(origVmatS2)) QFile::remove(origVmatS2);
                 if (QFile::copy(tmpVmatS2, origVmatS2)) {
                     QFile::remove(tmpVmatS2);
+                    source1ImportOk = true;
+                } else {
+                    if (Miscellaneous::GetOptions().cmdLogOut) {
+                        Miscellaneous::Log("Failed to copy from " + tmpVmatS2 + " to " + origVmatS2);
+                    }
                 }
 
-                QStringList argumentsRc = {
-                    "-retail",
-                    "-nop4",
-                    "-game",
-                    "csgo",
-                    QDir::toNativeSeparators(origVmatS2)
-                };
-                Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
+                if (source1ImportOk) {
+                    QStringList argumentsRc = {
+                        "-retail",
+                        "-nop4",
+                        "-game",
+                        "csgo",
+                        QDir::toNativeSeparators(origVmatS2)
+                    };
+                    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
+                }
             }
 
             if (!source1ImportOk) {
@@ -1187,11 +1208,12 @@ void MapImporter::ImportParticles(){
 
     QStringList successfullyImportedParticles;
     QStringList failedParticles;
+    QMutex mutex;
     if (!Miscellaneous::GetOptions().cmdLogOut) {
         // Multi-threaded mode
         QList<std::function<void()>> tasks;
         for (const QString& cleanedPath : uniqueParticles) {
-            tasks.append([cleanedPath, &failedParticles, &successfullyImportedParticles]() {
+            tasks.append([cleanedPath, &failedParticles, &successfullyImportedParticles, &mutex]() {
                 QString fullPath = QDir(Miscellaneous::GetOptions().s1contentdir).filePath(cleanedPath);
 
                 if (!QFile::exists(fullPath)) {
@@ -1213,6 +1235,7 @@ void MapImporter::ImportParticles(){
                     QDir::toNativeSeparators(cleanedPath)
                 };
                 int result = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
+                QMutexLocker locker(&mutex);
                 if (result != 100) {
                     failedParticles.append(cleanedPath);
                 } else {
@@ -1414,9 +1437,13 @@ bool MapImporter::Run() {
     arguments << QDir::toNativeSeparators("maps/" + Miscellaneous::GetOptions().mapName + ".vmf");
     
     Miscellaneous::Log("Building map geometry...");
-    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, true, Miscellaneous::GetOptions().s1GameType == "csgo");
+    int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, true, Miscellaneous::GetOptions().s1GameType == "csgo");
 
     if (Miscellaneous::CanceLImport) return false;
+    if (ret != 100) {
+        Miscellaneous::Log("Error: Map geometry building process failed.");
+    }
+    Miscellaneous::Log("Map geometry building process completed successfully.");
     Miscellaneous::Log("Import process complete.");
     return true;
 }

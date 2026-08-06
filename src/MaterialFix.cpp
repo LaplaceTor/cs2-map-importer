@@ -27,12 +27,13 @@ void MaterialFix::Force2UVsIfRequired(const QStringList& force2UVMaterials) {
             QStringList lines = Miscellaneous::ReadTextFile(vmatfilename);
             Miscellaneous::EnsureFileWritable(vmatfilename);
 
+            QRegularExpression nonSpaceRe("[^ \\t]");
             bool added = false;
             for (int i = 0; i < lines.size(); ++i) {
                 QString txt = lines[i];
                 QString lowerTxt = txt.toLower();
 
-                int start = lowerTxt.indexOf(QRegularExpression("[^ \\t]"));
+                int start = lowerTxt.indexOf(nonSpaceRe);
                 if (start != -1 && lowerTxt.mid(start).startsWith("\"shader\"")) {
                     if (i + 1 < lines.size()) {
                         bool alreadyHas = false;
@@ -68,12 +69,6 @@ void MaterialFix::Force2UVsIfRequired(const QStringList& force2UVMaterials) {
 }
 
 void MaterialFix::SkyboxFix() {
-
-    QString magickPath = "magick";
-    if (QFile::exists("bin/magick.exe")) {
-    magickPath = QDir("bin/magick.exe").absolutePath();
-    }
-
     if (Miscellaneous::CanceLImport) return;
 
     QString mapName = Miscellaneous::GetOptions().mapName;
@@ -222,12 +217,13 @@ void MaterialFix::MissingKVFix(QStringList& lines, bool& fileModified) {
     int insertIndex = -1;
     QString insertPrefix = "\t";
 
+    QRegularExpression leadingSpaceRe("^(\\s*)");
     for (int i = 0; i < lines.size(); ++i) {
         QString lowerLine = lines[i].trimmed().toLower();
 
         if (lowerLine.startsWith("\"shader\"") && insertIndex == -1) {
             insertIndex = i + 1;
-            QRegularExpressionMatch matchSpace = QRegularExpression("^(\\s*)").match(lines[i]);
+            QRegularExpressionMatch matchSpace = leadingSpaceRe.match(lines[i]);
             insertPrefix = matchSpace.captured(1);
         }
 
@@ -356,13 +352,6 @@ void MaterialFix::ComplexShaderVariablesFix(QStringList& lines, bool& fileModifi
     }
 }
 
-
-struct KeyMapping {
-    QString newKey;
-    bool appendAlpha1;
-};
-
-static QMap<QString, KeyMapping> legacyKeyMap = { { "\"$color2\"", { "\"g_vColorTint\"", true } } };
 
 void MaterialFix::ColorFix(QStringList& lines, int layer0StartIdx, int& layer0EndIdx, const QMap<QString, QString>& foundLegacyKeys, bool& fileModified) {
     // Filter keys that exist in our mapping
