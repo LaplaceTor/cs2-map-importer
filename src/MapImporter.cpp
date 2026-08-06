@@ -891,6 +891,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
 }
 
 QStringList MapImporter::GetRefsList() {
+    Miscellaneous::Log("Getting missing materials from map");
     QStringList missingMaterials;
     if (Miscellaneous::CanceLImport) return missingMaterials;
     QStringList arguments = {
@@ -909,8 +910,10 @@ QStringList MapImporter::GetRefsList() {
     };
 
     QStringList outputLines;
-    Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, &outputLines, true, Miscellaneous::GetOptions().s1GameType == "csgo");
-
+    int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, &outputLines, true, Miscellaneous::GetOptions().s1GameType == "csgo");
+    if (ret != 100) {
+        throw AppException("Failed to get missing materials from map. It's probably the map geo is too bad or the map is too old.");
+    }
     for (const QString& lineBuffer : outputLines) {
         if (lineBuffer.startsWith("Failed loading resource \"materials/")) {
             if (lineBuffer.endsWith("vmat_c\" (ERROR_FILEOPEN: File not found)")) {
@@ -1438,11 +1441,9 @@ bool MapImporter::Run() {
 
     if (Miscellaneous::CanceLImport) return false;
     if (ret != 100) {
-        if (Miscellaneous::GetOptions().cmdLogOut) {
-            Miscellaneous::Log("Error: Map geometry building process failed.");
-        }
-        return false;
+        Miscellaneous::Log("Error: Map geometry building process failed.");
     }
+    Miscellaneous::Log("Map geometry building process completed successfully.");
     Miscellaneous::Log("Import process complete.");
     return true;
 }

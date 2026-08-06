@@ -70,9 +70,7 @@ bool ParticleImporter::Run(const QString& pcfPath) {
 
     if (Miscellaneous::CanceLImport) return false;
     if (ret != 100) {
-        if (Miscellaneous::GetOptions().cmdLogOut) {
-            Miscellaneous::Log("Error: Particle import process failed.");
-        }
+        Miscellaneous::Log("Error: Particle import process failed.");
         return false;
     }
 

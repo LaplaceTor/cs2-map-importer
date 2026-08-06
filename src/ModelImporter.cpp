@@ -144,9 +144,7 @@ bool ModelImporter::Run(const QString& mdlPath) {
                     };
                     Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
                 } else {
-                    if (opts.cmdLogOut) {
-                        Miscellaneous::Log("Failed to copy from " + tmpVmatS2 + " to " + origVmatS2);
-                    }
+                    Miscellaneous::Log("Failed to copy from " + tmpVmatS2 + " to " + origVmatS2);
                 }
             }
         } else {
