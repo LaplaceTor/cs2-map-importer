@@ -365,12 +365,13 @@ void Backend::AutoDetectPaths()
     bool in_apps = false;
 
     QTextStream in2(&content);
+    QRegularExpression re("\"path\"\\s+\"([^\"]+)\"");
+    
     while (!in2.atEnd()) {
         QString line = in2.readLine().trimmed();
         if (line.isEmpty()) continue;
 
         if (line.startsWith("\"path\"")) {
-            QRegularExpression re("\"path\"\\s+\"([^\"]+)\"");
             QRegularExpressionMatch match = re.match(line);
             if (match.hasMatch()) {
                 if (!currentPath.isEmpty()) {
