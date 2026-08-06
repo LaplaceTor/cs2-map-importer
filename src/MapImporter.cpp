@@ -212,10 +212,6 @@ void MapImporter::ImportAndCompileMapMDLsMulti(const QString& filename) {
                 if (QFile::copy(tmpVmatS2, origVmatS2)) {
                     QFile::remove(tmpVmatS2);
                     source1ImportOk = true;
-                } else {
-                    if (Miscellaneous::GetOptions().cmdLogOut) {
-                        Miscellaneous::Log("Failed to copy from " + tmpVmatS2 + " to " + origVmatS2);
-                    }
                 }
 
                 if (source1ImportOk) {
@@ -643,9 +639,7 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
                     QFile::remove(tmpVmatS2);
                     source1ImportOk = true;
                 } else {
-                    if (Miscellaneous::GetOptions().cmdLogOut) {
-                        Miscellaneous::Log("Failed to copy from " + tmpVmatS2 + " to " + origVmatS2);
-                    }
+                    Miscellaneous::Log("Failed to copy from " + tmpVmatS2 + " to " + origVmatS2);
                 }
 
                 if (source1ImportOk) {
