@@ -1082,7 +1082,7 @@ void VmfBspProcess::FixVmfBase(const QString& vmfPath) {
 }
 
 
-void VmfBspProcess::ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QString& bspFile, const QString& targetUnpackedDir) {
+void VmfBspProcess::ExtractEmbeddedFiles(const QString& bspFile, const QString& targetUnpackedDir) {
     if (Miscellaneous::CanceLImport) return;
 
     QStringList treeOutput;
@@ -1413,15 +1413,8 @@ void VmfBspProcess::ProcessBsp() {
     QString target_unpacked_dir = QDir(maps_dir).filePath(Miscellaneous::GetOptions().mapName);
 
     if (!Miscellaneous::GetOptions().skipdeps) {
-        QString vpkeditcli_exe = QDir(appDir).filePath("bin/vpkeditcli.exe");
-        vpkeditcli_exe = QDir::toNativeSeparators(vpkeditcli_exe);
-
-        if (!QFile::exists(vpkeditcli_exe)) {
-            Miscellaneous::Log("Warning: Could not find vpkeditcli.exe at " + vpkeditcli_exe);
-        } else {
-            Miscellaneous::Log("Extracting embedded files from BSP using vpkeditcli...");
-            ExtractEmbeddedFiles(vpkeditcli_exe, Miscellaneous::GetOptions().bspFile, target_unpacked_dir);
-        }
+        Miscellaneous::Log("Extracting embedded files from BSP using vpkeditcli...");
+        ExtractEmbeddedFiles(Miscellaneous::GetOptions().bspFile, target_unpacked_dir);
     }
 
     if (Miscellaneous::CanceLImport) return;

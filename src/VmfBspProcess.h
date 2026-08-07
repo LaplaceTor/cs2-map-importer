@@ -15,7 +15,7 @@ public:
     static void ProcessBsp();
 
     // Extracts embedded files from BSP using detailed logging
-    static void ExtractEmbeddedFiles(const QString& vpkeditcli_exe, const QString& bspFile, const QString& targetUnpackedDir);
+    static void ExtractEmbeddedFiles(const QString& bspFile, const QString& targetUnpackedDir);
 
     static void FixVmfBase(const QString& vmfPath);
     static void FixSpecialTargetnames(const QString& vmfPath);
