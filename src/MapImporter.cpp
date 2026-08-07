@@ -1435,7 +1435,15 @@ bool MapImporter::Run() {
 
     if (Miscellaneous::CanceLImport) return false;
     if (ret != 100) {
-        Miscellaneous::Log("Error: Map geometry building process failed.");
+        Miscellaneous::Log("Error: Map geometry building process failed, return to using non cleaned map geometry...");
+        arguments.removeAll("-usebsp_nomergeinstances");
+        arguments.removeAll("-usebsp");
+        ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, true, Miscellaneous::GetOptions().s1GameType == "csgo");
+        if (ret != 100) {
+            Miscellaneous::Log("Error: Map geometry building process failed again, import process aborted.");
+            throw AppException("The map geometry building process failed. Please check the log in debug mode and skip reference imports to see if the map can be imported without them. If the problem persists, please report the issue to the map creator.");
+            return false;
+        }
     }
     Miscellaneous::Log("Map geometry building process completed successfully.");
     Miscellaneous::Log("Import process complete.");

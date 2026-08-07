@@ -286,7 +286,11 @@ bool ModelImporter::Run(const QString& mdlPath) {
             argumentsRc << "-f";
         }
         argumentsRc << "-game" << "csgo" << QDir::toNativeSeparators(outName);
-        Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
+        int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsRc);
+        if(ret != 100) {
+            Miscellaneous::Log("Error: Model compilation process failed.");
+            return false;
+        }
     }
 
     Miscellaneous::Log("Model Import process complete.");
