@@ -1349,7 +1349,10 @@ bool MapImporter::Run() {
         }
         ImportParticles();
         ImportSounds();
+        MaterialFix::SkyboxFix();
         MaterialFix::FixMaterials();
+        MaterialFix::OverlayFix();
+        MaterialFix::OldParticleMtlFix();
     }
     QStringList arguments = {
         "-retail",

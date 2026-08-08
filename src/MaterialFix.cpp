@@ -416,7 +416,6 @@ void MaterialFix::ShaderFix(QStringList& lines, bool& fileModified) {
 }
 
 void MaterialFix::FixMaterials() {
-    SkyboxFix();
     Miscellaneous::Log("Starting material fixes...");
     
     QString materialsDir = Miscellaneous::GetOptions().s2contentdir + "/materials";
@@ -508,9 +507,6 @@ void MaterialFix::FixMaterials() {
             }
         }
     }
-
-    OverlayFix();
-    OldParticleMtlFix();
     Miscellaneous::Log("Material fixes completed.");
 }
 
