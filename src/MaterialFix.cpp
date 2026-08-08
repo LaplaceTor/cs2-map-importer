@@ -420,8 +420,7 @@ void MaterialFix::ShaderFix(QStringList& lines, bool& fileModified) {
 }
 
 void MaterialFix::FixMaterials() {
-    Miscellaneous::Log("Starting material fixes...");
-    
+    Miscellaneous::Log("Fixing materials...");
     QString materialsDir = Miscellaneous::GetOptions().s2contentdir + "/materials";
     QDirIterator it(materialsDir, QStringList() << "*.vmat", QDir::Files, QDirIterator::Subdirectories);
 
@@ -511,10 +510,11 @@ void MaterialFix::FixMaterials() {
             }
         }
     }
-    Miscellaneous::Log("Material fixes completed.");
+    Miscellaneous::Log("Finished fixing materials.");
 }
 
 void MaterialFix::OldParticleMtlFix() {
+    Miscellaneous::Log("Fixing old particle materials...");
     QString vmfPath = Miscellaneous::GetOptions().s1contentdir + "/maps/" + Miscellaneous::GetOptions().mapName + ".vmf";
     if (!QFile::exists(vmfPath)) return;
 
@@ -716,9 +716,11 @@ void MaterialFix::OldParticleMtlFix() {
         };
         Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_RESOURCECOMPILER, argumentsVtex);
     }
+    Miscellaneous::Log("Finished fixing old particle materials.");
 }
 
 void MaterialFix::OverlayFix() {
+    Miscellaneous::Log("Fixing overlay materials...");
     QString vmfPath = Miscellaneous::GetOptions().s1contentdir + "/maps/" + Miscellaneous::GetOptions().mapName + ".vmf";
     if (!QFile::exists(vmfPath)) return;
 
@@ -908,4 +910,5 @@ void MaterialFix::OverlayFix() {
             }
         }
     }
+    Miscellaneous::Log("Finished fixing overlay materials.");
 }
