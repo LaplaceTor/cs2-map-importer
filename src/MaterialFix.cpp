@@ -249,6 +249,10 @@ void MaterialFix::MissingKVFix(QStringList& lines, bool& fileModified) {
             lines.insert(insertIndex, insertPrefix + "\"F_ADDITIVE_BLEND\"\t\t\"1\"");
             fileModified = true;
         }
+        if (hasAdditiveSource && !hasTranslucentDest){
+            lines.insert(insertIndex, insertPrefix + "\"F_TRANSLUCENT\"\t\t\"1\"");
+            fileModified = true;
+        }
     }
 }
 
