@@ -37,6 +37,11 @@ Backend* Backend::instance()
     return s_instance;
 }
 
+Backend::~Backend()
+{
+    AppAboutToQuit();
+}
+
 Backend::Backend(QObject *parent) :
     QObject(parent),
     vmfDefaultPath("C:\\"),
@@ -46,7 +51,8 @@ Backend::Backend(QObject *parent) :
     theme(""),
     networkManager(new QNetworkAccessManager(this)),
     logFile(nullptr),
-    logStream(nullptr)
+    logStream(nullptr),
+    m_workerThread(nullptr)
 
 {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
@@ -1102,7 +1108,7 @@ void Backend::Start()
             opts.modelWriteWeaponPrefab = false;
         }
 
-        QThread* workerThread = QThread::create([this, opts, activeTabCopy = activeTab, mdlFileCopy = mdlFile, pcfFileCopy = pcfFile]() mutable {
+        m_workerThread = QThread::create([this, opts, activeTabCopy = activeTab, mdlFileCopy = mdlFile, pcfFileCopy = pcfFile]() mutable {
             bool success = true;
             try {
                 if (activeTabCopy == TAB_MODEL) {
@@ -1159,8 +1165,11 @@ void Backend::Start()
             }, Qt::QueuedConnection);
         });
 
-        connect(workerThread, &QThread::finished, workerThread, &QObject::deleteLater);
-        workerThread->start();
+        connect(m_workerThread, &QThread::finished, m_workerThread, &QObject::deleteLater);
+        connect(m_workerThread, &QThread::finished, this, [this]() {
+            m_workerThread = nullptr;
+        });
+        m_workerThread->start();
 
     } catch (const AppException& e) {
         Miscellaneous::Log(QString("Error: %1").arg(e.message()));
@@ -1431,6 +1440,10 @@ void Backend::CheckForUpdateInternal(bool isManual)
 void Backend::AppAboutToQuit()
 {
     Miscellaneous::CancelAll();
+    if (m_workerThread) {
+        m_workerThread->wait();
+        m_workerThread = nullptr;
+    }
     {
         QMutexLocker locker(&vpkMutex);
         if (vpkSignaturesMoved && !cs2Basefolder.isEmpty()) {
