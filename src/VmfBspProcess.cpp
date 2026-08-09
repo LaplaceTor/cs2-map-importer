@@ -1104,7 +1104,7 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& bspFile, const QString& 
     int secondIndent = -1;
     for (const QString& line : cleanTreeOutput) {
         int nameStart = 0;
-        while (nameStart < line.length()) {
+        while (nameStart < line.size()) {
             QChar c = line[nameStart];
             ushort val = c.unicode();
             if (c.isSpace() || (val >= 0x2500 && val <= 0x257F)) {
@@ -1156,7 +1156,7 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& bspFile, const QString& 
     for (const QString& line : cleanTreeOutput) {
         // Find prefix length by skipping box drawing and spaces
         int nameStart = 0;
-        while (nameStart < line.length()) {
+        while (nameStart < line.size()) {
             QChar c = line[nameStart];
             ushort val = c.unicode();
             if (c.isSpace() || (val >= 0x2500 && val <= 0x257F)) {
@@ -1166,7 +1166,7 @@ void VmfBspProcess::ExtractEmbeddedFiles(const QString& bspFile, const QString& 
             }
         }
 
-        if (nameStart >= line.length()) continue;
+        if (nameStart >= line.size()) continue;
 
         int depth = 0;
         if (nameStart > 0) {

@@ -20,6 +20,7 @@
 #include <QRunnable>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QElapsedTimer>
 
 const QMap<QString, KeyMapping> legacyKeyMap = { { "\"$color2\"", { "\"g_vColorTint\"", true } } };
 
@@ -78,7 +79,7 @@ QString Miscellaneous::GetBaseFolderFromGameInfo(const QString& gameinfoPath) {
             QStringList tokens;
             QString currentToken;
             bool insideQuotes = false;
-            for (int i = 0; i < line.length(); ++i) {
+            for (int i = 0; i < line.size(); ++i) {
                 QChar c = line[i];
                 if (c == '"') {
                     insideQuotes = !insideQuotes;
@@ -192,7 +193,7 @@ bool Miscellaneous::ParseGameInfo(const QString& gameinfoPath, QList<SearchTarge
             QStringList tokens;
             QString currentToken;
             bool insideQuotes = false;
-            for (int i = 0; i < line.length(); ++i) {
+            for (int i = 0; i < line.size(); ++i) {
                 QChar c = line[i];
                 if (c == '"') {
                     insideQuotes = !insideQuotes;
@@ -519,14 +520,46 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
         }
     };
 
-    while (process.waitForReadyRead(10000) || process.state() != QProcess::NotRunning) {
+    QElapsedTimer totalTimer;
+    totalTimer.start();
+
+    QElapsedTimer lastOutputTimer;
+    lastOutputTimer.start();
+
+    auto killProcessTree = [&process]() {
+#ifdef _WIN32
+        qint64 pid = process.processId();
+        if (pid > 0) {
+            QProcess::startDetached("taskkill", QStringList() << "/F" << "/T" << "/PID" << QString::number(pid));
+        }
+#endif
+        process.kill();
+    };
+
+    while (process.waitForReadyRead(1000) || process.state() != QProcess::NotRunning) {
         if (CanceLImport) {
-            process.kill();
+            killProcessTree();
             return -1;
         }
+
+        if (program == PROGRAM_VPKEDITCLI) {
+            if (totalTimer.elapsed() > 30 * 60 * 1000) {
+                Miscellaneous::Log("Error: vpkeditcli total timeout exceeded (30 minutes).");
+                killProcessTree();
+                throw AppException("vpkeditcli total timeout exceeded (30 minutes).");
+            }
+        } else {
+            if (lastOutputTimer.elapsed() > 5 * 60 * 1000) {
+                Miscellaneous::Log("Error: Process timed out due to no log output for 5 minutes.");
+                killProcessTree();
+                throw AppException("Process timed out due to no log output for 5 minutes.");
+            }
+        }
+
         QByteArray output = process.readAll();
         if (!output.isEmpty()) {
             processOutput(QString(output));
+            lastOutputTimer.restart();
         } else {
             // Timed out waiting for output
             if (!isCSGO && isSource1Import && process.state() == QProcess::Running) {

@@ -58,6 +58,7 @@ public:
     };
 
     explicit Backend(QObject *parent = nullptr);
+    ~Backend() override;
 
     int GetActiveTab() const { return activeTab; }
     void SetActiveTab(int val) {
@@ -366,6 +367,7 @@ private:
     std::unique_ptr<QTextStream> logStream;
     mutable QMutex logMutex;
     mutable QMutex vpkMutex;
+    QThread* m_workerThread = nullptr;
 
     void SetCs2Folder(const QString& path);
     void SetS1Folder(const QString& path);
