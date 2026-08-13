@@ -195,6 +195,13 @@ void MapImporter::ImportAndCompileMapMDLsMulti(const QString& filename) {
             };
             Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
 
+            if (QFile::exists(tmpVmtS1)) {
+                if (QFile::exists(origVmtS1)) QFile::remove(origVmtS1);
+                if (QFile::copy(tmpVmtS1, origVmtS1)) {
+                    QFile::remove(tmpVmtS1);
+                }
+            }
+
             bool source1ImportOk = false;
             QString tmpVmatRel = tmpVmtRel;
             int vmtPos = tmpVmatRel.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
@@ -621,6 +628,13 @@ void MapImporter::ImportAndCompileMapMDLs(const QString& filename) {
             };
             Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, arguments, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
 
+            if (QFile::exists(tmpVmtS1)) {
+                if (QFile::exists(origVmtS1)) QFile::remove(origVmtS1);
+                if (QFile::copy(tmpVmtS1, origVmtS1)) {
+                    QFile::remove(tmpVmtS1);
+                }
+            }
+
             bool source1ImportOk = false;
             QString tmpVmatRel = tmpVmtRel;
             int vmtPos = tmpVmatRel.lastIndexOf(".vmt", -1, Qt::CaseInsensitive);
@@ -993,6 +1007,13 @@ void MapImporter::ImportAndCompileMapRefs(const QStringList& missingMaterials) {
                 QDir::toNativeSeparators(tmpVmtRel)
             };
             Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_SOURCE1IMPORT, argumentsMtl, nullptr, false, Miscellaneous::GetOptions().s1GameType == "csgo");
+
+            if (QFile::exists(tmpVmtS1)) {
+                if (QFile::exists(origVmtS1)) QFile::remove(origVmtS1);
+                if (QFile::copy(tmpVmtS1, origVmtS1)) {
+                    QFile::remove(tmpVmtS1);
+                }
+            }
 
             bool source1ImportOk = false;
             QString tmpVmatRel = tmpVmtRel;
