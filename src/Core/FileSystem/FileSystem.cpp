@@ -1,4 +1,5 @@
 #include "FileSystem.h"
+#include "AtomicFile.h"
 #include <QFileInfo>
 #include <QDir>
 #include <QFile>
@@ -314,25 +315,7 @@ void FileSystem::writeAll(const QString& filePath, const QByteArray& data) {
             QStringLiteral("Cannot write file: Path is empty"));
     }
 
-    QFileInfo dstInfo(filePath);
-    QDir parentDir = dstInfo.dir();
-    if (!parentDir.exists()) {
-        createDirectory(parentDir.absolutePath());
-    }
-
-    QFile file(filePath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::PermissionDenied,
-            QStringLiteral("Cannot open file for writing: %1 (%2)").arg(filePath, file.errorString()));
-    }
-
-    qint64 written = file.write(data);
-    if (written != data.size()) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::OperationFailed,
-            QStringLiteral("Failed to write all data to file: %1 (%2)").arg(filePath, file.errorString()));
-    }
+    AtomicFile::writeAtomic(filePath, data);
 }
 
 } // namespace Core::FileSystem
