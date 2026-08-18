@@ -68,13 +68,3 @@ private:
 };
 
 } // namespace Core::FileSystem
-
-namespace Core {
-    using FileSystem::FileEntry;
-    using FileSystem::SnapshotDiff;
-    using FileSystem::DirectorySnapshot;
-}
-
-using Core::FileSystem::FileEntry;
-using Core::FileSystem::SnapshotDiff;
-using Core::FileSystem::DirectorySnapshot;

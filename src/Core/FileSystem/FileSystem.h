@@ -51,9 +51,3 @@ private:
 };
 
 } // namespace Core::FileSystem
-
-namespace Core {
-    using FileSystem::FileSystem;
-}
-
-using Core::FileSystem::FileSystem;
