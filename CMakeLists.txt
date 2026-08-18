@@ -1,100 +1,11 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.28)
 project(cs2importer VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Add MSVC-specific compiler options
-if(MSVC)
-    add_compile_options(/Zc:__cplusplus /permissive-)
-endif()
-
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network)
 
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
+qt_standard_project_setup()
 
-set(SOURCES
-    src/Main.cpp
-    src/Ui.cpp
-    src/Ui.h
-    src/Miscellaneous.cpp
-    src/Miscellaneous.h
-    src/VmfBspProcess.cpp
-    src/VmfBspProcess.h
-    src/MapImporter.cpp
-    src/MapImporter.h
-    src/ModelImporter.cpp
-    src/ModelImporter.h
-    src/ParticleImporter.cpp
-    src/ParticleImporter.h
-    src/SoundscapeImport.cpp
-    src/SoundscapeImport.h
-    src/FileExtractFromVPK.cpp
-    src/FileExtractFromVPK.h
-    src/MaterialFix.cpp
-    src/MaterialFix.h
-    src/Core/Error/ImportError.h
-    src/Core/Error/ImportException.h
-    src/Core/Logging/Logger.h
-    src/Core/Logging/Logger.cpp
-    src/Core/Asset/AssetType.h
-    src/Core/Asset/AssetTypeDetector.h
-    src/Core/Asset/AssetTypeDetector.cpp
-    src/Core/Path/PathUtils.h
-    src/Core/Path/AssetPath.h
-    src/Core/Path/AssetPath.cpp
-    src/Core/Path/FilesystemPath.h
-    src/Core/Path/FilesystemPath.cpp
-    src/Core/FileSystem/FileSystem.h
-    src/Core/FileSystem/FileSystem.cpp
-    src/Core/FileSystem/AtomicFile.h
-    src/Core/FileSystem/AtomicFile.cpp
-    src/Core/FileSystem/DirectorySnapshot.h
-    src/Core/FileSystem/DirectorySnapshot.cpp
-    src/Core/Process/ProcessOptions.h
-    src/Core/Process/ProcessResult.h
-    src/Core/Process/ProcessRunner.h
-    src/Core/Process/ProcessRunner.cpp
-    src/Core/Temp/TempDirectory.h
-    src/Core/Temp/TempFile.h
-)
-
-# Use for agent
-if(WIN32)
-    list(APPEND SOURCES icons/cs2importer.rc)
-endif()
-
-qt_add_executable(cs2importer MANUAL_FINALIZATION ${SOURCES})
-
-set_property(TARGET cs2importer PROPERTY WIN32_EXECUTABLE TRUE)
-
-# Use for agent
-if(NOT WIN32)
-    set_target_properties(cs2importer PROPERTIES OUTPUT_NAME "cs2importer_app")
-endif()
-
-qt_add_qml_module(cs2importer
-    URI cs2importer
-    VERSION 1.0
-    QML_FILES
-        src/qml/main.qml
-)
-
-qt_add_resources(cs2importer "cs2importer_icons"
-    PREFIX "/"
-    FILES
-        icons/icon.png
-)
-
-target_link_libraries(cs2importer PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Network)
-
-target_include_directories(cs2importer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-
-set(APP_VERSION "${PROJECT_VERSION}" CACHE STRING "Application version")
-target_compile_definitions(cs2importer PRIVATE "APP_VERSION=\"${APP_VERSION}\"")
-
-qt_import_qml_plugins(cs2importer)
-qt_finalize_executable(cs2importer)
+add_subdirectory(src)
