@@ -25,9 +25,9 @@ ProcessResult ProcessRunner::execute(const QString& executable, const ProcessOpt
     ProcessResult result;
 
     if (executable.isEmpty()) {
-        result.success = false;
+        result.status = ProcessStatus::FailedToStart;
         result.exitCode = -1;
-        result.errorInformation = QStringLiteral("Executable path is empty.");
+        result.errorMessage = QStringLiteral("Executable path is empty.");
         return result;
     }
 
@@ -53,14 +53,14 @@ ProcessResult ProcessRunner::execute(const QString& executable, const ProcessOpt
 
     int startTimeout = options.timeout;
     if (!process.waitForStarted(startTimeout)) {
-        result.success = false;
         result.exitCode = -1;
         if (process.error() == QProcess::Timedout) {
-            result.timedOut = true;
-            result.errorInformation = QStringLiteral("Process startup timed out.");
+            result.status = ProcessStatus::TimedOut;
+            result.errorMessage = QStringLiteral("Process startup timed out.");
         } else {
-            result.errorInformation = QString("Failed to start executable '%1': %2")
-                                          .arg(executable, process.errorString());
+            result.status = ProcessStatus::FailedToStart;
+            result.errorMessage = QString("Failed to start executable '%1': %2")
+                                      .arg(executable, process.errorString());
         }
         return result;
     }
@@ -77,10 +77,14 @@ ProcessResult ProcessRunner::execute(const QString& executable, const ProcessOpt
 
     if (!process.waitForFinished(remainingTimeout)) {
         if (process.error() == QProcess::Timedout) {
-            result.timedOut = true;
-            result.errorInformation = QString("Process execution timed out after %1 ms.").arg(options.timeout);
+            result.status = ProcessStatus::TimedOut;
+            result.errorMessage = QString("Process execution timed out after %1 ms.").arg(options.timeout);
+        } else if (process.exitStatus() == QProcess::CrashExit) {
+            result.status = ProcessStatus::Crashed;
+            result.errorMessage = QString("Process crashed during execution: %1").arg(process.errorString());
         } else {
-            result.errorInformation = QString("Process execution failed: %1").arg(process.errorString());
+            result.status = ProcessStatus::FailedToStart;
+            result.errorMessage = QString("Process execution failed: %1").arg(process.errorString());
         }
 
         if (process.state() == QProcess::Running) {
@@ -88,7 +92,6 @@ ProcessResult ProcessRunner::execute(const QString& executable, const ProcessOpt
             process.waitForFinished(1000);
         }
 
-        result.success = false;
         result.exitCode = -1;
         result.stdOut = QString::fromUtf8(process.readAllStandardOutput());
         result.stdErr = QString::fromUtf8(process.readAllStandardError());
@@ -98,14 +101,15 @@ ProcessResult ProcessRunner::execute(const QString& executable, const ProcessOpt
     result.stdOut = QString::fromUtf8(process.readAllStandardOutput());
     result.stdErr = QString::fromUtf8(process.readAllStandardError());
     result.exitCode = process.exitCode();
-    result.success = (process.exitStatus() == QProcess::NormalExit && result.exitCode == 0);
 
-    if (!result.success) {
-        if (process.exitStatus() == QProcess::CrashExit) {
-            result.errorInformation = QString("Process crashed with error: %1").arg(process.errorString());
-        } else {
-            result.errorInformation = QString("Process exited with code %1").arg(result.exitCode);
-        }
+    if (process.exitStatus() == QProcess::CrashExit) {
+        result.status = ProcessStatus::Crashed;
+        result.errorMessage = QString("Process crashed with error: %1").arg(process.errorString());
+    } else if (result.exitCode != 0) {
+        result.status = ProcessStatus::NonZeroExit;
+        result.errorMessage = QString("Process exited with non-zero code %1").arg(result.exitCode);
+    } else {
+        result.status = ProcessStatus::Success;
     }
 
     return result;

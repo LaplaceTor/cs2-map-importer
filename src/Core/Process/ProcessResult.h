@@ -4,13 +4,24 @@
 
 namespace Core::Process {
 
+enum class ProcessStatus {
+    Success,
+    FailedToStart,
+    Crashed,
+    TimedOut,
+    NonZeroExit
+};
+
 struct ProcessResult {
-    bool success = false;
+    ProcessStatus status = ProcessStatus::FailedToStart;
     int exitCode = -1;
     QString stdOut;
     QString stdErr;
-    QString errorInformation;
-    bool timedOut = false;
+    QString errorMessage;
+
+    bool isSuccess() const {
+        return status == ProcessStatus::Success;
+    }
 };
 
 } // namespace Core::Process
