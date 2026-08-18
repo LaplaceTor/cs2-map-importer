@@ -38,6 +38,8 @@ set(SOURCES
     src/MaterialFix.h
     src/Core/Error/ImportError.h
     src/Core/Error/ImportException.h
+    src/Core/Logging/Logger.h
+    src/Core/Logging/Logger.cpp
 )
 
 # Use for agent
