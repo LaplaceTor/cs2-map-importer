@@ -53,6 +53,8 @@ set(SOURCES
     src/Core/Process/ProcessResult.h
     src/Core/Process/ProcessRunner.h
     src/Core/Process/ProcessRunner.cpp
+    src/Core/Temp/TempDirectory.h
+    src/Core/Temp/TempFile.h
 )
 
 # Use for agent
