@@ -49,6 +49,10 @@ set(SOURCES
     src/Core/FileSystem/AtomicFile.cpp
     src/Core/FileSystem/DirectorySnapshot.h
     src/Core/FileSystem/DirectorySnapshot.cpp
+    src/Core/Process/ProcessOptions.h
+    src/Core/Process/ProcessResult.h
+    src/Core/Process/ProcessRunner.h
+    src/Core/Process/ProcessRunner.cpp
 )
 
 # Use for agent
