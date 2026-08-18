@@ -210,13 +210,15 @@ void FileSystem::move(const QString& source, const QString& destination, bool ov
         throw;
     }
 
-    // Copy succeeded: remove source and clean up backup
+    // Copy succeeded: remove source. If removing source fails, rollback destination and restore backup.
     try {
         remove(source);
     } catch (...) {
-        // If removing source failed, still clean up backup
+        if (exists(destination)) {
+            remove(destination);
+        }
         if (!backupPath.isEmpty() && exists(backupPath)) {
-            remove(backupPath);
+            dir.rename(backupPath, destination);
         }
         throw;
     }
