@@ -15,9 +15,3 @@ enum class ImportErrorCode {
 };
 
 } // namespace Core::Error
-
-namespace Core {
-    using Error::ImportErrorCode;
-}
-
-using Core::Error::ImportErrorCode;

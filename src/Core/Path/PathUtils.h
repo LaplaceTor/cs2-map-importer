@@ -31,9 +31,3 @@ public:
 };
 
 } // namespace Core::Path
-
-namespace Core {
-    using Path::PathUtils;
-}
-
-using Core::Path::PathUtils;

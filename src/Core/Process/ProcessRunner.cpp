@@ -1,16 +1,17 @@
 #include "ProcessRunner.h"
 
 #include <QProcess>
+#include <QElapsedTimer>
 
 namespace Core::Process {
 
-ProcessResult ProcessRunner::Run(const QString& executable, const QStringList& arguments, const ProcessOptions& options) {
+ProcessResult ProcessRunner::run(const QString& executable, const QStringList& arguments, const ProcessOptions& options) {
     ProcessRunner runner;
     return runner.execute(executable, arguments, options);
 }
 
-ProcessResult ProcessRunner::Run(const QString& executable, const ProcessOptions& options) {
-    return Run(executable, options.arguments, options);
+ProcessResult ProcessRunner::run(const QString& executable, const ProcessOptions& options) {
+    return run(executable, options.arguments, options);
 }
 
 ProcessResult ProcessRunner::execute(const QString& executable, const QStringList& arguments, const ProcessOptions& options) {
@@ -38,9 +39,15 @@ ProcessResult ProcessRunner::execute(const QString& executable, const QStringLis
     QStringList finalArgs = arguments.isEmpty() ? options.arguments : arguments;
     process.setArguments(finalArgs);
 
+    QElapsedTimer timer;
+    if (options.timeout >= 0) {
+        timer.start();
+    }
+
     process.start();
 
-    if (!process.waitForStarted(options.timeout)) {
+    int startTimeout = options.timeout;
+    if (!process.waitForStarted(startTimeout)) {
         result.success = false;
         result.exitCode = -1;
         if (process.error() == QProcess::Timedout) {
@@ -53,7 +60,17 @@ ProcessResult ProcessRunner::execute(const QString& executable, const QStringLis
         return result;
     }
 
-    if (!process.waitForFinished(options.timeout)) {
+    int remainingTimeout = -1;
+    if (options.timeout >= 0) {
+        qint64 elapsed = timer.elapsed();
+        qint64 rem = static_cast<qint64>(options.timeout) - elapsed;
+        if (rem < 0) {
+            rem = 0;
+        }
+        remainingTimeout = static_cast<int>(rem);
+    }
+
+    if (!process.waitForFinished(remainingTimeout)) {
         if (process.error() == QProcess::Timedout) {
             result.timedOut = true;
             result.errorInformation = QString("Process execution timed out after %1 ms.").arg(options.timeout);
