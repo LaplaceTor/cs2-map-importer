@@ -42,14 +42,14 @@ QString AtomicFile::tempFilePath() const {
     return QString();
 }
 
-bool AtomicFile::open() {
+void AtomicFile::open() {
     if (m_committed) {
         throw Core::Error::ImportException(
             Core::Error::ImportErrorCode::OperationFailed,
             QStringLiteral("Cannot open AtomicFile: Already committed"));
     }
     if (m_isOpen) {
-        return true;
+        return;
     }
 
     if (m_targetFilePath.isEmpty()) {
@@ -77,10 +77,9 @@ bool AtomicFile::open() {
     }
 
     m_isOpen = true;
-    return true;
 }
 
-bool AtomicFile::write(const QByteArray& data) {
+void AtomicFile::write(const QByteArray& data) {
     if (!m_isOpen) {
         open();
     }
@@ -98,12 +97,11 @@ bool AtomicFile::write(const QByteArray& data) {
             QStringLiteral("Failed to write to QSaveFile for target '%1': %2")
                 .arg(m_targetFilePath, m_saveFile->errorString()));
     }
-    return true;
 }
 
-bool AtomicFile::commit() {
+void AtomicFile::commit() {
     if (m_committed) {
-        return true;
+        return;
     }
 
     if (!m_isOpen || !m_saveFile) {
@@ -122,7 +120,6 @@ bool AtomicFile::commit() {
     m_committed = true;
     m_isOpen = false;
     m_saveFile.reset();
-    return true;
 }
 
 void AtomicFile::rollback() {
@@ -138,11 +135,11 @@ void AtomicFile::rollback() {
     m_isOpen = false;
 }
 
-bool AtomicFile::writeAtomic(const QString& targetFilePath, const QByteArray& data) {
+void AtomicFile::writeAtomic(const QString& targetFilePath, const QByteArray& data) {
     AtomicFile atomic(targetFilePath);
     atomic.open();
     atomic.write(data);
-    return atomic.commit();
+    atomic.commit();
 }
 
 } // namespace Core::FileSystem

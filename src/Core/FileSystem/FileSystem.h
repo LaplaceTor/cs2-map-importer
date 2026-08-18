@@ -16,8 +16,9 @@ public:
     static bool exists(const QString& path);
     static bool isFile(const QString& path);
     static bool isDirectory(const QString& path);
-    static bool createDirectory(const QString& path);
-    static bool remove(const QString& path);
+
+    static void createDirectory(const QString& path);
+    static void remove(const QString& path);
 
     /**
      * @brief Copies a file or directory from source to destination.
@@ -25,15 +26,17 @@ public:
      * For files: if destination exists and overwrite is true, destination is overwritten.
      * For directories: performs a recursive merge copy (creates target subdirectories if missing
      * and overwrites individual files within destination if overwrite is true).
+     *
+     * Throws Core::Error::ImportException on failure.
      */
-    static bool copy(const QString& source, const QString& destination, bool overwrite = true);
+    static void copy(const QString& source, const QString& destination, bool overwrite = true);
 
-    static bool move(const QString& source, const QString& destination, bool overwrite = true);
+    static void move(const QString& source, const QString& destination, bool overwrite = true);
     static QByteArray readAll(const QString& filePath);
-    static bool writeAll(const QString& filePath, const QByteArray& data);
+    static void writeAll(const QString& filePath, const QByteArray& data);
 
 private:
-    static bool copyDirectoryHelper(const QString& source, const QString& destination, bool overwrite);
+    static void copyDirectoryHelper(const QString& source, const QString& destination, bool overwrite);
 };
 
 } // namespace Core::FileSystem
