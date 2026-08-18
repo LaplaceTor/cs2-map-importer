@@ -5,8 +5,7 @@
 namespace Core::Path {
 
 AssetPath::AssetPath()
-    : m_path()
-    , m_isValid(false) {
+    : m_path() {
 }
 
 AssetPath::AssetPath(const QString& path) {
@@ -15,7 +14,6 @@ AssetPath::AssetPath(const QString& path) {
 
 void AssetPath::processPath(const QString& path) {
     m_path.clear();
-    m_isValid = false;
 
     if (path.isEmpty()) {
         return;
@@ -41,7 +39,6 @@ void AssetPath::processPath(const QString& path) {
     }
 
     m_path = parts.join(QLatin1Char('/'));
-    m_isValid = true;
 }
 
 bool AssetPath::isEmpty() const {
@@ -49,25 +46,25 @@ bool AssetPath::isEmpty() const {
 }
 
 bool AssetPath::isValid() const {
-    return m_isValid;
+    return !m_path.isEmpty();
 }
 
 QString AssetPath::fileName() const {
-    if (!m_isValid) {
+    if (!isValid()) {
         return QString();
     }
     return QFileInfo(m_path).fileName();
 }
 
 QString AssetPath::extension() const {
-    if (!m_isValid) {
+    if (!isValid()) {
         return QString();
     }
     return QFileInfo(m_path).suffix();
 }
 
 QString AssetPath::directory() const {
-    if (!m_isValid) {
+    if (!isValid()) {
         return QString();
     }
     int lastSlash = m_path.lastIndexOf(QLatin1Char('/'));
@@ -82,7 +79,7 @@ QString AssetPath::toString() const {
 }
 
 bool AssetPath::operator==(const AssetPath& other) const {
-    return m_path == other.m_path && m_isValid == other.m_isValid;
+    return m_path == other.m_path;
 }
 
 bool AssetPath::operator!=(const AssetPath& other) const {

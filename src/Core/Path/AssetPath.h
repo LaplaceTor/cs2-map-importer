@@ -24,7 +24,6 @@ private:
     void processPath(const QString& path);
 
     QString m_path;
-    bool m_isValid{false};
 };
 
 } // namespace Core::Path

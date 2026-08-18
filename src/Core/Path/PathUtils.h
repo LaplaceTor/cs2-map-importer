@@ -36,11 +36,9 @@ public:
         if (!baseDir.isValid() || !assetPath.isValid()) {
             return FilesystemPath();
         }
-        QString baseStr = baseDir.toString();
-        if (!baseStr.endsWith(QLatin1Char('/')) && !baseStr.endsWith(QLatin1Char('\\'))) {
-            baseStr += QLatin1Char('/');
-        }
-        return FilesystemPath(baseStr + assetPath.toString());
+        return FilesystemPath(
+            QDir(baseDir.toString()).filePath(assetPath.toString())
+        );
     }
 
     static std::optional<AssetPath> makeAssetPath(const FilesystemPath& baseDir, const FilesystemPath& filePath) {
@@ -48,20 +46,26 @@ public:
             return std::nullopt;
         }
 
-        QString canonicalBase = QDir(baseDir.toString()).canonicalPath();
-        QString canonicalFile = QDir(filePath.toString()).canonicalPath();
+        QString absBase = QFileInfo(baseDir.toString()).absoluteFilePath();
+        QString absFile = QFileInfo(filePath.toString()).absoluteFilePath();
 
-        if (canonicalBase.isEmpty() || canonicalFile.isEmpty()) {
-            canonicalBase = QDir::cleanPath(baseDir.toString());
-            canonicalFile = QDir::cleanPath(filePath.toString());
+        QString canonicalBase = QFileInfo(absBase).canonicalFilePath();
+        if (canonicalBase.isEmpty()) {
+            canonicalBase = QDir::cleanPath(absBase);
         }
 
-        if (!canonicalBase.endsWith(QLatin1Char('/')) && !canonicalBase.endsWith(QLatin1Char('\\'))) {
+        QString canonicalFile = QFileInfo(absFile).canonicalFilePath();
+        if (canonicalFile.isEmpty()) {
+            QString parentCanonical = QFileInfo(QFileInfo(absFile).path()).canonicalFilePath();
+            if (!parentCanonical.isEmpty()) {
+                canonicalFile = parentCanonical + QLatin1Char('/') + QFileInfo(absFile).fileName();
+            } else {
+                canonicalFile = QDir::cleanPath(absFile);
+            }
+        }
+
+        if (!canonicalBase.endsWith(QLatin1Char('/'))) {
             canonicalBase += QLatin1Char('/');
-        }
-
-        if (canonicalFile == canonicalBase.left(canonicalBase.length() - 1)) {
-            return std::nullopt;
         }
 
         if (!canonicalFile.startsWith(canonicalBase, Qt::CaseInsensitive)) {
