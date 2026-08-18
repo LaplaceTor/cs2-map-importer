@@ -44,7 +44,7 @@ ProcessResult ProcessRunner::execute(const QString& executable, const QStringLis
     if (!process.waitForStarted(startTimeout)) {
         result.success = false;
         result.exitCode = -1;
-        if (process.error() == QProcess::ProcessError::TimedOut) {
+        if (process.error() == QProcess::Timedout) {
             result.timedOut = true;
             result.errorInformation = QStringLiteral("Process startup timed out.");
         } else {
@@ -56,7 +56,7 @@ ProcessResult ProcessRunner::execute(const QString& executable, const QStringLis
 
     int finishTimeout = options.timeout > 0 ? options.timeout : -1;
     if (!process.waitForFinished(finishTimeout)) {
-        if (process.error() == QProcess::ProcessError::TimedOut) {
+        if (process.error() == QProcess::Timedout) {
             result.timedOut = true;
             result.errorInformation = QString("Process execution timed out after %1 ms.").arg(options.timeout);
         } else {
@@ -78,10 +78,10 @@ ProcessResult ProcessRunner::execute(const QString& executable, const QStringLis
     result.stdOut = QString::fromUtf8(process.readAllStandardOutput());
     result.stdErr = QString::fromUtf8(process.readAllStandardError());
     result.exitCode = process.exitCode();
-    result.success = (process.exitStatus() == QProcess::ExitStatus::NormalExit && result.exitCode == 0);
+    result.success = (process.exitStatus() == QProcess::NormalExit && result.exitCode == 0);
 
     if (!result.success) {
-        if (process.exitStatus() == QProcess::ExitStatus::CrashExit) {
+        if (process.exitStatus() == QProcess::CrashExit) {
             result.errorInformation = QString("Process crashed with error: %1").arg(process.errorString());
         } else {
             result.errorInformation = QString("Process exited with code %1").arg(result.exitCode);
