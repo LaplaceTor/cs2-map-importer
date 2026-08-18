@@ -43,6 +43,12 @@ set(SOURCES
     src/Core/Path/PathUtils.h
     src/Core/Path/AssetPath.h
     src/Core/Path/AssetPath.cpp
+    src/Core/FileSystem/FileSystem.h
+    src/Core/FileSystem/FileSystem.cpp
+    src/Core/FileSystem/AtomicFile.h
+    src/Core/FileSystem/AtomicFile.cpp
+    src/Core/FileSystem/DirectorySnapshot.h
+    src/Core/FileSystem/DirectorySnapshot.cpp
 )
 
 # Use for agent
