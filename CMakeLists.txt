@@ -40,6 +40,9 @@ set(SOURCES
     src/Core/Error/ImportException.h
     src/Core/Logging/Logger.h
     src/Core/Logging/Logger.cpp
+    src/Core/Asset/AssetType.h
+    src/Core/Asset/AssetTypeDetector.h
+    src/Core/Asset/AssetTypeDetector.cpp
     src/Core/Path/PathUtils.h
     src/Core/Path/AssetPath.h
     src/Core/Path/AssetPath.cpp

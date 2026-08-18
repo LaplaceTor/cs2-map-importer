@@ -5,14 +5,6 @@
 
 namespace Core::Path {
 
-enum class AssetType {
-    Unknown,
-    Model,
-    Particle,
-    Material,
-    Map
-};
-
 class AssetPath {
 public:
     AssetPath();
@@ -24,13 +16,10 @@ public:
     QString fileName() const;
     QString extension() const;
     bool exists() const;
-    AssetType type() const;
     bool isEmpty() const;
     bool isValid() const;
 
 private:
-    static AssetType detectType(const QString& ext);
-
     QString m_rawPath;
 };
 
