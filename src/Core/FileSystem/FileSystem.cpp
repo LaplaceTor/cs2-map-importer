@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QDirIterator>
+#include <QDateTime>
 
 namespace Core::FileSystem {
 
@@ -166,13 +167,25 @@ bool FileSystem::move(const QString& source, const QString& destination, bool ov
     }
 
     QFileInfo dstInfo(destination);
+    QString backupPath;
     if (dstInfo.exists()) {
         if (!overwrite) {
             throw Core::Error::ImportException(
                 Core::Error::ImportErrorCode::OperationFailed,
                 QStringLiteral("Cannot move: Destination path already exists: %1").arg(destination));
         }
-        remove(destination);
+
+        backupPath = destination + QStringLiteral(".bak_%1").arg(QDateTime::currentMSecsSinceEpoch());
+        if (exists(backupPath)) {
+            remove(backupPath);
+        }
+
+        QDir dir;
+        if (!dir.rename(destination, backupPath)) {
+            throw Core::Error::ImportException(
+                Core::Error::ImportErrorCode::OperationFailed,
+                QStringLiteral("Cannot move: Failed to create temporary backup for existing destination: %1").arg(destination));
+        }
     } else {
         QDir parentDir = dstInfo.dir();
         if (!parentDir.exists()) {
@@ -180,15 +193,43 @@ bool FileSystem::move(const QString& source, const QString& destination, bool ov
         }
     }
 
-    // Try QDir::rename first
     QDir dir;
     if (dir.rename(source, destination)) {
+        if (!backupPath.isEmpty() && exists(backupPath)) {
+            remove(backupPath);
+        }
         return true;
     }
 
-    // Fallback to copy & remove
-    copy(source, destination, overwrite);
-    remove(source);
+    // QDir::rename failed (e.g. cross-volume move), fallback to copy & delete
+    try {
+        copy(source, destination, overwrite);
+    } catch (...) {
+        // Copy failed: clean up partial destination and restore backup if it existed
+        if (exists(destination)) {
+            remove(destination);
+        }
+        if (!backupPath.isEmpty() && exists(backupPath)) {
+            dir.rename(backupPath, destination);
+        }
+        throw;
+    }
+
+    // Copy succeeded: remove source and clean up backup
+    try {
+        remove(source);
+    } catch (...) {
+        // If removing source failed, still clean up backup
+        if (!backupPath.isEmpty() && exists(backupPath)) {
+            remove(backupPath);
+        }
+        throw;
+    }
+
+    if (!backupPath.isEmpty() && exists(backupPath)) {
+        remove(backupPath);
+    }
+
     return true;
 }
 
