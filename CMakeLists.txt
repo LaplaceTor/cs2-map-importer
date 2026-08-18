@@ -64,7 +64,7 @@ qt_add_qml_module(cs2importer
 qt_add_resources(cs2importer "cs2importer_icons"
     PREFIX "/"
     FILES
-        src/icons/icon.png
+        icons/icon.png
 )
 
 target_link_libraries(cs2importer
@@ -94,5 +94,3 @@ target_compile_definitions(cs2importer
 )
 
 qt_import_qml_plugins(cs2importer)
-
-qt_finalize_executable(cs2importer)
