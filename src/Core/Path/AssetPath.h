@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QString>
-#include "PathUtils.h"
 
 namespace Core::Path {
 
@@ -10,17 +9,22 @@ public:
     AssetPath();
     explicit AssetPath(const QString& path);
 
-    // Getters
-    QString rawPath() const;
-    QString absolutePath() const;
-    QString fileName() const;
-    QString extension() const;
-    bool exists() const;
     bool isEmpty() const;
     bool isValid() const;
 
+    QString fileName() const;
+    QString extension() const;
+    QString directory() const;
+    QString toString() const;
+
+    bool operator==(const AssetPath& other) const;
+    bool operator!=(const AssetPath& other) const;
+
 private:
-    QString m_rawPath;
+    void processPath(const QString& path);
+
+    QString m_path;
+    bool m_isValid{false};
 };
 
 } // namespace Core::Path

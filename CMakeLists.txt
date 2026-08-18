@@ -46,6 +46,8 @@ set(SOURCES
     src/Core/Path/PathUtils.h
     src/Core/Path/AssetPath.h
     src/Core/Path/AssetPath.cpp
+    src/Core/Path/FilesystemPath.h
+    src/Core/Path/FilesystemPath.cpp
     src/Core/FileSystem/FileSystem.h
     src/Core/FileSystem/FileSystem.cpp
     src/Core/FileSystem/AtomicFile.h

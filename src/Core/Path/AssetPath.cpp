@@ -1,48 +1,92 @@
 #include "AssetPath.h"
 #include <QFileInfo>
+#include <QStringList>
 
 namespace Core::Path {
 
 AssetPath::AssetPath()
-    : m_rawPath() {
+    : m_path()
+    , m_isValid(false) {
 }
 
-AssetPath::AssetPath(const QString& path)
-    : m_rawPath(path) {
+AssetPath::AssetPath(const QString& path) {
+    processPath(path);
 }
 
-QString AssetPath::rawPath() const {
-    return m_rawPath;
-}
+void AssetPath::processPath(const QString& path) {
+    m_path.clear();
+    m_isValid = false;
 
-QString AssetPath::absolutePath() const {
-    if (m_rawPath.isEmpty()) {
-        return QString();
+    if (path.isEmpty()) {
+        return;
     }
-    return QFileInfo(m_rawPath).absoluteFilePath();
-}
 
-QString AssetPath::fileName() const {
-    return PathUtils::filename(m_rawPath);
-}
+    QString normalized = path;
+    normalized.replace(QLatin1Char('\\'), QLatin1Char('/'));
 
-QString AssetPath::extension() const {
-    return PathUtils::extension(m_rawPath);
-}
-
-bool AssetPath::exists() const {
-    if (m_rawPath.isEmpty()) {
-        return false;
+    // Must not be an absolute path or contain drive letters / schemes
+    if (normalized.startsWith(QLatin1Char('/')) || normalized.contains(QLatin1Char(':'))) {
+        return;
     }
-    return QFileInfo(m_rawPath).exists();
+
+    const QStringList parts = normalized.split(QLatin1Char('/'), Qt::KeepEmptyParts);
+    if (parts.isEmpty()) {
+        return;
+    }
+
+    for (const QString& part : parts) {
+        if (part.isEmpty() || part == QStringLiteral(".") || part == QStringLiteral("..")) {
+            return;
+        }
+    }
+
+    m_path = parts.join(QLatin1Char('/'));
+    m_isValid = true;
 }
 
 bool AssetPath::isEmpty() const {
-    return m_rawPath.isEmpty();
+    return m_path.isEmpty();
 }
 
 bool AssetPath::isValid() const {
-    return !m_rawPath.isEmpty();
+    return m_isValid;
+}
+
+QString AssetPath::fileName() const {
+    if (!m_isValid) {
+        return QString();
+    }
+    return QFileInfo(m_path).fileName();
+}
+
+QString AssetPath::extension() const {
+    if (!m_isValid) {
+        return QString();
+    }
+    return QFileInfo(m_path).suffix();
+}
+
+QString AssetPath::directory() const {
+    if (!m_isValid) {
+        return QString();
+    }
+    int lastSlash = m_path.lastIndexOf(QLatin1Char('/'));
+    if (lastSlash == -1) {
+        return QString();
+    }
+    return m_path.left(lastSlash);
+}
+
+QString AssetPath::toString() const {
+    return m_path;
+}
+
+bool AssetPath::operator==(const AssetPath& other) const {
+    return m_path == other.m_path && m_isValid == other.m_isValid;
+}
+
+bool AssetPath::operator!=(const AssetPath& other) const {
+    return !(*this == other);
 }
 
 } // namespace Core::Path
