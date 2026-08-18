@@ -3,15 +3,17 @@
 #include <QString>
 #include <QTemporaryDir>
 #include <QDir>
+#include <memory>
 
 namespace Core::Temp {
 
 class TempDirectory {
 public:
-    TempDirectory() = default;
+    TempDirectory()
+        : m_dir(std::make_unique<QTemporaryDir>()) {}
 
     explicit TempDirectory(const QString& templatePath)
-        : m_dir(templatePath) {}
+        : m_dir(std::make_unique<QTemporaryDir>(templatePath)) {}
 
     ~TempDirectory() = default;
 
@@ -24,7 +26,7 @@ public:
     TempDirectory& operator=(TempDirectory&&) noexcept = default;
 
     QString path() const {
-        return m_dir.path();
+        return m_dir ? m_dir->path() : QString();
     }
 
     QString Path() const {
@@ -32,7 +34,7 @@ public:
     }
 
     bool exists() const {
-        return m_dir.isValid() && QDir(m_dir.path()).exists();
+        return m_dir && m_dir->isValid() && QDir(m_dir->path()).exists();
     }
 
     bool Exists() const {
@@ -40,7 +42,7 @@ public:
     }
 
     bool isValid() const {
-        return m_dir.isValid();
+        return m_dir && m_dir->isValid();
     }
 
     bool IsValid() const {
@@ -48,7 +50,7 @@ public:
     }
 
 private:
-    QTemporaryDir m_dir;
+    std::unique_ptr<QTemporaryDir> m_dir;
 };
 
 } // namespace Core::Temp
