@@ -1,4 +1,5 @@
 #include "FileSystem.h"
+#include "AtomicFile.h"
 #include <QFileInfo>
 #include <QDir>
 #include <QFile>
@@ -6,6 +7,37 @@
 #include <QDateTime>
 
 namespace Core::FileSystem {
+
+namespace {
+
+bool isSubdirectoryOrEqual(const QString& childPath, const QString& parentPath) {
+    QString cleanParent = QDir::cleanPath(parentPath);
+    QString cleanChild = QDir::cleanPath(childPath);
+
+    QFileInfo parentInfo(cleanParent);
+    QFileInfo childInfo(cleanChild);
+
+    if (parentInfo.exists() && childInfo.exists()) {
+        QString canonParent = parentInfo.canonicalFilePath();
+        QString canonChild = childInfo.canonicalFilePath();
+        if (!canonParent.isEmpty() && !canonChild.isEmpty()) {
+            cleanParent = canonParent;
+            cleanChild = canonChild;
+        }
+    }
+
+    if (cleanParent == cleanChild) {
+        return true;
+    }
+
+    if (!cleanParent.endsWith(QLatin1Char('/')) && !cleanParent.endsWith(QLatin1Char('\\'))) {
+        cleanParent += QLatin1Char('/');
+    }
+
+    return cleanChild.startsWith(cleanParent, Qt::CaseInsensitive);
+}
+
+} // namespace
 
 bool FileSystem::exists(const QString& path) {
     if (path.isEmpty()) return false;
@@ -92,6 +124,17 @@ void FileSystem::copy(const QString& source, const QString& destination, bool ov
     }
 
     if (srcInfo.isDir()) {
+        if (isSubdirectoryOrEqual(destination, source)) {
+            throw Core::Error::ImportException(
+                Core::Error::ImportErrorCode::InvalidPath,
+                QStringLiteral("Cannot copy directory: Destination is inside source directory (%1 -> %2)").arg(source, destination));
+        }
+        if (isSubdirectoryOrEqual(source, destination)) {
+            throw Core::Error::ImportException(
+                Core::Error::ImportErrorCode::InvalidPath,
+                QStringLiteral("Cannot copy directory: Source is inside destination directory (%1 -> %2)").arg(source, destination));
+        }
+
         copyDirectoryHelper(source, destination, overwrite);
         return;
     }
@@ -159,6 +202,19 @@ void FileSystem::move(const QString& source, const QString& destination, bool ov
     QFileInfo dstInfoCheck(destination);
     if (srcInfo == dstInfoCheck) {
         return; // Self-move is a no-op
+    }
+
+    if (srcInfo.isDir()) {
+        if (isSubdirectoryOrEqual(destination, source)) {
+            throw Core::Error::ImportException(
+                Core::Error::ImportErrorCode::InvalidPath,
+                QStringLiteral("Cannot move directory: Destination is inside source directory (%1 -> %2)").arg(source, destination));
+        }
+        if (isSubdirectoryOrEqual(source, destination)) {
+            throw Core::Error::ImportException(
+                Core::Error::ImportErrorCode::InvalidPath,
+                QStringLiteral("Cannot move directory: Source is inside destination directory (%1 -> %2)").arg(source, destination));
+        }
     }
 
     QFileInfo dstInfo(destination);
@@ -259,25 +315,7 @@ void FileSystem::writeAll(const QString& filePath, const QByteArray& data) {
             QStringLiteral("Cannot write file: Path is empty"));
     }
 
-    QFileInfo dstInfo(filePath);
-    QDir parentDir = dstInfo.dir();
-    if (!parentDir.exists()) {
-        createDirectory(parentDir.absolutePath());
-    }
-
-    QFile file(filePath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::PermissionDenied,
-            QStringLiteral("Cannot open file for writing: %1 (%2)").arg(filePath, file.errorString()));
-    }
-
-    qint64 written = file.write(data);
-    if (written != data.size()) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::OperationFailed,
-            QStringLiteral("Failed to write all data to file: %1 (%2)").arg(filePath, file.errorString()));
-    }
+    AtomicFile::writeAtomic(filePath, data);
 }
 
 } // namespace Core::FileSystem

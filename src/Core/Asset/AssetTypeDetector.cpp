@@ -1,10 +1,15 @@
 #include "AssetTypeDetector.h"
 #include "Core/Path/AssetPath.h"
+#include "Core/Path/FilesystemPath.h"
 #include "Core/Path/PathUtils.h"
 
 namespace Core::Asset {
 
 AssetType AssetTypeDetector::detect(const Core::Path::AssetPath& path) {
+    return detectFromExtension(path.extension());
+}
+
+AssetType AssetTypeDetector::detect(const Core::Path::FilesystemPath& path) {
     return detectFromExtension(path.extension());
 }
 
