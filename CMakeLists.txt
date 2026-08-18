@@ -36,6 +36,8 @@ set(SOURCES
     src/FileExtractFromVPK.h
     src/MaterialFix.cpp
     src/MaterialFix.h
+    src/Core/Error/ImportError.h
+    src/Core/Error/ImportException.h
 )
 
 # Use for agent
