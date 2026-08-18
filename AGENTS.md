@@ -2,108 +2,239 @@
 
 ## Project Overview
 
-A **desktop GUI application** that imports Source 1 game assets (maps, models, particles) into Counter-Strike 2.
-It wraps external CLI tools (source1import, cs_mdl_import, resourcecompiler, vpkedit, vtfcmd, bspsrc) and orchestrates multi-step import workflows.
+A Windows desktop GUI application that imports Source 1 game assets (maps, models, particles) into Counter-Strike 2.
 
-- **Language:** C++17 + QML
-- **Framework:** Qt ≥ 6.8
-- **Build system:** CMake ≥ 3.10
-- **Platform:** Windows
-- **QML style:** Fusion
+* **Language:** C++17
+* **Framework:** Qt 6.8+
+* **Build system:** Modern CMake
+* **Platform:** Windows
+* **UI:** QML / Qt Quick Controls 2
+* **QML style:** Fusion
+
+The project is undergoing a staged architecture migration.
+
+**Core has been implemented and is now the foundation for new application code.**
 
 ## Architecture
 
-```
+```text
 src/
-  Main.cpp              # Entry point — creates Backend, exposes to QML via context property
-  Ui.h / Ui.cpp         # Backend (QObject) — single QML-facing controller class
-  Miscellaneous.h/.cpp  # Static utilities: logging, process execution, file ops, Options struct
-  MapImporter.h/.cpp    # Map import workflow logic
-  ModelImporter.h/.cpp  # Model (.mdl) import workflow logic
-  ParticleImporter.h/.cpp # Particle (.pcf) import workflow logic
-  VmfBspProcess.h/.cpp  # VMF/BSP decompile & preprocessing
-  FileExtractFromVPK.h/.cpp # VPK archive extraction
-  MaterialFix.h/.cpp    # Material path fixup
-  SoundscapeImport.h/.cpp # Soundscape import
-  qml/
-    main.qml            # Entire UI (single-file QML, ~750 lines)
+├── Core/                         # Reusable application infrastructure
+│   ├── Asset/                    # Asset types and detection
+│   ├── Error/                    # Import errors and exceptions
+│   ├── FileSystem/               # Filesystem operations
+│   ├── Logging/                  # Logging infrastructure
+│   ├── Path/                     # AssetPath / FilesystemPath
+│   ├── Process/                  # External process execution
+│   ├── Temp/                     # Temporary files/directories
+│   └── CMakeLists.txt
+│
+├── Main.cpp                      # Application entry point
+├── Ui.h / Ui.cpp                 # QML-facing controller
+│
+├── ModelImporter.h/.cpp          # Migration target: Core-based
+├── ParticleImporter.h/.cpp       # Migration target: Core-based
+├── MapImporter.h/.cpp            # Legacy implementation for now
+│
+├── Miscellaneous.h/.cpp          # Legacy utilities
+├── VmfBspProcess.h/.cpp          # Legacy map workflow
+├── FileExtractFromVPK.h/.cpp     # Legacy map workflow
+├── MaterialFix.h/.cpp            # Legacy map workflow
+├── SoundscapeImport.h/.cpp       # Legacy map workflow
+│
+├── qml/
+│   └── main.qml
+└── CMakeLists.txt
 ```
 
-## Code Conventions
+## Migration Status
 
-### C++
+The migration is intentionally staged.
 
-| Rule | Example |
-|------|--------|
-| PascalCase for methods & properties | `GetCs2Basefolder()`, `SetAddonName()` |
-| camelCase for member variables | `cs2Basefolder`, `isGoing` |
-| Qt types preferred over STL | `QString`, `QStringList`, `QDir` |
-| One class per .h/.cpp pair | `MapImporter.h` + `MapImporter.cpp` |
+1. **Core** is complete and should be treated as the new foundation.
+2. **ModelImporter** should be migrated completely to Core.
+3. **ParticleImporter** should be migrated completely to Core.
+4. **MapImporter** remains on the legacy implementation for now.
+5. UI/QML and remaining legacy infrastructure will be refactored separately.
 
-### CMake
+Do not combine these migration stages unless explicitly requested.
 
-- Use `qt_add_executable` (NOT `add_executable`).
-- Use `qt_add_qml_module` for QML files (NOT `qt_add_resources` for QML).
-- Use `qt6_*` / `Qt6::` targets (NEVER `qt5_*`).
-- `CMAKE_AUTOMOC` and `CMAKE_AUTORCC` are ON.
+### Important
 
-## Build & Run
+Do not redesign Core merely to accommodate legacy code.
+
+When migrating an importer:
+
+* Prefer adapting the importer to existing Core APIs.
+* Only modify Core when a genuine defect or missing general-purpose capability is identified.
+* Do not introduce compatibility APIs solely to make old code compile.
+* Preserve existing importer behavior unless the migration explicitly changes it.
+
+## Core Architecture Rules
+
+`src/Core` is infrastructure. It must remain independent from application workflows and UI.
+
+Dependency direction:
+
+```text
+Application / Importers
+        ↓
+      Core
+```
+
+Never:
+
+```text
+Core → Importer
+Core → UI
+Core → QML
+Core → application workflow
+```
+
+Core must not depend on:
+
+* `MapImporter`
+* `ModelImporter`
+* `ParticleImporter`
+* `Ui`
+* QML
+* legacy application utilities
+
+### Core APIs
+
+Use the Core API whenever an equivalent facility exists.
+
+Examples:
+
+* Filesystem operations → `Core::FileSystem`
+* Asset classification → `Core::Asset`
+* Asset-relative paths → `Core::Path::AssetPath`
+* Filesystem paths → `Core::Path::FilesystemPath`
+* Process execution → `Core::Process`
+* Temporary resources → `Core::Temp`
+* Logging → `Core::Logging`
+* Import errors → `Core::Error`
+
+Do not duplicate these facilities in importer code.
+
+### Path Types
+
+`AssetPath` and `FilesystemPath` are intentionally separate value types.
+
+Do not merge them.
+
+Do not reintroduce the old `AssetPath::type()` design.
+
+Do not add compatibility methods that existed only in the old path implementation.
+
+## C++ Conventions
+
+### New and migrated code
+
+* Use C++17.
+* Prefer Qt types where they form the established application API:
+  `QString`, `QByteArray`, `QFile`, `QDir`, `QProcess`, etc.
+* Use `PascalCase` for classes and enum types.
+* Use `camelCase` for functions, methods, local variables, and members.
+* Prefer RAII and deterministic ownership.
+* Prefer small value types with explicit responsibilities.
+* Use `const` and references appropriately.
+* Avoid unnecessary copies.
+* Keep headers lightweight where practical.
+* Use the Core error model instead of the legacy `AppException`.
+
+### Legacy code
+
+Do not perform unrelated style cleanup while migrating functionality.
+
+Preserve legacy behavior unless the migration explicitly requires behavioral changes.
+
+## CMake Rules
+
+The project uses modern Qt 6 CMake APIs.
+
+* Require **CMake 3.28+**.
+* Require **Qt 6.8+**.
+* Use `qt_standard_project_setup()`.
+* Use `qt_add_executable()` for the application.
+* Use `qt_add_library()` for Core.
+* Use `qt_add_qml_module()` for QML.
+* Use `qt_add_resources()` only for non-QML resources.
+* Prefer target-based configuration.
+* Use explicit `PRIVATE`, `PUBLIC`, or `INTERFACE` visibility.
+* Do not use global include paths when a target-specific include path is sufficient.
+* Do not manually list generated MOC/RCC/QML compiler outputs.
+* Do not use Qt 5 CMake APIs.
+* Do not use qmake syntax.
+
+### Core Target
+
+Core is an independent CMake target:
+
+```text
+cs2importer_core
+```
+
+The application links against this target.
+
+Do not add Core source files directly to the application target.
+
+Core's public include root is:
+
+```text
+src/
+```
+
+Therefore Core headers are included as:
+
+```cpp
+#include "Core/Path/AssetPath.h"
+```
+
+rather than relative paths.
+
+## Build
+
+Standard local build:
 
 ```bash
-cmake --preset default
+cmake -S . -B build
 cmake --build build --config Release
 ```
 
+If `CMakePresets.json` is introduced, prefer presets for normal development and CI.
+
 ## Skills — Auto-Load Rules
 
-**IMPORTANT:** Before making code changes, the agent MUST read the relevant skill(s) below by invoking the Skill tool or reading the SKILL.md file.
+Before making changes, read the relevant skill.
 
-| When to load | Skill | Path |
-|-------------|-------|------|
-| Writing or modifying **C++ code** | `qt-cmake-project` | `skills/qt-cmake-project/SKILL.md` |
-| Writing or modifying **QML code** | `qt-qml` | `skills/qt-qml/SKILL.md` |
-| Reviewing C++ changes | `qt-cpp-review` | `skills/qt-cpp-review/SKILL.md` |
-| Reviewing QML changes | `qt-qml-review` | `skills/qt-qml-review/SKILL.md` |
-| Modifying **CMakeLists.txt** or build config | `qt-cmake-project` | `skills/qt-cmake-project/SKILL.md` |
-| UI/UX design decisions | `qt-ui-design` | `skills/qt-ui-design/SKILL.md` |
+| Task                | Skill                              |
+| ------------------- | ---------------------------------- |
+| C++ implementation  | `skills/qt-cmake-project/SKILL.md` |
+| CMake/build changes | `skills/qt-cmake-project/SKILL.md` |
+| QML implementation  | `skills/qt-qml/SKILL.md`           |
+| C++ review          | `skills/qt-cpp-review/SKILL.md`    |
+| QML review          | `skills/qt-qml-review/SKILL.md`    |
+| UI/UX decisions     | `skills/qt-ui-design/SKILL.md`     |
 
-### Skill reference index
+When modifying CMake, also consult the relevant `qt-cmake-project` references, especially:
 
-| Skill | Type | Description |
-|-------|------|-------------|
-| `qt-cpp-review` | Review | Linting + deep-analysis for Qt C++ (memory, threads, correctness, performance) |
-| `qt-qml-review` | Review | QML linting (47+ rules) + analysis for bindings, layout, delegates, performance |
-| `qt-qml` | Conceptual | QML best practices — bindings, scoping, modules, JS interop, types |
-| `qt-ui-design` | Conceptual | UI/UX audit for Qt/QML targets |
-| `qt-cmake-project` | Conceptual | Qt 6 + CMake setup — executables, QML modules, resources |
-| `qt-qml-docs` | Process | Generate Markdown docs from .qml sources |
-| `qt-cpp-docs` | Process | Generate Markdown docs from C++ sources |
-| `qt-qml-test` | Process | Generate Qt Quick Test cases |
-| `qt-qml-test-run` | Tool | Build & run qmltestrunner, parse JUnit XML |
-| `qt-qml-profiler` | Tool | Run qmlprofiler, analyze hotspots |
-| `qt-figma-token-extraction` | Process | Extract Figma design tokens → QML singletons |
-| `qt-figma-component-generation` | Process | Generate QML controls from Figma components |
-
-## Repository Layout
-
-```
-cs2-map-importer/
-├── src/                    # Application source (C++ & QML)
-│   ├── qml/main.qml        # UI
-│   ├── Main.cpp            # Entry point
-│   ├── Ui.h/.cpp           # Backend controller
-│   └── *.h/.cpp            # Workflow modules
-├── icons/                  # App icon & .rc
-├── skills/                 # Agent skills (read-only reference)
-├── CMakeLists.txt          # Build definition
-├── CMakePresets.json       # Build presets
-└── *.txt                   # External tool usage docs
-```
+* `simple-project.md`
+* `modular-architecture.md`
+* `qml-integration.md`
+* `resources.md`
+* `common-mistakes.md`
 
 ## Do NOT
 
-- Do NOT use `qt5_*` CMake macros or `Qt5::` targets.
-- Do NOT use `add_executable` — use `qt_add_executable`.
-- Do NOT add QML files via `qt_add_resources` — use `qt_add_qml_module`.
-- Do NOT create additional QML module URIs without updating CMake.
-- Do NOT use STL containers where Qt equivalents exist (prefer `QString` over `std::string`).
+* Do not use `qt5_*` CMake APIs.
+* Do not use `Qt5::` targets.
+* Do not use `add_executable()` for the application.
+* Do not put QML files in `qt_add_resources()`.
+* Do not manually add generated files.
+* Do not make Core depend on application code.
+* Do not duplicate Core functionality in importer code.
+* Do not reintroduce `AssetPath::type()`.
+* Do not add compatibility APIs solely for legacy code.
+* Do not migrate `MapImporter` as part of the ModelImporter/ParticleImporter migration.
+* Do not perform unrelated refactoring during a focused migration task.
