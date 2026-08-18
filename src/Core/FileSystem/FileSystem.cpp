@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QDirIterator>
+#include <QDateTime>
 
 namespace Core::FileSystem {
 
@@ -23,7 +24,7 @@ bool FileSystem::isDirectory(const QString& path) {
     return info.exists() && info.isDir();
 }
 
-bool FileSystem::createDirectory(const QString& path) {
+void FileSystem::createDirectory(const QString& path) {
     if (path.isEmpty()) {
         throw Core::Error::ImportException(
             Core::Error::ImportErrorCode::InvalidPath,
@@ -32,7 +33,7 @@ bool FileSystem::createDirectory(const QString& path) {
 
     QDir dir(path);
     if (dir.exists()) {
-        return true;
+        return;
     }
 
     if (!QDir().mkpath(path)) {
@@ -40,10 +41,9 @@ bool FileSystem::createDirectory(const QString& path) {
             Core::Error::ImportErrorCode::OperationFailed,
             QStringLiteral("Failed to create directory: %1").arg(path));
     }
-    return true;
 }
 
-bool FileSystem::remove(const QString& path) {
+void FileSystem::remove(const QString& path) {
     if (path.isEmpty()) {
         throw Core::Error::ImportException(
             Core::Error::ImportErrorCode::InvalidPath,
@@ -52,7 +52,7 @@ bool FileSystem::remove(const QString& path) {
 
     QFileInfo info(path);
     if (!info.exists()) {
-        return true; // Already doesn't exist
+        return; // Already doesn't exist
     }
 
     if (info.isDir()) {
@@ -70,10 +70,9 @@ bool FileSystem::remove(const QString& path) {
                 QStringLiteral("Failed to remove file: %1 (%2)").arg(path, file.errorString()));
         }
     }
-    return true;
 }
 
-bool FileSystem::copy(const QString& source, const QString& destination, bool overwrite) {
+void FileSystem::copy(const QString& source, const QString& destination, bool overwrite) {
     if (source.isEmpty() || destination.isEmpty()) {
         throw Core::Error::ImportException(
             Core::Error::ImportErrorCode::InvalidPath,
@@ -89,11 +88,12 @@ bool FileSystem::copy(const QString& source, const QString& destination, bool ov
 
     QFileInfo dstInfoCheck(destination);
     if (srcInfo == dstInfoCheck) {
-        return true; // Self-copy is a no-op
+        return; // Self-copy is a no-op
     }
 
     if (srcInfo.isDir()) {
-        return copyDirectoryHelper(source, destination, overwrite);
+        copyDirectoryHelper(source, destination, overwrite);
+        return;
     }
 
     QFileInfo dstInfo(destination);
@@ -121,14 +121,11 @@ bool FileSystem::copy(const QString& source, const QString& destination, bool ov
             Core::Error::ImportErrorCode::OperationFailed,
             QStringLiteral("Failed to copy file from %1 to %2").arg(source, destination));
     }
-    return true;
 }
 
-bool FileSystem::copyDirectoryHelper(const QString& source, const QString& destination, bool overwrite) {
+void FileSystem::copyDirectoryHelper(const QString& source, const QString& destination, bool overwrite) {
     QDir srcDir(source);
-    if (!createDirectory(destination)) {
-        return false;
-    }
+    createDirectory(destination);
 
     QDirIterator it(source, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
     while (it.hasNext()) {
@@ -143,10 +140,9 @@ bool FileSystem::copyDirectoryHelper(const QString& source, const QString& desti
             copy(it.filePath(), targetPath, overwrite);
         }
     }
-    return true;
 }
 
-bool FileSystem::move(const QString& source, const QString& destination, bool overwrite) {
+void FileSystem::move(const QString& source, const QString& destination, bool overwrite) {
     if (source.isEmpty() || destination.isEmpty()) {
         throw Core::Error::ImportException(
             Core::Error::ImportErrorCode::InvalidPath,
@@ -162,17 +158,29 @@ bool FileSystem::move(const QString& source, const QString& destination, bool ov
 
     QFileInfo dstInfoCheck(destination);
     if (srcInfo == dstInfoCheck) {
-        return true; // Self-move is a no-op
+        return; // Self-move is a no-op
     }
 
     QFileInfo dstInfo(destination);
+    QString backupPath;
     if (dstInfo.exists()) {
         if (!overwrite) {
             throw Core::Error::ImportException(
                 Core::Error::ImportErrorCode::OperationFailed,
                 QStringLiteral("Cannot move: Destination path already exists: %1").arg(destination));
         }
-        remove(destination);
+
+        backupPath = destination + QStringLiteral(".bak_%1").arg(QDateTime::currentMSecsSinceEpoch());
+        if (exists(backupPath)) {
+            remove(backupPath);
+        }
+
+        QDir dir;
+        if (!dir.rename(destination, backupPath)) {
+            throw Core::Error::ImportException(
+                Core::Error::ImportErrorCode::OperationFailed,
+                QStringLiteral("Cannot move: Failed to create temporary backup for existing destination: %1").arg(destination));
+        }
     } else {
         QDir parentDir = dstInfo.dir();
         if (!parentDir.exists()) {
@@ -180,16 +188,44 @@ bool FileSystem::move(const QString& source, const QString& destination, bool ov
         }
     }
 
-    // Try QDir::rename first
     QDir dir;
     if (dir.rename(source, destination)) {
-        return true;
+        if (!backupPath.isEmpty() && exists(backupPath)) {
+            remove(backupPath);
+        }
+        return;
     }
 
-    // Fallback to copy & remove
-    copy(source, destination, overwrite);
-    remove(source);
-    return true;
+    // QDir::rename failed (e.g. cross-volume move), fallback to copy & delete
+    try {
+        copy(source, destination, overwrite);
+    } catch (...) {
+        // Copy failed: clean up partial destination and restore backup if it existed
+        if (exists(destination)) {
+            remove(destination);
+        }
+        if (!backupPath.isEmpty() && exists(backupPath)) {
+            dir.rename(backupPath, destination);
+        }
+        throw;
+    }
+
+    // Copy succeeded: remove source. If removing source fails, rollback destination and restore backup.
+    try {
+        remove(source);
+    } catch (...) {
+        if (exists(destination)) {
+            remove(destination);
+        }
+        if (!backupPath.isEmpty() && exists(backupPath)) {
+            dir.rename(backupPath, destination);
+        }
+        throw;
+    }
+
+    if (!backupPath.isEmpty() && exists(backupPath)) {
+        remove(backupPath);
+    }
 }
 
 QByteArray FileSystem::readAll(const QString& filePath) {
@@ -216,7 +252,7 @@ QByteArray FileSystem::readAll(const QString& filePath) {
     return file.readAll();
 }
 
-bool FileSystem::writeAll(const QString& filePath, const QByteArray& data) {
+void FileSystem::writeAll(const QString& filePath, const QByteArray& data) {
     if (filePath.isEmpty()) {
         throw Core::Error::ImportException(
             Core::Error::ImportErrorCode::InvalidPath,
@@ -242,8 +278,6 @@ bool FileSystem::writeAll(const QString& filePath, const QByteArray& data) {
             Core::Error::ImportErrorCode::OperationFailed,
             QStringLiteral("Failed to write all data to file: %1 (%2)").arg(filePath, file.errorString()));
     }
-
-    return true;
 }
 
 } // namespace Core::FileSystem

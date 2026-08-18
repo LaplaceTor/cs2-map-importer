@@ -11,10 +11,17 @@ ProcessResult ProcessRunner::run(const QString& executable, const QStringList& a
 }
 
 ProcessResult ProcessRunner::run(const QString& executable, const ProcessOptions& options) {
-    return run(executable, options.arguments, options);
+    ProcessRunner runner;
+    return runner.execute(executable, options);
 }
 
 ProcessResult ProcessRunner::execute(const QString& executable, const QStringList& arguments, const ProcessOptions& options) {
+    ProcessOptions opts = options;
+    opts.arguments = arguments;
+    return execute(executable, opts);
+}
+
+ProcessResult ProcessRunner::execute(const QString& executable, const ProcessOptions& options) {
     ProcessResult result;
 
     if (executable.isEmpty()) {
@@ -35,9 +42,7 @@ ProcessResult ProcessRunner::execute(const QString& executable, const QStringLis
     }
 
     process.setProgram(executable);
-
-    QStringList finalArgs = arguments.isEmpty() ? options.arguments : arguments;
-    process.setArguments(finalArgs);
+    process.setArguments(options.arguments);
 
     QElapsedTimer timer;
     if (options.timeout >= 0) {

@@ -26,13 +26,13 @@ public:
     const QString& targetFilePath() const { return m_targetFilePath; }
     QString tempFilePath() const;
 
-    bool open();
-    bool write(const QByteArray& data);
-    bool commit();
+    void open();
+    void write(const QByteArray& data);
+    void commit();
     void rollback();
     bool isCommitted() const { return m_committed; }
 
-    static bool writeAtomic(const QString& targetFilePath, const QByteArray& data);
+    static void writeAtomic(const QString& targetFilePath, const QByteArray& data);
 
 private:
     QString m_targetFilePath;
