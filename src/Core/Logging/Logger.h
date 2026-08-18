@@ -13,9 +13,3 @@ public:
 };
 
 } // namespace Core::Logging
-
-namespace Core {
-    using Logging::Logger;
-}
-
-using Core::Logging::Logger;

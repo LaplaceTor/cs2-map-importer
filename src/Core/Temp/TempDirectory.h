@@ -5,15 +5,30 @@
 #include <QDir>
 #include <memory>
 
+#include "Core/Error/ImportException.h"
+#include "Core/Error/ImportError.h"
+
 namespace Core::Temp {
 
 class TempDirectory {
 public:
     TempDirectory()
-        : m_dir(std::make_unique<QTemporaryDir>()) {}
+        : m_dir(std::make_unique<QTemporaryDir>()) {
+        if (!m_dir->isValid()) {
+            throw Core::Error::ImportException(
+                Core::Error::ImportErrorCode::OperationFailed,
+                QStringLiteral("Failed to create temporary directory"));
+        }
+    }
 
     explicit TempDirectory(const QString& templatePath)
-        : m_dir(std::make_unique<QTemporaryDir>(templatePath)) {}
+        : m_dir(std::make_unique<QTemporaryDir>(templatePath)) {
+        if (!m_dir->isValid()) {
+            throw Core::Error::ImportException(
+                Core::Error::ImportErrorCode::OperationFailed,
+                QStringLiteral("Failed to create temporary directory with template '%1'").arg(templatePath));
+        }
+    }
 
     ~TempDirectory() = default;
 
@@ -29,24 +44,12 @@ public:
         return m_dir ? m_dir->path() : QString();
     }
 
-    QString Path() const {
-        return path();
-    }
-
     bool exists() const {
         return m_dir && m_dir->isValid() && QDir(m_dir->path()).exists();
     }
 
-    bool Exists() const {
-        return exists();
-    }
-
     bool isValid() const {
         return m_dir && m_dir->isValid();
-    }
-
-    bool IsValid() const {
-        return isValid();
     }
 
 private:
@@ -54,9 +57,3 @@ private:
 };
 
 } // namespace Core::Temp
-
-namespace Core {
-    using Temp::TempDirectory;
-}
-
-using Core::Temp::TempDirectory;

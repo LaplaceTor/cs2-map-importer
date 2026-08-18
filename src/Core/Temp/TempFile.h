@@ -5,22 +5,32 @@
 #include <QTemporaryFile>
 #include <memory>
 
+#include "Core/Error/ImportException.h"
+#include "Core/Error/ImportError.h"
+
 namespace Core::Temp {
 
 class TempFile {
 public:
     TempFile()
         : m_file(std::make_unique<QTemporaryFile>()) {
-        if (m_file->open()) {
-            m_file->close();
+        if (!m_file->open()) {
+            throw Core::Error::ImportException(
+                Core::Error::ImportErrorCode::OperationFailed,
+                QStringLiteral("Failed to create temporary file: %1").arg(m_file->errorString()));
         }
+        m_file->close();
     }
 
     explicit TempFile(const QString& templateName)
         : m_file(std::make_unique<QTemporaryFile>(templateName)) {
-        if (m_file->open()) {
-            m_file->close();
+        if (!m_file->open()) {
+            throw Core::Error::ImportException(
+                Core::Error::ImportErrorCode::OperationFailed,
+                QStringLiteral("Failed to create temporary file with template '%1': %2")
+                    .arg(templateName, m_file->errorString()));
         }
+        m_file->close();
     }
 
     ~TempFile() = default;
@@ -37,24 +47,12 @@ public:
         return m_file ? m_file->fileName() : QString();
     }
 
-    QString Path() const {
-        return path();
-    }
-
     bool exists() const {
         return m_file && !path().isEmpty() && QFile::exists(path());
     }
 
-    bool Exists() const {
-        return exists();
-    }
-
     bool isValid() const {
         return m_file && m_file->isValid();
-    }
-
-    bool IsValid() const {
-        return isValid();
     }
 
 private:
@@ -62,9 +60,3 @@ private:
 };
 
 } // namespace Core::Temp
-
-namespace Core {
-    using Temp::TempFile;
-}
-
-using Core::Temp::TempFile;

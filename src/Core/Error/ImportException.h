@@ -18,7 +18,6 @@ public:
     ImportException *clone() const override { return new ImportException(*this); }
 
     ImportErrorCode errorCode() const noexcept { return m_errorCode; }
-    ImportErrorCode code() const noexcept { return m_errorCode; }
 
     const QString& message() const noexcept { return m_message; }
 
@@ -28,9 +27,3 @@ private:
 };
 
 } // namespace Core::Error
-
-namespace Core {
-    using Error::ImportException;
-}
-
-using Core::Error::ImportException;

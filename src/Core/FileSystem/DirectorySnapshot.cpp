@@ -17,12 +17,16 @@ DirectorySnapshot DirectorySnapshot::capture(const QString& directoryPath) {
     snapshot.m_rootPath = QDir::cleanPath(directoryPath);
 
     if (snapshot.m_rootPath.isEmpty()) {
-        throw ImportException(ImportErrorCode::InvalidPath, QStringLiteral("Cannot capture directory snapshot: Path is empty"));
+        throw Core::Error::ImportException(
+            Core::Error::ImportErrorCode::InvalidPath,
+            QStringLiteral("Cannot capture directory snapshot: Path is empty"));
     }
 
     QDir dir(snapshot.m_rootPath);
     if (!dir.exists()) {
-        throw ImportException(ImportErrorCode::DirectoryNotFound, QStringLiteral("Directory does not exist: %1").arg(snapshot.m_rootPath));
+        throw Core::Error::ImportException(
+            Core::Error::ImportErrorCode::DirectoryNotFound,
+            QStringLiteral("Directory does not exist: %1").arg(snapshot.m_rootPath));
     }
 
     QDirIterator it(snapshot.m_rootPath, QDir::Files | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
@@ -44,7 +48,17 @@ DirectorySnapshot DirectorySnapshot::capture(const QString& directoryPath) {
     return snapshot;
 }
 
+void DirectorySnapshot::checkSameRoot(const DirectorySnapshot& other) const {
+    if (m_rootPath != other.m_rootPath) {
+        throw Core::Error::ImportException(
+            Core::Error::ImportErrorCode::InvalidPath,
+            QStringLiteral("Cannot compare DirectorySnapshots from different root directories: '%1' vs '%2'")
+                .arg(m_rootPath, other.m_rootPath));
+    }
+}
+
 SnapshotDiff DirectorySnapshot::diff(const DirectorySnapshot& newSnapshot) const {
+    checkSameRoot(newSnapshot);
     SnapshotDiff result;
     result.added = added(newSnapshot);
     result.removed = removed(newSnapshot);
@@ -53,6 +67,7 @@ SnapshotDiff DirectorySnapshot::diff(const DirectorySnapshot& newSnapshot) const
 }
 
 QList<FileEntry> DirectorySnapshot::added(const DirectorySnapshot& newSnapshot) const {
+    checkSameRoot(newSnapshot);
     QList<FileEntry> result;
     const auto& newEntries = newSnapshot.entries();
 
@@ -74,6 +89,7 @@ QList<FileEntry> DirectorySnapshot::added(const DirectorySnapshot& newSnapshot) 
 }
 
 QList<FileEntry> DirectorySnapshot::removed(const DirectorySnapshot& newSnapshot) const {
+    checkSameRoot(newSnapshot);
     QList<FileEntry> result;
     const auto& newEntries = newSnapshot.entries();
 
@@ -95,6 +111,7 @@ QList<FileEntry> DirectorySnapshot::removed(const DirectorySnapshot& newSnapshot
 }
 
 QList<FileEntry> DirectorySnapshot::modified(const DirectorySnapshot& newSnapshot) const {
+    checkSameRoot(newSnapshot);
     QList<FileEntry> result;
     const auto& newEntries = newSnapshot.entries();
 
