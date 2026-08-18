@@ -33,7 +33,7 @@ bool FileSystem::createDirectory(const QString& path) {
         return true;
     }
 
-    if (!dir.mkpath(QStringLiteral("."))) {
+    if (!QDir().mkpath(path)) {
         throw ImportException(ImportErrorCode::OperationFailed, QStringLiteral("Failed to create directory: %1").arg(path));
     }
     return true;
@@ -71,6 +71,11 @@ bool FileSystem::copy(const QString& source, const QString& destination, bool ov
     QFileInfo srcInfo(source);
     if (!srcInfo.exists()) {
         throw ImportException(ImportErrorCode::FileNotFound, QStringLiteral("Cannot copy: Source path does not exist: %1").arg(source));
+    }
+
+    QFileInfo dstInfoCheck(destination);
+    if (srcInfo == dstInfoCheck) {
+        return true; // Self-copy is a no-op
     }
 
     if (srcInfo.isDir()) {
@@ -129,6 +134,11 @@ bool FileSystem::move(const QString& source, const QString& destination, bool ov
     QFileInfo srcInfo(source);
     if (!srcInfo.exists()) {
         throw ImportException(ImportErrorCode::FileNotFound, QStringLiteral("Cannot move: Source path does not exist: %1").arg(source));
+    }
+
+    QFileInfo dstInfoCheck(destination);
+    if (srcInfo == dstInfoCheck) {
+        return true; // Self-move is a no-op
     }
 
     QFileInfo dstInfo(destination);

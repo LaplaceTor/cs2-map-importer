@@ -40,8 +40,7 @@ ProcessResult ProcessRunner::execute(const QString& executable, const QStringLis
 
     process.start();
 
-    int startTimeout = (options.timeout > 0 && options.timeout < 5000) ? options.timeout : 30000;
-    if (!process.waitForStarted(startTimeout)) {
+    if (!process.waitForStarted(options.timeout)) {
         result.success = false;
         result.exitCode = -1;
         if (process.error() == QProcess::Timedout) {
@@ -54,8 +53,7 @@ ProcessResult ProcessRunner::execute(const QString& executable, const QStringLis
         return result;
     }
 
-    int finishTimeout = options.timeout > 0 ? options.timeout : -1;
-    if (!process.waitForFinished(finishTimeout)) {
+    if (!process.waitForFinished(options.timeout)) {
         if (process.error() == QProcess::Timedout) {
             result.timedOut = true;
             result.errorInformation = QString("Process execution timed out after %1 ms.").arg(options.timeout);

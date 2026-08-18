@@ -9,7 +9,7 @@ namespace Core::Process {
 struct ProcessOptions {
     int timeout = -1; // Timeout in milliseconds (-1 for infinite/no timeout)
     QString workingDirectory;
-    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    QProcessEnvironment environment;
     QStringList arguments;
 };
 
