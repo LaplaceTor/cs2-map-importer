@@ -58,6 +58,9 @@ private slots:
     void testConcurrentFlushTasks();
     void testDynamicAddSinkHistory();
     void testSinkErrorAndCursorRollback();
+    void testFlushFailureRetryAndCursorRollback();
+    void testFlushTaskReturnValueOnFailure();
+    void testFileSinkAtomicWriteBlock();
     void testSinkIdPointerReuseSafety();
 };
 
@@ -679,15 +682,91 @@ void TestLogManager::testSinkErrorAndCursorRollback()
     LogManager::instance().addSink(mockSink);
 
     // Flush task: 1st block succeeds, 2nd block fails, cursor rolls back
-    LogManager::instance().flushTask(task->taskId());
+    bool ok = LogManager::instance().flushTask(task->taskId());
+    QVERIFY(!ok);
     QCOMPARE(mockSink->writtenBlocks, 1);
 
     // Fix sink failure state
     mockSink->failAfterBlocks = 100;
 
     // Retry flush: should resume from block 1 (since block 0 was committed, block 1+ rolled back)
-    LogManager::instance().flushTask(task->taskId());
+    ok = LogManager::instance().flushTask(task->taskId());
+    QVERIFY(ok);
     QCOMPARE(mockSink->writtenBlocks, static_cast<int>(task->sealedBlockCount()));
+}
+
+void TestLogManager::testFlushFailureRetryAndCursorRollback()
+{
+    auto task = LogManager::instance().createTask("Flush Failure Task");
+    task->info("Msg 0");
+    task->info("Msg 1");
+    task->flushActiveBlock();
+
+    auto mockSink = std::make_shared<FailingMockSink>();
+    mockSink->failAfterBlocks = 100;
+    mockSink->shouldFailFlush = true; // writeBlock succeeds, flush fails
+    LogManager::instance().addSink(mockSink);
+
+    bool ok = LogManager::instance().flushTask(task->taskId());
+    QVERIFY(!ok);
+    QCOMPARE(mockSink->writtenBlocks, 1);
+
+    // Fix flush state and retry
+    mockSink->shouldFailFlush = false;
+    ok = LogManager::instance().flushTask(task->taskId());
+    QVERIFY(ok);
+    // Should re-attempt writing the block because it was not committed due to flush failure
+    QCOMPARE(mockSink->writtenBlocks, 2);
+}
+
+void TestLogManager::testFlushTaskReturnValueOnFailure()
+{
+    auto task = LogManager::instance().createTask("Flush Return Task");
+    task->info("Message");
+    task->flushActiveBlock();
+
+    auto mockSink = std::make_shared<FailingMockSink>();
+    mockSink->failAfterBlocks = 0; // writeBlock fails
+    LogManager::instance().addSink(mockSink);
+
+    bool result = LogManager::instance().flushTask(task->taskId());
+    QVERIFY(!result);
+}
+
+void TestLogManager::testFileSinkAtomicWriteBlock()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    QString logFilePath = tempDir.path() + "/atomic_test.log";
+
+    FileSink sink(logFilePath);
+    QVERIFY(sink.isOpen());
+
+    LogBlock block(1, 0);
+    LogEntry e1;
+    e1.sequence = 1;
+    e1.timestamp = 1000;
+    e1.level = LogLevel::Info;
+    e1.message = "Line 1";
+
+    LogEntry e2;
+    e2.sequence = 2;
+    e2.timestamp = 1001;
+    e2.level = LogLevel::Error;
+    e2.message = "Line 2";
+
+    block.append(e1);
+    block.append(e2);
+
+    bool writeOk = sink.writeBlock(block, "AtomicTask");
+    QVERIFY(writeOk);
+    QVERIFY(sink.flush());
+
+    QFile file(logFilePath);
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString content = QString::fromUtf8(file.readAll());
+    QVERIFY(content.contains("Line 1"));
+    QVERIFY(content.contains("Line 2"));
 }
 
 void TestLogManager::testSinkIdPointerReuseSafety()

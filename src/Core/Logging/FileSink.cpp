@@ -77,19 +77,37 @@ bool FileSink::writeBlock(const LogBlock& block, const QString& taskName)
         return false;
     }
 
+    m_stream.flush();
+    if (m_stream.status() != QTextStream::Ok || m_file.error() != QFile::NoError) {
+        return false;
+    }
+
+    qint64 originalPos = m_file.size();
+
     quint64 taskId = block.taskId();
     quint64 blockIndex = block.blockIndex();
     const auto& entries = block.entries();
 
+    QString blockBuffer;
     for (const auto& entry : entries) {
-        QString line = formatEntry(entry.timestamp, taskId, taskName, blockIndex, entry.sequence, entry.level, entry.message);
-        m_stream << line << "\n";
-        if (m_stream.status() != QTextStream::Ok) {
-            return false;
-        }
+        blockBuffer += formatEntry(entry.timestamp, taskId, taskName, blockIndex, entry.sequence, entry.level, entry.message);
+        blockBuffer += QLatin1Char('\n');
     }
 
-    return m_stream.status() == QTextStream::Ok;
+    QByteArray utf8Data = blockBuffer.toUtf8();
+    if (utf8Data.isEmpty()) {
+        return true;
+    }
+
+    qint64 bytesWritten = m_file.write(utf8Data);
+    if (bytesWritten != utf8Data.size() || m_file.error() != QFile::NoError) {
+        m_file.flush();
+        m_file.seek(originalPos);
+        m_file.resize(originalPos);
+        return false;
+    }
+
+    return true;
 }
 
 bool FileSink::flush()
@@ -99,7 +117,8 @@ bool FileSink::flush()
         return false;
     }
     m_stream.flush();
-    return (m_stream.status() == QTextStream::Ok && m_file.error() == QFile::NoError);
+    bool fileFlushOk = m_file.flush();
+    return (m_stream.status() == QTextStream::Ok && fileFlushOk && m_file.error() == QFile::NoError);
 }
 
 QString FileSink::formatEntry(qint64 timestamp, quint64 taskId, const QString& taskName, quint64 blockIndex, quint64 sequence, LogLevel level, const QString& message)
