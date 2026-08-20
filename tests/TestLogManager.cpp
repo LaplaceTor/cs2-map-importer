@@ -43,6 +43,7 @@ private slots:
     void cleanup();
 
     void testBasicTaskCreation();
+    void testTaskIdValidationAndEntryIsolation();
     void testTaskLifecycleAndStateMachine();
     void testExplicitTaskIdConflict();
     void testMultiThreadTaskCreation();
@@ -99,6 +100,27 @@ void TestLogManager::testBasicTaskCreation()
     QCOMPARE(LogManager::instance().taskCount(), 2);
 }
 
+void TestLogManager::testTaskIdValidationAndEntryIsolation()
+{
+    QVERIFY(LogManager::instance().createTask(0, "Invalid Task") == nullptr);
+
+    LogBlock block(42, 0);
+    LogEntry matchingEntry;
+    matchingEntry.taskId = 42;
+    matchingEntry.sequence = 1;
+    matchingEntry.message = "matching";
+    QVERIFY(block.append(matchingEntry));
+
+    LogEntry foreignEntry;
+    foreignEntry.taskId = 43;
+    foreignEntry.sequence = 2;
+    foreignEntry.message = "foreign";
+    QVERIFY(!block.append(foreignEntry));
+
+    block.seal();
+    QVERIFY(!block.append(matchingEntry));
+}
+
 void TestLogManager::testTaskLifecycleAndStateMachine()
 {
     auto task1 = LogManager::instance().createTask("Lifecycle 1");
@@ -118,6 +140,7 @@ void TestLogManager::testTaskLifecycleAndStateMachine()
     QVERIFY(!task1->start());
     QVERIFY(!task1->complete("Done again"));
     QVERIFY(!task1->fail("Fail completed task"));
+    QVERIFY(!task1->info("Rejected after completion"));
     QCOMPARE(task1->state(), TaskState::Completed);
 
     bool failed = LogManager::instance().failTask(task2->taskId(), "Error occurred");
@@ -771,7 +794,8 @@ void TestLogManager::testSinkErrorAndCursorRollback()
     // Retry flush: should resume from block 1 (since block 0 was committed, block 1+ rolled back)
     ok = LogManager::instance().flushTask(task->taskId());
     QVERIFY(ok);
-    QCOMPARE(mockSink->writtenBlocks, static_cast<int>(task->sealedBlockCount()));
+    // At-least-once delivery retries the first block after the later block failed.
+    QCOMPARE(mockSink->writtenBlocks, static_cast<int>(task->sealedBlockCount()) + 1);
 }
 
 void TestLogManager::testFlushFailureRetryAndCursorRollback()
@@ -836,22 +860,29 @@ void TestLogManager::testFileSinkAtomicWriteBlock()
 
     LogBlock block(1, 0);
     LogEntry e1;
+    e1.taskId = 1;
     e1.sequence = 1;
     e1.timestamp = 1000;
     e1.level = LogLevel::Info;
     e1.message = "Line 1";
 
     LogEntry e2;
+    e2.taskId = 1;
     e2.sequence = 2;
     e2.timestamp = 1001;
     e2.level = LogLevel::Error;
     e2.message = "Line 2";
 
-    block.append(e1);
-    block.append(e2);
+    QVERIFY(block.append(e1));
+    QVERIFY(block.append(e2));
+    block.seal();
 
     bool writeOk = sink.writeBlock(block, "AtomicTask");
     QVERIFY(writeOk);
+
+    LogBlock unsealedBlock(1, 1);
+    QVERIFY(unsealedBlock.append(e1));
+    QVERIFY(!sink.writeBlock(unsealedBlock, "AtomicTask"));
     QVERIFY(sink.flush());
 
     QFile file(logFilePath);

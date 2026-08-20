@@ -9,8 +9,10 @@ namespace Core::Logging {
 /**
  * @brief Represents a single log entry.
  * Note: sequence is a task-local sequence number starting from 1 for each task.
+ * taskId and sequence together identify an entry within the logging system.
  */
 struct LogEntry {
+    quint64 taskId = 0; // Stable task identifier
     quint64 sequence = 0; // Monotonically increasing sequence number within its Task
     qint64 timestamp = 0; // UTC Unix epoch milliseconds
     LogLevel level = LogLevel::Info;

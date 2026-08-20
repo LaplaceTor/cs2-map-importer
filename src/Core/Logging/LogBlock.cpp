@@ -36,7 +36,7 @@ LogBlock LogBlock::clone() const
 
 bool LogBlock::append(const LogEntry& entry)
 {
-    if (m_sealed) {
+    if (m_sealed || entry.taskId != m_taskId) {
         return false;
     }
 
@@ -47,7 +47,7 @@ bool LogBlock::append(const LogEntry& entry)
 
 bool LogBlock::append(LogEntry&& entry)
 {
-    if (m_sealed) {
+    if (m_sealed || entry.taskId != m_taskId) {
         return false;
     }
 

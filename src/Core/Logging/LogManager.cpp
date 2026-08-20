@@ -24,6 +24,10 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskNa
 
 std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const QString& taskName)
 {
+    if (taskId == 0) {
+        return nullptr;
+    }
+
     QMutexLocker locker(&m_mutex);
     if (m_tasks.contains(taskId)) {
         return nullptr;
@@ -264,7 +268,9 @@ bool LogManager::flushTask(quint64 taskId)
             overallSuccess = false;
         }
 
-        // Phase 3: Transactional Commit / Rollback under LogManager lock
+        // Phase 3: Commit the sink cursor under the LogManager lock.
+        // Delivery is at-least-once: a failed batch may be retried and can be
+        // duplicated by a sink that has already persisted part of the batch.
         QMutexLocker locker(&m_mutex);
         if (!m_sinkCursors.contains(work.sinkId)) {
             // Sink was removed during I/O; ignore state update safely

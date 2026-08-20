@@ -144,37 +144,45 @@ LogBlock TaskLoggingContext::logBlockSnapshot() const
     return m_activeBlock;
 }
 
-void TaskLoggingContext::debug(const QString& message)
+bool TaskLoggingContext::debug(const QString& message)
 {
-    log(LogLevel::Debug, message);
+    return log(LogLevel::Debug, message);
 }
 
-void TaskLoggingContext::info(const QString& message)
+bool TaskLoggingContext::info(const QString& message)
 {
-    log(LogLevel::Info, message);
+    return log(LogLevel::Info, message);
 }
 
-void TaskLoggingContext::warning(const QString& message)
+bool TaskLoggingContext::warning(const QString& message)
 {
-    log(LogLevel::Warning, message);
+    return log(LogLevel::Warning, message);
 }
 
-void TaskLoggingContext::error(const QString& message)
+bool TaskLoggingContext::error(const QString& message)
 {
-    log(LogLevel::Error, message);
+    return log(LogLevel::Error, message);
 }
 
-void TaskLoggingContext::log(LogLevel level, const QString& message)
+bool TaskLoggingContext::log(LogLevel level, const QString& message)
 {
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    if (isTerminalState(m_state)) {
+        return false;
+    }
+
     LogEntry entry;
+    entry.taskId = m_taskId;
     entry.sequence = m_nextSequence++;
     entry.timestamp = QDateTime::currentMSecsSinceEpoch();
     entry.level = level;
     entry.message = message;
 
-    m_activeBlock.append(std::move(entry));
+    if (!m_activeBlock.append(std::move(entry))) {
+        return false;
+    }
     checkAndFlushActiveBlockLocked();
+    return true;
 }
 
 bool TaskLoggingContext::start()
@@ -197,6 +205,7 @@ bool TaskLoggingContext::complete(const QString& message)
     if (!message.isEmpty()) {
         m_currentMessage = message;
         LogEntry entry;
+        entry.taskId = m_taskId;
         entry.sequence = m_nextSequence++;
         entry.timestamp = QDateTime::currentMSecsSinceEpoch();
         entry.level = LogLevel::Info;
@@ -217,6 +226,7 @@ bool TaskLoggingContext::fail(const QString& message)
     if (!message.isEmpty()) {
         m_currentMessage = message;
         LogEntry entry;
+        entry.taskId = m_taskId;
         entry.sequence = m_nextSequence++;
         entry.timestamp = QDateTime::currentMSecsSinceEpoch();
         entry.level = LogLevel::Error;
@@ -237,6 +247,7 @@ bool TaskLoggingContext::cancel(const QString& message)
     if (!message.isEmpty()) {
         m_currentMessage = message;
         LogEntry entry;
+        entry.taskId = m_taskId;
         entry.sequence = m_nextSequence++;
         entry.timestamp = QDateTime::currentMSecsSinceEpoch();
         entry.level = LogLevel::Warning;

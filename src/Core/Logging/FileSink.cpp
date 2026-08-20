@@ -73,7 +73,7 @@ QString FileSink::filePath() const
 bool FileSink::writeBlock(const LogBlock& block, const QString& taskName)
 {
     QMutexLocker locker(&m_mutex);
-    if (!m_file.isOpen()) {
+    if (!m_file.isOpen() || !block.isSealed()) {
         return false;
     }
 
@@ -90,7 +90,14 @@ bool FileSink::writeBlock(const LogBlock& block, const QString& taskName)
 
     QString blockBuffer;
     for (const auto& entry : entries) {
-        blockBuffer += formatEntry(entry.timestamp, taskId, taskName, blockIndex, entry.sequence, entry.level, entry.message);
+        if (entry.taskId != taskId) {
+            return false;
+        }
+
+        QString message = entry.message;
+        message.replace(QLatin1Char('\n'), QStringLiteral("\\n"));
+        message.replace(QLatin1Char('\r'), QStringLiteral("\\r"));
+        blockBuffer += formatEntry(entry.timestamp, taskId, taskName, blockIndex, entry.sequence, entry.level, message);
         blockBuffer += QLatin1Char('\n');
     }
 

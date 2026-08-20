@@ -83,11 +83,11 @@ public:
     LogBlock logBlockSnapshot() const;
 
     // Logging methods
-    void debug(const QString& message);
-    void info(const QString& message);
-    void warning(const QString& message);
-    void error(const QString& message);
-    void log(LogLevel level, const QString& message);
+    bool debug(const QString& message);
+    bool info(const QString& message);
+    bool warning(const QString& message);
+    bool error(const QString& message);
+    bool log(LogLevel level, const QString& message);
 
     /**
      * @brief Lifecycle state transitions:
