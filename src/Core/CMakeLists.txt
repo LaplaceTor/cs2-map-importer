@@ -10,6 +10,10 @@ qt_add_library(cs2importer_core STATIC
     FileSystem/DirectorySnapshot.cpp
     FileSystem/FileSystem.h
     FileSystem/FileSystem.cpp
+    Logging/LogLevel.h
+    Logging/LogEntry.h
+    Logging/LogBlock.h
+    Logging/LogBlock.cpp
     Logging/Logger.h
     Logging/Logger.cpp
     Path/AssetPath.h

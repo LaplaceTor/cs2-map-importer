@@ -1,6 +1,9 @@
 #pragma once
 
 #include <QString>
+#include "LogLevel.h"
+#include "LogEntry.h"
+#include "LogBlock.h"
 
 namespace Core::Logging {
 
