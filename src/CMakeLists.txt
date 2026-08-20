@@ -34,14 +34,11 @@ if(NOT WIN32)
     set_target_properties(cs2importer PROPERTIES OUTPUT_NAME "cs2importer_app")
 endif()
 
-set_source_files_properties(qml/main.qml PROPERTIES QT_RESOURCE_ALIAS "src/qml/main.qml")
-
 qt_add_qml_module(cs2importer
     URI cs2importer
-    RESOURCE_PREFIX "/"
     VERSION 1.0
     QML_FILES
-        qml/main.qml
+        qml/cs2importer/Main.qml
 )
 
 qt_add_resources(cs2importer "cs2importer_icons"
@@ -70,3 +67,20 @@ target_compile_definitions(cs2importer PRIVATE "APP_VERSION=\"${APP_VERSION}\"")
 
 qt_import_qml_plugins(cs2importer)
 qt_finalize_executable(cs2importer)
+
+if(WIN32 AND CS2IMPORTER_DEPLOY_QT_RUNTIME)
+    get_filename_component(QT_INSTALL_PREFIX "${Qt6_DIR}/../../.." ABSOLUTE)
+    find_program(WINDEPLOYQT_EXECUTABLE
+        NAMES windeployqt windeployqt.exe
+        HINTS "${QT_INSTALL_PREFIX}/bin"
+        REQUIRED
+    )
+
+    add_custom_command(TARGET cs2importer POST_BUILD
+        COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+            --qmldir "${CMAKE_CURRENT_SOURCE_DIR}/qml"
+            --no-translations
+            "$<TARGET_FILE:cs2importer>"
+        VERBATIM
+    )
+endif()

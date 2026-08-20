@@ -6,6 +6,7 @@
 #include <memory>
 #include <set>
 
+#include "Core/Logging/FaultBarrier.h"
 #include "Core/Logging/FileSink.h"
 #include "Core/Logging/LogManager.h"
 #include "Core/Logging/TaskState.h"
@@ -43,6 +44,10 @@ private slots:
     void cleanup();
 
     void testBasicTaskCreation();
+    void testFaultBarrierStateMachine();
+    void testFaultBarrierTaskIntegration();
+    void testFaultBarrierConcurrentFaults();
+    void testManagerFaultBarrierAcrossTasks();
     void testTaskIdValidationAndEntryIsolation();
     void testTaskLifecycleAndStateMachine();
     void testExplicitTaskIdConflict();
@@ -98,6 +103,103 @@ void TestLogManager::testBasicTaskCreation()
     QVERIFY(nonexistent == nullptr);
 
     QCOMPARE(LogManager::instance().taskCount(), 2);
+}
+
+void TestLogManager::testFaultBarrierStateMachine()
+{
+    auto barrier = std::make_shared<FaultBarrier>();
+    QCOMPARE(barrier->state(), FaultBarrierState::Running);
+
+    const auto first = barrier->submitNormal();
+    QVERIFY(first.accepted());
+    QCOMPARE(first.submissionSequence, static_cast<quint64>(1));
+
+    const auto fault = barrier->reportFault(7, 100, "fault");
+    QVERIFY(fault.accepted());
+    QCOMPARE(fault.submissionSequence, static_cast<quint64>(2));
+    QCOMPARE(barrier->faultContext().boundary, static_cast<quint64>(1));
+    QCOMPARE(barrier->state(), FaultBarrierState::FaultDetected);
+
+    QVERIFY(!barrier->submitNormal().accepted());
+    QVERIFY(barrier->beginDraining());
+    QVERIFY(!barrier->submitNormal().accepted());
+    QVERIFY(barrier->terminate());
+    QVERIFY(!barrier->submitNormal().accepted());
+    QVERIFY(!barrier->beginDraining());
+}
+
+void TestLogManager::testFaultBarrierTaskIntegration()
+{
+    auto task = LogManager::instance().createTask("Fault Task");
+    auto barrier = task->faultBarrier();
+    QVERIFY(barrier != nullptr);
+
+    QVERIFY(task->info("before fault"));
+    const auto fault = task->reportFault("fatal fault");
+    QVERIFY(fault.accepted());
+    QCOMPARE(fault.submissionSequence, static_cast<quint64>(2));
+    QVERIFY(!task->warning("after fault"));
+
+    const auto blocks = task->allBlocks();
+    int entryCount = 0;
+    QStringList messages;
+    for (const auto& block : blocks) {
+        for (const auto& entry : block.entries()) {
+            ++entryCount;
+            messages.append(entry.message);
+            QCOMPARE(entry.taskId, task->taskId());
+        }
+    }
+    QCOMPARE(entryCount, 2);
+    QCOMPARE(messages, QStringList({"before fault", "fatal fault"}));
+
+    QVERIFY(barrier->beginDraining());
+    QVERIFY(barrier->terminate());
+    QVERIFY(!task->error("after termination"));
+}
+
+void TestLogManager::testFaultBarrierConcurrentFaults()
+{
+    auto barrier = std::make_shared<FaultBarrier>();
+    constexpr int threadCount = 32;
+    QVector<QThread*> threads;
+    std::atomic<int> acceptedFaults{0};
+
+    for (int i = 0; i < threadCount; ++i) {
+        threads.append(QThread::create([barrier, &acceptedFaults, i]() {
+            if (barrier->reportFault(static_cast<quint64>(i + 1), i, QString("fault %1").arg(i)).accepted()) {
+                acceptedFaults.fetch_add(1, std::memory_order_relaxed);
+            }
+        }));
+    }
+    for (auto* thread : threads) {
+        thread->start();
+    }
+    for (auto* thread : threads) {
+        thread->wait();
+        delete thread;
+    }
+
+    QCOMPARE(acceptedFaults.load(std::memory_order_relaxed), 1);
+    QCOMPARE(barrier->state(), FaultBarrierState::FaultDetected);
+    QVERIFY(barrier->faultContext().submissionSequence > 0);
+}
+
+void TestLogManager::testManagerFaultBarrierAcrossTasks()
+{
+    auto task1 = LogManager::instance().createTask("Manager Fault Task 1");
+    auto task2 = LogManager::instance().createTask("Manager Fault Task 2");
+    QVERIFY(task1->faultBarrier() == task2->faultBarrier());
+
+    QVERIFY(task1->info("accepted before fault"));
+    const auto fault = LogManager::instance().reportFault(task1->taskId(), "manager fault");
+    QVERIFY(fault.accepted());
+    QVERIFY(!task2->warning("rejected after fault"));
+
+    QVERIFY(LogManager::instance().beginFaultDraining());
+    QVERIFY(LogManager::instance().terminateAfterFault());
+    QVERIFY(!task1->info("rejected after termination"));
+    QCOMPARE(LogManager::instance().faultBarrier()->state(), FaultBarrierState::Terminated);
 }
 
 void TestLogManager::testTaskIdValidationAndEntryIsolation()

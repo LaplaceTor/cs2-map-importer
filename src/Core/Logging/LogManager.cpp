@@ -1,5 +1,6 @@
 #include "LogManager.h"
 #include <QMutexLocker>
+#include <algorithm>
 #include <limits>
 
 namespace Core::Logging {
@@ -10,6 +11,37 @@ LogManager& LogManager::instance()
     return s_instance;
 }
 
+std::shared_ptr<FaultBarrier> LogManager::faultBarrier() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_faultBarrier;
+}
+
+LogSubmissionResult LogManager::reportFault(quint64 taskId, const QString& message)
+{
+    std::shared_ptr<TaskLoggingContext> task;
+    {
+        QMutexLocker locker(&m_mutex);
+        task = m_tasks.value(taskId, nullptr);
+    }
+    if (!task) {
+        return {LogSubmissionStatus::RejectedAfterTermination, 0};
+    }
+    return task->reportFault(message);
+}
+
+bool LogManager::beginFaultDraining()
+{
+    const auto barrier = faultBarrier();
+    return barrier && barrier->beginDraining();
+}
+
+bool LogManager::terminateAfterFault()
+{
+    const auto barrier = faultBarrier();
+    return barrier && barrier->terminate();
+}
+
 std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskName)
 {
     QMutexLocker locker(&m_mutex);
@@ -17,7 +49,7 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskNa
         m_nextTaskId++;
     }
     quint64 id = m_nextTaskId++;
-    auto context = std::make_shared<TaskLoggingContext>(id, taskName, m_defaultBlockSizeThreshold);
+    auto context = std::make_shared<TaskLoggingContext>(id, taskName, m_defaultBlockSizeThreshold, m_faultBarrier);
     m_tasks.insert(id, context);
     return context;
 }
@@ -33,7 +65,7 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const
         return nullptr;
     }
 
-    auto context = std::make_shared<TaskLoggingContext>(taskId, taskName, m_defaultBlockSizeThreshold);
+    auto context = std::make_shared<TaskLoggingContext>(taskId, taskName, m_defaultBlockSizeThreshold, m_faultBarrier);
     m_tasks.insert(taskId, context);
 
     if (taskId >= m_nextTaskId && taskId != std::numeric_limits<quint64>::max()) {
@@ -103,6 +135,7 @@ void LogManager::addSink(std::shared_ptr<ILogSink> sink)
     if (!m_sinks.contains(sink)) {
         m_sinks.append(sink);
         m_sinkCursors.insert(sink->sinkId(), QHash<quint64, SinkCursor>());
+        m_sinkGenerations.insert(sink->sinkId(), m_nextSinkGeneration++);
     }
 }
 
@@ -114,6 +147,7 @@ void LogManager::removeSink(std::shared_ptr<ILogSink> sink)
     QMutexLocker locker(&m_mutex);
     m_sinks.removeOne(sink);
     m_sinkCursors.remove(sink->sinkId());
+    m_sinkGenerations.remove(sink->sinkId());
 }
 
 void LogManager::clearSinks()
@@ -121,6 +155,7 @@ void LogManager::clearSinks()
     QMutexLocker locker(&m_mutex);
     m_sinks.clear();
     m_sinkCursors.clear();
+    m_sinkGenerations.clear();
 }
 
 void LogManager::flushAll()
@@ -201,6 +236,7 @@ bool LogManager::flushTask(quint64 taskId)
     struct SinkWork {
         std::shared_ptr<ILogSink> sink;
         quint64 sinkId = 0;
+        quint64 generation = 0;
         QVector<LogBlock> blocks;
         QString taskName;
     };
@@ -215,6 +251,28 @@ bool LogManager::flushTask(quint64 taskId)
 
         QString taskName = task->taskName();
         QVector<LogBlock> sealedBlocks = task->sealedBlocks();
+        const auto barrier = m_faultBarrier;
+        const FaultBarrierState barrierState = barrier->state();
+        const FaultContext fault = barrier->faultContext();
+        if (barrierState != FaultBarrierState::Running) {
+            QVector<LogBlock> filteredBlocks;
+            filteredBlocks.reserve(sealedBlocks.size());
+            for (const auto& block : sealedBlocks) {
+                LogBlock filtered(block.taskId(), block.blockIndex());
+                for (const auto& entry : block.entries()) {
+                    const bool beforeBoundary = entry.submissionSequence != 0
+                        && entry.submissionSequence <= fault.boundary;
+                    const bool acceptedFault = entry.taskId == fault.taskId
+                        && entry.submissionSequence == fault.submissionSequence;
+                    if (beforeBoundary || acceptedFault) {
+                        filtered.append(entry);
+                    }
+                }
+                filtered.seal();
+                filteredBlocks.append(std::move(filtered));
+            }
+            sealedBlocks = std::move(filteredBlocks);
+        }
         qsizetype totalSealedCount = sealedBlocks.size();
 
         for (const auto& sink : m_sinks) {
@@ -232,7 +290,7 @@ bool LogManager::flushTask(quint64 taskId)
                 // Advance reserved cursor
                 cursor.reserved = totalSealedCount;
 
-                pendingWork.append(SinkWork{sink, sId, std::move(blocksToDispatch), taskName});
+                pendingWork.append(SinkWork{sink, sId, m_sinkGenerations.value(sId), std::move(blocksToDispatch), taskName});
             }
         }
     } // Unlock LogManager::m_mutex
@@ -272,8 +330,9 @@ bool LogManager::flushTask(quint64 taskId)
         // Delivery is at-least-once: a failed batch may be retried and can be
         // duplicated by a sink that has already persisted part of the batch.
         QMutexLocker locker(&m_mutex);
-        if (!m_sinkCursors.contains(work.sinkId)) {
-            // Sink was removed during I/O; ignore state update safely
+        if (!m_sinkCursors.contains(work.sinkId)
+            || m_sinkGenerations.value(work.sinkId) != work.generation) {
+            // Sink was removed or replaced during I/O; ignore state update safely
             continue;
         }
 
@@ -338,6 +397,9 @@ void LogManager::clear()
     m_tasks.clear();
     m_sinks.clear();
     m_sinkCursors.clear();
+    m_sinkGenerations.clear();
+    m_faultBarrier = std::make_shared<FaultBarrier>();
+    m_nextTaskId = 1;
 }
 
 } // namespace Core::Logging

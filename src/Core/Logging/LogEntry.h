@@ -13,6 +13,7 @@ namespace Core::Logging {
  */
 struct LogEntry {
     quint64 taskId = 0; // Stable task identifier
+    quint64 submissionSequence = 0; // Global submission order, when a FaultBarrier is attached
     quint64 sequence = 0; // Monotonically increasing sequence number within its Task
     qint64 timestamp = 0; // UTC Unix epoch milliseconds
     LogLevel level = LogLevel::Info;

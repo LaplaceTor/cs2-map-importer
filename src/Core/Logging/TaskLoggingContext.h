@@ -6,7 +6,9 @@
 #include <QString>
 #include <QtGlobal>
 #include <functional>
+#include <memory>
 
+#include "FaultBarrier.h"
 #include "LogBlock.h"
 #include "LogLevel.h"
 #include "TaskState.h"
@@ -15,7 +17,8 @@ namespace Core::Logging {
 
 class TaskLoggingContext {
 public:
-    explicit TaskLoggingContext(quint64 taskId, QString taskName = QString(), qsizetype blockSizeThreshold = 0);
+    explicit TaskLoggingContext(quint64 taskId, QString taskName = QString(), qsizetype blockSizeThreshold = 0,
+                                std::shared_ptr<FaultBarrier> faultBarrier = nullptr);
     ~TaskLoggingContext() = default;
 
     TaskLoggingContext(const TaskLoggingContext&) = delete;
@@ -24,6 +27,9 @@ public:
     TaskLoggingContext& operator=(TaskLoggingContext&&) noexcept = delete;
 
     quint64 taskId() const noexcept { return m_taskId; }
+
+    void setFaultBarrier(std::shared_ptr<FaultBarrier> barrier);
+    std::shared_ptr<FaultBarrier> faultBarrier() const;
 
     QMutex& flushMutex() const noexcept { return m_flushMutex; }
 
@@ -88,6 +94,7 @@ public:
     bool warning(const QString& message);
     bool error(const QString& message);
     bool log(LogLevel level, const QString& message);
+    LogSubmissionResult reportFault(const QString& message);
 
     /**
      * @brief Lifecycle state transitions:
@@ -108,9 +115,12 @@ public:
 private:
     void checkAndFlushActiveBlockLocked();
     void flushActiveBlockLocked();
+    LogSubmissionResult submitNormalLocked();
+    bool appendLifecycleEntryLocked(LogLevel level, const QString& message);
 
     quint64 m_taskId = 0;
     mutable QRecursiveMutex m_mutex;
+    std::shared_ptr<FaultBarrier> m_faultBarrier;
     mutable QMutex m_flushMutex;
     QString m_taskName;
     TaskState m_state = TaskState::Pending;

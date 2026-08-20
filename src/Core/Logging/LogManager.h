@@ -20,6 +20,7 @@ public:
         qsizetype reserved = 0;
     };
 
+
     LogManager() = default;
     ~LogManager() = default;
 
@@ -29,6 +30,11 @@ public:
     LogManager& operator=(LogManager&&) = delete;
 
     static LogManager& instance();
+
+    std::shared_ptr<FaultBarrier> faultBarrier() const;
+    LogSubmissionResult reportFault(quint64 taskId, const QString& message);
+    bool beginFaultDraining();
+    bool terminateAfterFault();
 
     std::shared_ptr<TaskLoggingContext> createTask(const QString& taskName = QString());
 
@@ -126,6 +132,9 @@ private:
     QVector<std::shared_ptr<ILogSink>> m_sinks;
     // Independent block cursors per sink ID per task ID: [sinkId -> [taskId -> SinkCursor]]
     QHash<quint64, QHash<quint64, SinkCursor>> m_sinkCursors;
+    QHash<quint64, quint64> m_sinkGenerations;
+    quint64 m_nextSinkGeneration = 1;
+    std::shared_ptr<FaultBarrier> m_faultBarrier = std::make_shared<FaultBarrier>();
     quint64 m_nextTaskId = 1;
     qsizetype m_defaultBlockSizeThreshold = 0;
 };

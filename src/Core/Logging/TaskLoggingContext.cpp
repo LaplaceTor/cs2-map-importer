@@ -4,12 +4,30 @@
 
 namespace Core::Logging {
 
-TaskLoggingContext::TaskLoggingContext(quint64 taskId, QString taskName, qsizetype blockSizeThreshold)
+TaskLoggingContext::TaskLoggingContext(quint64 taskId, QString taskName, qsizetype blockSizeThreshold,
+                                       std::shared_ptr<FaultBarrier> faultBarrier)
     : m_taskId(taskId)
+    , m_faultBarrier(std::move(faultBarrier))
     , m_taskName(std::move(taskName))
     , m_activeBlock(taskId, 0)
     , m_blockSizeThreshold(std::max<qsizetype>(0, blockSizeThreshold))
 {
+}
+
+void TaskLoggingContext::setFaultBarrier(std::shared_ptr<FaultBarrier> barrier)
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    if (m_faultBarrier || m_state != TaskState::Pending || m_nextSequence != 1
+        || !m_sealedBlocks.isEmpty() || m_activeBlock.entryCount() != 0) {
+        return;
+    }
+    m_faultBarrier = std::move(barrier);
+}
+
+std::shared_ptr<FaultBarrier> TaskLoggingContext::faultBarrier() const
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    return m_faultBarrier;
 }
 
 QString TaskLoggingContext::taskName() const
@@ -171,8 +189,14 @@ bool TaskLoggingContext::log(LogLevel level, const QString& message)
         return false;
     }
 
+    const LogSubmissionResult submission = submitNormalLocked();
+    if (!submission.accepted()) {
+        return false;
+    }
+
     LogEntry entry;
     entry.taskId = m_taskId;
+    entry.submissionSequence = submission.submissionSequence;
     entry.sequence = m_nextSequence++;
     entry.timestamp = QDateTime::currentMSecsSinceEpoch();
     entry.level = level;
@@ -183,6 +207,36 @@ bool TaskLoggingContext::log(LogLevel level, const QString& message)
     }
     checkAndFlushActiveBlockLocked();
     return true;
+}
+
+LogSubmissionResult TaskLoggingContext::reportFault(const QString& message)
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    if (isTerminalState(m_state)) {
+        return {LogSubmissionStatus::RejectedAfterTermination, 0};
+    }
+    if (!m_faultBarrier) {
+        return {LogSubmissionStatus::RejectedAfterFault, 0};
+    }
+
+    const LogSubmissionResult result = m_faultBarrier->reportFault(
+        m_taskId, QDateTime::currentMSecsSinceEpoch(), message);
+    if (!result.accepted()) {
+        return result;
+    }
+
+    LogEntry entry;
+    entry.taskId = m_taskId;
+    entry.submissionSequence = result.submissionSequence;
+    entry.sequence = m_nextSequence++;
+    entry.timestamp = QDateTime::currentMSecsSinceEpoch();
+    entry.level = LogLevel::Critical;
+    entry.message = message;
+    if (!m_activeBlock.append(std::move(entry))) {
+        return {LogSubmissionStatus::RejectedAfterFault, result.submissionSequence};
+    }
+    flushActiveBlockLocked();
+    return result;
 }
 
 bool TaskLoggingContext::start()
@@ -204,13 +258,9 @@ bool TaskLoggingContext::complete(const QString& message)
     m_progress = 1.0;
     if (!message.isEmpty()) {
         m_currentMessage = message;
-        LogEntry entry;
-        entry.taskId = m_taskId;
-        entry.sequence = m_nextSequence++;
-        entry.timestamp = QDateTime::currentMSecsSinceEpoch();
-        entry.level = LogLevel::Info;
-        entry.message = message;
-        m_activeBlock.append(std::move(entry));
+        if (!appendLifecycleEntryLocked(LogLevel::Info, message)) {
+            return false;
+        }
     }
     flushActiveBlockLocked();
     m_state = TaskState::Completed;
@@ -225,13 +275,9 @@ bool TaskLoggingContext::fail(const QString& message)
     }
     if (!message.isEmpty()) {
         m_currentMessage = message;
-        LogEntry entry;
-        entry.taskId = m_taskId;
-        entry.sequence = m_nextSequence++;
-        entry.timestamp = QDateTime::currentMSecsSinceEpoch();
-        entry.level = LogLevel::Error;
-        entry.message = message;
-        m_activeBlock.append(std::move(entry));
+        if (!appendLifecycleEntryLocked(LogLevel::Error, message)) {
+            return false;
+        }
     }
     flushActiveBlockLocked();
     m_state = TaskState::Failed;
@@ -246,17 +292,38 @@ bool TaskLoggingContext::cancel(const QString& message)
     }
     if (!message.isEmpty()) {
         m_currentMessage = message;
-        LogEntry entry;
-        entry.taskId = m_taskId;
-        entry.sequence = m_nextSequence++;
-        entry.timestamp = QDateTime::currentMSecsSinceEpoch();
-        entry.level = LogLevel::Warning;
-        entry.message = message;
-        m_activeBlock.append(std::move(entry));
+        if (!appendLifecycleEntryLocked(LogLevel::Warning, message)) {
+            return false;
+        }
     }
     flushActiveBlockLocked();
     m_state = TaskState::Cancelled;
     return true;
+}
+
+LogSubmissionResult TaskLoggingContext::submitNormalLocked()
+{
+    if (!m_faultBarrier) {
+        return {LogSubmissionStatus::Accepted, 0};
+    }
+    return m_faultBarrier->submitNormal();
+}
+
+bool TaskLoggingContext::appendLifecycleEntryLocked(LogLevel level, const QString& message)
+{
+    const LogSubmissionResult submission = submitNormalLocked();
+    if (!submission.accepted()) {
+        return false;
+    }
+
+    LogEntry entry;
+    entry.taskId = m_taskId;
+    entry.submissionSequence = submission.submissionSequence;
+    entry.sequence = m_nextSequence++;
+    entry.timestamp = QDateTime::currentMSecsSinceEpoch();
+    entry.level = level;
+    entry.message = message;
+    return m_activeBlock.append(std::move(entry));
 }
 
 void TaskLoggingContext::checkAndFlushActiveBlockLocked()
