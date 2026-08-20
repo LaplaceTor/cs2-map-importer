@@ -38,7 +38,15 @@ public:
     bool failTask(quint64 taskId, const QString& message = QString());
     bool cancelTask(quint64 taskId, const QString& message = QString());
 
+    /**
+     * @brief Get default block size threshold in bytes (estimated memory footprint).
+     */
     qsizetype defaultBlockSizeThreshold() const;
+
+    /**
+     * @brief Set default block size threshold in bytes (0 means unlimited/no auto-seal).
+     * Note: Size is calculated based on estimated memory footprint (estimatedByteSize).
+     */
     void setDefaultBlockSizeThreshold(qsizetype bytes);
 
     /**
@@ -48,6 +56,8 @@ public:
 
     /**
      * @brief Zero-copy inspection of a task's sealed log blocks.
+     * Note: Reader callback is executed while holding the task lock. Keep callback
+     * operations lightweight and in-memory (avoid heavy I/O or long-running work).
      */
     bool readSealedBlocks(quint64 taskId, const std::function<void(const QVector<LogBlock>&)>& reader) const;
 
@@ -58,6 +68,8 @@ public:
 
     /**
      * @brief Zero-copy inspection of all blocks (sealed and active) for a task.
+     * Note: Reader callback is executed while holding the task lock. Keep callback
+     * operations lightweight and in-memory (avoid heavy I/O or long-running work).
      */
     bool readAllBlocks(quint64 taskId, const std::function<void(const QVector<LogBlock>&)>& reader) const;
 
@@ -68,13 +80,15 @@ public:
 
     /**
      * @brief Zero-copy inspection of a task's active log block.
-     * Invokes the reader callback with a const reference to the task's LogBlock while locked.
+     * Invokes the reader callback with a const reference to the task's active LogBlock while locked.
      * Returns true if task was found, false otherwise.
+     * Note: Reader callback is executed while holding the task lock. Keep callback
+     * operations lightweight and in-memory (avoid heavy I/O or long-running work).
      */
     bool readLogBlock(quint64 taskId, const std::function<void(const LogBlock&)>& reader) const;
 
     /**
-     * @brief Retrieves an explicit read-only snapshot copy of the task's log block.
+     * @brief Retrieves an explicit read-only snapshot copy of the task's active log block.
      */
     LogBlock getLogBlockSnapshot(quint64 taskId) const;
 

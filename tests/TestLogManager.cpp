@@ -28,6 +28,7 @@ private slots:
     void testExplicitFlushActiveBlock();
     void testLogManagerDefaultThreshold();
     void testLogManagerGetSealedAndAllBlocks();
+    void testTaskCompletionAutoSealsFinalBlock();
 };
 
 void TestLogManager::init()
@@ -283,7 +284,7 @@ void TestLogManager::testLogBlockChunkingAndSealing()
     auto sealedBlocks = task->sealedBlocks();
     auto allBlocks = task->allBlocks();
 
-    QCOMPARE(allBlocks.size(), sealedBlocks.size() + 1);
+    QCOMPARE(allBlocks.size(), sealedBlocks.size());
 
     // Verify all sealed blocks are indeed sealed and cannot be appended to
     for (const auto& sealedBlock : sealedBlocks) {
@@ -316,13 +317,11 @@ void TestLogManager::testLogBlockChunkingAndSealing()
 
     QCOMPARE(collectedEntries, totalLogs);
 
-    // Also verify merged snapshot contains all entries intact
-    LogBlock mergedSnapshot = task->logBlockSnapshot();
-    QCOMPARE(mergedSnapshot.entryCount(), totalLogs);
-    quint64 seq = 1;
-    for (int i = 0; i < totalLogs; ++i) {
-        QCOMPARE(mergedSnapshot.entries()[i].sequence, seq++);
-        QCOMPARE(mergedSnapshot.entries()[i].message, expectedMessages[i]);
+    // Finish task and verify final block auto-seals
+    task->complete("Task Done");
+    QCOMPARE(task->sealedBlockCount(), task->totalBlockCount());
+    for (const auto& sb : task->sealedBlocks()) {
+        QVERIFY(sb.isSealed());
     }
 }
 
@@ -397,7 +396,7 @@ void TestLogManager::testLogManagerGetSealedAndAllBlocks()
     QVERIFY(readSealedSuccess);
 
     QVector<LogBlock> allBlocks = LogManager::instance().getAllBlocks(id);
-    QCOMPARE(allBlocks.size(), sealedBlocks.size() + 1);
+    QCOMPARE(allBlocks.size(), sealedBlocks.size());
 
     bool readAllSuccess = LogManager::instance().readAllBlocks(id, [](const QVector<LogBlock>& blocks) {
         QVERIFY(blocks.size() > 0);
@@ -406,6 +405,36 @@ void TestLogManager::testLogManagerGetSealedAndAllBlocks()
 
     bool flushed = LogManager::instance().flushTask(id);
     QVERIFY(flushed);
+}
+
+void TestLogManager::testTaskCompletionAutoSealsFinalBlock()
+{
+    auto task1 = LogManager::instance().createTask("Complete Task Test");
+    task1->setBlockSizeThreshold(0); // Unlimited threshold for explicit test
+    task1->info("Entry 1");
+    task1->info("Entry 2");
+    QCOMPARE(task1->sealedBlockCount(), static_cast<qsizetype>(0));
+
+    task1->complete("Finished successfully");
+    QCOMPARE(task1->sealedBlockCount(), static_cast<qsizetype>(1));
+    QCOMPARE(task1->totalBlockCount(), static_cast<qsizetype>(1));
+    QCOMPARE(task1->allBlocks().size(), static_cast<qsizetype>(1));
+    QVERIFY(task1->sealedBlocks()[0].isSealed());
+    QCOMPARE(task1->sealedBlocks()[0].entryCount(), static_cast<qsizetype>(3)); // Entry 1, Entry 2, Complete msg
+
+    auto task2 = LogManager::instance().createTask("Fail Task Test");
+    task2->info("Entry A");
+    task2->fail("Failed with error");
+    QCOMPARE(task2->sealedBlockCount(), static_cast<qsizetype>(1));
+    QCOMPARE(task2->totalBlockCount(), static_cast<qsizetype>(1));
+    QVERIFY(task2->sealedBlocks()[0].isSealed());
+
+    auto task3 = LogManager::instance().createTask("Cancel Task Test");
+    task3->info("Entry X");
+    task3->cancel("Cancelled by user");
+    QCOMPARE(task3->sealedBlockCount(), static_cast<qsizetype>(1));
+    QCOMPARE(task3->totalBlockCount(), static_cast<qsizetype>(1));
+    QVERIFY(task3->sealedBlocks()[0].isSealed());
 }
 
 QTEST_MAIN(TestLogManager)

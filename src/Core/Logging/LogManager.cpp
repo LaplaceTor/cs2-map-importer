@@ -194,7 +194,6 @@ void LogManager::clear()
 {
     QMutexLocker locker(&m_mutex);
     m_tasks.clear();
-    m_defaultBlockSizeThreshold = 0;
 }
 
 } // namespace Core::Logging
