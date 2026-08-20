@@ -44,6 +44,9 @@ private slots:
     void cleanup();
 
     void testBasicTaskCreation();
+    void testTaskSnapshot();
+    void testTaskSnapshotsCreationOrder();
+    void testTaskSnapshotConcurrentUpdates();
     void testFaultBarrierStateMachine();
     void testFaultBarrierTaskIntegration();
     void testFaultBarrierConcurrentFaults();
@@ -108,6 +111,79 @@ void TestLogManager::testBasicTaskCreation()
     QVERIFY(nonexistent == nullptr);
 
     QCOMPARE(LogManager::instance().taskCount(), 2);
+}
+
+void TestLogManager::testTaskSnapshot()
+{
+    auto task = LogManager::instance().createTask("Snapshot Task");
+    const TaskSnapshot initial = task->snapshot();
+    QCOMPARE(initial.taskId, task->taskId());
+    QCOMPARE(initial.creationSequence, static_cast<quint64>(1));
+    QCOMPARE(initial.taskName, QString("Snapshot Task"));
+    QCOMPARE(initial.state, TaskState::Pending);
+    QCOMPARE(initial.progress, 0.0);
+    QCOMPARE(initial.currentMessage, QString());
+    QCOMPARE(initial.logCount, static_cast<quint64>(0));
+    QCOMPARE(initial.sealedBlockCount, static_cast<qsizetype>(0));
+
+    QVERIFY(task->start());
+    task->updateProgress(0.4, "Working");
+    QVERIFY(task->info("first"));
+    const TaskSnapshot running = task->snapshot();
+    QCOMPARE(running.state, TaskState::Running);
+    QCOMPARE(running.progress, 0.4);
+    QCOMPARE(running.currentMessage, QString("Working"));
+    QCOMPARE(running.logCount, static_cast<quint64>(1));
+
+    QVERIFY(task->complete("Done"));
+    const TaskSnapshot completed = task->snapshot();
+    QCOMPARE(completed.state, TaskState::Completed);
+    QCOMPARE(completed.progress, 1.0);
+    QCOMPARE(completed.currentMessage, QString("Done"));
+    QCOMPARE(completed.logCount, static_cast<quint64>(2));
+    QCOMPARE(completed.sealedBlockCount, static_cast<qsizetype>(1));
+}
+
+void TestLogManager::testTaskSnapshotsCreationOrder()
+{
+    auto explicitTask = LogManager::instance().createTask(100, "Explicit");
+    auto automaticTask = LogManager::instance().createTask("Automatic");
+    QVERIFY(explicitTask != nullptr);
+    QVERIFY(automaticTask != nullptr);
+
+    const auto snapshots = LogManager::instance().taskSnapshots();
+    QCOMPARE(snapshots.size(), static_cast<qsizetype>(2));
+    QCOMPARE(snapshots[0].taskId, explicitTask->taskId());
+    QCOMPARE(snapshots[0].creationSequence, static_cast<quint64>(1));
+    QCOMPARE(snapshots[1].taskId, automaticTask->taskId());
+    QCOMPARE(snapshots[1].creationSequence, static_cast<quint64>(2));
+}
+
+void TestLogManager::testTaskSnapshotConcurrentUpdates()
+{
+    auto task = LogManager::instance().createTask("Concurrent Snapshot Task");
+    QVERIFY(task->start());
+
+    constexpr int updateCount = 500;
+    auto worker = QThread::create([task, updateCount]() {
+        for (int i = 0; i < updateCount; ++i) {
+            task->updateProgress(static_cast<double>(i) / updateCount, QString("step %1").arg(i));
+            task->info(QString("entry %1").arg(i));
+        }
+    });
+    worker->start();
+    while (!worker->isFinished()) {
+        const TaskSnapshot snapshot = task->snapshot();
+        QVERIFY(snapshot.progress >= 0.0 && snapshot.progress <= 1.0);
+        QVERIFY(snapshot.logCount <= static_cast<quint64>(updateCount));
+        QThread::yieldCurrentThread();
+    }
+    worker->wait();
+    delete worker;
+
+    const TaskSnapshot finalSnapshot = task->snapshot();
+    QCOMPARE(finalSnapshot.logCount, static_cast<quint64>(updateCount));
+    QCOMPARE(finalSnapshot.currentMessage, QString("step %1").arg(updateCount - 1));
 }
 
 void TestLogManager::testFaultBarrierStateMachine()

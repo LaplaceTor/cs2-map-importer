@@ -57,7 +57,8 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskNa
         m_nextTaskId++;
     }
     quint64 id = m_nextTaskId++;
-    auto context = std::make_shared<TaskLoggingContext>(id, taskName, m_defaultBlockSizeThreshold, m_faultBarrier);
+    auto context = std::make_shared<TaskLoggingContext>(
+        id, taskName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++);
     m_tasks.insert(id, context);
     return context;
 }
@@ -73,7 +74,8 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const
         return nullptr;
     }
 
-    auto context = std::make_shared<TaskLoggingContext>(taskId, taskName, m_defaultBlockSizeThreshold, m_faultBarrier);
+    auto context = std::make_shared<TaskLoggingContext>(
+        taskId, taskName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++);
     m_tasks.insert(taskId, context);
 
     if (taskId >= m_nextTaskId && taskId != std::numeric_limits<quint64>::max()) {
@@ -432,6 +434,20 @@ QVector<quint64> LogManager::taskIds() const
     return keys;
 }
 
+QVector<TaskSnapshot> LogManager::taskSnapshots() const
+{
+    QMutexLocker locker(&m_mutex);
+    QVector<TaskSnapshot> snapshots;
+    snapshots.reserve(m_tasks.size());
+    for (auto it = m_tasks.constBegin(); it != m_tasks.constEnd(); ++it) {
+        snapshots.append(it.value()->snapshot());
+    }
+    std::sort(snapshots.begin(), snapshots.end(), [](const TaskSnapshot& left, const TaskSnapshot& right) {
+        return left.creationSequence < right.creationSequence;
+    });
+    return snapshots;
+}
+
 qsizetype LogManager::taskCount() const
 {
     QMutexLocker locker(&m_mutex);
@@ -451,6 +467,7 @@ void LogManager::clear()
     m_sinkGenerations.clear();
     m_faultBarrier = std::make_shared<FaultBarrier>();
     m_nextTaskId = 1;
+    m_nextCreationSequence = 1;
 }
 
 } // namespace Core::Logging

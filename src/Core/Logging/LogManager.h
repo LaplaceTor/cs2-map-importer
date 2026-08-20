@@ -10,6 +10,7 @@
 #include "ILogSink.h"
 #include "LogBlock.h"
 #include "TaskLoggingContext.h"
+#include "TaskSnapshot.h"
 
 namespace Core::Logging {
 
@@ -124,6 +125,7 @@ public:
     LogBlock getLogBlockSnapshot(quint64 taskId) const;
 
     QVector<quint64> taskIds() const;
+    QVector<TaskSnapshot> taskSnapshots() const;
     qsizetype taskCount() const;
 
     /**
@@ -145,6 +147,7 @@ private:
     std::shared_ptr<FaultBarrier> m_faultBarrier = std::make_shared<FaultBarrier>();
     quint64 m_nextTaskId = 1;
     qsizetype m_defaultBlockSizeThreshold = 0;
+    quint64 m_nextCreationSequence = 1;
 };
 
 } // namespace Core::Logging

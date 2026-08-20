@@ -5,8 +5,9 @@
 namespace Core::Logging {
 
 TaskLoggingContext::TaskLoggingContext(quint64 taskId, QString taskName, qsizetype blockSizeThreshold,
-                                       std::shared_ptr<FaultBarrier> faultBarrier)
+                                       std::shared_ptr<FaultBarrier> faultBarrier, quint64 creationSequence)
     : m_taskId(taskId)
+    , m_creationSequence(creationSequence)
     , m_faultBarrier(std::move(faultBarrier))
     , m_taskName(std::move(taskName))
     , m_activeBlock(taskId, 0)
@@ -28,6 +29,21 @@ std::shared_ptr<FaultBarrier> TaskLoggingContext::faultBarrier() const
 {
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     return m_faultBarrier;
+}
+
+TaskSnapshot TaskLoggingContext::snapshot() const
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    TaskSnapshot result;
+    result.taskId = m_taskId;
+    result.creationSequence = m_creationSequence;
+    result.taskName = m_taskName;
+    result.state = m_state;
+    result.progress = m_progress;
+    result.currentMessage = m_currentMessage;
+    result.logCount = m_logCount;
+    result.sealedBlockCount = m_sealedBlocks.size();
+    return result;
 }
 
 QString TaskLoggingContext::taskName() const
@@ -231,6 +247,7 @@ bool TaskLoggingContext::log(LogLevel level, const QString& message)
     if (!m_activeBlock.append(std::move(entry))) {
         return false;
     }
+    ++m_logCount;
     checkAndFlushActiveBlockLocked();
     return true;
 }
@@ -261,6 +278,7 @@ LogSubmissionResult TaskLoggingContext::reportFault(const QString& message)
     if (!m_activeBlock.append(std::move(entry))) {
         return {LogSubmissionStatus::RejectedAfterFault, result.submissionSequence};
     }
+    ++m_logCount;
     flushActiveBlockLocked();
     return result;
 }
@@ -355,7 +373,11 @@ bool TaskLoggingContext::appendLifecycleEntryLocked(LogLevel level, const QStrin
     entry.timestamp = QDateTime::currentMSecsSinceEpoch();
     entry.level = level;
     entry.message = message;
-    return m_activeBlock.append(std::move(entry));
+    if (!m_activeBlock.append(std::move(entry))) {
+        return false;
+    }
+    ++m_logCount;
+    return true;
 }
 
 void TaskLoggingContext::checkAndFlushActiveBlockLocked()

@@ -17,6 +17,7 @@ qt_add_library(cs2importer_core STATIC
     Logging/Logger.h
     Logging/Logger.cpp
     Logging/TaskState.h
+    Logging/TaskSnapshot.h
     Logging/FaultBarrier.h
     Logging/FaultBarrier.cpp
     Logging/ILogSink.h

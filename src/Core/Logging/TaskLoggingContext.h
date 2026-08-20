@@ -11,14 +11,15 @@
 #include "FaultBarrier.h"
 #include "LogBlock.h"
 #include "LogLevel.h"
-#include "TaskState.h"
+#include "TaskSnapshot.h"
 
 namespace Core::Logging {
 
 class TaskLoggingContext {
 public:
     explicit TaskLoggingContext(quint64 taskId, QString taskName = QString(), qsizetype blockSizeThreshold = 0,
-                                std::shared_ptr<FaultBarrier> faultBarrier = nullptr);
+                                std::shared_ptr<FaultBarrier> faultBarrier = nullptr,
+                                quint64 creationSequence = 0);
     ~TaskLoggingContext() = default;
 
     TaskLoggingContext(const TaskLoggingContext&) = delete;
@@ -27,6 +28,8 @@ public:
     TaskLoggingContext& operator=(TaskLoggingContext&&) noexcept = delete;
 
     quint64 taskId() const noexcept { return m_taskId; }
+
+    TaskSnapshot snapshot() const;
 
     void setFaultBarrier(std::shared_ptr<FaultBarrier> barrier);
     std::shared_ptr<FaultBarrier> faultBarrier() const;
@@ -142,6 +145,7 @@ private:
     bool appendLifecycleEntryLocked(LogLevel level, const QString& message);
 
     quint64 m_taskId = 0;
+    quint64 m_creationSequence = 0;
     mutable QRecursiveMutex m_mutex;
     std::shared_ptr<FaultBarrier> m_faultBarrier;
     mutable QMutex m_flushMutex;
@@ -155,6 +159,7 @@ private:
     quint64 m_nextBlockIndex = 1; // Monotonic block identity, independent of retained blocks
     qsizetype m_blockSizeThreshold = 0; // 0 means unlimited
     quint64 m_nextSequence = 1; // Task-local log entry sequence number
+    quint64 m_logCount = 0;
 };
 
 } // namespace Core::Logging
