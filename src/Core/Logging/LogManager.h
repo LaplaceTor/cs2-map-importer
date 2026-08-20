@@ -39,14 +39,56 @@ public:
     bool cancelTask(quint64 taskId, const QString& message = QString());
 
     /**
-     * @brief Zero-copy inspection of a task's log block.
-     * Invokes the reader callback with a const reference to the task's LogBlock while locked.
+     * @brief Get default block size threshold in bytes (estimated memory footprint).
+     */
+    qsizetype defaultBlockSizeThreshold() const;
+
+    /**
+     * @brief Set default block size threshold in bytes (0 means unlimited/no auto-seal).
+     * Note: Size is calculated based on estimated memory footprint (estimatedByteSize).
+     */
+    void setDefaultBlockSizeThreshold(qsizetype bytes);
+
+    /**
+     * @brief Retrieves already sealed blocks for a task.
+     */
+    QVector<LogBlock> getSealedBlocks(quint64 taskId) const;
+
+    /**
+     * @brief Zero-copy inspection of a task's sealed log blocks.
+     * Note: Reader callback is executed while holding the task lock. Keep callback
+     * operations lightweight and in-memory (avoid heavy I/O or long-running work).
+     */
+    bool readSealedBlocks(quint64 taskId, const std::function<void(const QVector<LogBlock>&)>& reader) const;
+
+    /**
+     * @brief Retrieves all blocks (sealed and active) for a task.
+     */
+    QVector<LogBlock> getAllBlocks(quint64 taskId) const;
+
+    /**
+     * @brief Zero-copy inspection of all blocks (sealed and active) for a task.
+     * Note: Reader callback is executed while holding the task lock. Keep callback
+     * operations lightweight and in-memory (avoid heavy I/O or long-running work).
+     */
+    bool readAllBlocks(quint64 taskId, const std::function<void(const QVector<LogBlock>&)>& reader) const;
+
+    /**
+     * @brief Flushes active block for a task manually.
+     */
+    bool flushTask(quint64 taskId);
+
+    /**
+     * @brief Zero-copy inspection of a task's active log block.
+     * Invokes the reader callback with a const reference to the task's active LogBlock while locked.
      * Returns true if task was found, false otherwise.
+     * Note: Reader callback is executed while holding the task lock. Keep callback
+     * operations lightweight and in-memory (avoid heavy I/O or long-running work).
      */
     bool readLogBlock(quint64 taskId, const std::function<void(const LogBlock&)>& reader) const;
 
     /**
-     * @brief Retrieves an explicit read-only snapshot copy of the task's log block.
+     * @brief Retrieves an explicit read-only snapshot copy of the task's active log block.
      */
     LogBlock getLogBlockSnapshot(quint64 taskId) const;
 
@@ -64,6 +106,7 @@ private:
     mutable QMutex m_mutex;
     QHash<quint64, std::shared_ptr<TaskLoggingContext>> m_tasks;
     quint64 m_nextTaskId = 1;
+    qsizetype m_defaultBlockSizeThreshold = 0;
 };
 
 } // namespace Core::Logging

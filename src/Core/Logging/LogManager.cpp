@@ -16,7 +16,7 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskNa
         m_nextTaskId++;
     }
     quint64 id = m_nextTaskId++;
-    auto context = std::make_shared<TaskLoggingContext>(id, taskName);
+    auto context = std::make_shared<TaskLoggingContext>(id, taskName, m_defaultBlockSizeThreshold);
     m_tasks.insert(id, context);
     return context;
 }
@@ -28,7 +28,7 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const
         return nullptr;
     }
 
-    auto context = std::make_shared<TaskLoggingContext>(taskId, taskName);
+    auto context = std::make_shared<TaskLoggingContext>(taskId, taskName, m_defaultBlockSizeThreshold);
     m_tasks.insert(taskId, context);
 
     if (taskId >= m_nextTaskId && taskId != std::numeric_limits<quint64>::max()) {
@@ -83,6 +83,66 @@ bool LogManager::cancelTask(quint64 taskId, const QString& message)
         return false;
     }
     task->cancel(message);
+    return true;
+}
+
+qsizetype LogManager::defaultBlockSizeThreshold() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_defaultBlockSizeThreshold;
+}
+
+void LogManager::setDefaultBlockSizeThreshold(qsizetype bytes)
+{
+    QMutexLocker locker(&m_mutex);
+    m_defaultBlockSizeThreshold = std::max<qsizetype>(0, bytes);
+}
+
+QVector<LogBlock> LogManager::getSealedBlocks(quint64 taskId) const
+{
+    std::shared_ptr<TaskLoggingContext> task = findTask(taskId);
+    if (!task) {
+        return {};
+    }
+    return task->sealedBlocks();
+}
+
+bool LogManager::readSealedBlocks(quint64 taskId, const std::function<void(const QVector<LogBlock>&)>& reader) const
+{
+    std::shared_ptr<TaskLoggingContext> task = findTask(taskId);
+    if (!task) {
+        return false;
+    }
+    task->withSealedBlocks(reader);
+    return true;
+}
+
+QVector<LogBlock> LogManager::getAllBlocks(quint64 taskId) const
+{
+    std::shared_ptr<TaskLoggingContext> task = findTask(taskId);
+    if (!task) {
+        return {};
+    }
+    return task->allBlocks();
+}
+
+bool LogManager::readAllBlocks(quint64 taskId, const std::function<void(const QVector<LogBlock>&)>& reader) const
+{
+    std::shared_ptr<TaskLoggingContext> task = findTask(taskId);
+    if (!task) {
+        return false;
+    }
+    task->withAllBlocks(reader);
+    return true;
+}
+
+bool LogManager::flushTask(quint64 taskId)
+{
+    std::shared_ptr<TaskLoggingContext> task = findTask(taskId);
+    if (!task) {
+        return false;
+    }
+    task->flushActiveBlock();
     return true;
 }
 
