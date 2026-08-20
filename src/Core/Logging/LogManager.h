@@ -119,7 +119,8 @@ private:
     mutable QMutex m_mutex;
     QHash<quint64, std::shared_ptr<TaskLoggingContext>> m_tasks;
     QVector<std::shared_ptr<ILogSink>> m_sinks;
-    QHash<quint64, qsizetype> m_flushedBlockCounts;
+    // Independent block cursors per sink per task: [ILogSink* -> [taskId -> flushedBlockCount]]
+    QHash<ILogSink*, QHash<quint64, qsizetype>> m_sinkCursors;
     quint64 m_nextTaskId = 1;
     qsizetype m_defaultBlockSizeThreshold = 0;
 };

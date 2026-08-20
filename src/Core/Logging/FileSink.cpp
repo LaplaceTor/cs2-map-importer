@@ -35,7 +35,9 @@ bool FileSink::open(const QString& filePath)
     QFileInfo fileInfo(filePath);
     QDir dir = fileInfo.dir();
     if (!dir.exists()) {
-        dir.mkpath(".");
+        if (!dir.mkpath(".")) {
+            return false;
+        }
     }
 
     m_file.setFileName(filePath);
@@ -76,14 +78,14 @@ void FileSink::writeBlock(const LogBlock& block, const QString& taskName)
     }
 
     quint64 taskId = block.taskId();
+    quint64 blockIndex = block.blockIndex();
     const auto& entries = block.entries();
 
     for (const auto& entry : entries) {
-        QString line = formatEntry(entry.timestamp, taskId, taskName, entry.level, entry.message);
+        QString line = formatEntry(entry.timestamp, taskId, taskName, blockIndex, entry.sequence, entry.level, entry.message);
         m_stream << line << "\n";
     }
-
-    m_stream.flush();
+    // Stream buffering is maintained for I/O performance. Explicit flush() handles file flushing.
 }
 
 void FileSink::flush()
@@ -94,16 +96,20 @@ void FileSink::flush()
     }
 }
 
-QString FileSink::formatEntry(qint64 timestamp, quint64 taskId, const QString& taskName, LogLevel level, const QString& message)
+QString FileSink::formatEntry(qint64 timestamp, quint64 taskId, const QString& taskName, quint64 blockIndex, quint64 sequence, LogLevel level, const QString& message)
 {
-    // Format timestamp as ISO 8601 string: yyyy-MM-dd HH:mm:ss.zzz
     QString timeStr = QDateTime::fromMSecsSinceEpoch(timestamp, QTimeZone::utc()).toString("yyyy-MM-dd HH:mm:ss.zzz");
     QString levelStr = logLevelToString(level);
 
-    // Format: [2026-03-31 12:00:00.000] [Task 1 - MyTask] [INFO] Message
     QString namePart = taskName.isEmpty() ? QString("Task %1").arg(taskId) : QString("Task %1 - %2").arg(taskId).arg(taskName);
 
-    return QString("[%1] [%2] [%3] %4").arg(timeStr, namePart, levelStr, message);
+    return QString("[%1] [%2] [Block %3] [Seq %4] [%5] %6")
+        .arg(timeStr)
+        .arg(namePart)
+        .arg(blockIndex)
+        .arg(sequence)
+        .arg(levelStr)
+        .arg(message);
 }
 
 } // namespace Core::Logging

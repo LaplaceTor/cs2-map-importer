@@ -32,6 +32,8 @@ private slots:
     void testLogManagerGetSealedAndAllBlocks();
     void testTaskCompletionAutoSealsFinalBlock();
     void testFileSinkMultiTaskAndBlocks();
+    void testConcurrentFlushTasks();
+    void testDynamicAddSinkHistory();
 };
 
 void TestLogManager::init()
@@ -499,9 +501,10 @@ void TestLogManager::testFileSinkMultiTaskAndBlocks()
     QString betaIdStr = QString("Task %2").arg(task2->taskId());
 
     for (const QString& line : lines) {
-        // Format check: [timestamp] [Task ID - Task Name] [LEVEL] message
+        // Format check: [timestamp] [Task N - Name] [Block B] [Seq S] [LEVEL] message
         QVERIFY(line.startsWith("["));
-        QVERIFY(line.contains("] ["));
+        QVERIFY(line.contains("] [Block "));
+        QVERIFY(line.contains("] [Seq "));
 
         if (line.contains(alphaIdStr)) {
             QVERIFY(line.contains("Task Alpha"));
@@ -530,6 +533,109 @@ void TestLogManager::testFileSinkMultiTaskAndBlocks()
 
     QCOMPARE(alphaIndex, expectedAlphaTotal);
     QCOMPARE(betaIndex, expectedBetaTotal);
+}
+
+void TestLogManager::testConcurrentFlushTasks()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    QString logFilePath = tempDir.path() + "/concurrent_flush.log";
+
+    auto sink = std::make_shared<FileSink>(logFilePath);
+    LogManager::instance().addSink(sink);
+
+    const int taskCount = 10;
+    const int threadsPerTask = 3;
+    const int logsPerThread = 50;
+
+    QVector<std::shared_ptr<TaskLoggingContext>> tasks;
+    for (int i = 0; i < taskCount; ++i) {
+        auto t = LogManager::instance().createTask(QString("ConcurrentTask_%1").arg(i));
+        t->setBlockSizeThreshold(200); // generate multiple blocks
+        tasks.append(t);
+    }
+
+    QVector<QThread*> threads;
+    for (int taskIdx = 0; taskIdx < taskCount; ++taskIdx) {
+        auto task = tasks[taskIdx];
+        quint64 taskId = task->taskId();
+
+        for (int th = 0; th < threadsPerTask; ++th) {
+            threads.append(QThread::create([task, taskId, th, logsPerThread]() {
+                for (int i = 0; i < logsPerThread; ++i) {
+                    task->info(QString("Task %1 Th %2 Log %3").arg(taskId).arg(th).arg(i));
+                    if (i % 10 == 0) {
+                        LogManager::instance().flushTask(taskId);
+                    }
+                }
+            }));
+        }
+    }
+
+    for (auto* thread : threads) {
+        thread->start();
+    }
+
+    for (auto* thread : threads) {
+        thread->wait();
+        delete thread;
+    }
+
+    LogManager::instance().flushAll();
+    sink->close();
+
+    QFile file(logFilePath);
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    QTextStream in(&file);
+
+    int totalLines = 0;
+    while (!in.atEnd()) {
+        QString line = in.readLine().trimmed();
+        if (!line.isEmpty()) {
+            totalLines++;
+        }
+    }
+
+    const int expectedTotalLogs = taskCount * threadsPerTask * logsPerThread;
+    QCOMPARE(totalLines, expectedTotalLogs);
+}
+
+void TestLogManager::testDynamicAddSinkHistory()
+{
+    auto task = LogManager::instance().createTask("History Task");
+    task->setBlockSizeThreshold(100);
+
+    for (int i = 0; i < 20; ++i) {
+        task->info(QString("History Log Entry %1").arg(i));
+    }
+    QVERIFY(task->sealedBlockCount() > 0);
+
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    QString logFilePath = tempDir.path() + "/late_sink.log";
+
+    // Add sink after task produced sealed blocks
+    auto lateSink = std::make_shared<FileSink>(logFilePath);
+    LogManager::instance().addSink(lateSink);
+
+    // Flush task to lateSink
+    LogManager::instance().finishTask(task->taskId(), "Task Finished");
+    lateSink->close();
+
+    QFile file(logFilePath);
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    QTextStream in(&file);
+
+    int lineCount = 0;
+    while (!in.atEnd()) {
+        QString line = in.readLine().trimmed();
+        if (!line.isEmpty()) {
+            lineCount++;
+        }
+    }
+
+    // 20 entries + 1 finish message = 21 lines in late-added sink
+    QCOMPARE(lineCount, 21);
 }
 
 QTEST_MAIN(TestLogManager)

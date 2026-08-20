@@ -98,6 +98,7 @@ void LogManager::addSink(std::shared_ptr<ILogSink> sink)
     QMutexLocker locker(&m_mutex);
     if (!m_sinks.contains(sink)) {
         m_sinks.append(sink);
+        m_sinkCursors.insert(sink.get(), QHash<quint64, qsizetype>());
     }
 }
 
@@ -108,12 +109,14 @@ void LogManager::removeSink(std::shared_ptr<ILogSink> sink)
     }
     QMutexLocker locker(&m_mutex);
     m_sinks.removeOne(sink);
+    m_sinkCursors.remove(sink.get());
 }
 
 void LogManager::clearSinks()
 {
     QMutexLocker locker(&m_mutex);
     m_sinks.clear();
+    m_sinkCursors.clear();
 }
 
 void LogManager::flushAll()
@@ -177,42 +180,60 @@ bool LogManager::readAllBlocks(quint64 taskId, const std::function<void(const QV
 bool LogManager::flushTask(quint64 taskId)
 {
     std::shared_ptr<TaskLoggingContext> task;
-    QVector<std::shared_ptr<ILogSink>> sinks;
     {
         QMutexLocker locker(&m_mutex);
         task = m_tasks.value(taskId, nullptr);
-        sinks = m_sinks;
     }
     if (!task) {
         return false;
     }
 
-    // Flush active block in task
+    // Flush active block in task (Task-level mutex, no LogManager global lock held)
     task->flushActiveBlock();
 
-    if (sinks.isEmpty()) {
-        return true;
-    }
+    struct SinkWork {
+        std::shared_ptr<ILogSink> sink;
+        QVector<LogBlock> blocks;
+        QString taskName;
+    };
+    QVector<SinkWork> pendingWork;
 
-    // Get task name and sealed blocks
-    QString taskName = task->taskName();
-    QVector<LogBlock> sealedBlocks = task->sealedBlocks();
-
-    QMutexLocker locker(&m_mutex);
-    qsizetype startIdx = m_flushedBlockCounts.value(taskId, 0);
-    qsizetype totalCount = sealedBlocks.size();
-
-    for (qsizetype i = startIdx; i < totalCount; ++i) {
-        const auto& block = sealedBlocks[i];
-        for (const auto& sink : sinks) {
-            sink->writeBlock(block, taskName);
+    {
+        QMutexLocker locker(&m_mutex);
+        if (m_sinks.isEmpty()) {
+            return true;
         }
-    }
 
-    m_flushedBlockCounts[taskId] = totalCount;
+        QString taskName = task->taskName();
+        QVector<LogBlock> sealedBlocks = task->sealedBlocks();
+        qsizetype totalSealedCount = sealedBlocks.size();
 
-    for (const auto& sink : sinks) {
-        sink->flush();
+        for (const auto& sink : m_sinks) {
+            ILogSink* sinkPtr = sink.get();
+            qsizetype currentCursor = m_sinkCursors[sinkPtr].value(taskId, 0);
+
+            if (currentCursor < totalSealedCount) {
+                QVector<LogBlock> blocksToDispatch;
+                blocksToDispatch.reserve(totalSealedCount - currentCursor);
+
+                for (qsizetype i = currentCursor; i < totalSealedCount; ++i) {
+                    blocksToDispatch.append(sealedBlocks[i]);
+                }
+
+                // Advance the per-sink cursor inside the lock to reserve work and avoid duplicated writes
+                m_sinkCursors[sinkPtr][taskId] = totalSealedCount;
+
+                pendingWork.append(SinkWork{sink, std::move(blocksToDispatch), taskName});
+            }
+        }
+    } // Unlock LogManager::m_mutex
+
+    // Perform Sink I/O outside LogManager global lock
+    for (const auto& work : pendingWork) {
+        for (const auto& block : work.blocks) {
+            work.sink->writeBlock(block, work.taskName);
+        }
+        work.sink->flush();
     }
 
     return true;
@@ -266,8 +287,8 @@ void LogManager::clear()
 {
     QMutexLocker locker(&m_mutex);
     m_tasks.clear();
-    m_flushedBlockCounts.clear();
     m_sinks.clear();
+    m_sinkCursors.clear();
 }
 
 } // namespace Core::Logging

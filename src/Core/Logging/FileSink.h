@@ -56,7 +56,7 @@ public:
     /**
      * @brief Formats a single log entry into a string line.
      */
-    static QString formatEntry(qint64 timestamp, quint64 taskId, const QString& taskName, LogLevel level, const QString& message);
+    static QString formatEntry(qint64 timestamp, quint64 taskId, const QString& taskName, quint64 blockIndex, quint64 sequence, LogLevel level, const QString& message);
 
 private:
     mutable QMutex m_mutex;
