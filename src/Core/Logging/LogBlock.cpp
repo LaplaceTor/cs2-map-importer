@@ -2,8 +2,8 @@
 
 namespace Core::Logging {
 
-LogBlock::LogBlock(QString taskId, std::uint64_t blockIndex)
-    : m_taskId(std::move(taskId))
+LogBlock::LogBlock(quint64 taskId, quint64 blockIndex)
+    : m_taskId(taskId)
     , m_blockIndex(blockIndex)
 {
 }
@@ -43,7 +43,6 @@ std::size_t LogBlock::size() const noexcept
 void LogBlock::seal() noexcept
 {
     m_sealed = true;
-    m_entries.squeeze();
 }
 
 bool LogBlock::isSealed() const noexcept

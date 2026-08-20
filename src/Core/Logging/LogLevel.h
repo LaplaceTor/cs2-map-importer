@@ -8,7 +8,8 @@ enum class LogLevel {
     Debug,
     Info,
     Warning,
-    Error
+    Error,
+    Critical
 };
 
 inline QString logLevelToString(LogLevel level)
@@ -22,6 +23,8 @@ inline QString logLevelToString(LogLevel level)
         return QStringLiteral("WARNING");
     case LogLevel::Error:
         return QStringLiteral("ERROR");
+    case LogLevel::Critical:
+        return QStringLiteral("CRITICAL");
     }
     return QStringLiteral("UNKNOWN");
 }

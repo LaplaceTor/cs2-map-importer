@@ -1,8 +1,7 @@
 #pragma once
 
-#include <QString>
-#include <QList>
-#include <cstdint>
+#include <QVector>
+#include <QtGlobal>
 #include <cstddef>
 
 #include "LogEntry.h"
@@ -11,7 +10,7 @@ namespace Core::Logging {
 
 class LogBlock {
 public:
-    explicit LogBlock(QString taskId = QString(), std::uint64_t blockIndex = 0);
+    explicit LogBlock(quint64 taskId = 0, quint64 blockIndex = 0);
     ~LogBlock() = default;
 
     // Move construct / assign allowed; copy disabled to avoid unintentional duplication of large log blocks
@@ -20,8 +19,8 @@ public:
     LogBlock(LogBlock&&) noexcept = default;
     LogBlock& operator=(LogBlock&&) noexcept = default;
 
-    const QString& taskId() const noexcept { return m_taskId; }
-    std::uint64_t blockIndex() const noexcept { return m_blockIndex; }
+    quint64 taskId() const noexcept { return m_taskId; }
+    quint64 blockIndex() const noexcept { return m_blockIndex; }
 
     bool append(const LogEntry& entry);
     bool append(LogEntry&& entry);
@@ -32,12 +31,12 @@ public:
     void seal() noexcept;
     bool isSealed() const noexcept;
 
-    const QList<LogEntry>& entries() const noexcept { return m_entries; }
+    const QVector<LogEntry>& entries() const noexcept { return m_entries; }
 
 private:
-    QString m_taskId;
-    std::uint64_t m_blockIndex = 0;
-    QList<LogEntry> m_entries;
+    quint64 m_taskId = 0;
+    quint64 m_blockIndex = 0;
+    QVector<LogEntry> m_entries;
     std::size_t m_totalByteSize = 0;
     bool m_sealed = false;
 };
