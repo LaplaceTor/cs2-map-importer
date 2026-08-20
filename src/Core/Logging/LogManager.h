@@ -38,8 +38,36 @@ public:
     bool failTask(quint64 taskId, const QString& message = QString());
     bool cancelTask(quint64 taskId, const QString& message = QString());
 
+    qsizetype defaultBlockSizeThreshold() const;
+    void setDefaultBlockSizeThreshold(qsizetype bytes);
+
     /**
-     * @brief Zero-copy inspection of a task's log block.
+     * @brief Retrieves already sealed blocks for a task.
+     */
+    QVector<LogBlock> getSealedBlocks(quint64 taskId) const;
+
+    /**
+     * @brief Zero-copy inspection of a task's sealed log blocks.
+     */
+    bool readSealedBlocks(quint64 taskId, const std::function<void(const QVector<LogBlock>&)>& reader) const;
+
+    /**
+     * @brief Retrieves all blocks (sealed and active) for a task.
+     */
+    QVector<LogBlock> getAllBlocks(quint64 taskId) const;
+
+    /**
+     * @brief Zero-copy inspection of all blocks (sealed and active) for a task.
+     */
+    bool readAllBlocks(quint64 taskId, const std::function<void(const QVector<LogBlock>&)>& reader) const;
+
+    /**
+     * @brief Flushes active block for a task manually.
+     */
+    bool flushTask(quint64 taskId);
+
+    /**
+     * @brief Zero-copy inspection of a task's active log block.
      * Invokes the reader callback with a const reference to the task's LogBlock while locked.
      * Returns true if task was found, false otherwise.
      */
@@ -64,6 +92,7 @@ private:
     mutable QMutex m_mutex;
     QHash<quint64, std::shared_ptr<TaskLoggingContext>> m_tasks;
     quint64 m_nextTaskId = 1;
+    qsizetype m_defaultBlockSizeThreshold = 0;
 };
 
 } // namespace Core::Logging

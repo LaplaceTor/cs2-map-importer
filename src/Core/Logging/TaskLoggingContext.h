@@ -14,7 +14,7 @@ namespace Core::Logging {
 
 class TaskLoggingContext {
 public:
-    explicit TaskLoggingContext(quint64 taskId, QString taskName = QString());
+    explicit TaskLoggingContext(quint64 taskId, QString taskName = QString(), qsizetype blockSizeThreshold = 0);
     ~TaskLoggingContext() = default;
 
     TaskLoggingContext(const TaskLoggingContext&) = delete;
@@ -35,14 +35,28 @@ public:
     QString currentMessage() const;
     void updateCurrentMessage(const QString& message);
 
+    qsizetype blockSizeThreshold() const;
+    void setBlockSizeThreshold(qsizetype bytes);
+
+    void flushActiveBlock();
+
+    QVector<LogBlock> sealedBlocks() const;
+    void withSealedBlocks(const std::function<void(const QVector<LogBlock>&)>& reader) const;
+
+    QVector<LogBlock> allBlocks() const;
+    void withAllBlocks(const std::function<void(const QVector<LogBlock>&)>& reader) const;
+
+    qsizetype sealedBlockCount() const;
+    qsizetype totalBlockCount() const;
+
     /**
-     * @brief Zero-copy reader callback for log block inspection.
+     * @brief Zero-copy reader callback for active log block inspection.
      * Note: Executed while holding the task lock. For lightweight/in-memory inspections,
      * this avoids copying. For long-running or IO operations, prefer logBlockSnapshot().
      */
     void withLogBlock(const std::function<void(const LogBlock&)>& reader) const;
 
-    // Explicit read-only snapshot of the current log block
+    // Explicit read-only merged snapshot of all entries across blocks
     LogBlock logBlockSnapshot() const;
 
     // Logging methods
@@ -69,13 +83,18 @@ public:
     }
 
 private:
+    void checkAndFlushActiveBlockLocked();
+    void flushActiveBlockLocked();
+
     quint64 m_taskId = 0;
     mutable QRecursiveMutex m_mutex;
     QString m_taskName;
     TaskState m_state = TaskState::Pending;
     double m_progress = 0.0;
     QString m_currentMessage;
-    LogBlock m_logBlock;
+    QVector<LogBlock> m_sealedBlocks;
+    LogBlock m_activeBlock;
+    qsizetype m_blockSizeThreshold = 0; // 0 means unlimited
     quint64 m_nextSequence = 1; // Task-local log entry sequence number
 };
 

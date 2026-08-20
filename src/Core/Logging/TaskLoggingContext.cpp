@@ -4,10 +4,11 @@
 
 namespace Core::Logging {
 
-TaskLoggingContext::TaskLoggingContext(quint64 taskId, QString taskName)
+TaskLoggingContext::TaskLoggingContext(quint64 taskId, QString taskName, qsizetype blockSizeThreshold)
     : m_taskId(taskId)
     , m_taskName(std::move(taskName))
-    , m_logBlock(taskId)
+    , m_activeBlock(taskId, 0)
+    , m_blockSizeThreshold(std::max<qsizetype>(0, blockSizeThreshold))
 {
 }
 
@@ -56,19 +57,93 @@ void TaskLoggingContext::updateCurrentMessage(const QString& message)
     m_currentMessage = message;
 }
 
+qsizetype TaskLoggingContext::blockSizeThreshold() const
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    return m_blockSizeThreshold;
+}
+
+void TaskLoggingContext::setBlockSizeThreshold(qsizetype bytes)
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    m_blockSizeThreshold = std::max<qsizetype>(0, bytes);
+    checkAndFlushActiveBlockLocked();
+}
+
+void TaskLoggingContext::flushActiveBlock()
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    flushActiveBlockLocked();
+}
+
+QVector<LogBlock> TaskLoggingContext::sealedBlocks() const
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    return m_sealedBlocks;
+}
+
+void TaskLoggingContext::withSealedBlocks(const std::function<void(const QVector<LogBlock>&)>& reader) const
+{
+    if (!reader) {
+        return;
+    }
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    reader(m_sealedBlocks);
+}
+
+QVector<LogBlock> TaskLoggingContext::allBlocks() const
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    QVector<LogBlock> result = m_sealedBlocks;
+    result.append(m_activeBlock);
+    return result;
+}
+
+void TaskLoggingContext::withAllBlocks(const std::function<void(const QVector<LogBlock>&)>& reader) const
+{
+    if (!reader) {
+        return;
+    }
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    QVector<LogBlock> result = m_sealedBlocks;
+    result.append(m_activeBlock);
+    reader(result);
+}
+
+qsizetype TaskLoggingContext::sealedBlockCount() const
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    return m_sealedBlocks.size();
+}
+
+qsizetype TaskLoggingContext::totalBlockCount() const
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    return m_sealedBlocks.size() + 1;
+}
+
 void TaskLoggingContext::withLogBlock(const std::function<void(const LogBlock&)>& reader) const
 {
     if (!reader) {
         return;
     }
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
-    reader(m_logBlock);
+    reader(m_activeBlock);
 }
 
 LogBlock TaskLoggingContext::logBlockSnapshot() const
 {
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
-    return m_logBlock;
+    LogBlock combined(m_taskId, 0);
+    for (const auto& block : m_sealedBlocks) {
+        for (const auto& entry : block.entries()) {
+            combined.append(entry);
+        }
+    }
+    for (const auto& entry : m_activeBlock.entries()) {
+        combined.append(entry);
+    }
+    return combined;
 }
 
 void TaskLoggingContext::debug(const QString& message)
@@ -100,7 +175,8 @@ void TaskLoggingContext::log(LogLevel level, const QString& message)
     entry.level = level;
     entry.message = message;
 
-    m_logBlock.append(std::move(entry));
+    m_activeBlock.append(std::move(entry));
+    checkAndFlushActiveBlockLocked();
 }
 
 bool TaskLoggingContext::start()
@@ -127,7 +203,8 @@ bool TaskLoggingContext::complete(const QString& message)
         entry.timestamp = QDateTime::currentMSecsSinceEpoch();
         entry.level = LogLevel::Info;
         entry.message = message;
-        m_logBlock.append(std::move(entry));
+        m_activeBlock.append(std::move(entry));
+        checkAndFlushActiveBlockLocked();
     }
     m_state = TaskState::Completed;
     return true;
@@ -146,7 +223,8 @@ bool TaskLoggingContext::fail(const QString& message)
         entry.timestamp = QDateTime::currentMSecsSinceEpoch();
         entry.level = LogLevel::Error;
         entry.message = message;
-        m_logBlock.append(std::move(entry));
+        m_activeBlock.append(std::move(entry));
+        checkAndFlushActiveBlockLocked();
     }
     m_state = TaskState::Failed;
     return true;
@@ -165,10 +243,29 @@ bool TaskLoggingContext::cancel(const QString& message)
         entry.timestamp = QDateTime::currentMSecsSinceEpoch();
         entry.level = LogLevel::Warning;
         entry.message = message;
-        m_logBlock.append(std::move(entry));
+        m_activeBlock.append(std::move(entry));
+        checkAndFlushActiveBlockLocked();
     }
     m_state = TaskState::Cancelled;
     return true;
+}
+
+void TaskLoggingContext::checkAndFlushActiveBlockLocked()
+{
+    if (m_blockSizeThreshold > 0 && m_activeBlock.size() >= m_blockSizeThreshold) {
+        flushActiveBlockLocked();
+    }
+}
+
+void TaskLoggingContext::flushActiveBlockLocked()
+{
+    if (m_activeBlock.entryCount() == 0) {
+        return;
+    }
+    m_activeBlock.seal();
+    m_sealedBlocks.append(std::move(m_activeBlock));
+    quint64 nextBlockIndex = static_cast<quint64>(m_sealedBlocks.size());
+    m_activeBlock = LogBlock(m_taskId, nextBlockIndex);
 }
 
 } // namespace Core::Logging
