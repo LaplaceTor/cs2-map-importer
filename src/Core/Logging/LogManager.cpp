@@ -1,5 +1,6 @@
 #include "LogManager.h"
 #include <QMutexLocker>
+#include <limits>
 
 namespace Core::Logging {
 
@@ -54,8 +55,9 @@ bool LogManager::finishTask(quint64 taskId, const QString& message)
     if (!task) {
         return false;
     }
-    task->complete(message);
-    return true;
+    bool result = task->complete(message);
+    bool flushOk = flushTask(taskId);
+    return result && flushOk;
 }
 
 bool LogManager::failTask(quint64 taskId, const QString& message)
@@ -68,8 +70,9 @@ bool LogManager::failTask(quint64 taskId, const QString& message)
     if (!task) {
         return false;
     }
-    task->fail(message);
-    return true;
+    bool result = task->fail(message);
+    bool flushOk = flushTask(taskId);
+    return result && flushOk;
 }
 
 bool LogManager::cancelTask(quint64 taskId, const QString& message)
@@ -82,8 +85,46 @@ bool LogManager::cancelTask(quint64 taskId, const QString& message)
     if (!task) {
         return false;
     }
-    task->cancel(message);
-    return true;
+    bool result = task->cancel(message);
+    bool flushOk = flushTask(taskId);
+    return result && flushOk;
+}
+
+void LogManager::addSink(std::shared_ptr<ILogSink> sink)
+{
+    if (!sink) {
+        return;
+    }
+    QMutexLocker locker(&m_mutex);
+    if (!m_sinks.contains(sink)) {
+        m_sinks.append(sink);
+        m_sinkCursors.insert(sink->sinkId(), QHash<quint64, SinkCursor>());
+    }
+}
+
+void LogManager::removeSink(std::shared_ptr<ILogSink> sink)
+{
+    if (!sink) {
+        return;
+    }
+    QMutexLocker locker(&m_mutex);
+    m_sinks.removeOne(sink);
+    m_sinkCursors.remove(sink->sinkId());
+}
+
+void LogManager::clearSinks()
+{
+    QMutexLocker locker(&m_mutex);
+    m_sinks.clear();
+    m_sinkCursors.clear();
+}
+
+void LogManager::flushAll()
+{
+    QVector<quint64> ids = taskIds();
+    for (quint64 id : ids) {
+        flushTask(id);
+    }
 }
 
 qsizetype LogManager::defaultBlockSizeThreshold() const
@@ -138,12 +179,107 @@ bool LogManager::readAllBlocks(quint64 taskId, const std::function<void(const QV
 
 bool LogManager::flushTask(quint64 taskId)
 {
-    std::shared_ptr<TaskLoggingContext> task = findTask(taskId);
+    std::shared_ptr<TaskLoggingContext> task;
+    {
+        QMutexLocker locker(&m_mutex);
+        task = m_tasks.value(taskId, nullptr);
+    }
     if (!task) {
         return false;
     }
+
+    // Serialize flush operations per task across threads
+    QMutexLocker taskFlushLocker(&task->flushMutex());
+
+    // Seal active block in task (Task-level lock, no LogManager global lock)
     task->flushActiveBlock();
-    return true;
+
+    struct SinkWork {
+        std::shared_ptr<ILogSink> sink;
+        quint64 sinkId = 0;
+        QVector<LogBlock> blocks;
+        QString taskName;
+    };
+    QVector<SinkWork> pendingWork;
+
+    // Phase 1: Reserve unflushed blocks under LogManager lock
+    {
+        QMutexLocker locker(&m_mutex);
+        if (m_sinks.isEmpty()) {
+            return true;
+        }
+
+        QString taskName = task->taskName();
+        QVector<LogBlock> sealedBlocks = task->sealedBlocks();
+        qsizetype totalSealedCount = sealedBlocks.size();
+
+        for (const auto& sink : m_sinks) {
+            quint64 sId = sink->sinkId();
+            SinkCursor& cursor = m_sinkCursors[sId][taskId];
+
+            if (cursor.reserved < totalSealedCount) {
+                QVector<LogBlock> blocksToDispatch;
+                blocksToDispatch.reserve(totalSealedCount - cursor.reserved);
+
+                for (qsizetype i = cursor.reserved; i < totalSealedCount; ++i) {
+                    blocksToDispatch.append(sealedBlocks[i]);
+                }
+
+                // Advance reserved cursor
+                cursor.reserved = totalSealedCount;
+
+                pendingWork.append(SinkWork{sink, sId, std::move(blocksToDispatch), taskName});
+            }
+        }
+    } // Unlock LogManager::m_mutex
+
+    if (pendingWork.isEmpty()) {
+        return true;
+    }
+
+    bool overallSuccess = true;
+
+    // Phase 2: Execute Sink I/O outside of LogManager lock
+    for (const auto& work : pendingWork) {
+        qsizetype successCount = 0;
+        bool writeAllOk = true;
+
+        for (const auto& block : work.blocks) {
+            if (work.sink->writeBlock(block, work.taskName)) {
+                successCount++;
+            } else {
+                writeAllOk = false;
+                break;
+            }
+        }
+
+        bool flushOk = true;
+        if (successCount > 0) {
+            if (!work.sink->flush()) {
+                flushOk = false;
+            }
+        }
+
+        if (!writeAllOk || !flushOk) {
+            overallSuccess = false;
+        }
+
+        // Phase 3: Transactional Commit / Rollback under LogManager lock
+        QMutexLocker locker(&m_mutex);
+        if (!m_sinkCursors.contains(work.sinkId)) {
+            // Sink was removed during I/O; ignore state update safely
+            continue;
+        }
+
+        SinkCursor& cursor = m_sinkCursors[work.sinkId][taskId];
+        if (writeAllOk && flushOk) {
+            cursor.committed = cursor.reserved;
+        } else {
+            cursor.reserved = cursor.committed;
+        }
+    }
+
+    return overallSuccess;
 }
 
 bool LogManager::readLogBlock(quint64 taskId, const std::function<void(const LogBlock&)>& reader) const
@@ -194,6 +330,8 @@ void LogManager::clear()
 {
     QMutexLocker locker(&m_mutex);
     m_tasks.clear();
+    m_sinks.clear();
+    m_sinkCursors.clear();
 }
 
 } // namespace Core::Logging

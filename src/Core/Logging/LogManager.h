@@ -7,6 +7,7 @@
 #include <functional>
 #include <memory>
 
+#include "ILogSink.h"
 #include "LogBlock.h"
 #include "TaskLoggingContext.h"
 
@@ -14,6 +15,11 @@ namespace Core::Logging {
 
 class LogManager {
 public:
+    struct SinkCursor {
+        qsizetype committed = 0;
+        qsizetype reserved = 0;
+    };
+
     LogManager() = default;
     ~LogManager() = default;
 
@@ -37,6 +43,18 @@ public:
     bool finishTask(quint64 taskId, const QString& message = QString());
     bool failTask(quint64 taskId, const QString& message = QString());
     bool cancelTask(quint64 taskId, const QString& message = QString());
+
+    /**
+     * @brief Sink Management APIs
+     */
+    void addSink(std::shared_ptr<ILogSink> sink);
+    void removeSink(std::shared_ptr<ILogSink> sink);
+    void clearSinks();
+
+    /**
+     * @brief Flushes all active blocks across all tasks and writes sealed blocks to registered sinks.
+     */
+    void flushAll();
 
     /**
      * @brief Get default block size threshold in bytes (estimated memory footprint).
@@ -74,7 +92,7 @@ public:
     bool readAllBlocks(quint64 taskId, const std::function<void(const QVector<LogBlock>&)>& reader) const;
 
     /**
-     * @brief Flushes active block for a task manually.
+     * @brief Flushes active block for a task manually and outputs unwritten sealed blocks to sinks.
      */
     bool flushTask(quint64 taskId);
 
@@ -96,7 +114,7 @@ public:
     qsizetype taskCount() const;
 
     /**
-     * @brief Clears the LogManager registry.
+     * @brief Clears the LogManager registry and registered sinks.
      * Note: This removes task references from the LogManager registry. It does not force-kill
      * or alter external tasks that hold a std::shared_ptr<TaskLoggingContext> reference.
      */
@@ -105,6 +123,9 @@ public:
 private:
     mutable QMutex m_mutex;
     QHash<quint64, std::shared_ptr<TaskLoggingContext>> m_tasks;
+    QVector<std::shared_ptr<ILogSink>> m_sinks;
+    // Independent block cursors per sink ID per task ID: [sinkId -> [taskId -> SinkCursor]]
+    QHash<quint64, QHash<quint64, SinkCursor>> m_sinkCursors;
     quint64 m_nextTaskId = 1;
     qsizetype m_defaultBlockSizeThreshold = 0;
 };
