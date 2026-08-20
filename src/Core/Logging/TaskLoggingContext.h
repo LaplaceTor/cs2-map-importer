@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDateTime>
+#include <QMutex>
 #include <QRecursiveMutex>
 #include <QString>
 #include <QtGlobal>
@@ -23,6 +24,8 @@ public:
     TaskLoggingContext& operator=(TaskLoggingContext&&) noexcept = delete;
 
     quint64 taskId() const noexcept { return m_taskId; }
+
+    QMutex& flushMutex() const noexcept { return m_flushMutex; }
 
     QString taskName() const;
     void setTaskName(const QString& name);
@@ -108,6 +111,7 @@ private:
 
     quint64 m_taskId = 0;
     mutable QRecursiveMutex m_mutex;
+    mutable QMutex m_flushMutex;
     QString m_taskName;
     TaskState m_state = TaskState::Pending;
     double m_progress = 0.0;

@@ -188,6 +188,9 @@ bool LogManager::flushTask(quint64 taskId)
         return false;
     }
 
+    // Serialize flush operations per task across threads
+    QMutexLocker taskFlushLocker(&task->flushMutex());
+
     // Seal active block in task (Task-level lock, no LogManager global lock)
     task->flushActiveBlock();
 

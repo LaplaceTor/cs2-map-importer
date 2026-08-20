@@ -56,6 +56,7 @@ private slots:
     void testTaskCompletionAutoSealsFinalBlock();
     void testFileSinkMultiTaskAndBlocks();
     void testConcurrentFlushTasks();
+    void testConcurrentFlushStrictBlockOrder();
     void testDynamicAddSinkHistory();
     void testSinkErrorAndCursorRollback();
     void testFlushFailureRetryAndCursorRollback();
@@ -627,6 +628,83 @@ void TestLogManager::testConcurrentFlushTasks()
 
     const int expectedTotalLogs = taskCount * threadsPerTask * logsPerThread;
     QCOMPARE(totalLines, expectedTotalLogs);
+}
+
+void TestLogManager::testConcurrentFlushStrictBlockOrder()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    QString logFilePath = tempDir.path() + "/strict_block_order.log";
+
+    auto sink = std::make_shared<FileSink>(logFilePath);
+    LogManager::instance().addSink(sink);
+
+    auto task = LogManager::instance().createTask("Strict Block Order Task");
+    task->setBlockSizeThreshold(100);
+
+    const int threadCount = 8;
+    const int logsPerThread = 100;
+
+    QVector<QThread*> threads;
+    for (int t = 0; t < threadCount; ++t) {
+        threads.append(QThread::create([task, logsPerThread]() {
+            for (int i = 0; i < logsPerThread; ++i) {
+                task->info("Content block entry");
+                if (i % 5 == 0) {
+                    LogManager::instance().flushTask(task->taskId());
+                }
+            }
+        }));
+    }
+
+    for (auto* thread : threads) {
+        thread->start();
+    }
+    for (auto* thread : threads) {
+        thread->wait();
+        delete thread;
+    }
+
+    LogManager::instance().finishTask(task->taskId(), "Finished");
+    sink->close();
+
+    QFile file(logFilePath);
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    QTextStream in(&file);
+
+    quint64 lastBlockIndex = 0;
+    quint64 lastSeq = 0;
+    int lineCount = 0;
+
+    while (!in.atEnd()) {
+        QString line = in.readLine().trimmed();
+        if (line.isEmpty()) {
+            continue;
+        }
+        lineCount++;
+
+        // Parse block index and seq from formatted line: "... [Block B] [Seq S] ..."
+        int blockPos = line.indexOf("[Block ");
+        int seqPos = line.indexOf("[Seq ");
+        QVERIFY(blockPos != -1);
+        QVERIFY(seqPos != -1);
+
+        int blockEnd = line.indexOf("]", blockPos);
+        int seqEnd = line.indexOf("]", seqPos);
+
+        quint64 blockIdx = line.mid(blockPos + 7, blockEnd - (blockPos + 7)).toULongLong();
+        quint64 seq = line.mid(seqPos + 5, seqEnd - (seqPos + 5)).toULongLong();
+
+        QVERIFY(blockIdx >= lastBlockIndex);
+        if (blockIdx == lastBlockIndex) {
+            QVERIFY(seq > lastSeq);
+        }
+        lastBlockIndex = blockIdx;
+        lastSeq = seq;
+    }
+
+    const int expectedLines = threadCount * logsPerThread + 1;
+    QCOMPARE(lineCount, expectedLines);
 }
 
 void TestLogManager::testDynamicAddSinkHistory()
