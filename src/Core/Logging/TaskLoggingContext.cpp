@@ -1,6 +1,6 @@
 #include "TaskLoggingContext.h"
 #include <algorithm>
-#include <QMutexLocker>
+#include <QRecursiveMutex>
 
 namespace Core::Logging {
 
@@ -13,31 +13,31 @@ TaskLoggingContext::TaskLoggingContext(quint64 taskId, QString taskName)
 
 QString TaskLoggingContext::taskName() const
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     return m_taskName;
 }
 
 void TaskLoggingContext::setTaskName(const QString& name)
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     m_taskName = name;
 }
 
 TaskState TaskLoggingContext::state() const noexcept
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     return m_state;
 }
 
 double TaskLoggingContext::progress() const noexcept
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     return m_progress;
 }
 
 void TaskLoggingContext::updateProgress(double progress, const QString& message)
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     m_progress = std::clamp(progress, 0.0, 1.0);
     if (!message.isEmpty()) {
         m_currentMessage = message;
@@ -46,13 +46,13 @@ void TaskLoggingContext::updateProgress(double progress, const QString& message)
 
 QString TaskLoggingContext::currentMessage() const
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     return m_currentMessage;
 }
 
 void TaskLoggingContext::updateCurrentMessage(const QString& message)
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     m_currentMessage = message;
 }
 
@@ -61,13 +61,13 @@ void TaskLoggingContext::withLogBlock(const std::function<void(const LogBlock&)>
     if (!reader) {
         return;
     }
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     reader(m_logBlock);
 }
 
 LogBlock TaskLoggingContext::logBlockSnapshot() const
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     return m_logBlock;
 }
 
@@ -93,7 +93,7 @@ void TaskLoggingContext::error(const QString& message)
 
 void TaskLoggingContext::log(LogLevel level, const QString& message)
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     LogEntry entry;
     entry.sequence = m_nextSequence++;
     entry.timestamp = QDateTime::currentMSecsSinceEpoch();
@@ -105,7 +105,7 @@ void TaskLoggingContext::log(LogLevel level, const QString& message)
 
 bool TaskLoggingContext::start()
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     if (isTerminalState(m_state)) {
         return false;
     }
@@ -115,7 +115,7 @@ bool TaskLoggingContext::start()
 
 bool TaskLoggingContext::complete(const QString& message)
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     if (isTerminalState(m_state)) {
         return false;
     }
@@ -135,7 +135,7 @@ bool TaskLoggingContext::complete(const QString& message)
 
 bool TaskLoggingContext::fail(const QString& message)
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     if (isTerminalState(m_state)) {
         return false;
     }
@@ -154,7 +154,7 @@ bool TaskLoggingContext::fail(const QString& message)
 
 bool TaskLoggingContext::cancel(const QString& message)
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     if (isTerminalState(m_state)) {
         return false;
     }

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <QDateTime>
-#include <QMutex>
+#include <QRecursiveMutex>
 #include <QString>
 #include <QtGlobal>
 #include <functional>
@@ -35,7 +35,11 @@ public:
     QString currentMessage() const;
     void updateCurrentMessage(const QString& message);
 
-    // Zero-copy reader callback for log block inspection
+    /**
+     * @brief Zero-copy reader callback for log block inspection.
+     * Note: Executed while holding the task lock. For lightweight/in-memory inspections,
+     * this avoids copying. For long-running or IO operations, prefer logBlockSnapshot().
+     */
     void withLogBlock(const std::function<void(const LogBlock&)>& reader) const;
 
     // Explicit read-only snapshot of the current log block
@@ -48,8 +52,12 @@ public:
     void error(const QString& message);
     void log(LogLevel level, const QString& message);
 
-    // Lifecycle methods with state machine enforcement:
-    // Pending -> Running -> (Completed | Failed | Cancelled)
+    /**
+     * @brief Lifecycle state transitions:
+     * Pending -> Running | Completed | Failed | Cancelled
+     * Running -> Completed | Failed | Cancelled
+     * Completed | Failed | Cancelled -> Terminal (non-transitionable)
+     */
     bool start();
     bool complete(const QString& message = QString());
     bool fail(const QString& message = QString());
@@ -62,7 +70,7 @@ public:
 
 private:
     quint64 m_taskId = 0;
-    mutable QMutex m_mutex;
+    mutable QRecursiveMutex m_mutex;
     QString m_taskName;
     TaskState m_state = TaskState::Pending;
     double m_progress = 0.0;

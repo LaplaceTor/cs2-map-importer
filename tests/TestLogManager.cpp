@@ -23,6 +23,7 @@ private slots:
     void testMultiThreadTaskCreation();
     void testMultiThreadLogWritingAndIsolation();
     void testLogSequenceOrder();
+    void testReentrantReadLogBlock();
 };
 
 void TestLogManager::init()
@@ -238,6 +239,22 @@ void TestLogManager::testLogSequenceOrder()
         }
     });
     QVERIFY(readSuccess);
+}
+
+void TestLogManager::testReentrantReadLogBlock()
+{
+    auto task = LogManager::instance().createTask("Reentrant Test Task");
+    task->info("Initial Entry");
+
+    bool readSuccess = LogManager::instance().readLogBlock(task->taskId(), [task](const LogBlock& block) {
+        QCOMPARE(block.entryCount(), 1);
+        // Re-entrant logging inside read callback must not deadlock
+        task->info("Re-entrant Entry");
+    });
+    QVERIFY(readSuccess);
+
+    LogBlock snapshot = task->logBlockSnapshot();
+    QCOMPARE(snapshot.entryCount(), 2);
 }
 
 QTEST_MAIN(TestLogManager)
