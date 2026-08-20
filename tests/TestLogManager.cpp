@@ -60,6 +60,7 @@ private slots:
     void testSinkErrorAndCursorRollback();
     void testFlushFailureRetryAndCursorRollback();
     void testFlushTaskReturnValueOnFailure();
+    void testFinishTaskReturnValueOnFlushFailure();
     void testFileSinkAtomicWriteBlock();
     void testSinkIdPointerReuseSafety();
 };
@@ -717,6 +718,19 @@ void TestLogManager::testFlushFailureRetryAndCursorRollback()
     QVERIFY(ok);
     // Should re-attempt writing the block because it was not committed due to flush failure
     QCOMPARE(mockSink->writtenBlocks, 2);
+}
+
+void TestLogManager::testFinishTaskReturnValueOnFlushFailure()
+{
+    auto task = LogManager::instance().createTask("Finish Failure Task");
+    task->info("Message");
+
+    auto mockSink = std::make_shared<FailingMockSink>();
+    mockSink->failAfterBlocks = 0; // writeBlock fails
+    LogManager::instance().addSink(mockSink);
+
+    bool finishOk = LogManager::instance().finishTask(task->taskId(), "Done");
+    QVERIFY(!finishOk);
 }
 
 void TestLogManager::testFlushTaskReturnValueOnFailure()

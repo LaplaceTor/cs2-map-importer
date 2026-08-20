@@ -56,8 +56,8 @@ bool LogManager::finishTask(quint64 taskId, const QString& message)
         return false;
     }
     bool result = task->complete(message);
-    flushTask(taskId);
-    return result;
+    bool flushOk = flushTask(taskId);
+    return result && flushOk;
 }
 
 bool LogManager::failTask(quint64 taskId, const QString& message)
@@ -71,8 +71,8 @@ bool LogManager::failTask(quint64 taskId, const QString& message)
         return false;
     }
     bool result = task->fail(message);
-    flushTask(taskId);
-    return result;
+    bool flushOk = flushTask(taskId);
+    return result && flushOk;
 }
 
 bool LogManager::cancelTask(quint64 taskId, const QString& message)
@@ -86,8 +86,8 @@ bool LogManager::cancelTask(quint64 taskId, const QString& message)
         return false;
     }
     bool result = task->cancel(message);
-    flushTask(taskId);
-    return result;
+    bool flushOk = flushTask(taskId);
+    return result && flushOk;
 }
 
 void LogManager::addSink(std::shared_ptr<ILogSink> sink)
@@ -269,10 +269,11 @@ bool LogManager::flushTask(quint64 taskId)
         }
 
         SinkCursor& cursor = m_sinkCursors[work.sinkId][taskId];
-        if (flushOk) {
-            cursor.committed += successCount;
+        if (writeAllOk && flushOk) {
+            cursor.committed = cursor.reserved;
+        } else {
+            cursor.reserved = cursor.committed;
         }
-        cursor.reserved = cursor.committed;
     }
 
     return overallSuccess;

@@ -104,6 +104,7 @@ bool FileSink::writeBlock(const LogBlock& block, const QString& taskName)
         m_file.flush();
         m_file.seek(originalPos);
         m_file.resize(originalPos);
+        m_stream.seek(originalPos);
         return false;
     }
 
