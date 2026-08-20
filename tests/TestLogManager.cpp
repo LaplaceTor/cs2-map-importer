@@ -1,10 +1,12 @@
 #include <QtTest/QtTest>
 #include <QThread>
+#include <QTemporaryDir>
 #include <QVector>
 #include <atomic>
 #include <memory>
 #include <set>
 
+#include "Core/Logging/FileSink.h"
 #include "Core/Logging/LogManager.h"
 #include "Core/Logging/TaskState.h"
 
@@ -29,6 +31,7 @@ private slots:
     void testLogManagerDefaultThreshold();
     void testLogManagerGetSealedAndAllBlocks();
     void testTaskCompletionAutoSealsFinalBlock();
+    void testFileSinkMultiTaskAndBlocks();
 };
 
 void TestLogManager::init()
@@ -435,6 +438,98 @@ void TestLogManager::testTaskCompletionAutoSealsFinalBlock()
     QCOMPARE(task3->sealedBlockCount(), static_cast<qsizetype>(1));
     QCOMPARE(task3->totalBlockCount(), static_cast<qsizetype>(1));
     QVERIFY(task3->sealedBlocks()[0].isSealed());
+}
+
+void TestLogManager::testFileSinkMultiTaskAndBlocks()
+{
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    QString logFilePath = tempDir.path() + "/test_output.log";
+
+    auto sink = std::make_shared<FileSink>(logFilePath);
+    QVERIFY(sink->isOpen());
+    LogManager::instance().addSink(sink);
+
+    auto task1 = LogManager::instance().createTask("Task Alpha");
+    auto task2 = LogManager::instance().createTask("Task Beta");
+
+    // Force small block size to produce multiple blocks for each task
+    task1->setBlockSizeThreshold(120);
+    task2->setBlockSizeThreshold(120);
+
+    const int entriesPerTask = 30;
+
+    for (int i = 0; i < entriesPerTask; ++i) {
+        task1->info(QString("Alpha Log Entry %1").arg(i));
+        task2->warning(QString("Beta Log Entry %1").arg(i));
+    }
+
+    // Verify multiple sealed blocks generated for both tasks
+    QVERIFY(task1->sealedBlockCount() > 1);
+    QVERIFY(task2->sealedBlockCount() > 1);
+
+    // Flush and finish tasks
+    LogManager::instance().finishTask(task1->taskId(), "Alpha Complete");
+    LogManager::instance().finishTask(task2->taskId(), "Beta Complete");
+
+    const int expectedAlphaTotal = entriesPerTask + 1;
+    const int expectedBetaTotal = entriesPerTask + 1;
+    const int expectedTotalLines = expectedAlphaTotal + expectedBetaTotal;
+
+    sink->close();
+
+    QFile file(logFilePath);
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    QTextStream in(&file);
+
+    QStringList lines;
+    while (!in.atEnd()) {
+        QString line = in.readLine().trimmed();
+        if (!line.isEmpty()) {
+            lines.append(line);
+        }
+    }
+
+    QCOMPARE(lines.size(), expectedTotalLines);
+
+    int alphaIndex = 0;
+    int betaIndex = 0;
+
+    QString alphaIdStr = QString("Task %1").arg(task1->taskId());
+    QString betaIdStr = QString("Task %2").arg(task2->taskId());
+
+    for (const QString& line : lines) {
+        // Format check: [timestamp] [Task ID - Task Name] [LEVEL] message
+        QVERIFY(line.startsWith("["));
+        QVERIFY(line.contains("] ["));
+
+        if (line.contains(alphaIdStr)) {
+            QVERIFY(line.contains("Task Alpha"));
+            if (alphaIndex < entriesPerTask) {
+                QVERIFY(line.contains(QString("Alpha Log Entry %1").arg(alphaIndex)));
+                QVERIFY(line.contains("[INFO]"));
+            } else {
+                QVERIFY(line.contains("Alpha Complete"));
+            }
+            QVERIFY(!line.contains("Beta"));
+            alphaIndex++;
+        } else if (line.contains(betaIdStr)) {
+            QVERIFY(line.contains("Task Beta"));
+            if (betaIndex < entriesPerTask) {
+                QVERIFY(line.contains(QString("Beta Log Entry %1").arg(betaIndex)));
+                QVERIFY(line.contains("[WARNING]"));
+            } else {
+                QVERIFY(line.contains("Beta Complete"));
+            }
+            QVERIFY(!line.contains("Alpha"));
+            betaIndex++;
+        } else {
+            QFAIL("Line belongs to neither Task Alpha nor Task Beta");
+        }
+    }
+
+    QCOMPARE(alphaIndex, expectedAlphaTotal);
+    QCOMPARE(betaIndex, expectedBetaTotal);
 }
 
 QTEST_MAIN(TestLogManager)
