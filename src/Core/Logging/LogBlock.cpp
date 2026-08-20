@@ -8,6 +8,32 @@ LogBlock::LogBlock(quint64 taskId, quint64 blockIndex)
 {
 }
 
+LogBlock::LogBlock(const LogBlock& other)
+    : m_taskId(other.m_taskId)
+    , m_blockIndex(other.m_blockIndex)
+    , m_entries(other.m_entries)
+    , m_totalByteSize(other.m_totalByteSize)
+    , m_sealed(other.m_sealed)
+{
+}
+
+LogBlock& LogBlock::operator=(const LogBlock& other)
+{
+    if (this != &other) {
+        m_taskId = other.m_taskId;
+        m_blockIndex = other.m_blockIndex;
+        m_entries = other.m_entries;
+        m_totalByteSize = other.m_totalByteSize;
+        m_sealed = other.m_sealed;
+    }
+    return *this;
+}
+
+LogBlock LogBlock::clone() const
+{
+    return LogBlock(*this);
+}
+
 bool LogBlock::append(const LogEntry& entry)
 {
     if (m_sealed) {

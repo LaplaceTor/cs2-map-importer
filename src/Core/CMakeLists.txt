@@ -19,6 +19,8 @@ qt_add_library(cs2importer_core STATIC
     Logging/TaskState.h
     Logging/TaskLoggingContext.h
     Logging/TaskLoggingContext.cpp
+    Logging/LogManager.h
+    Logging/LogManager.cpp
     Path/AssetPath.h
     Path/AssetPath.cpp
     Path/FilesystemPath.h

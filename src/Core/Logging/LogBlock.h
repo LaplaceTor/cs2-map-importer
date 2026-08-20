@@ -12,11 +12,12 @@ public:
     explicit LogBlock(quint64 taskId, quint64 blockIndex = 0);
     ~LogBlock() = default;
 
-    // Move construct / assign allowed; copy disabled to avoid unintentional duplication of large log blocks
-    LogBlock(const LogBlock&) = delete;
-    LogBlock& operator=(const LogBlock&) = delete;
+    LogBlock(const LogBlock&);
+    LogBlock& operator=(const LogBlock&);
     LogBlock(LogBlock&&) noexcept = default;
     LogBlock& operator=(LogBlock&&) noexcept = default;
+
+    LogBlock clone() const;
 
     quint64 taskId() const noexcept { return m_taskId; }
     quint64 blockIndex() const noexcept { return m_blockIndex; }
