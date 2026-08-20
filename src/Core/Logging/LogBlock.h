@@ -10,7 +10,7 @@ namespace Core::Logging {
 
 class LogBlock {
 public:
-    explicit LogBlock(quint64 taskId = 0, quint64 blockIndex = 0);
+    explicit LogBlock(quint64 taskId, quint64 blockIndex = 0);
     ~LogBlock() = default;
 
     // Move construct / assign allowed; copy disabled to avoid unintentional duplication of large log blocks
@@ -35,7 +35,7 @@ public:
 
 private:
     quint64 m_taskId = 0;
-    quint64 m_blockIndex = 0;
+    quint64 m_blockIndex = 0; // Sequential index of this block within the Task log
     QVector<LogEntry> m_entries;
     std::size_t m_totalByteSize = 0;
     bool m_sealed = false;
