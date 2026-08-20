@@ -1,4 +1,5 @@
 #include "TaskLoggingContext.h"
+#include <algorithm>
 
 namespace Core::Logging {
 
@@ -11,7 +12,7 @@ TaskLoggingContext::TaskLoggingContext(quint64 taskId, QString taskName)
 
 void TaskLoggingContext::updateProgress(double progress, const QString& message)
 {
-    m_progress = progress;
+    m_progress = std::clamp(progress, 0.0, 1.0);
     if (!message.isEmpty()) {
         m_currentMessage = message;
     }
@@ -53,52 +54,32 @@ void TaskLoggingContext::start()
     m_state = TaskState::Running;
 }
 
-void TaskLoggingContext::startTask()
-{
-    start();
-}
-
 void TaskLoggingContext::complete(const QString& message)
 {
-    m_state = TaskState::Completed;
     m_progress = 1.0;
     if (!message.isEmpty()) {
         m_currentMessage = message;
         info(message);
     }
-}
-
-void TaskLoggingContext::completeTask(const QString& message)
-{
-    complete(message);
+    m_state = TaskState::Completed;
 }
 
 void TaskLoggingContext::fail(const QString& message)
 {
-    m_state = TaskState::Failed;
     if (!message.isEmpty()) {
         m_currentMessage = message;
         error(message);
     }
-}
-
-void TaskLoggingContext::failTask(const QString& message)
-{
-    fail(message);
+    m_state = TaskState::Failed;
 }
 
 void TaskLoggingContext::cancel(const QString& message)
 {
-    m_state = TaskState::Cancelled;
     if (!message.isEmpty()) {
         m_currentMessage = message;
         warning(message);
     }
-}
-
-void TaskLoggingContext::cancelTask(const QString& message)
-{
-    cancel(message);
+    m_state = TaskState::Cancelled;
 }
 
 } // namespace Core::Logging

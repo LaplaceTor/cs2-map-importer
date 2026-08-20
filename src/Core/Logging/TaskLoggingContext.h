@@ -10,6 +10,12 @@
 
 namespace Core::Logging {
 
+/**
+ * @brief Threading & Concurrency Model:
+ * TaskLoggingContext is designed as a single-writer / task-owner context.
+ * All state updates and log entries for a task should be performed on its owning execution thread.
+ * Multi-thread access to the same context is not thread-safe.
+ */
 class TaskLoggingContext {
 public:
     explicit TaskLoggingContext(quint64 taskId, QString taskName = QString());
@@ -27,18 +33,14 @@ public:
     void setTaskName(const QString& name) { m_taskName = name; }
 
     TaskState state() const noexcept { return m_state; }
-    void setState(TaskState state) noexcept { m_state = state; }
 
     double progress() const noexcept { return m_progress; }
-    void setProgress(double progress) noexcept { m_progress = progress; }
     void updateProgress(double progress, const QString& message = QString());
 
     QString currentMessage() const { return m_currentMessage; }
-    void setCurrentMessage(const QString& message) { m_currentMessage = message; }
     void updateCurrentMessage(const QString& message) { m_currentMessage = message; }
 
     const LogBlock& logBlock() const noexcept { return m_logBlock; }
-    LogBlock& logBlock() noexcept { return m_logBlock; }
 
     // Logging methods
     void debug(const QString& message);
@@ -49,16 +51,9 @@ public:
 
     // Lifecycle methods
     void start();
-    void startTask();
-
     void complete(const QString& message = QString());
-    void completeTask(const QString& message = QString());
-
     void fail(const QString& message = QString());
-    void failTask(const QString& message = QString());
-
     void cancel(const QString& message = QString());
-    void cancelTask(const QString& message = QString());
 
 private:
     quint64 m_taskId = 0;
