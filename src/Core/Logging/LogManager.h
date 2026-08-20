@@ -16,8 +16,9 @@ namespace Core::Logging {
 class LogManager {
 public:
     struct SinkCursor {
-        qsizetype committed = 0;
-        qsizetype reserved = 0;
+        // Absolute next block index, not an index into the Task's pending vector.
+        quint64 committed = 0;
+        quint64 reserved = 0;
     };
 
 
@@ -79,6 +80,12 @@ public:
     QVector<LogBlock> getSealedBlocks(quint64 taskId) const;
 
     /**
+     * @brief Retrieves sealed blocks from an absolute block index onward.
+     * This is the preferred incremental-read API for future UI consumers.
+     */
+    QVector<LogBlock> getSealedBlocksFrom(quint64 taskId, quint64 firstBlockIndex) const;
+
+    /**
      * @brief Zero-copy inspection of a task's sealed log blocks.
      * Note: Reader callback is executed while holding the task lock. Keep callback
      * operations lightweight and in-memory (avoid heavy I/O or long-running work).
@@ -120,9 +127,10 @@ public:
     qsizetype taskCount() const;
 
     /**
-     * @brief Clears the LogManager registry and registered sinks.
-     * Note: This removes task references from the LogManager registry. It does not force-kill
-     * or alter external tasks that hold a std::shared_ptr<TaskLoggingContext> reference.
+     * @brief Resets the current logging session.
+     * Registered tasks are invalidated before the registry and sinks are cleared.
+     * External shared pointers remain valid only for read-only inspection and no
+     * longer accept logs, state transitions, or fault reports.
      */
     void clear();
 

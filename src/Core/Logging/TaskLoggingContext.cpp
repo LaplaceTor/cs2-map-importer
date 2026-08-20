@@ -100,6 +100,32 @@ QVector<LogBlock> TaskLoggingContext::sealedBlocks() const
     return m_sealedBlocks;
 }
 
+QVector<LogBlock> TaskLoggingContext::sealedBlocksFrom(quint64 firstBlockIndex) const
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    QVector<LogBlock> result;
+    for (const auto& block : m_sealedBlocks) {
+        if (block.blockIndex() >= firstBlockIndex) {
+            result.append(block);
+        }
+    }
+    return result;
+}
+
+qsizetype TaskLoggingContext::releaseSealedBlocksBefore(quint64 exclusiveBlockIndex)
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    qsizetype releaseCount = 0;
+    while (releaseCount < m_sealedBlocks.size()
+           && m_sealedBlocks.at(releaseCount).blockIndex() < exclusiveBlockIndex) {
+        ++releaseCount;
+    }
+    if (releaseCount > 0) {
+        m_sealedBlocks.remove(0, releaseCount);
+    }
+    return releaseCount;
+}
+
 void TaskLoggingContext::withSealedBlocks(const std::function<void(const QVector<LogBlock>&)>& reader) const
 {
     if (!reader) {
@@ -185,7 +211,7 @@ bool TaskLoggingContext::error(const QString& message)
 bool TaskLoggingContext::log(LogLevel level, const QString& message)
 {
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
-    if (isTerminalState(m_state)) {
+    if (!m_sessionValid || isTerminalState(m_state)) {
         return false;
     }
 
@@ -212,7 +238,7 @@ bool TaskLoggingContext::log(LogLevel level, const QString& message)
 LogSubmissionResult TaskLoggingContext::reportFault(const QString& message)
 {
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
-    if (isTerminalState(m_state)) {
+    if (!m_sessionValid || isTerminalState(m_state)) {
         return {LogSubmissionStatus::RejectedAfterTermination, 0};
     }
     if (!m_faultBarrier) {
@@ -242,7 +268,7 @@ LogSubmissionResult TaskLoggingContext::reportFault(const QString& message)
 bool TaskLoggingContext::start()
 {
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
-    if (isTerminalState(m_state)) {
+    if (!m_sessionValid || m_state != TaskState::Pending) {
         return false;
     }
     m_state = TaskState::Running;
@@ -252,7 +278,7 @@ bool TaskLoggingContext::start()
 bool TaskLoggingContext::complete(const QString& message)
 {
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
-    if (isTerminalState(m_state)) {
+    if (!m_sessionValid || m_state != TaskState::Running) {
         return false;
     }
     m_progress = 1.0;
@@ -270,7 +296,7 @@ bool TaskLoggingContext::complete(const QString& message)
 bool TaskLoggingContext::fail(const QString& message)
 {
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
-    if (isTerminalState(m_state)) {
+    if (!m_sessionValid || m_state != TaskState::Running) {
         return false;
     }
     if (!message.isEmpty()) {
@@ -287,7 +313,7 @@ bool TaskLoggingContext::fail(const QString& message)
 bool TaskLoggingContext::cancel(const QString& message)
 {
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
-    if (isTerminalState(m_state)) {
+    if (!m_sessionValid || m_state != TaskState::Running) {
         return false;
     }
     if (!message.isEmpty()) {
@@ -307,6 +333,12 @@ LogSubmissionResult TaskLoggingContext::submitNormalLocked()
         return {LogSubmissionStatus::Accepted, 0};
     }
     return m_faultBarrier->submitNormal();
+}
+
+void TaskLoggingContext::invalidateSession()
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    m_sessionValid = false;
 }
 
 bool TaskLoggingContext::appendLifecycleEntryLocked(LogLevel level, const QString& message)
@@ -340,8 +372,7 @@ void TaskLoggingContext::flushActiveBlockLocked()
     }
     m_activeBlock.seal();
     m_sealedBlocks.append(std::move(m_activeBlock));
-    quint64 nextBlockIndex = static_cast<quint64>(m_sealedBlocks.size());
-    m_activeBlock = LogBlock(m_taskId, nextBlockIndex);
+    m_activeBlock = LogBlock(m_taskId, m_nextBlockIndex++);
 }
 
 } // namespace Core::Logging

@@ -50,6 +50,7 @@ private slots:
     void testManagerFaultBarrierAcrossTasks();
     void testTaskIdValidationAndEntryIsolation();
     void testTaskLifecycleAndStateMachine();
+    void testClearInvalidatesExternalTaskContexts();
     void testExplicitTaskIdConflict();
     void testMultiThreadTaskCreation();
     void testMultiThreadLogWritingAndIsolation();
@@ -57,6 +58,10 @@ private slots:
     void testReentrantReadLogBlock();
     void testLogBlockChunkingAndSealing();
     void testExplicitFlushActiveBlock();
+    void testSealedBlocksReleasedAfterSinkCommit();
+    void testIncrementalSealedBlockRead();
+    void testRemovingLastSinkReleasesPendingBlocks();
+    void testRemovingOneSinkPreservesOtherSinkDelivery();
     void testLogManagerDefaultThreshold();
     void testLogManagerGetSealedAndAllBlocks();
     void testTaskCompletionAutoSealsFinalBlock();
@@ -230,33 +235,64 @@ void TestLogManager::testTaskLifecycleAndStateMachine()
     auto task3 = LogManager::instance().createTask("Lifecycle 3");
 
     QCOMPARE(task1->state(), TaskState::Pending);
+    QVERIFY(!task1->complete("Cannot complete pending task"));
+    QVERIFY(!task1->fail("Cannot fail pending task"));
+    QVERIFY(!task1->cancel("Cannot cancel pending task"));
+    QCOMPARE(task1->state(), TaskState::Pending);
+    QCOMPARE(task1->progress(), 0.0);
+    QVERIFY(task1->currentMessage().isEmpty());
 
     QVERIFY(task1->start());
+    QVERIFY(!task1->start());
     QCOMPARE(task1->state(), TaskState::Running);
 
     bool finished = LogManager::instance().finishTask(task1->taskId(), "Done!");
     QVERIFY(finished);
     QCOMPARE(task1->state(), TaskState::Completed);
 
-    // Terminal state constraints: completed task cannot start, fail, or complete again
+    // Terminal state constraints: completed task cannot start, fail, or complete again.
     QVERIFY(!task1->start());
     QVERIFY(!task1->complete("Done again"));
     QVERIFY(!task1->fail("Fail completed task"));
     QVERIFY(!task1->info("Rejected after completion"));
     QCOMPARE(task1->state(), TaskState::Completed);
 
+    QVERIFY(task2->start());
     bool failed = LogManager::instance().failTask(task2->taskId(), "Error occurred");
     QVERIFY(failed);
     QCOMPARE(task2->state(), TaskState::Failed);
     QVERIFY(!task2->start());
     QVERIFY(!task2->complete("Try complete failed task"));
 
+    QVERIFY(task3->start());
     bool cancelled = LogManager::instance().cancelTask(task3->taskId(), "User cancelled");
     QVERIFY(cancelled);
     QCOMPARE(task3->state(), TaskState::Cancelled);
     QVERIFY(!task3->fail("Try fail cancelled task"));
 
     QVERIFY(!LogManager::instance().finishTask(888888, "Invalid"));
+}
+
+void TestLogManager::testClearInvalidatesExternalTaskContexts()
+{
+    auto oldTask = LogManager::instance().createTask("Old Session Task");
+    QVERIFY(oldTask->start());
+    QVERIFY(oldTask->info("before reset"));
+    const auto oldBarrier = oldTask->faultBarrier();
+
+    LogManager::instance().clear();
+
+    QCOMPARE(LogManager::instance().taskCount(), static_cast<qsizetype>(0));
+    QVERIFY(LogManager::instance().faultBarrier() != oldBarrier);
+    QVERIFY(!oldTask->info("after reset"));
+    QVERIFY(!oldTask->start());
+    QVERIFY(!oldTask->complete("after reset"));
+    QVERIFY(!oldTask->reportFault("after reset fault").accepted());
+
+    auto newTask = LogManager::instance().createTask("New Session Task");
+    QVERIFY(newTask->start());
+    QVERIFY(newTask->info("new session log"));
+    QVERIFY(newTask->faultBarrier() != oldBarrier);
 }
 
 void TestLogManager::testExplicitTaskIdConflict()
@@ -478,6 +514,7 @@ void TestLogManager::testLogBlockChunkingAndSealing()
     QCOMPARE(collectedEntries, totalLogs);
 
     // Finish task and verify final block auto-seals
+    QVERIFY(task->start());
     task->complete("Task Done");
     QCOMPARE(task->sealedBlockCount(), task->totalBlockCount());
     for (const auto& sb : task->sealedBlocks()) {
@@ -513,6 +550,86 @@ void TestLogManager::testExplicitFlushActiveBlock()
     QCOMPARE(allBlocks[0].entries()[1].sequence, static_cast<quint64>(2));
     QCOMPARE(allBlocks[1].entries()[0].sequence, static_cast<quint64>(3));
     QCOMPARE(allBlocks[1].entries()[1].sequence, static_cast<quint64>(4));
+}
+
+void TestLogManager::testSealedBlocksReleasedAfterSinkCommit()
+{
+    auto task = LogManager::instance().createTask("Reclaim Task");
+    task->setBlockSizeThreshold(80);
+    for (int i = 0; i < 20; ++i) {
+        QVERIFY(task->info(QString("Reclaim entry %1 with padding").arg(i)));
+    }
+    QVERIFY(task->sealedBlockCount() > 1);
+
+    auto sink = std::make_shared<FailingMockSink>();
+    sink->failAfterBlocks = 1000;
+    LogManager::instance().addSink(sink);
+    QVERIFY(LogManager::instance().flushTask(task->taskId()));
+
+    // Once the only sink committed all sealed blocks, the Task no longer
+    // retains the delivered block payloads in memory.
+    QCOMPARE(task->sealedBlockCount(), static_cast<qsizetype>(0));
+    QCOMPARE(task->logBlockSnapshot().entryCount(), static_cast<qsizetype>(0));
+
+    QVERIFY(task->info("after reclaim"));
+    const LogBlock active = task->logBlockSnapshot();
+    // The new message may itself cross the threshold and seal block N;
+    // the newly created active block is then N + 1.
+    QVERIFY(active.blockIndex() >= static_cast<quint64>(sink->writtenBlocks));
+}
+
+void TestLogManager::testIncrementalSealedBlockRead()
+{
+    auto task = LogManager::instance().createTask("Incremental Read Task");
+    task->setBlockSizeThreshold(80);
+    for (int i = 0; i < 12; ++i) {
+        QVERIFY(task->info(QString("Incremental entry %1 with padding").arg(i)));
+    }
+
+    const auto all = task->sealedBlocks();
+    QVERIFY(all.size() > 1);
+    const quint64 firstIndex = all.at(1).blockIndex();
+    const auto suffix = task->sealedBlocksFrom(firstIndex);
+    QCOMPARE(suffix.size(), all.size() - 1);
+    for (const auto& block : suffix) {
+        QVERIFY(block.blockIndex() >= firstIndex);
+    }
+
+    const auto managerSuffix = LogManager::instance().getSealedBlocksFrom(task->taskId(), firstIndex);
+    QCOMPARE(managerSuffix.size(), suffix.size());
+}
+
+void TestLogManager::testRemovingLastSinkReleasesPendingBlocks()
+{
+    auto task = LogManager::instance().createTask("Remove Last Sink Task");
+    task->setBlockSizeThreshold(80);
+    for (int i = 0; i < 12; ++i) {
+        QVERIFY(task->info(QString("Pending entry %1 with padding").arg(i)));
+    }
+    QVERIFY(task->sealedBlockCount() > 0);
+
+    auto sink = std::make_shared<FailingMockSink>();
+    LogManager::instance().addSink(sink);
+    LogManager::instance().removeSink(sink);
+    QCOMPARE(task->sealedBlockCount(), static_cast<qsizetype>(0));
+}
+
+void TestLogManager::testRemovingOneSinkPreservesOtherSinkDelivery()
+{
+    auto task = LogManager::instance().createTask("Remove One Sink Task");
+    task->setBlockSizeThreshold(80);
+    for (int i = 0; i < 12; ++i) {
+        QVERIFY(task->info(QString("Shared entry %1 with padding").arg(i)));
+    }
+
+    auto removedSink = std::make_shared<FailingMockSink>();
+    auto remainingSink = std::make_shared<FailingMockSink>();
+    remainingSink->failAfterBlocks = 1000;
+    LogManager::instance().addSink(removedSink);
+    LogManager::instance().addSink(remainingSink);
+    LogManager::instance().removeSink(removedSink);
+    QVERIFY(LogManager::instance().flushTask(task->taskId()));
+    QVERIFY(remainingSink->writtenBlocks > 0);
 }
 
 void TestLogManager::testLogManagerDefaultThreshold()
@@ -575,6 +692,7 @@ void TestLogManager::testTaskCompletionAutoSealsFinalBlock()
     task1->info("Entry 2");
     QCOMPARE(task1->sealedBlockCount(), static_cast<qsizetype>(0));
 
+    QVERIFY(task1->start());
     task1->complete("Finished successfully");
     QCOMPARE(task1->sealedBlockCount(), static_cast<qsizetype>(1));
     QCOMPARE(task1->totalBlockCount(), static_cast<qsizetype>(1));
@@ -584,6 +702,7 @@ void TestLogManager::testTaskCompletionAutoSealsFinalBlock()
 
     auto task2 = LogManager::instance().createTask("Fail Task Test");
     task2->info("Entry A");
+    QVERIFY(task2->start());
     task2->fail("Failed with error");
     QCOMPARE(task2->sealedBlockCount(), static_cast<qsizetype>(1));
     QCOMPARE(task2->totalBlockCount(), static_cast<qsizetype>(1));
@@ -591,6 +710,7 @@ void TestLogManager::testTaskCompletionAutoSealsFinalBlock()
 
     auto task3 = LogManager::instance().createTask("Cancel Task Test");
     task3->info("Entry X");
+    QVERIFY(task3->start());
     task3->cancel("Cancelled by user");
     QCOMPARE(task3->sealedBlockCount(), static_cast<qsizetype>(1));
     QCOMPARE(task3->totalBlockCount(), static_cast<qsizetype>(1));
@@ -626,6 +746,8 @@ void TestLogManager::testFileSinkMultiTaskAndBlocks()
     QVERIFY(task2->sealedBlockCount() > 1);
 
     // Flush and finish tasks
+    QVERIFY(task1->start());
+    QVERIFY(task2->start());
     LogManager::instance().finishTask(task1->taskId(), "Alpha Complete");
     LogManager::instance().finishTask(task2->taskId(), "Beta Complete");
 
@@ -790,6 +912,7 @@ void TestLogManager::testConcurrentFlushStrictBlockOrder()
         delete thread;
     }
 
+    QVERIFY(task->start());
     LogManager::instance().finishTask(task->taskId(), "Finished");
     sink->close();
 
@@ -851,6 +974,7 @@ void TestLogManager::testDynamicAddSinkHistory()
     LogManager::instance().addSink(lateSink);
 
     // Flush task to lateSink
+    QVERIFY(task->start());
     LogManager::instance().finishTask(task->taskId(), "Task Finished");
     lateSink->close();
 
@@ -885,7 +1009,10 @@ void TestLogManager::testSinkErrorAndCursorRollback()
     mockSink->failAfterBlocks = 1; // Only allow 1 block to succeed
     LogManager::instance().addSink(mockSink);
 
-    // Flush task: 1st block succeeds, 2nd block fails, cursor rolls back
+    const qsizetype blockCountBeforeFlush = task->sealedBlockCount();
+
+    // Flush task: 1st block succeeds, 2nd block fails. The committed prefix
+    // can be reclaimed while the failed suffix remains retryable.
     bool ok = LogManager::instance().flushTask(task->taskId());
     QVERIFY(!ok);
     QCOMPARE(mockSink->writtenBlocks, 1);
@@ -893,11 +1020,12 @@ void TestLogManager::testSinkErrorAndCursorRollback()
     // Fix sink failure state
     mockSink->failAfterBlocks = 100;
 
-    // Retry flush: should resume from block 1 (since block 0 was committed, block 1+ rolled back)
+    // Retry flush resumes from the first uncommitted absolute block index.
     ok = LogManager::instance().flushTask(task->taskId());
     QVERIFY(ok);
-    // At-least-once delivery retries the first block after the later block failed.
-    QCOMPARE(mockSink->writtenBlocks, static_cast<int>(task->sealedBlockCount()) + 1);
+    // At-least-once delivery retries the already-written prefix after the
+    // later block failed, so one duplicate is expected.
+    QCOMPARE(mockSink->writtenBlocks, static_cast<int>(blockCountBeforeFlush) + 1);
 }
 
 void TestLogManager::testFlushFailureRetryAndCursorRollback()
@@ -933,6 +1061,7 @@ void TestLogManager::testFinishTaskReturnValueOnFlushFailure()
     mockSink->failAfterBlocks = 0; // writeBlock fails
     LogManager::instance().addSink(mockSink);
 
+    QVERIFY(task->start());
     bool finishOk = LogManager::instance().finishTask(task->taskId(), "Done");
     QVERIFY(!finishOk);
 }

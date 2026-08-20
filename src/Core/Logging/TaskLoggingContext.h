@@ -60,6 +60,22 @@ public:
     QVector<LogBlock> sealedBlocks() const;
 
     /**
+     * @brief Returns sealed blocks whose absolute block index is at least firstBlockIndex.
+     * This is the preferred incremental-read API for sinks and future UI consumers.
+     */
+    QVector<LogBlock> sealedBlocksFrom(quint64 firstBlockIndex) const;
+
+    /**
+     * @brief Releases a prefix of pending sealed blocks after all sinks committed them.
+     * @param exclusiveBlockIndex Blocks with an index below this value are released.
+     * @return Number of released blocks.
+     *
+     * Blocks are released in block-index order. This is intended for LogManager's
+     * delivery acknowledgement and must not be used while a reader callback is active.
+     */
+    qsizetype releaseSealedBlocksBefore(quint64 exclusiveBlockIndex);
+
+    /**
      * @brief Callback inspection for sealed blocks.
      * Note: Reader is executed while holding the task lock. Callers must keep callback
      * operations lightweight and in-memory (avoid heavy I/O or long-running work).
@@ -98,7 +114,7 @@ public:
 
     /**
      * @brief Lifecycle state transitions:
-     * Pending -> Running | Completed | Failed | Cancelled
+     * Pending -> Running
      * Running -> Completed | Failed | Cancelled
      * Completed | Failed | Cancelled -> Terminal (non-transitionable)
      */
@@ -106,6 +122,13 @@ public:
     bool complete(const QString& message = QString());
     bool fail(const QString& message = QString());
     bool cancel(const QString& message = QString());
+
+    /**
+     * @brief Disables this context when its owning LogManager session is reset.
+     * Existing external shared pointers remain valid, but no longer accept state
+     * transitions, ordinary logs, or fault reports.
+     */
+    void invalidateSession();
 
     static bool isTerminalState(TaskState state) noexcept
     {
@@ -124,10 +147,12 @@ private:
     mutable QMutex m_flushMutex;
     QString m_taskName;
     TaskState m_state = TaskState::Pending;
+    bool m_sessionValid = true;
     double m_progress = 0.0;
     QString m_currentMessage;
     QVector<LogBlock> m_sealedBlocks;
     LogBlock m_activeBlock;
+    quint64 m_nextBlockIndex = 1; // Monotonic block identity, independent of retained blocks
     qsizetype m_blockSizeThreshold = 0; // 0 means unlimited
     quint64 m_nextSequence = 1; // Task-local log entry sequence number
 };

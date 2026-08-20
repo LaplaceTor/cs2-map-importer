@@ -39,7 +39,15 @@ bool LogManager::beginFaultDraining()
 bool LogManager::terminateAfterFault()
 {
     const auto barrier = faultBarrier();
-    return barrier && barrier->terminate();
+    if (!barrier || barrier->state() != FaultBarrierState::Draining) {
+        return false;
+    }
+
+    bool flushed = true;
+    for (const quint64 taskId : taskIds()) {
+        flushed = flushTask(taskId) && flushed;
+    }
+    return flushed && barrier->terminate();
 }
 
 std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskName)
@@ -144,18 +152,52 @@ void LogManager::removeSink(std::shared_ptr<ILogSink> sink)
     if (!sink) {
         return;
     }
-    QMutexLocker locker(&m_mutex);
-    m_sinks.removeOne(sink);
-    m_sinkCursors.remove(sink->sinkId());
-    m_sinkGenerations.remove(sink->sinkId());
+
+    bool hasRemainingSinks = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_sinks.removeOne(sink)) {
+            return;
+        }
+        m_sinkCursors.remove(sink->sinkId());
+        m_sinkGenerations.remove(sink->sinkId());
+        hasRemainingSinks = !m_sinks.isEmpty();
+    }
+
+    // A removed sink no longer owns delivery responsibility. Re-run delivery
+    // and reclamation against the remaining sinks; if none remain, all pending
+    // blocks can be released because no sink can consume them anymore.
+    if (hasRemainingSinks) {
+        flushAll();
+        return;
+    }
+
+    for (const quint64 taskId : taskIds()) {
+        const auto task = findTask(taskId);
+        if (task) {
+            task->releaseSealedBlocksBefore(std::numeric_limits<quint64>::max());
+        }
+    }
 }
 
 void LogManager::clearSinks()
 {
-    QMutexLocker locker(&m_mutex);
-    m_sinks.clear();
-    m_sinkCursors.clear();
-    m_sinkGenerations.clear();
+    QVector<std::shared_ptr<TaskLoggingContext>> tasks;
+    {
+        QMutexLocker locker(&m_mutex);
+        for (auto it = m_tasks.constBegin(); it != m_tasks.constEnd(); ++it) {
+            tasks.append(it.value());
+        }
+        m_sinks.clear();
+        m_sinkCursors.clear();
+        m_sinkGenerations.clear();
+    }
+
+    // clearSinks ends all outstanding sink responsibilities. Release pending
+    // blocks now rather than retaining them for a sink that no longer exists.
+    for (const auto& task : tasks) {
+        task->releaseSealedBlocksBefore(std::numeric_limits<quint64>::max());
+    }
 }
 
 void LogManager::flushAll()
@@ -185,6 +227,15 @@ QVector<LogBlock> LogManager::getSealedBlocks(quint64 taskId) const
         return {};
     }
     return task->sealedBlocks();
+}
+
+QVector<LogBlock> LogManager::getSealedBlocksFrom(quint64 taskId, quint64 firstBlockIndex) const
+{
+    std::shared_ptr<TaskLoggingContext> task = findTask(taskId);
+    if (!task) {
+        return {};
+    }
+    return task->sealedBlocksFrom(firstBlockIndex);
 }
 
 bool LogManager::readSealedBlocks(quint64 taskId, const std::function<void(const QVector<LogBlock>&)>& reader) const
@@ -250,46 +301,25 @@ bool LogManager::flushTask(quint64 taskId)
         }
 
         QString taskName = task->taskName();
-        QVector<LogBlock> sealedBlocks = task->sealedBlocks();
-        const auto barrier = m_faultBarrier;
-        const FaultBarrierState barrierState = barrier->state();
-        const FaultContext fault = barrier->faultContext();
-        if (barrierState != FaultBarrierState::Running) {
-            QVector<LogBlock> filteredBlocks;
-            filteredBlocks.reserve(sealedBlocks.size());
-            for (const auto& block : sealedBlocks) {
-                LogBlock filtered(block.taskId(), block.blockIndex());
-                for (const auto& entry : block.entries()) {
-                    const bool beforeBoundary = entry.submissionSequence != 0
-                        && entry.submissionSequence <= fault.boundary;
-                    const bool acceptedFault = entry.taskId == fault.taskId
-                        && entry.submissionSequence == fault.submissionSequence;
-                    if (beforeBoundary || acceptedFault) {
-                        filtered.append(entry);
-                    }
-                }
-                filtered.seal();
-                filteredBlocks.append(std::move(filtered));
-            }
-            sealedBlocks = std::move(filteredBlocks);
-        }
-        qsizetype totalSealedCount = sealedBlocks.size();
+        const QVector<LogBlock> sealedBlocks = task->sealedBlocks();
 
+        // FaultBarrier already prevents rejected ordinary entries from being
+        // appended. Do not rebuild or filter sealed blocks here: a sealed block
+        // is an immutable delivery unit and sink cursors use its absolute
+        // blockIndex. This also preserves the accepted-before-fault contract.
         for (const auto& sink : m_sinks) {
             quint64 sId = sink->sinkId();
             SinkCursor& cursor = m_sinkCursors[sId][taskId];
 
-            if (cursor.reserved < totalSealedCount) {
-                QVector<LogBlock> blocksToDispatch;
-                blocksToDispatch.reserve(totalSealedCount - cursor.reserved);
-
-                for (qsizetype i = cursor.reserved; i < totalSealedCount; ++i) {
-                    blocksToDispatch.append(sealedBlocks[i]);
+            QVector<LogBlock> blocksToDispatch;
+            for (const auto& block : sealedBlocks) {
+                if (block.blockIndex() >= cursor.reserved) {
+                    blocksToDispatch.append(block);
                 }
+            }
 
-                // Advance reserved cursor
-                cursor.reserved = totalSealedCount;
-
+            if (!blocksToDispatch.isEmpty()) {
+                cursor.reserved = blocksToDispatch.constLast().blockIndex() + 1;
                 pendingWork.append(SinkWork{sink, sId, m_sinkGenerations.value(sId), std::move(blocksToDispatch), taskName});
             }
         }
@@ -302,6 +332,7 @@ bool LogManager::flushTask(quint64 taskId)
     bool overallSuccess = true;
 
     // Phase 2: Execute Sink I/O outside of LogManager lock
+
     for (const auto& work : pendingWork) {
         qsizetype successCount = 0;
         bool writeAllOk = true;
@@ -341,6 +372,22 @@ bool LogManager::flushTask(quint64 taskId)
             cursor.committed = cursor.reserved;
         } else {
             cursor.reserved = cursor.committed;
+        }
+    }
+
+    // A sealed block can be released from the Task only after every currently
+    // registered sink has committed past it. Sink cursors are absolute block
+    // indices, so releasing the vector prefix does not change their position.
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_sinks.isEmpty()) {
+            quint64 releaseBefore = std::numeric_limits<quint64>::max();
+            for (const auto& sink : m_sinks) {
+                releaseBefore = std::min(releaseBefore, m_sinkCursors[sink->sinkId()][taskId].committed);
+            }
+            if (releaseBefore != std::numeric_limits<quint64>::max()) {
+                task->releaseSealedBlocksBefore(releaseBefore);
+            }
         }
     }
 
@@ -394,6 +441,10 @@ qsizetype LogManager::taskCount() const
 void LogManager::clear()
 {
     QMutexLocker locker(&m_mutex);
+    for (auto it = m_tasks.constBegin(); it != m_tasks.constEnd(); ++it) {
+        it.value()->invalidateSession();
+    }
+
     m_tasks.clear();
     m_sinks.clear();
     m_sinkCursors.clear();
