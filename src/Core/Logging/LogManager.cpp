@@ -56,8 +56,8 @@ bool LogManager::finishTask(quint64 taskId, const QString& message)
         return false;
     }
     bool result = task->complete(message);
-    flushTask(taskId);
-    return result;
+    bool flushOk = flushTask(taskId);
+    return result && flushOk;
 }
 
 bool LogManager::failTask(quint64 taskId, const QString& message)
@@ -71,8 +71,8 @@ bool LogManager::failTask(quint64 taskId, const QString& message)
         return false;
     }
     bool result = task->fail(message);
-    flushTask(taskId);
-    return result;
+    bool flushOk = flushTask(taskId);
+    return result && flushOk;
 }
 
 bool LogManager::cancelTask(quint64 taskId, const QString& message)
@@ -86,8 +86,8 @@ bool LogManager::cancelTask(quint64 taskId, const QString& message)
         return false;
     }
     bool result = task->cancel(message);
-    flushTask(taskId);
-    return result;
+    bool flushOk = flushTask(taskId);
+    return result && flushOk;
 }
 
 void LogManager::addSink(std::shared_ptr<ILogSink> sink)
@@ -188,6 +188,9 @@ bool LogManager::flushTask(quint64 taskId)
         return false;
     }
 
+    // Serialize flush operations per task across threads
+    QMutexLocker taskFlushLocker(&task->flushMutex());
+
     // Seal active block in task (Task-level lock, no LogManager global lock)
     task->flushActiveBlock();
 
@@ -234,24 +237,31 @@ bool LogManager::flushTask(quint64 taskId)
         return true;
     }
 
+    bool overallSuccess = true;
+
     // Phase 2: Execute Sink I/O outside of LogManager lock
     for (const auto& work : pendingWork) {
         qsizetype successCount = 0;
-        bool flushOk = true;
+        bool writeAllOk = true;
 
         for (const auto& block : work.blocks) {
             if (work.sink->writeBlock(block, work.taskName)) {
                 successCount++;
             } else {
-                flushOk = false;
+                writeAllOk = false;
                 break;
             }
         }
 
-        if (successCount > 0 && flushOk) {
+        bool flushOk = true;
+        if (successCount > 0) {
             if (!work.sink->flush()) {
                 flushOk = false;
             }
+        }
+
+        if (!writeAllOk || !flushOk) {
+            overallSuccess = false;
         }
 
         // Phase 3: Transactional Commit / Rollback under LogManager lock
@@ -262,15 +272,14 @@ bool LogManager::flushTask(quint64 taskId)
         }
 
         SinkCursor& cursor = m_sinkCursors[work.sinkId][taskId];
-        cursor.committed += successCount;
-
-        if (!flushOk || successCount < work.blocks.size()) {
-            // Roll back reserved cursor to committed cursor so unwritten blocks can be retried
+        if (writeAllOk && flushOk) {
+            cursor.committed = cursor.reserved;
+        } else {
             cursor.reserved = cursor.committed;
         }
     }
 
-    return true;
+    return overallSuccess;
 }
 
 bool LogManager::readLogBlock(quint64 taskId, const std::function<void(const LogBlock&)>& reader) const
