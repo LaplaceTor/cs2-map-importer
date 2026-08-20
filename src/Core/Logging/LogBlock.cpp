@@ -30,12 +30,12 @@ bool LogBlock::append(LogEntry&& entry)
     return true;
 }
 
-std::size_t LogBlock::entryCount() const noexcept
+qsizetype LogBlock::entryCount() const noexcept
 {
-    return static_cast<std::size_t>(m_entries.size());
+    return m_entries.size();
 }
 
-std::size_t LogBlock::size() const noexcept
+qsizetype LogBlock::size() const noexcept
 {
     return m_totalByteSize;
 }

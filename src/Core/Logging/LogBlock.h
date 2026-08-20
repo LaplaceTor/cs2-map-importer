@@ -2,7 +2,6 @@
 
 #include <QVector>
 #include <QtGlobal>
-#include <cstddef>
 
 #include "LogEntry.h"
 
@@ -25,8 +24,8 @@ public:
     bool append(const LogEntry& entry);
     bool append(LogEntry&& entry);
 
-    std::size_t entryCount() const noexcept;
-    std::size_t size() const noexcept;
+    qsizetype entryCount() const noexcept;
+    qsizetype size() const noexcept;
 
     void seal() noexcept;
     bool isSealed() const noexcept;
@@ -37,7 +36,7 @@ private:
     quint64 m_taskId = 0;
     quint64 m_blockIndex = 0; // Sequential index of this block within the Task log
     QVector<LogEntry> m_entries;
-    std::size_t m_totalByteSize = 0;
+    qsizetype m_totalByteSize = 0;
     bool m_sealed = false;
 };
 
