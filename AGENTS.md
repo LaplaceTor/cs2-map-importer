@@ -7,101 +7,71 @@ A Windows desktop GUI application that imports Source 1 game assets (maps, model
 * **Language:** C++17
 * **Framework:** Qt 6.8+
 * **Build system:** Modern CMake
-* **Platform:** Windows
+* **Platform:** Windows (the project also has non-Windows build branches)
 * **UI:** QML / Qt Quick Controls 2
 * **QML style:** Fusion
 
-The project is undergoing a staged architecture refactor.
-
-**Current status: only the Core layer and its CMake target have been refactored. The application/importer layer has not yet been migrated to the new Core APIs, and no intentional runtime behavior changes have been made as part of this refactor.**
+The project is undergoing a staged architecture refactor. The reusable Core layer has been extracted, but application/importer migration is still staged and must not be inferred from the existence of Core.
 
 ## Current Architecture
 
 ```text
 src/
-├── Core/                         # Refactored reusable infrastructure
-│   ├── Asset/                    # Asset types and detection
-│   ├── Error/                    # Import errors and exceptions
-│   ├── FileSystem/               # Filesystem operations
-│   ├── Logging/                  # Logging infrastructure
-│   ├── Path/                     # AssetPath / FilesystemPath
-│   ├── Process/                  # External process execution
-│   ├── Temp/                     # Temporary files/directories
+├── Core/                         # Reusable infrastructure, independent of application workflows
+│   ├── Asset/                    # AssetType and AssetTypeDetector
+│   ├── Error/                    # ImportErrorCode and ImportException
+│   ├── FileSystem/               # FileSystem, AtomicFile, DirectorySnapshot
+│   ├── Logging/                  # Task-oriented logging and sinks
+│   ├── Path/                     # AssetPath, FilesystemPath, PathUtils
+│   ├── Process/                  # ProcessOptions, ProcessResult, ProcessRunner
+│   ├── Temp/                     # TempFile and TempDirectory
 │   └── CMakeLists.txt
 │
 ├── Main.cpp                      # Existing application entry point
 ├── Ui.h / Ui.cpp                 # Existing QML-facing controller
-│
 ├── ModelImporter.h/.cpp          # Existing importer; not yet migrated to Core
 ├── ParticleImporter.h/.cpp       # Existing importer; not yet migrated to Core
 ├── MapImporter.h/.cpp            # Existing legacy implementation
-│
 ├── Miscellaneous.h/.cpp          # Existing legacy utilities
 ├── VmfBspProcess.h/.cpp          # Existing legacy map workflow
 ├── FileExtractFromVPK.h/.cpp     # Existing legacy map workflow
 ├── MaterialFix.h/.cpp            # Existing legacy map workflow
 ├── SoundscapeImport.h/.cpp       # Existing legacy map workflow
-│
-├── qml/
-│   └── main.qml
-└── CMakeLists.txt
+└── qml/cs2importer/Main.qml
 ```
 
-## Refactor Status
+`src/Core/CMakeLists.txt` currently builds `cs2importer_core` as a static library. Its public include root is `src/`, so Core headers use project-root includes such as:
 
-The refactor is intentionally staged. The stages below describe the intended direction, not work that has already been completed.
+```cpp
+#include "Core/Path/AssetPath.h"
+#include "Core/FileSystem/FileSystem.h"
+```
+
+Do not add Core source files directly to the application target. The application and tests link against `cs2importer_core`.
+
+## Refactor Status and Scope
 
 ### Completed
 
-1. **Core layer refactor**
-   - The reusable Core infrastructure has been extracted under `src/Core`.
-   - Core is built as the independent `cs2importer_core` CMake target.
-   - `AssetPath` and `FilesystemPath` are separate value types.
+* Core infrastructure is extracted under `src/Core`.
+* Core is an independent `cs2importer_core` target linked by the application and tests.
+* `AssetPath` and `FilesystemPath` are separate value types.
+* Core currently contains the APIs documented in the **Core API Reference** section below.
 
 ### Not yet completed
 
-2. **ModelImporter migration**
-   - Planned next stage.
-   - ModelImporter still uses the existing application/legacy infrastructure.
-   - Do not assume it already uses Core.
+* **ModelImporter migration:** not started; it still uses application/legacy infrastructure.
+* **ParticleImporter migration:** not started; it still uses application/legacy infrastructure.
+* **MapImporter migration:** intentionally deferred; preserve its current implementation and behavior.
+* **UI/QML and remaining application infrastructure:** still current-state/legacy code.
 
-3. **ParticleImporter migration**
-   - Planned next stage.
-   - ParticleImporter still uses the existing application/legacy infrastructure.
-   - Do not assume it already uses Core.
+At the current stage, do not migrate application code merely because an equivalent Core API exists. Only use Core APIs in application code when the task explicitly migrates that component. Do not combine refactor stages unless explicitly requested.
 
-4. **MapImporter migration**
-   - Intentionally deferred until later.
-   - Keep the existing implementation and behavior unless explicitly asked to change it.
+The Core extraction has not intentionally rewritten import workflows or runtime behavior. Preserve existing behavior during structural work and do not claim that an importer has been migrated unless the task actually performs that migration.
 
-5. **UI/QML and remaining application infrastructure**
-   - Not yet refactored.
-   - Treat the current UI and QML architecture as legacy/current-state code, not as the final architecture.
+## Core Dependency Rules
 
-### Important scope rule
-
-At the current stage, **do not perform application-layer migration merely because Core exists**.
-
-When a task explicitly asks to migrate an importer or another application component, use the existing Core APIs where appropriate. Otherwise, preserve the current application behavior and architecture.
-
-Do not combine refactor stages unless explicitly requested.
-
-## Runtime Behavior
-
-The Core refactor is an architectural/code-organization change. **It has not yet been followed by an intentional rewrite of the application's actual import workflows or runtime behavior.**
-
-Therefore:
-
-* Do not assume that the application has been converted to the new Core architecture.
-* Do not claim that ModelImporter, ParticleImporter, or MapImporter have been migrated unless the task explicitly performs that migration.
-* Do not introduce behavioral changes while making unrelated structural changes.
-* When implementing a future migration, preserve existing importer behavior unless the migration explicitly specifies a behavioral change.
-
-## Core Architecture Rules
-
-`src/Core` is reusable infrastructure. It must remain independent from application workflows and UI.
-
-Dependency direction:
+Dependency direction must remain:
 
 ```text
 Application / Importers
@@ -109,118 +79,162 @@ Application / Importers
       Core
 ```
 
-Never:
+Core must not depend on `MapImporter`, `ModelImporter`, `ParticleImporter`, `Ui`, QML, or legacy application utilities. Do not place workflow policy, UI behavior, or importer-specific logic in Core.
 
-```text
-Core → Importer
-Core → UI
-Core → QML
-Core → application workflow
-```
+When migrating a component to Core, use an existing equivalent Core facility rather than duplicating it:
 
-Core must not depend on:
+* filesystem operations → `Core::FileSystem`
+* asset classification → `Core::Asset`
+* asset-relative paths → `Core::Path::AssetPath`
+* filesystem paths → `Core::Path::FilesystemPath`
+* external processes → `Core::Process`
+* temporary resources → `Core::Temp`
+* task logging → `Core::Logging`
+* import failures → `Core::Error`
 
-* `MapImporter`
-* `ModelImporter`
-* `ParticleImporter`
-* `Ui`
-* QML
-* legacy application utilities
+## Core API Reference
 
-### Core APIs
+This section reflects the current public declarations and should be updated if the API changes.
 
-Use the Core API whenever an equivalent facility exists **when working on code that is being migrated to Core**.
+### Paths: `Core::Path`
 
-Examples:
-
-* Filesystem operations → `Core::FileSystem`
-* Asset classification → `Core::Asset`
-* Asset-relative paths → `Core::Path::AssetPath`
-* Filesystem paths → `Core::Path::FilesystemPath`
-* Process execution → `Core::Process`
-* Temporary resources → `Core::Temp`
-* Logging → `Core::Logging`
-* Import errors → `Core::Error`
-
-Do not duplicate these facilities in newly migrated code.
-
-### Path Types
-
-`AssetPath` and `FilesystemPath` are intentionally separate value types.
-
-Do not merge them.
-
-Do not reintroduce the old `AssetPath::type()` design.
-
-Do not add compatibility methods that existed only in the old path implementation.
-
-## C++ Conventions
-
-### New and migrated code
-
-* Use C++17.
-* Prefer Qt types where they form the established application API:
-  `QString`, `QByteArray`, `QFile`, `QDir`, `QProcess`, etc.
-* Use `PascalCase` for classes and enum types.
-* Use `camelCase` for functions, methods, local variables, and members.
-* Prefer RAII and deterministic ownership.
-* Prefer small value types with explicit responsibilities.
-* Use `const` and references appropriately.
-* Avoid unnecessary copies.
-* Keep headers lightweight where practical.
-* Use the Core error model instead of introducing new uses of the legacy `AppException` in migrated code.
-
-### Existing legacy code
-
-Do not perform unrelated style cleanup while migrating functionality.
-
-Preserve legacy behavior unless the migration explicitly requires behavioral changes.
-
-## CMake Rules
-
-The project uses modern Qt 6 CMake APIs.
-
-* Require **CMake 3.28+**.
-* Require **Qt 6.8+**.
-* Use `qt_standard_project_setup()` where the project structure requires it.
-* Use `qt_add_executable()` for the application.
-* Use `qt_add_library()` for Core.
-* Use `qt_add_qml_module()` for QML.
-* Use `qt_add_resources()` only for non-QML resources.
-* Prefer target-based configuration.
-* Use explicit `PRIVATE`, `PUBLIC`, or `INTERFACE` visibility.
-* Do not use global include paths when a target-specific include path is sufficient.
-* Do not manually list generated MOC/RCC/QML compiler outputs.
-* Do not use Qt 5 CMake APIs.
-* Do not use qmake syntax.
-
-### Core Target
-
-Core is currently an independent CMake target:
-
-```text
-cs2importer_core
-```
-
-The application links against this target.
-
-Do not add Core source files directly to the application target.
-
-Core's public include root is:
-
-```text
-src/
-```
-
-Therefore Core headers are included as:
+`AssetPath` represents a validated asset-relative path. `FilesystemPath` represents a path in the host filesystem. They are intentionally not interchangeable.
 
 ```cpp
 #include "Core/Path/AssetPath.h"
+#include "Core/Path/FilesystemPath.h"
+#include "Core/Path/PathUtils.h"
+
+Core::Path::AssetPath assetPath(QStringLiteral("models/props/example.mdl"));
+Core::Path::FilesystemPath filePath(QStringLiteral("C:/game/assets/models/props/example.mdl"));
+
+if (assetPath.isValid()) {
+    const QString extension = assetPath.extension();
+}
+if (filePath.exists() && filePath.isFile()) {
+    const auto parent = filePath.parentPath();
+}
 ```
 
-rather than relative paths.
+`AssetPath` normalizes backslashes to `/`, rejects absolute paths, drive letters, schemes, empty components, `.` and `..`, and stores only a valid relative path. It provides `isEmpty`, `isValid`, `fileName`, `extension`, `directory`, `toString`, and equality operators. It does **not** provide the old `type()` API.
 
-## Build
+`FilesystemPath` normalizes with `QDir::cleanPath` and provides `isEmpty`, `isValid`, `exists`, `isFile`, `isDirectory`, `fileName`, `extension`, `parentPath`, `absolutePath`, `canonicalPath`, `toString`, and equality operators. `canonicalPath()` returns an invalid empty path when canonicalization fails.
+
+`PathUtils` provides static helpers for raw `QString` paths: `normalize`, `filename`, `extension`, `directory`, and `relativePath`. It also provides:
+
+* `resolveAssetPath(FilesystemPath baseDir, AssetPath assetPath)` → `FilesystemPath`; returns an invalid path if either input is invalid.
+* `makeAssetPath(FilesystemPath baseDir, FilesystemPath filePath)` → `std::optional<AssetPath>`; returns no value when the file is outside the base directory or either path is invalid.
+
+Do not merge the two path types, reintroduce `AssetPath::type()`, or add compatibility methods solely for legacy code.
+
+### Asset detection: `Core::Asset`
+
+```cpp
+#include "Core/Asset/AssetTypeDetector.h"
+
+const Core::Asset::AssetType type =
+    Core::Asset::AssetTypeDetector::detect(assetPath);
+```
+
+`AssetType` values are `Unknown`, `Model`, `Particle`, `Material`, and `Map`. `AssetTypeDetector::detect` accepts `AssetPath`, `FilesystemPath`, or `QString`; `detectFromExtension` accepts an extension. Detection is case-insensitive and currently recognizes:
+
+* Model: `mdl`, `vmdl`, `smd`, `fbx`
+* Particle: `pcf`, `vpcf`
+* Material: `vmt`, `vmat`, `vtf`
+* Map: `vmf`, `bsp`, `vmap`
+
+Unknown extensions return `AssetType::Unknown`.
+
+### Errors: `Core::Error`
+
+`ImportErrorCode` values are `Unknown`, `FileNotFound`, `InvalidPath`, `PermissionDenied`, `InvalidFile`, `DirectoryNotFound`, `ProcessFailed`, `ProcessTimeout`, and `OperationFailed`.
+
+`Core::Error::ImportException` derives from `QException` and stores an error code and message:
+
+```cpp
+try {
+    Core::FileSystem::FileSystem::readAll(path);
+} catch (const Core::Error::ImportException& exception) {
+    const auto code = exception.errorCode();
+    const QString message = exception.message();
+}
+```
+
+Use `ImportException` and `ImportErrorCode` in migrated Core-based code. Do not introduce new uses of the legacy `AppException` in migrated code. Preserve existing exception behavior in code that has not been migrated.
+
+### Filesystem: `Core::FileSystem`
+
+`FileSystem` provides static `exists`, `isFile`, `isDirectory`, `createDirectory`, `remove`, `copy`, `move`, `readAll`, and `writeAll` helpers. `copy` and `move` default to overwrite and throw `ImportException` on failure. `copy` supports files and recursive directory merge-copy.
+
+`AtomicFile` is a move-only RAII wrapper around `QSaveFile`. Construct it with a target path, then call `open`, `write`, and `commit`; call `rollback` when abandoning the operation. `writeAtomic(target, data)` is the one-shot helper. It throws `ImportException` for failures.
+
+`DirectorySnapshot` captures a directory into relative `FileEntry` records (`path`, `exists`, `size`, `lastModified`). Use `capture`, `diff`, `added`, `removed`, `modified`, `contains`, and `fileEntry`. Snapshot comparisons require the same root and may throw on an invalid comparison.
+
+### Processes: `Core::Process`
+
+`ProcessOptions` contains `timeout` in milliseconds (default `30000`, `-1` means no timeout), `workingDirectory`, `environment`, and `arguments`. `ProcessRunner::run` and `execute` return a `ProcessResult` rather than throwing for normal process outcomes.
+
+`ProcessResult` contains `status`, `exitCode`, `stdOut`, `stdErr`, and `errorMessage`. `ProcessStatus` is `Success`, `FailedToStart`, `Crashed`, `TimedOut`, or `NonZeroExit`; use `isSuccess()` instead of checking only the exit code. Prefer the overload that passes arguments explicitly:
+
+```cpp
+Core::Process::ProcessOptions options;
+options.timeout = 60000;
+options.workingDirectory = workingDirectory;
+const auto result = Core::Process::ProcessRunner::run(executable, arguments, options);
+if (!result.isSuccess()) {
+    // inspect result.status, result.errorMessage, and result.stdErr
+}
+```
+
+### Temporary resources: `Core::Temp`
+
+`TempFile` and `TempDirectory` are move-only RAII wrappers over Qt temporary resources. They create the resource during construction, expose `path()`, `exists()`, and `isValid()`, and clean up when destroyed. Construction throws `Core::Error::ImportException` with `OperationFailed` if creation fails. Do not manually delete resources owned by these wrappers.
+
+### Logging: `Core::Logging`
+
+`Logger::debug/info/warning/error` are simple static logging helpers. For importer/task workflows use `LogManager::instance().createTask(...)`, which returns `std::shared_ptr<TaskLoggingContext>`:
+
+```cpp
+auto task = Core::Logging::LogManager::instance().createTask(QStringLiteral("Import model"));
+task->start();
+task->info(QStringLiteral("Started"));
+task->updateProgress(0.5, QStringLiteral("Converting"));
+task->complete(QStringLiteral("Finished"));
+```
+
+`TaskLoggingContext` supports `debug`, `info`, `warning`, `error`, `log`, `reportFault`, progress/current-message updates, lifecycle transitions (`start`, `complete`, `fail`, `cancel`), snapshots, and block flushing. Valid lifecycle transitions are `Pending -> Running -> Completed|Failed|Cancelled`; terminal states cannot transition again.
+
+`LogManager` also supports task lookup/finalization, sinks (`addSink`, `removeSink`, `clearSinks`), `flushTask`, `flushAll`, task snapshots, and sealed/all-block inspection. Reader callbacks such as `readSealedBlocks`, `readAllBlocks`, and `readLogBlock` execute while locks are held: keep them short, in-memory, and free of I/O or calls that may re-enter logging.
+
+Use `FileSink` for file output or implement `ILogSink::writeBlock` and `flush` for another destination. Logs are block-based; only sealed blocks are delivered to sinks. `FaultBarrier` coordinates accepted submissions and fault/draining/termination states. Do not assume ordinary logging remains accepted after a fault or session termination; inspect `LogSubmissionResult` when ordering matters.
+
+### Current Core build boundary
+
+The current Core target includes the headers and implementations listed in `src/Core/CMakeLists.txt`. In particular, `TempFile` and `TempDirectory` are header-only. Core links privately to `Qt6::Core`; consumers should link the Core target rather than manually adding Core sources.
+
+## C++ and Existing-Code Conventions
+
+* Use C++17, Qt types, RAII, deterministic ownership, `const` correctness, and lightweight headers.
+* Use `PascalCase` for classes/enums and `camelCase` for functions, methods, locals, and members.
+* Do not perform unrelated style cleanup in legacy code.
+* Preserve legacy behavior unless a task explicitly requests a behavior change.
+* Do not duplicate Core facilities in newly migrated code.
+
+## CMake Rules
+
+* Require CMake 3.28+ and Qt 6.8+.
+* Use `qt_standard_project_setup()` where appropriate.
+* Use `qt_add_executable()` for the application, `qt_add_library()` for Core, and `qt_add_qml_module()` for QML.
+* Use `qt_add_resources()` only for non-QML resources.
+* Prefer target-based configuration with explicit `PRIVATE`, `PUBLIC`, or `INTERFACE` visibility.
+* Do not use global include paths when target-specific configuration is sufficient.
+* Do not manually list generated MOC/RCC/QML compiler outputs.
+* Do not use Qt 5 CMake APIs, `Qt5::` targets, qmake syntax, or `add_executable()` for the application.
+* Do not put QML files in `qt_add_resources()`.
+
+When modifying CMake, consult `skills/qt-cmake-project/SKILL.md` and its references, especially `simple-project.md`, `modular-architecture.md`, `qml-integration.md`, `resources.md`, and `common-mistakes.md`.
+
+## Build and Tests
 
 Standard local build:
 
@@ -229,40 +243,26 @@ cmake -S . -B build
 cmake --build build --config Release
 ```
 
-If `CMakePresets.json` is introduced, prefer presets for normal development and CI.
+The repository currently defines `test_logmanager` and `logging_test` under `tests/`. If `CMakePresets.json` is introduced, prefer presets for normal development and CI.
 
 ## Skills — Auto-Load Rules
 
-Before making changes, read the relevant skill.
+Before making changes, read the relevant skill:
 
-| Task                | Skill                              |
-|---------------------|------------------------------------|
-| C++ implementation  | `skills/qt-cmake-project/SKILL.md` |
+| Task | Skill |
+|---|---|
+| C++ implementation | `skills/qt-cmake-project/SKILL.md` |
 | CMake/build changes | `skills/qt-cmake-project/SKILL.md` |
-| QML implementation  | `skills/qt-qml/SKILL.md`           |
-| C++ review          | `skills/qt-cpp-review/SKILL.md`    |
-| QML review          | `skills/qt-qml-review/SKILL.md`    |
-| UI/UX decisions     | `skills/qt-ui-design/SKILL.md`     |
-
-When modifying CMake, also consult the relevant `qt-cmake-project` references, especially:
-
-* `simple-project.md`
-* `modular-architecture.md`
-* `qml-integration.md`
-* `resources.md`
-* `common-mistakes.md`
+| QML implementation | `skills/qt-qml/SKILL.md` |
+| C++ review | `skills/qt-cpp-review/SKILL.md` |
+| QML review | `skills/qt-qml-review/SKILL.md` |
+| UI/UX decisions | `skills/qt-ui-design/SKILL.md` |
 
 ## Do NOT
 
-* Do not use `qt5_*` CMake APIs.
-* Do not use `Qt5::` targets.
-* Do not use `add_executable()` for the application.
-* Do not put QML files in `qt_add_resources()`.
-* Do not manually add generated files.
-* Do not make Core depend on application code.
-* Do not duplicate Core functionality in newly migrated importer code.
+* Do not make Core depend on application code, UI, or QML.
+* Do not migrate ModelImporter or ParticleImporter unless explicitly requested.
+* Do not migrate MapImporter as part of another importer's migration.
+* Do not perform unrelated refactoring during a focused migration.
+* Do not assume current runtime/import behavior has already been rewritten around Core.
 * Do not add compatibility APIs solely for legacy code.
-* Do not migrate ModelImporter or ParticleImporter unless the task explicitly requests that migration.
-* Do not migrate `MapImporter` as part of another importer's migration.
-* Do not perform unrelated refactoring during a focused migration task.
-* Do not assume that the current runtime/import behavior has already been rewritten around Core.
