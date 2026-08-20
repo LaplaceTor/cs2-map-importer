@@ -11,26 +11,28 @@ LogManager& LogManager::instance()
 
 std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskName)
 {
-    quint64 id = m_nextTaskId.fetch_add(1, std::memory_order_relaxed);
-    return createTask(id, taskName);
+    QMutexLocker locker(&m_mutex);
+    while (m_tasks.contains(m_nextTaskId) || m_nextTaskId == 0) {
+        m_nextTaskId++;
+    }
+    quint64 id = m_nextTaskId++;
+    auto context = std::make_shared<TaskLoggingContext>(id, taskName);
+    m_tasks.insert(id, context);
+    return context;
 }
 
 std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const QString& taskName)
 {
     QMutexLocker locker(&m_mutex);
     if (m_tasks.contains(taskId)) {
-        return m_tasks.value(taskId);
+        return nullptr;
     }
 
     auto context = std::make_shared<TaskLoggingContext>(taskId, taskName);
     m_tasks.insert(taskId, context);
 
-    // Update m_nextTaskId if explicit taskId is >= current counter to avoid potential collision
-    quint64 currentNext = m_nextTaskId.load(std::memory_order_relaxed);
-    while (taskId >= currentNext) {
-        if (m_nextTaskId.compare_exchange_weak(currentNext, taskId + 1, std::memory_order_relaxed)) {
-            break;
-        }
+    if (taskId >= m_nextTaskId && taskId != std::numeric_limits<quint64>::max()) {
+        m_nextTaskId = taskId + 1;
     }
 
     return context;
@@ -84,7 +86,21 @@ bool LogManager::cancelTask(quint64 taskId, const QString& message)
     return true;
 }
 
-LogBlock LogManager::getLogBlock(quint64 taskId) const
+bool LogManager::readLogBlock(quint64 taskId, const std::function<void(const LogBlock&)>& reader) const
+{
+    std::shared_ptr<TaskLoggingContext> task;
+    {
+        QMutexLocker locker(&m_mutex);
+        task = m_tasks.value(taskId, nullptr);
+    }
+    if (!task) {
+        return false;
+    }
+    task->withLogBlock(reader);
+    return true;
+}
+
+LogBlock LogManager::getLogBlockSnapshot(quint64 taskId) const
 {
     std::shared_ptr<TaskLoggingContext> task;
     {
@@ -94,7 +110,7 @@ LogBlock LogManager::getLogBlock(quint64 taskId) const
     if (!task) {
         return LogBlock(taskId);
     }
-    return task->logBlock();
+    return task->logBlockSnapshot();
 }
 
 QVector<quint64> LogManager::taskIds() const

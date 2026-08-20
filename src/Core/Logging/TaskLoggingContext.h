@@ -4,6 +4,7 @@
 #include <QMutex>
 #include <QString>
 #include <QtGlobal>
+#include <functional>
 
 #include "LogBlock.h"
 #include "LogLevel.h"
@@ -34,7 +35,11 @@ public:
     QString currentMessage() const;
     void updateCurrentMessage(const QString& message);
 
-    LogBlock logBlock() const;
+    // Zero-copy reader callback for log block inspection
+    void withLogBlock(const std::function<void(const LogBlock&)>& reader) const;
+
+    // Explicit read-only snapshot of the current log block
+    LogBlock logBlockSnapshot() const;
 
     // Logging methods
     void debug(const QString& message);
@@ -43,11 +48,17 @@ public:
     void error(const QString& message);
     void log(LogLevel level, const QString& message);
 
-    // Lifecycle methods
-    void start();
-    void complete(const QString& message = QString());
-    void fail(const QString& message = QString());
-    void cancel(const QString& message = QString());
+    // Lifecycle methods with state machine enforcement:
+    // Pending -> Running -> (Completed | Failed | Cancelled)
+    bool start();
+    bool complete(const QString& message = QString());
+    bool fail(const QString& message = QString());
+    bool cancel(const QString& message = QString());
+
+    static bool isTerminalState(TaskState state) noexcept
+    {
+        return state == TaskState::Completed || state == TaskState::Failed || state == TaskState::Cancelled;
+    }
 
 private:
     quint64 m_taskId = 0;
@@ -57,7 +68,7 @@ private:
     double m_progress = 0.0;
     QString m_currentMessage;
     LogBlock m_logBlock;
-    quint64 m_nextSequence = 1;
+    quint64 m_nextSequence = 1; // Task-local log entry sequence number
 };
 
 } // namespace Core::Logging

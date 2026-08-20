@@ -6,8 +6,12 @@
 
 namespace Core::Logging {
 
+/**
+ * @brief Represents a single log entry.
+ * Note: sequence is a task-local sequence number starting from 1 for each task.
+ */
 struct LogEntry {
-    quint64 sequence = 0;
+    quint64 sequence = 0; // Monotonically increasing sequence number within its Task
     qint64 timestamp = 0; // UTC Unix epoch milliseconds
     LogLevel level = LogLevel::Info;
     QString message;
