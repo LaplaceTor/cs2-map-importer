@@ -1,4 +1,4 @@
-find_package(Qt6 REQUIRED COMPONENTS Core Test)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Test)
 
 qt_add_executable(test_logmanager
     TestLogManager.cpp
@@ -15,3 +15,18 @@ target_include_directories(test_logmanager PRIVATE
 )
 
 add_test(NAME test_logmanager COMMAND test_logmanager)
+
+qt_add_executable(logging_test
+    LoggingStressTest.cpp
+)
+
+target_link_libraries(logging_test PRIVATE
+    cs2importer_core
+    Qt6::Core
+)
+
+target_include_directories(logging_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+add_test(NAME logging_test COMMAND logging_test)
