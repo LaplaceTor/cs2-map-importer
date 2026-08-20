@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDateTime>
+#include <QMutex>
 #include <QString>
 #include <QtGlobal>
 
@@ -10,37 +11,30 @@
 
 namespace Core::Logging {
 
-/**
- * @brief Threading & Concurrency Model:
- * TaskLoggingContext is designed as a single-writer / task-owner context.
- * All state updates and log entries for a task should be performed on its owning execution thread.
- * Multi-thread access to the same context is not thread-safe.
- */
 class TaskLoggingContext {
 public:
     explicit TaskLoggingContext(quint64 taskId, QString taskName = QString());
     ~TaskLoggingContext() = default;
 
-    // Move construct / assign allowed; copy disabled because LogBlock is non-copyable
     TaskLoggingContext(const TaskLoggingContext&) = delete;
     TaskLoggingContext& operator=(const TaskLoggingContext&) = delete;
-    TaskLoggingContext(TaskLoggingContext&&) noexcept = default;
-    TaskLoggingContext& operator=(TaskLoggingContext&&) noexcept = default;
+    TaskLoggingContext(TaskLoggingContext&&) noexcept = delete;
+    TaskLoggingContext& operator=(TaskLoggingContext&&) noexcept = delete;
 
     quint64 taskId() const noexcept { return m_taskId; }
 
-    QString taskName() const { return m_taskName; }
-    void setTaskName(const QString& name) { m_taskName = name; }
+    QString taskName() const;
+    void setTaskName(const QString& name);
 
-    TaskState state() const noexcept { return m_state; }
+    TaskState state() const noexcept;
 
-    double progress() const noexcept { return m_progress; }
+    double progress() const noexcept;
     void updateProgress(double progress, const QString& message = QString());
 
-    QString currentMessage() const { return m_currentMessage; }
-    void updateCurrentMessage(const QString& message) { m_currentMessage = message; }
+    QString currentMessage() const;
+    void updateCurrentMessage(const QString& message);
 
-    const LogBlock& logBlock() const noexcept { return m_logBlock; }
+    LogBlock logBlock() const;
 
     // Logging methods
     void debug(const QString& message);
@@ -57,6 +51,7 @@ public:
 
 private:
     quint64 m_taskId = 0;
+    mutable QMutex m_mutex;
     QString m_taskName;
     TaskState m_state = TaskState::Pending;
     double m_progress = 0.0;
