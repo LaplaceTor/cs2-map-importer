@@ -12,6 +12,29 @@
 
 using namespace Core::Logging;
 
+class FailingMockSink : public ILogSink {
+public:
+    int failAfterBlocks = 1;
+    int writtenBlocks = 0;
+    bool shouldFailFlush = false;
+
+    bool writeBlock(const LogBlock& block, const QString& taskName) override
+    {
+        Q_UNUSED(block);
+        Q_UNUSED(taskName);
+        if (writtenBlocks >= failAfterBlocks) {
+            return false;
+        }
+        writtenBlocks++;
+        return true;
+    }
+
+    bool flush() override
+    {
+        return !shouldFailFlush;
+    }
+};
+
 class TestLogManager : public QObject {
     Q_OBJECT
 
@@ -34,6 +57,8 @@ private slots:
     void testFileSinkMultiTaskAndBlocks();
     void testConcurrentFlushTasks();
     void testDynamicAddSinkHistory();
+    void testSinkErrorAndCursorRollback();
+    void testSinkIdPointerReuseSafety();
 };
 
 void TestLogManager::init()
@@ -636,6 +661,52 @@ void TestLogManager::testDynamicAddSinkHistory()
 
     // 20 entries + 1 finish message = 21 lines in late-added sink
     QCOMPARE(lineCount, 21);
+}
+
+void TestLogManager::testSinkErrorAndCursorRollback()
+{
+    auto task = LogManager::instance().createTask("Rollback Task");
+    task->setBlockSizeThreshold(50); // small threshold to force multiple sealed blocks
+
+    for (int i = 0; i < 10; ++i) {
+        task->info(QString("Rollback Entry %1").arg(i));
+    }
+    task->flushActiveBlock();
+    QVERIFY(task->sealedBlockCount() >= 3);
+
+    auto mockSink = std::make_shared<FailingMockSink>();
+    mockSink->failAfterBlocks = 1; // Only allow 1 block to succeed
+    LogManager::instance().addSink(mockSink);
+
+    // Flush task: 1st block succeeds, 2nd block fails, cursor rolls back
+    LogManager::instance().flushTask(task->taskId());
+    QCOMPARE(mockSink->writtenBlocks, 1);
+
+    // Fix sink failure state
+    mockSink->failAfterBlocks = 100;
+
+    // Retry flush: should resume from block 1 (since block 0 was committed, block 1+ rolled back)
+    LogManager::instance().flushTask(task->taskId());
+    QCOMPARE(mockSink->writtenBlocks, static_cast<int>(task->sealedBlockCount()));
+}
+
+void TestLogManager::testSinkIdPointerReuseSafety()
+{
+    auto sink1 = std::make_shared<FailingMockSink>();
+    auto sink2 = std::make_shared<FailingMockSink>();
+
+    QVERIFY(sink1->sinkId() != sink2->sinkId());
+
+    LogManager::instance().addSink(sink1);
+    LogManager::instance().removeSink(sink1);
+    LogManager::instance().addSink(sink2);
+
+    // Both sinks had independent IDs, sink2 starts fresh with cursor 0
+    auto task = LogManager::instance().createTask("ID Safety Task");
+    task->info("Message 1");
+    LogManager::instance().flushTask(task->taskId());
+
+    QCOMPARE(sink2->writtenBlocks, 1);
 }
 
 QTEST_MAIN(TestLogManager)

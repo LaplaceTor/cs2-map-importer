@@ -98,7 +98,7 @@ void LogManager::addSink(std::shared_ptr<ILogSink> sink)
     QMutexLocker locker(&m_mutex);
     if (!m_sinks.contains(sink)) {
         m_sinks.append(sink);
-        m_sinkCursors.insert(sink.get(), QHash<quint64, qsizetype>());
+        m_sinkCursors.insert(sink->sinkId(), QHash<quint64, SinkCursor>());
     }
 }
 
@@ -109,7 +109,7 @@ void LogManager::removeSink(std::shared_ptr<ILogSink> sink)
     }
     QMutexLocker locker(&m_mutex);
     m_sinks.removeOne(sink);
-    m_sinkCursors.remove(sink.get());
+    m_sinkCursors.remove(sink->sinkId());
 }
 
 void LogManager::clearSinks()
@@ -188,16 +188,18 @@ bool LogManager::flushTask(quint64 taskId)
         return false;
     }
 
-    // Flush active block in task (Task-level mutex, no LogManager global lock held)
+    // Seal active block in task (Task-level lock, no LogManager global lock)
     task->flushActiveBlock();
 
     struct SinkWork {
         std::shared_ptr<ILogSink> sink;
+        quint64 sinkId = 0;
         QVector<LogBlock> blocks;
         QString taskName;
     };
     QVector<SinkWork> pendingWork;
 
+    // Phase 1: Reserve unflushed blocks under LogManager lock
     {
         QMutexLocker locker(&m_mutex);
         if (m_sinks.isEmpty()) {
@@ -209,31 +211,63 @@ bool LogManager::flushTask(quint64 taskId)
         qsizetype totalSealedCount = sealedBlocks.size();
 
         for (const auto& sink : m_sinks) {
-            ILogSink* sinkPtr = sink.get();
-            qsizetype currentCursor = m_sinkCursors[sinkPtr].value(taskId, 0);
+            quint64 sId = sink->sinkId();
+            SinkCursor& cursor = m_sinkCursors[sId][taskId];
 
-            if (currentCursor < totalSealedCount) {
+            if (cursor.reserved < totalSealedCount) {
                 QVector<LogBlock> blocksToDispatch;
-                blocksToDispatch.reserve(totalSealedCount - currentCursor);
+                blocksToDispatch.reserve(totalSealedCount - cursor.reserved);
 
-                for (qsizetype i = currentCursor; i < totalSealedCount; ++i) {
+                for (qsizetype i = cursor.reserved; i < totalSealedCount; ++i) {
                     blocksToDispatch.append(sealedBlocks[i]);
                 }
 
-                // Advance the per-sink cursor inside the lock to reserve work and avoid duplicated writes
-                m_sinkCursors[sinkPtr][taskId] = totalSealedCount;
+                // Advance reserved cursor
+                cursor.reserved = totalSealedCount;
 
-                pendingWork.append(SinkWork{sink, std::move(blocksToDispatch), taskName});
+                pendingWork.append(SinkWork{sink, sId, std::move(blocksToDispatch), taskName});
             }
         }
     } // Unlock LogManager::m_mutex
 
-    // Perform Sink I/O outside LogManager global lock
+    if (pendingWork.isEmpty()) {
+        return true;
+    }
+
+    // Phase 2: Execute Sink I/O outside of LogManager lock
     for (const auto& work : pendingWork) {
+        qsizetype successCount = 0;
+        bool flushOk = true;
+
         for (const auto& block : work.blocks) {
-            work.sink->writeBlock(block, work.taskName);
+            if (work.sink->writeBlock(block, work.taskName)) {
+                successCount++;
+            } else {
+                flushOk = false;
+                break;
+            }
         }
-        work.sink->flush();
+
+        if (successCount > 0 && flushOk) {
+            if (!work.sink->flush()) {
+                flushOk = false;
+            }
+        }
+
+        // Phase 3: Transactional Commit / Rollback under LogManager lock
+        QMutexLocker locker(&m_mutex);
+        if (!m_sinkCursors.contains(work.sinkId)) {
+            // Sink was removed during I/O; ignore state update safely
+            continue;
+        }
+
+        SinkCursor& cursor = m_sinkCursors[work.sinkId][taskId];
+        cursor.committed += successCount;
+
+        if (!flushOk || successCount < work.blocks.size()) {
+            // Roll back reserved cursor to committed cursor so unwritten blocks can be retried
+            cursor.reserved = cursor.committed;
+        }
     }
 
     return true;

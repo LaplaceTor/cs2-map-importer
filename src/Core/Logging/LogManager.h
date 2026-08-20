@@ -15,6 +15,11 @@ namespace Core::Logging {
 
 class LogManager {
 public:
+    struct SinkCursor {
+        qsizetype committed = 0;
+        qsizetype reserved = 0;
+    };
+
     LogManager() = default;
     ~LogManager() = default;
 
@@ -119,8 +124,8 @@ private:
     mutable QMutex m_mutex;
     QHash<quint64, std::shared_ptr<TaskLoggingContext>> m_tasks;
     QVector<std::shared_ptr<ILogSink>> m_sinks;
-    // Independent block cursors per sink per task: [ILogSink* -> [taskId -> flushedBlockCount]]
-    QHash<ILogSink*, QHash<quint64, qsizetype>> m_sinkCursors;
+    // Independent block cursors per sink ID per task ID: [sinkId -> [taskId -> SinkCursor]]
+    QHash<quint64, QHash<quint64, SinkCursor>> m_sinkCursors;
     quint64 m_nextTaskId = 1;
     qsizetype m_defaultBlockSizeThreshold = 0;
 };

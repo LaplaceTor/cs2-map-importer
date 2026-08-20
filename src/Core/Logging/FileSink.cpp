@@ -70,11 +70,11 @@ QString FileSink::filePath() const
     return m_file.fileName();
 }
 
-void FileSink::writeBlock(const LogBlock& block, const QString& taskName)
+bool FileSink::writeBlock(const LogBlock& block, const QString& taskName)
 {
     QMutexLocker locker(&m_mutex);
     if (!m_file.isOpen()) {
-        return;
+        return false;
     }
 
     quint64 taskId = block.taskId();
@@ -84,16 +84,22 @@ void FileSink::writeBlock(const LogBlock& block, const QString& taskName)
     for (const auto& entry : entries) {
         QString line = formatEntry(entry.timestamp, taskId, taskName, blockIndex, entry.sequence, entry.level, entry.message);
         m_stream << line << "\n";
+        if (m_stream.status() != QTextStream::Ok) {
+            return false;
+        }
     }
-    // Stream buffering is maintained for I/O performance. Explicit flush() handles file flushing.
+
+    return m_stream.status() == QTextStream::Ok;
 }
 
-void FileSink::flush()
+bool FileSink::flush()
 {
     QMutexLocker locker(&m_mutex);
-    if (m_file.isOpen()) {
-        m_stream.flush();
+    if (!m_file.isOpen()) {
+        return false;
     }
+    m_stream.flush();
+    return (m_stream.status() == QTextStream::Ok && m_file.error() == QFile::NoError);
 }
 
 QString FileSink::formatEntry(qint64 timestamp, quint64 taskId, const QString& taskName, quint64 blockIndex, quint64 sequence, LogLevel level, const QString& message)

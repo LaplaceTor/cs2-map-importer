@@ -45,13 +45,15 @@ public:
 
     /**
      * @brief Writes a sealed LogBlock to the log file safely.
+     * @return true on success, false on I/O error or if file is closed.
      */
-    void writeBlock(const LogBlock& block, const QString& taskName) override;
+    bool writeBlock(const LogBlock& block, const QString& taskName) override;
 
     /**
      * @brief Flushes the file stream.
+     * @return true on success, false on I/O error or if file is closed.
      */
-    void flush() override;
+    bool flush() override;
 
     /**
      * @brief Formats a single log entry into a string line.
