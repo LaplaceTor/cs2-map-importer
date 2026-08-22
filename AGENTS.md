@@ -11,90 +11,186 @@ A Windows desktop GUI application that imports Source 1 game assets (maps, model
 * **UI:** QML / Qt Quick Controls 2
 * **QML style:** Fusion
 
-The project is undergoing a staged architecture refactor. The reusable Core layer has been extracted, but application/importer migration is still staged and must not be inferred from the existence of Core.
+The project is undergoing a staged architecture refactor. The reusable Core layer has been extracted, and unmigrated components are being transitioned into a clean 4-tier layered architecture.
 
-## Current Architecture
+---
+
+## Target Layered Architecture
+
+```text
+┌───────────────────────────────────────────────────────────┐
+│                    Presentation Layer (UI)                │
+│   QML Views ◄──(Q_PROPERTY / Signals)──► ViewModels/Ui    │
+└─────────────────────────────┬─────────────────────────────┘
+                              │ calls / connects
+┌─────────────────────────────▼─────────────────────────────┐
+│                 Application Service Layer                 │
+│  • WorkflowRunner / Task Management • ConfigService       │
+│  • GameDetectService (Steam/Paths)  • UpdateService       │
+│  • IUserPromptHandler / Modal Confirmation Bridge         │
+└─────────────────────────────┬─────────────────────────────┘
+                              │ executes pipelines / invokes
+┌─────────────────────────────▼─────────────────────────────┐
+│                  Domain / Workflow Layer                  │
+│  • Importers: MapImporter, ModelImporter, ParticleImporter│
+│  • Domain Tools: BspsrcTool, Source1ImportTool, RC...     │
+│  • Asset Processors: VmfProcessor, MaterialFixer, Audio   │
+│  • Package Extractor (VPK) & GameInfo/SearchPaths         │
+└─────────────────────────────┬─────────────────────────────┘
+                              │ uses base utilities
+┌─────────────────────────────▼─────────────────────────────┐
+│                    Core Infrastructure                    │
+│  Core::Path, Core::FileSystem, Core::Process,             │
+│  Core::Logging, Core::Temp, Core::Error, Core::Asset      │
+└───────────────────────────────────────────────────────────┘
+```
+
+### Dependency Rules
+
+1. **Strict Downward Dependency**:
+   $$\text{Presentation} \longrightarrow \text{Application} \longrightarrow \text{Domain/Workflow} \longrightarrow \text{Core}$$
+2. **Zero Upward Perception**: Lower layers (`Core`, `Domain`) must **never** include, link to, or be aware of upper layers (`UI`, `Presentation`, `Application`).
+3. **Core Independence**: `Core` contains 0 business logic, 0 Valve-specific domain logic, and 0 UI/QML dependencies.
+
+---
+
+## Target Directory Structure & Module Placement
 
 ```text
 src/
-├── Core/                         # Reusable infrastructure, independent of application workflows
+├── Core/                         # Reusable infrastructure (cs2importer_core)
 │   ├── Asset/                    # AssetType and AssetTypeDetector
 │   ├── Error/                    # ImportErrorCode and ImportException
 │   ├── FileSystem/               # FileSystem, AtomicFile, DirectorySnapshot
-│   ├── Logging/                  # Task-oriented logging and sinks
+│   ├── Logging/                  # Task-oriented logging, Sinks, FaultBarrier
 │   ├── Path/                     # AssetPath, FilesystemPath, PathUtils
 │   ├── Process/                  # ProcessOptions, ProcessResult, ProcessRunner
 │   ├── Temp/                     # TempFile and TempDirectory
 │   └── CMakeLists.txt
 │
-├── Main.cpp                      # Existing application entry point
-├── Ui.h / Ui.cpp                 # Existing QML-facing controller
-├── ModelImporter.h/.cpp          # Existing importer; not yet migrated to Core
-├── ParticleImporter.h/.cpp       # Existing importer; not yet migrated to Core
-├── MapImporter.h/.cpp            # Existing legacy implementation
-├── Miscellaneous.h/.cpp          # Existing legacy utilities
-├── VmfBspProcess.h/.cpp          # Existing legacy map workflow
-├── FileExtractFromVPK.h/.cpp     # Existing legacy map workflow
-├── MaterialFix.h/.cpp            # Existing legacy map workflow
-├── SoundscapeImport.h/.cpp       # Existing legacy map workflow
-└── qml/cs2importer/Main.qml
+├── Legacy/                       # Transitional unmigrated code (cs2importerlegacy executable)
+│   ├── Main.cpp, Ui.h/.cpp, Miscellaneous.h/.cpp
+│   ├── MapImporter, ModelImporter, ParticleImporter
+│   ├── VmfBspProcess, MaterialFix, SoundscapeImport, FileExtractFromVPK
+│   └── CMakeLists.txt
+│
+├── Domain/                       # Valve & Source 1/2 domain models, parsers, and tool adapters
+│   ├── Audio/                    # Soundscape extraction and VMF audio linking
+│   ├── Bsp/                      # BSP unpacking, embedded file extraction
+│   ├── Game/                     # GameInfo parser, SearchPath resolution
+│   ├── Material/                 # VMT / VMAT conversion, skybox, UV & shader fixing
+│   ├── Package/                  # VPK asset extraction & indexing
+│   ├── Tool/                     # Tool wrappers (bspsrc, source1import, vpkeditcli, etc.)
+│   └── Vmf/                      # VMF AST parsing, entity/brush manipulation, serialization
+│
+├── Workflow/                     # Concrete import pipeline use-cases
+│   ├── Common/                   # ImportContext, CancellationToken, IImporter
+│   ├── Map/                      # MapImporter workflow
+│   ├── Model/                    # ModelImporter workflow
+│   └── Particle/                 # ParticleImporter workflow
+│
+├── Application/                  # Application services & execution orchestration
+│   ├── Config/                   # Configuration persistence (AppConfig / settings)
+│   ├── Environment/              # Game / Steam library path detection
+│   ├── Task/                     # WorkflowRunner, background worker thread management
+│   └── Update/                   # UpdateService (version checking)
+│
+├── UI/                           # QML presentation controllers and ViewModels
+│   ├── Controllers/              # Main UI controller, Tab controller
+│   └── ViewModels/               # Property-binding models (MapViewModel, ModelViewModel, etc.)
+│
+└── qml/                          # QML interface declarations (cs2importer_qml)
+    └── cs2importer/
+        ├── CMakeLists.txt
+        └── Main.qml
 ```
 
-`src/Core/CMakeLists.txt` currently builds `cs2importer_core` as a static library. Its public include root is `src/`, so Core headers use project-root includes such as:
+### Component Placement Mapping
+
+| Existing / Legacy Component | Target Layer & Namespace | Target Path | Key Responsibilities |
+| :--- | :--- | :--- | :--- |
+| `Miscellaneous::RunCommandSync`, `PROGRAM_*` | `Domain::Tool` | `src/Domain/Tool/` | Structured invocation of external binaries via `Core::Process::ProcessRunner`. |
+| `VmfBspProcess.h/.cpp` | `Domain::Vmf`<br>`Domain::Bsp` | `src/Domain/Vmf/`<br>`src/Domain/Bsp/` | VMF AST parsing/manipulation/serialization; BSP decompile orchestration. |
+| `MaterialFix.h/.cpp` | `Domain::Material` | `src/Domain/Material/` | Material (VMT/VMAT) corrections, shader properties, UV fixes. |
+| `SoundscapeImport.h/.cpp` | `Domain::Audio` | `src/Domain/Audio/` | Soundscape extraction and VMF entity sound connections. |
+| `FileExtractFromVPK.h/.cpp` | `Domain::Package` | `src/Domain/Package/` | Typed asset extraction from VPK archives. |
+| `Miscellaneous::ParseGameInfo`, `SearchTarget` | `Domain::Game` | `src/Domain/Game/` | `gameinfo.txt` parsing and game search path resolution. |
+| `ModelImporter.h/.cpp` | `Workflow::Model` | `src/Workflow/Model/` | Model import pipeline (.mdl $\rightarrow$ .vmdl). |
+| `ParticleImporter.h/.cpp` | `Workflow::Particle` | `src/Workflow/Particle/` | Particle import pipeline (.pcf $\rightarrow$ .vpcf). |
+| `MapImporter.h/.cpp` | `Workflow::Map` | `src/Workflow/Map/` | Map import pipeline (BSP $\rightarrow$ VMF $\rightarrow$ compile/assets). |
+| `Ui::AutoDetectPaths`, `IsValid*` | `Application::Environment` | `src/Application/Environment/` | Registry & Steam library scanning for game paths. |
+| `Ui::CheckForUpdate` | `Application::Update` | `src/Application/Update/` | Update checking via network API. |
+| `Ui::LoadFromCfg`, `SaveToCfg` | `Application::Config` | `src/Application/Config/` | Application configuration load/save. |
+| `Ui::Start`, `m_workerThread`, `CancelAll` | `Application::Task` | `src/Application/Task/` | `WorkflowRunner`: Worker thread management, cancellation, exception handling. |
+| `Ui.h/.cpp` (Q_PROPERTY, Slots) | `UI` | `src/UI/` | Thin presentation adapters and view models for QML. |
+
+---
+
+## Inter-Layer Communication & Routing Design
+
+To eliminate legacy anti-patterns (such as global static options, global logger pointers, and cross-thread UI coupling), all inter-layer communication must follow these four routing patterns:
+
+### 1. Context Pipeline Routing (Task Trigger & Execution)
+* **Presentation $\rightarrow$ Application**: `UI` validates user input, constructs an immutable value object `ImportOptions` (using `Core::Path::FilesystemPath` and `Core::Path::AssetPath`), and passes it to `WorkflowRunner`.
+* **Application $\rightarrow$ Workflow**: `WorkflowRunner` creates a `TaskLoggingContext`, an execution token / cancellation flag, and dispatches the task to a worker thread running the target `IImporter`.
+* **Completion / Signals**: Upon completion or error, `WorkflowRunner` emits Qt signals using `Qt::QueuedConnection` back to the UI controller to update `isGoing`, `canGo`, or display result alerts.
+
+### 2. Task-Oriented Logging & Progress Routing
+* All importers and domain processors accept `std::shared_ptr<Core::Logging::TaskLoggingContext>`.
+* **No global static loggers**: Components call `context->info(...)`, `context->updateProgress(...)`, or `context->reportFault(...)`.
+* **Sinks**: File output is handled via `Core::Logging::FileSink`. UI console output is routed by implementing `Core::Logging::ILogSink` or subscribing to `LogManager` block commits, delivering log entries to the UI thread via queued signals.
+
+### 3. Decoupled User Prompt & Confirmation Routing
+When an importer requires interactive confirmation (e.g. overwriting files or unresolved dependencies), domain code must **not** directly call UI dialogs.
+* **Interface**: Define `IUserPromptHandler` (pure virtual):
+  ```cpp
+  class IUserPromptHandler {
+  public:
+      virtual ~IUserPromptHandler() = default;
+      virtual bool promptConfirmation(const QString& title, const QString& message) = 0;
+  };
+  ```
+* **Implementation**: `Application` / `UI` provides an `AsyncPromptHandler` that uses `QMetaObject::invokeMethod` to trigger QML modals and blocks the worker thread safely via `QWaitCondition` until the user responds.
+
+### 4. External Tool Execution Routing
+Direct creation of `QProcess` or shell execution across business files is forbidden. All external CLI tools (`bspsrc`, `source1import`, `resourcecompiler`, `vpkeditcli`, `vtfcmd`) must be wrapped under `Domain::Tool`, returning structured `Core::Process::ProcessResult` using `Core::Process::ProcessRunner`.
+
+---
+
+## Refactor Status and Staged Roadmap
+
+### Refactor Stages
+
+1. **Stage 1 (Completed)**: Core infrastructure extraction (`src/Core`).
+2. **Stage 2 (In Progress / Next)**: Domain foundations and tool wrappers:
+   * Implement `Domain::Tool` (wrap tools with `Core::Process`).
+   * Implement `Domain::Game` (GameInfo and search path resolver with `Core::Path`).
+   * Implement `Domain::Package` (VPK extraction with `Core::FileSystem`).
+3. **Stage 3**: Standalone Importers & Domain Processors:
+   * Migrate `ModelImporter` $\rightarrow$ `src/Workflow/Model/`.
+   * Migrate `ParticleImporter` $\rightarrow$ `src/Workflow/Particle/`.
+   * Refactor `MaterialFix` $\rightarrow$ `Domain::Material`.
+   * Refactor `VmfBspProcess` $\rightarrow$ `Domain::Vmf` & `Domain::Bsp`.
+4. **Stage 4**: Application Services & WorkflowRunner:
+   * Implement `WorkflowRunner`, `ConfigService`, `GameDetectService`.
+   * Connect `Core::Logging` to UI sink.
+5. **Stage 5**: MapImporter Migration & UI Slimming:
+   * Migrate `MapImporter` $\rightarrow$ `src/Workflow/Map/`.
+   * Refactor `Ui.cpp` into thin ViewModels / Controllers under `src/UI/`.
+
+> [!IMPORTANT]
+> **Preserve Existing Behavior**: Do not combine refactor stages. When migrating a specific component, keep its functional behavior intact while replacing legacy utilities with the target architectural abstractions.
+
+---
+
+## Core API Reference
+
+`src/Core/CMakeLists.txt` builds `cs2importer_core` as a static library. Its public include root is `src/`, so Core headers use project-root includes:
 
 ```cpp
 #include "Core/Path/AssetPath.h"
 #include "Core/FileSystem/FileSystem.h"
 ```
-
-Do not add Core source files directly to the application target. The application and tests link against `cs2importer_core`.
-
-## Refactor Status and Scope
-
-### Completed
-
-* Core infrastructure is extracted under `src/Core`.
-* Core is an independent `cs2importer_core` target linked by the application and tests.
-* `AssetPath` and `FilesystemPath` are separate value types.
-* Core currently contains the APIs documented in the **Core API Reference** section below.
-
-### Not yet completed
-
-* **ModelImporter migration:** not started; it still uses application/legacy infrastructure.
-* **ParticleImporter migration:** not started; it still uses application/legacy infrastructure.
-* **MapImporter migration:** intentionally deferred; preserve its current implementation and behavior.
-* **UI/QML and remaining application infrastructure:** still current-state/legacy code.
-
-At the current stage, do not migrate application code merely because an equivalent Core API exists. Only use Core APIs in application code when the task explicitly migrates that component. Do not combine refactor stages unless explicitly requested.
-
-The Core extraction has not intentionally rewritten import workflows or runtime behavior. Preserve existing behavior during structural work and do not claim that an importer has been migrated unless the task actually performs that migration.
-
-## Core Dependency Rules
-
-Dependency direction must remain:
-
-```text
-Application / Importers
-        ↓
-      Core
-```
-
-Core must not depend on `MapImporter`, `ModelImporter`, `ParticleImporter`, `Ui`, QML, or legacy application utilities. Do not place workflow policy, UI behavior, or importer-specific logic in Core.
-
-When migrating a component to Core, use an existing equivalent Core facility rather than duplicating it:
-
-* filesystem operations → `Core::FileSystem`
-* asset classification → `Core::Asset`
-* asset-relative paths → `Core::Path::AssetPath`
-* filesystem paths → `Core::Path::FilesystemPath`
-* external processes → `Core::Process`
-* temporary resources → `Core::Temp`
-* task logging → `Core::Logging`
-* import failures → `Core::Error`
-
-## Core API Reference
-
-This section reflects the current public declarations and should be updated if the API changes.
 
 ### Paths: `Core::Path`
 
@@ -116,16 +212,11 @@ if (filePath.exists() && filePath.isFile()) {
 }
 ```
 
-`AssetPath` normalizes backslashes to `/`, rejects absolute paths, drive letters, schemes, empty components, `.` and `..`, and stores only a valid relative path. It provides `isEmpty`, `isValid`, `fileName`, `extension`, `directory`, `toString`, and equality operators. It does **not** provide the old `type()` API.
-
-`FilesystemPath` normalizes with `QDir::cleanPath` and provides `isEmpty`, `isValid`, `exists`, `isFile`, `isDirectory`, `fileName`, `extension`, `parentPath`, `absolutePath`, `canonicalPath`, `toString`, and equality operators. `canonicalPath()` returns an invalid empty path when canonicalization fails.
-
-`PathUtils` provides static helpers for raw `QString` paths: `normalize`, `filename`, `extension`, `directory`, and `relativePath`. It also provides:
-
-* `resolveAssetPath(FilesystemPath baseDir, AssetPath assetPath)` → `FilesystemPath`; returns an invalid path if either input is invalid.
-* `makeAssetPath(FilesystemPath baseDir, FilesystemPath filePath)` → `std::optional<AssetPath>`; returns no value when the file is outside the base directory or either path is invalid.
-
-Do not merge the two path types, reintroduce `AssetPath::type()`, or add compatibility methods solely for legacy code.
+* `AssetPath` normalizes backslashes to `/`, rejects absolute paths, drive letters, schemes, empty components, `.` and `..`, and stores only a valid relative path.
+* `FilesystemPath` normalizes with `QDir::cleanPath` and provides `isEmpty`, `isValid`, `exists`, `isFile`, `isDirectory`, `fileName`, `extension`, `parentPath`, `absolutePath`, `canonicalPath`, `toString`.
+* `PathUtils`:
+  * `resolveAssetPath(FilesystemPath baseDir, AssetPath assetPath)` $\rightarrow$ `FilesystemPath`
+  * `makeAssetPath(FilesystemPath baseDir, FilesystemPath filePath)` $\rightarrow$ `std::optional<AssetPath>`
 
 ### Asset detection: `Core::Asset`
 
@@ -136,45 +227,25 @@ const Core::Asset::AssetType type =
     Core::Asset::AssetTypeDetector::detect(assetPath);
 ```
 
-`AssetType` values are `Unknown`, `Model`, `Particle`, `Material`, and `Map`. `AssetTypeDetector::detect` accepts `AssetPath`, `FilesystemPath`, or `QString`; `detectFromExtension` accepts an extension. Detection is case-insensitive and currently recognizes:
-
+Detection is case-insensitive:
 * Model: `mdl`, `vmdl`, `smd`, `fbx`
 * Particle: `pcf`, `vpcf`
 * Material: `vmt`, `vmat`, `vtf`
 * Map: `vmf`, `bsp`, `vmap`
 
-Unknown extensions return `AssetType::Unknown`.
-
 ### Errors: `Core::Error`
 
-`ImportErrorCode` values are `Unknown`, `FileNotFound`, `InvalidPath`, `PermissionDenied`, `InvalidFile`, `DirectoryNotFound`, `ProcessFailed`, `ProcessTimeout`, and `OperationFailed`.
+`ImportErrorCode` values: `Unknown`, `FileNotFound`, `InvalidPath`, `PermissionDenied`, `InvalidFile`, `DirectoryNotFound`, `ProcessFailed`, `ProcessTimeout`, `OperationFailed`.
 
-`Core::Error::ImportException` derives from `QException` and stores an error code and message:
-
-```cpp
-try {
-    Core::FileSystem::FileSystem::readAll(path);
-} catch (const Core::Error::ImportException& exception) {
-    const auto code = exception.errorCode();
-    const QString message = exception.message();
-}
-```
-
-Use `ImportException` and `ImportErrorCode` in migrated Core-based code. Do not introduce new uses of the legacy `AppException` in migrated code. Preserve existing exception behavior in code that has not been migrated.
+`Core::Error::ImportException` derives from `QException` and stores an error code and message. Use `ImportException` in migrated code instead of legacy `AppException`.
 
 ### Filesystem: `Core::FileSystem`
 
-`FileSystem` provides static `exists`, `isFile`, `isDirectory`, `createDirectory`, `remove`, `copy`, `move`, `readAll`, and `writeAll` helpers. `copy` and `move` default to overwrite and throw `ImportException` on failure. `copy` supports files and recursive directory merge-copy.
-
-`AtomicFile` is a move-only RAII wrapper around `QSaveFile`. Construct it with a target path, then call `open`, `write`, and `commit`; call `rollback` when abandoning the operation. `writeAtomic(target, data)` is the one-shot helper. It throws `ImportException` for failures.
-
-`DirectorySnapshot` captures a directory into relative `FileEntry` records (`path`, `exists`, `size`, `lastModified`). Use `capture`, `diff`, `added`, `removed`, `modified`, `contains`, and `fileEntry`. Snapshot comparisons require the same root and may throw on an invalid comparison.
+* `FileSystem`: Static helpers for `exists`, `isFile`, `isDirectory`, `createDirectory`, `remove`, `copy`, `move`, `readAll`, `writeAll`.
+* `AtomicFile`: Move-only RAII wrapper around `QSaveFile`. `writeAtomic(target, data)` is the one-shot helper.
+* `DirectorySnapshot`: Captures relative directory snapshots (`FileEntry`) and computes diffs (`added`, `removed`, `modified`).
 
 ### Processes: `Core::Process`
-
-`ProcessOptions` contains `timeout` in milliseconds (default `30000`, `-1` means no timeout), `workingDirectory`, `environment`, and `arguments`. `ProcessRunner::run` and `execute` return a `ProcessResult` rather than throwing for normal process outcomes.
-
-`ProcessResult` contains `status`, `exitCode`, `stdOut`, `stdErr`, and `errorMessage`. `ProcessStatus` is `Success`, `FailedToStart`, `Crashed`, `TimedOut`, or `NonZeroExit`; use `isSuccess()` instead of checking only the exit code. Prefer the overload that passes arguments explicitly:
 
 ```cpp
 Core::Process::ProcessOptions options;
@@ -188,11 +259,9 @@ if (!result.isSuccess()) {
 
 ### Temporary resources: `Core::Temp`
 
-`TempFile` and `TempDirectory` are move-only RAII wrappers over Qt temporary resources. They create the resource during construction, expose `path()`, `exists()`, and `isValid()`, and clean up when destroyed. Construction throws `Core::Error::ImportException` with `OperationFailed` if creation fails. Do not manually delete resources owned by these wrappers.
+`TempFile` and `TempDirectory` are move-only RAII wrappers. They clean up automatically upon destruction.
 
 ### Logging: `Core::Logging`
-
-`Logger::debug/info/warning/error` are simple static logging helpers. For importer/task workflows use `LogManager::instance().createTask(...)`, which returns `std::shared_ptr<TaskLoggingContext>`:
 
 ```cpp
 auto task = Core::Logging::LogManager::instance().createTask(QStringLiteral("Import model"));
@@ -202,21 +271,12 @@ task->updateProgress(0.5, QStringLiteral("Converting"));
 task->complete(QStringLiteral("Finished"));
 ```
 
-`TaskLoggingContext` supports `debug`, `info`, `warning`, `error`, `log`, `reportFault`, progress/current-message updates, lifecycle transitions (`start`, `complete`, `fail`, `cancel`), snapshots, and block flushing. Valid lifecycle transitions are `Pending -> Running -> Completed|Failed|Cancelled`; terminal states cannot transition again.
+---
 
-`LogManager` also supports task lookup/finalization, sinks (`addSink`, `removeSink`, `clearSinks`), `flushTask`, `flushAll`, task snapshots, and sealed/all-block inspection. Reader callbacks such as `readSealedBlocks`, `readAllBlocks`, and `readLogBlock` execute while locks are held: keep them short, in-memory, and free of I/O or calls that may re-enter logging.
-
-Use `FileSink` for file output or implement `ILogSink::writeBlock` and `flush` for another destination. Logs are block-based; only sealed blocks are delivered to sinks. `FaultBarrier` coordinates accepted submissions and fault/draining/termination states. Do not assume ordinary logging remains accepted after a fault or session termination; inspect `LogSubmissionResult` when ordering matters.
-
-### Current Core build boundary
-
-The current Core target includes the headers and implementations listed in `src/Core/CMakeLists.txt`. In particular, `TempFile` and `TempDirectory` are header-only. Core links privately to `Qt6::Core`; consumers should link the Core target rather than manually adding Core sources.
-
-## C++ and Existing-Code Conventions
+## C++ and Coding Conventions
 
 * Use C++17, Qt types, RAII, deterministic ownership, `const` correctness, and lightweight headers.
 * Use `PascalCase` for classes/enums and `camelCase` for functions, methods, locals, and members.
-* Do not perform unrelated style cleanup in legacy code.
 * Preserve legacy behavior unless a task explicitly requests a behavior change.
 * Do not duplicate Core facilities in newly migrated code.
 
@@ -224,15 +284,13 @@ The current Core target includes the headers and implementations listed in `src/
 
 * Require CMake 3.28+ and Qt 6.8+.
 * Use `qt_standard_project_setup()` where appropriate.
-* Use `qt_add_executable()` for the application, `qt_add_library()` for Core, and `qt_add_qml_module()` for QML.
+* Use `qt_add_executable()` for the application, `qt_add_library()` for Core/Domain libraries, and `qt_add_qml_module()` for QML.
 * Use `qt_add_resources()` only for non-QML resources.
 * Prefer target-based configuration with explicit `PRIVATE`, `PUBLIC`, or `INTERFACE` visibility.
 * Do not use global include paths when target-specific configuration is sufficient.
 * Do not manually list generated MOC/RCC/QML compiler outputs.
 * Do not use Qt 5 CMake APIs, `Qt5::` targets, qmake syntax, or `add_executable()` for the application.
 * Do not put QML files in `qt_add_resources()`.
-
-When modifying CMake, consult `skills/qt-cmake-project/SKILL.md` and its references, especially `simple-project.md`, `modular-architecture.md`, `qml-integration.md`, `resources.md`, and `common-mistakes.md`.
 
 ## Build and Tests
 
@@ -243,7 +301,7 @@ cmake -S . -B build
 cmake --build build --config Release
 ```
 
-The repository currently defines `test_logmanager` and `logging_test` under `tests/`. If `CMakePresets.json` is introduced, prefer presets for normal development and CI.
+Tests reside under `tests/`.
 
 ## Skills — Auto-Load Rules
 
@@ -260,9 +318,9 @@ Before making changes, read the relevant skill:
 
 ## Do NOT
 
-* Do not make Core depend on application code, UI, or QML.
-* Do not migrate ModelImporter or ParticleImporter unless explicitly requested.
+* Do not make Core depend on application code, UI, QML, or Domain logic.
+* Do not bypass layer boundaries (e.g. Domain directly triggering QML or UI widgets).
+* Do not introduce new global static variables for options or loggers.
 * Do not migrate MapImporter as part of another importer's migration.
 * Do not perform unrelated refactoring during a focused migration.
-* Do not assume current runtime/import behavior has already been rewritten around Core.
 * Do not add compatibility APIs solely for legacy code.
