@@ -4,13 +4,13 @@
 #include <QQuickStyle>
 #include <QIcon>
 #include <QPalette>
+#include <QtPlugin>
 #include "Ui.h"
+
+Q_IMPORT_PLUGIN(cs2importerPlugin)
 
 int main(int argc, char *argv[])
 {
-    // Enable high DPI scaling
-
-
     QGuiApplication app(argc, argv);
     app.setWindowIcon(QIcon(":/icons/icon.png")); // Optional if we had one
     QQuickStyle::setStyle("Fusion");
@@ -21,10 +21,9 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("backendObject", &backend);
 
-    const QUrl url(QStringLiteral("qrc:/qt/qml/cs2importer/Main.qml"));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
-                     &app, [url](QObject *obj, const QUrl &objUrl) {
-        if (!obj && url == objUrl)
+                     &app, [](QObject *obj, const QUrl &objUrl) {
+        if (!obj)
             QCoreApplication::exit(-1);
     }, Qt::QueuedConnection);
     engine.loadFromModule("cs2importer", "Main");

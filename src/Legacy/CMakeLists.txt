@@ -1,4 +1,4 @@
-﻿set(LEGACY_SOURCES
+set(LEGACY_SOURCES
     Main.cpp
     Ui.cpp
     Ui.h
@@ -38,6 +38,7 @@ qt_add_resources(cs2importerlegacy "cs2importer_icons"
 target_link_libraries(cs2importerlegacy PRIVATE
     cs2importer_core
     cs2importer_qml
+    cs2importer_qmlplugin
     Qt6::Core
     Qt6::Gui
     Qt6::Qml

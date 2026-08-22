@@ -100,7 +100,7 @@ jobs:
       run: |
         mkdir release
         Copy-Item -Path build\Release -Destination release
-        windeployqt --qmldir src/qml release\cs2importer*
+        windeployqt --qmldir src/qml release\cs2importerlegacy.exe
         Copy-Item -Path bin -Destination release\bin -Recurse
 
     - name: Upload Artifact
