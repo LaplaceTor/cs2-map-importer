@@ -40,8 +40,9 @@ The project is undergoing a staged architecture refactor. The reusable Core laye
                               │ uses base utilities
 ┌─────────────────────────────▼─────────────────────────────┐
 │                    Core Infrastructure                    │
-│  Core::Path, Core::FileSystem, Core::Process,             │
-│  Core::Logging, Core::Temp, Core::Error, Core::Asset      │
+│  Core::Path, Core::FileSystem, Core::KeyValues,           │
+│  Core::Process, Core::Logging, Core::Temp,                │
+│  Core::Error, Core::Asset                                 │
 └───────────────────────────────────────────────────────────┘
 ```
 
@@ -62,8 +63,9 @@ src/
 │   ├── Asset/                    # AssetType and AssetTypeDetector
 │   ├── Error/                    # ImportErrorCode and ImportException
 │   ├── FileSystem/               # FileSystem, AtomicFile, DirectorySnapshot
+│   ├── KeyValues/                # KeyValuesNode, Document, Lexer, Parser, Writer (Single I/O AST)
 │   ├── Logging/                  # Task-oriented logging, Sinks, FaultBarrier
-│   ├── Path/                     # AssetPath, FilesystemPath, PathUtils
+│   ├── Path/                     # AssetPath, FilesystemPath, PathUtils (Sanitization)
 │   ├── Process/                  # ProcessOptions, ProcessResult, ProcessRunner
 │   ├── Temp/                     # TempFile and TempDirectory
 │   └── CMakeLists.txt
@@ -217,6 +219,36 @@ if (filePath.exists() && filePath.isFile()) {
 * `PathUtils`:
   * `resolveAssetPath(FilesystemPath baseDir, AssetPath assetPath)` $\rightarrow$ `FilesystemPath`
   * `makeAssetPath(FilesystemPath baseDir, FilesystemPath filePath)` $\rightarrow$ `std::optional<AssetPath>`
+  * `sanitizeFilename(QString filename, QString replacement = "_")` $\rightarrow$ `QString` (strips host OS illegal chars `< > : " / \ | ? *`)
+  * `sanitizeAssetName(QString assetName, QString replacement = "_")` $\rightarrow$ `QString` (strips Source 2 / CS2 resource compiler illegal chars `{ } ^ # ~ + !`)
+
+### KeyValues & Single I/O AST: `Core::KeyValues`
+
+Generic Valve KeyValues (KV/VDF) single-pass parser, serializer, and in-memory AST.
+
+```cpp
+#include "Core/KeyValues/KeyValuesDocument.h"
+#include "Core/KeyValues/KeyValuesNode.h"
+
+// 1. Single-read into in-memory AST
+auto doc = Core::KeyValues::KeyValuesDocument::fromFile(vmfPath);
+
+// 2. Perform multi-pass mutations entirely in memory
+auto entities = doc.findChildren(QStringLiteral("entity"));
+for (auto* ent : entities) {
+    if (ent->property(QStringLiteral("classname")) == QStringLiteral("light")) {
+        ent->setProperty(QStringLiteral("_light"), QStringLiteral("255 255 255 200"));
+    }
+}
+
+// 3. Single atomic write back to disk
+doc.saveToFile(vmfPath);
+```
+
+* **Single I/O Lifecycle**: Replaces legacy anti-patterns (e.g. 11 sequential disk reads and regex passes over the same VMF). Loads once into memory, transforms in-place, and saves atomically once via `Core::FileSystem::AtomicFile`.
+* **Unquoted Token Support**: Supports unquoted keys and values (`skin 0`, `$basetexture custom/wall`, `( -64 -64 0 )`, `[PR#]{gate_trigger}`).
+* **Special Character Resiliency**: Correctly distinguishes standalone syntax braces (`{` / `}`) from tokens containing braces (e.g. `{fence`, `{ladder.vmt`), and guarantees proper double-quoting upon serialization.
+* **Multi-Key AST**: Preserves key ordering and duplicate siblings (`entity`, `solid`, `side`, `connections`), with rich querying (`findChild`, `findChildren`, `propertyInt`, `setProperty`).
 
 ### Asset detection: `Core::Asset`
 
