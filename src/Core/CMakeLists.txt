@@ -10,6 +10,16 @@ qt_add_library(cs2importer_core STATIC
     FileSystem/DirectorySnapshot.cpp
     FileSystem/FileSystem.h
     FileSystem/FileSystem.cpp
+    KeyValues/KeyValuesNode.h
+    KeyValues/KeyValuesNode.cpp
+    KeyValues/KeyValuesLexer.h
+    KeyValues/KeyValuesLexer.cpp
+    KeyValues/KeyValuesParser.h
+    KeyValues/KeyValuesParser.cpp
+    KeyValues/KeyValuesWriter.h
+    KeyValues/KeyValuesWriter.cpp
+    KeyValues/KeyValuesDocument.h
+    KeyValues/KeyValuesDocument.cpp
     Logging/LogLevel.h
     Logging/LogEntry.h
     Logging/LogBlock.h

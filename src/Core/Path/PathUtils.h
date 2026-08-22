@@ -79,6 +79,48 @@ public:
         }
         return std::nullopt;
     }
+
+    /**
+     * @brief Sanitizes a filename by replacing illegal host filesystem characters (< > : " / \ | ? * and control chars).
+     */
+    static QString sanitizeFilename(const QString& filename, const QString& replacement = QStringLiteral("_")) {
+        if (filename.isEmpty()) return QString();
+        QString result;
+        result.reserve(filename.size());
+        for (const QChar& c : filename) {
+            const ushort u = c.unicode();
+            if (u < 32 || c == QLatin1Char('<') || c == QLatin1Char('>') || c == QLatin1Char(':') ||
+                c == QLatin1Char('"') || c == QLatin1Char('/') || c == QLatin1Char('\\') ||
+                c == QLatin1Char('|') || c == QLatin1Char('?') || c == QLatin1Char('*')) {
+                result.append(replacement);
+            } else {
+                result.append(c);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * @brief Sanitizes an asset/material path for Source 2 / CS2 resource compiler compatibility.
+     * Replaces characters such as '{', '}', '^', '#', '`', '|', '?', '*', ':', '"', '<', '>' with a safe replacement.
+     */
+    static QString sanitizeAssetName(const QString& assetName, const QString& replacement = QStringLiteral("_")) {
+        if (assetName.isEmpty()) return QString();
+        QString result;
+        result.reserve(assetName.size());
+        for (const QChar& c : assetName) {
+            const ushort u = c.unicode();
+            if (u < 32 || c == QLatin1Char('{') || c == QLatin1Char('}') || c == QLatin1Char('^') ||
+                c == QLatin1Char('#') || c == QLatin1Char('`') || c == QLatin1Char('|') ||
+                c == QLatin1Char('?') || c == QLatin1Char('*') || c == QLatin1Char(':') ||
+                c == QLatin1Char('"') || c == QLatin1Char('<') || c == QLatin1Char('>')) {
+                result.append(replacement);
+            } else {
+                result.append(c);
+            }
+        }
+        return result;
+    }
 };
 
 } // namespace Core::Path
