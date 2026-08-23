@@ -1,6 +1,6 @@
 #pragma once
 
-namespace Core::Asset {
+namespace Domain::Asset {
 
 enum class AssetType {
     Unknown,
@@ -10,4 +10,5 @@ enum class AssetType {
     Map
 };
 
-} // namespace Core::Asset
+} // namespace Domain::Asset
+

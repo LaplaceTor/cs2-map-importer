@@ -68,4 +68,20 @@ target_compile_definitions(test_gameinfo PRIVATE
 
 add_test(NAME test_gameinfo COMMAND test_gameinfo)
 
+qt_add_executable(test_asset
+    TestAsset.cpp
+)
+
+target_link_libraries(test_asset PRIVATE
+    cs2importer_domain
+    cs2importer_core
+    Qt6::Core
+    Qt6::Test
+)
+
+target_include_directories(test_asset PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+add_test(NAME test_asset COMMAND test_asset)
 

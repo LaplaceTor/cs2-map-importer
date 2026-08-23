@@ -279,10 +279,6 @@ void TestKeyValues::testSpecialAndIllegalCharacters() {
     QString unsafeWinFilename = QStringLiteral("test<file>:name*?.vmt");
     QString sanitizedWin = PathUtils::sanitizeFilename(unsafeWinFilename);
     QCOMPARE(sanitizedWin, QStringLiteral("test_file__name__.vmt"));
-
-    QString unsafeAssetPath = QStringLiteral("materials/{fence}.vmat");
-    QString sanitizedAsset = PathUtils::sanitizeAssetName(unsafeAssetPath);
-    QCOMPARE(sanitizedAsset, QStringLiteral("materials/_fence_.vmat"));
 }
 
 QTEST_MAIN(TestKeyValues)

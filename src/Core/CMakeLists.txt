@@ -1,7 +1,4 @@
 qt_add_library(cs2importer_core STATIC
-    Asset/AssetType.h
-    Asset/AssetTypeDetector.h
-    Asset/AssetTypeDetector.cpp
     Error/ImportError.h
     Error/ImportException.h
     FileSystem/AtomicFile.h
@@ -37,8 +34,6 @@ qt_add_library(cs2importer_core STATIC
     Logging/TaskLoggingContext.cpp
     Logging/LogManager.h
     Logging/LogManager.cpp
-    Path/AssetPath.h
-    Path/AssetPath.cpp
     Path/FilesystemPath.h
     Path/FilesystemPath.cpp
     Path/PathUtils.h
@@ -55,3 +50,4 @@ target_link_libraries(cs2importer_core PRIVATE Qt6::Core)
 target_include_directories(cs2importer_core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
 )
+

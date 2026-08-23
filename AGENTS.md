@@ -42,7 +42,7 @@ The project is undergoing a staged architecture refactor. The reusable Core laye
 │                    Core Infrastructure                    │
 │  Core::Path, Core::FileSystem, Core::KeyValues,           │
 │  Core::Process, Core::Logging, Core::Temp,                │
-│  Core::Error, Core::Asset                                 │
+│  Core::Error                                              │
 └───────────────────────────────────────────────────────────┘
 ```
 
@@ -60,12 +60,11 @@ The project is undergoing a staged architecture refactor. The reusable Core laye
 ```text
 src/
 ├── Core/                         # Reusable infrastructure (cs2importer_core)
-│   ├── Asset/                    # AssetType and AssetTypeDetector
 │   ├── Error/                    # ImportErrorCode and ImportException
 │   ├── FileSystem/               # FileSystem, AtomicFile, DirectorySnapshot
 │   ├── KeyValues/                # KeyValuesNode, Document, Lexer, Parser, Writer (Single I/O AST)
 │   ├── Logging/                  # Task-oriented logging, Sinks, FaultBarrier
-│   ├── Path/                     # AssetPath, FilesystemPath, PathUtils (Sanitization)
+│   ├── Path/                     # FilesystemPath, PathUtils (Sanitization)
 │   ├── Process/                  # ProcessOptions, ProcessResult, ProcessRunner
 │   ├── Temp/                     # TempFile and TempDirectory
 │   └── CMakeLists.txt
@@ -77,6 +76,7 @@ src/
 │   └── CMakeLists.txt
 │
 ├── Domain/                       # Valve & Source 1/2 domain models, parsers, and tool adapters (cs2importer_domain)
+│   ├── Asset/                    # AssetType, AssetTypeDetector, AssetPath
 │   ├── Audio/                    # Soundscape extraction and VMF audio linking
 │   ├── Bsp/                      # BSP unpacking, embedded file extraction
 │   ├── Game/                     # GameInfo parser, SearchPath resolution (GameInfo, SearchTarget, SearchPathResolver, GameInfoParser)
@@ -134,7 +134,7 @@ src/
 To eliminate legacy anti-patterns (such as global static options, global logger pointers, and cross-thread UI coupling), all inter-layer communication must follow these four routing patterns:
 
 ### 1. Context Pipeline Routing (Task Trigger & Execution)
-* **Presentation $\rightarrow$ Application**: `UI` validates user input, constructs an immutable value object `ImportOptions` (using `Core::Path::FilesystemPath` and `Core::Path::AssetPath`), and passes it to `WorkflowRunner`.
+* **Presentation $\rightarrow$ Application**: `UI` validates user input, constructs an immutable value object `ImportOptions` (using `Core::Path::FilesystemPath` and `Domain::Asset::AssetPath`), and passes it to `WorkflowRunner`.
 * **Application $\rightarrow$ Workflow**: `WorkflowRunner` creates a `TaskLoggingContext`, an execution token / cancellation flag, and dispatches the task to a worker thread running the target `IImporter`.
 * **Completion / Signals**: Upon completion or error, `WorkflowRunner` emits Qt signals using `Qt::QueuedConnection` back to the UI controller to update `isGoing`, `canGo`, or display result alerts.
 
@@ -191,37 +191,33 @@ Direct creation of `QProcess` or shell execution across business files is forbid
 `src/Core/CMakeLists.txt` builds `cs2importer_core` as a static library. Its public include root is `src/`, so Core headers use project-root includes:
 
 ```cpp
-#include "Core/Path/AssetPath.h"
+#include "Core/Path/FilesystemPath.h"
 #include "Core/FileSystem/FileSystem.h"
 ```
 
 ### Paths: `Core::Path`
 
-`AssetPath` represents a validated asset-relative path. `FilesystemPath` represents a path in the host filesystem. They are intentionally not interchangeable.
+`FilesystemPath` represents a path in the host filesystem.
 
 ```cpp
-#include "Core/Path/AssetPath.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Path/PathUtils.h"
 
-Core::Path::AssetPath assetPath(QStringLiteral("models/props/example.mdl"));
 Core::Path::FilesystemPath filePath(QStringLiteral("C:/game/assets/models/props/example.mdl"));
 
-if (assetPath.isValid()) {
-    const QString extension = assetPath.extension();
-}
 if (filePath.exists() && filePath.isFile()) {
     const auto parent = filePath.parentPath();
 }
 ```
 
-* `AssetPath` normalizes backslashes to `/`, rejects absolute paths, drive letters, schemes, empty components, `.` and `..`, and stores only a valid relative path.
 * `FilesystemPath` normalizes with `QDir::cleanPath` and provides `isEmpty`, `isValid`, `exists`, `isFile`, `isDirectory`, `fileName`, `extension`, `parentPath`, `absolutePath`, `canonicalPath`, `toString`.
 * `PathUtils`:
-  * `resolveAssetPath(FilesystemPath baseDir, AssetPath assetPath)` $\rightarrow$ `FilesystemPath`
-  * `makeAssetPath(FilesystemPath baseDir, FilesystemPath filePath)` $\rightarrow$ `std::optional<AssetPath>`
+  * `normalize(QString path)` $\rightarrow$ `QString`
+  * `filename(QString path)` $\rightarrow$ `QString`
+  * `extension(QString path)` $\rightarrow$ `QString`
+  * `directory(QString path)` $\rightarrow$ `QString`
+  * `relativePath(QString path, QString baseDir)` $\rightarrow$ `QString`
   * `sanitizeFilename(QString filename, QString replacement = "_")` $\rightarrow$ `QString` (strips host OS illegal chars `< > : " / \ | ? *`)
-  * `sanitizeAssetName(QString assetName, QString replacement = "_")` $\rightarrow$ `QString` (strips Source 2 / CS2 resource compiler illegal chars `{ } ^ # ~ + !`)
 
 ### KeyValues & Single I/O AST: `Core::KeyValues`
 
@@ -250,21 +246,6 @@ doc.saveToFile(vmfPath);
 * **Unquoted Token Support**: Supports unquoted keys and values (`skin 0`, `$basetexture custom/wall`, `( -64 -64 0 )`, `[PR#]{gate_trigger}`).
 * **Special Character Resiliency**: Correctly distinguishes standalone syntax braces (`{` / `}`) from tokens containing braces (e.g. `{fence`, `{ladder.vmt`), and guarantees proper double-quoting upon serialization.
 * **Multi-Key AST**: Preserves key ordering and duplicate siblings (`entity`, `solid`, `side`, `connections`), with rich querying (`findChild`, `findChildren`, `propertyInt`, `setProperty`).
-
-### Asset detection: `Core::Asset`
-
-```cpp
-#include "Core/Asset/AssetTypeDetector.h"
-
-const Core::Asset::AssetType type =
-    Core::Asset::AssetTypeDetector::detect(assetPath);
-```
-
-Detection is case-insensitive:
-* Model: `mdl`, `vmdl`, `smd`, `fbx`
-* Particle: `pcf`, `vpcf`
-* Material: `vmt`, `vmat`, `vtf`
-* Map: `vmf`, `bsp`, `vmap`
 
 ### Errors: `Core::Error`
 
@@ -311,10 +292,43 @@ task->complete(QStringLiteral("Finished"));
 `src/Domain/CMakeLists.txt` builds `cs2importer_domain` as a static library linking `cs2importer_core` and `Qt6::Core`. Its public include root is `src/`:
 
 ```cpp
+#include "Domain/Asset/AssetPath.h"
+#include "Domain/Asset/AssetType.h"
+#include "Domain/Asset/AssetTypeDetector.h"
 #include "Domain/Game/GameInfo.h"
 #include "Domain/Game/GameInfoParser.h"
 #include "Domain/Game/SearchTarget.h"
 ```
+
+### Assets & Asset Paths: `Domain::Asset`
+
+`AssetPath` represents a validated game-asset-relative path (e.g. `materials/models/props/box.vmat`). `FilesystemPath` represents a host filesystem path.
+
+```cpp
+#include "Domain/Asset/AssetPath.h"
+#include "Domain/Asset/AssetType.h"
+#include "Domain/Asset/AssetTypeDetector.h"
+
+Domain::Asset::AssetPath assetPath(QStringLiteral("models/props/example.mdl"));
+Core::Path::FilesystemPath baseDir(QStringLiteral("C:/game/csgo"));
+
+if (assetPath.isValid()) {
+    const QString extension = assetPath.extension();
+    const auto resolvedFile = assetPath.resolve(baseDir);
+    const auto type = Domain::Asset::AssetTypeDetector::detect(assetPath);
+}
+```
+
+* `AssetPath` normalizes backslashes to `/`, rejects absolute paths, drive letters, schemes, empty components, `.` and `..`, and stores only a valid relative path.
+* Methods:
+  * `resolve(FilesystemPath baseDir)` $\rightarrow$ `FilesystemPath`
+  * `fromFilesystemPath(FilesystemPath baseDir, FilesystemPath filePath)` $\rightarrow$ `std::optional<AssetPath>`
+  * `sanitizeAssetName(QString assetName, QString replacement = "_")` $\rightarrow$ `QString` (strips Source 2 / CS2 resource compiler illegal chars `{ } ^ # ~ + !`)
+* `AssetTypeDetector::detect`:
+  * Model: `mdl`, `vmdl`, `smd`, `fbx`
+  * Particle: `pcf`, `vpcf`
+  * Material: `vmt`, `vmat`, `vtf`
+  * Map: `vmf`, `bsp`, `vmap`
 
 ### Game & Search Paths: `Domain::Game`
 
