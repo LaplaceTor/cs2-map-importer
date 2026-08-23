@@ -15,7 +15,7 @@ std::optional<GameInstallation> GameDetectService::createInstallationFromGameInf
     inst.setGameId(Domain::Game::GameRegistry::gameTypeToString(type));
 
     const auto* def = Domain::Game::GameRegistry::findByType(type);
-    if (def) {
+    if (def && type != Domain::Game::GameType::Custom && type != Domain::Game::GameType::Unknown) {
         inst.setDisplayName(def->displayName);
         inst.setSource2(def->isSource2());
         inst.setAppId(info.steamAppId() > 0 ? info.steamAppId() : def->primaryAppId);
@@ -177,21 +177,13 @@ std::optional<GameInstallation> GameDetectService::validateSource2(
     }
 
     const auto* def = Domain::Game::GameRegistry::findByType(type);
-    if (!def || !def->isSource2()) {
-        def = Domain::Game::GameRegistry::findByType(Domain::Game::GameType::CS2);
-    }
-
-    const QString modSubdir = def ? def->modSubdirectory : QStringLiteral("game/csgo");
-    const QString giFilename = def ? def->gameInfoFileName : QStringLiteral("gameinfo.gi");
-    Domain::Game::GameType resolvedType = def ? def->type : Domain::Game::GameType::CS2;
-
     Core::Path::FilesystemPath candidateBaseDir = directory;
     Core::Path::FilesystemPath giPath;
 
     if (directory.isFile()) {
-        if (directory.fileName().compare(giFilename, Qt::CaseInsensitive) == 0) {
+        if (directory.extension().compare(QStringLiteral("gi"), Qt::CaseInsensitive) == 0) {
             giPath = directory;
-            // Base dir: if .../game/csgo/gameinfo.gi, base is .../Counter-Strike Global Offensive
+            // Base dir: if <baseDir>/game/<mod>/gameinfo.gi, base is <baseDir>
             if (directory.parentPath().parentPath().fileName().compare(QStringLiteral("game"), Qt::CaseInsensitive) == 0) {
                 candidateBaseDir = directory.parentPath().parentPath().parentPath();
             } else {
@@ -201,13 +193,45 @@ std::optional<GameInstallation> GameDetectService::validateSource2(
             return std::nullopt;
         }
     } else if (directory.isDirectory()) {
-        // Standard Source 2 root: <baseDir>/<modSubdir>/<giFilename>
-        giPath = Core::Path::FilesystemPath(QDir(directory.toString()).filePath(modSubdir + QLatin1Char('/') + giFilename));
-        if (!giPath.exists()) {
-            // User might have selected <baseDir>/game/<mod> directly
+        // 1. If a specific Source 2 definition was given, check its expected modSubdirectory and gameInfoFileName
+        if (def && def->isSource2() && !def->modSubdirectory.isEmpty()) {
+            giPath = Core::Path::FilesystemPath(QDir(directory.toString()).filePath(
+                def->modSubdirectory + QLatin1Char('/') + def->gameInfoFileName));
+        }
+
+        // 2. If not found, check if directory itself is <baseDir>/game/<mod>
+        if (!giPath.exists() || !giPath.isFile()) {
             if (directory.parentPath().fileName().compare(QStringLiteral("game"), Qt::CaseInsensitive) == 0) {
-                giPath = Core::Path::FilesystemPath(QDir(directory.toString()).filePath(giFilename));
-                candidateBaseDir = directory.parentPath().parentPath();
+                Core::Path::FilesystemPath directGi(QDir(directory.toString()).filePath(QStringLiteral("gameinfo.gi")));
+                if (directGi.exists() && directGi.isFile()) {
+                    giPath = directGi;
+                    candidateBaseDir = directory.parentPath().parentPath();
+                }
+            }
+        }
+
+        // 3. If not found, scan <directory>/game/*/gameinfo.gi
+        if (!giPath.exists() || !giPath.isFile()) {
+            QDir gameDir(QDir(directory.toString()).filePath(QStringLiteral("game")));
+            if (gameDir.exists()) {
+                const auto subdirs = gameDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+                for (const auto& subdir : subdirs) {
+                    Core::Path::FilesystemPath candidateGi(gameDir.filePath(subdir + QStringLiteral("/gameinfo.gi")));
+                    if (candidateGi.exists() && candidateGi.isFile()) {
+                        giPath = candidateGi;
+                        candidateBaseDir = directory;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 4. If not found, check root <directory>/gameinfo.gi
+        if (!giPath.exists() || !giPath.isFile()) {
+            Core::Path::FilesystemPath rootGi(QDir(directory.toString()).filePath(QStringLiteral("gameinfo.gi")));
+            if (rootGi.exists() && rootGi.isFile()) {
+                giPath = rootGi;
+                candidateBaseDir = directory;
             }
         }
     }
@@ -222,8 +246,14 @@ std::optional<GameInstallation> GameDetectService::validateSource2(
         return std::nullopt;
     }
 
-    if (!Domain::Game::GameValidator::validateGameInfo(*optInfo, resolvedType)) {
-        return std::nullopt;
+    auto identifiedType = Domain::Game::GameValidator::identifyGameType(*optInfo);
+    Domain::Game::GameType resolvedType = identifiedType.value_or(Domain::Game::GameType::Custom);
+
+    if (type != Domain::Game::GameType::Unknown && type != Domain::Game::GameType::Custom) {
+        if (!Domain::Game::GameValidator::validateGameInfo(*optInfo, type)) {
+            return std::nullopt;
+        }
+        resolvedType = type;
     }
 
     return createInstallationFromGameInfo(resolvedType, candidateBaseDir, *optInfo);
@@ -254,15 +284,41 @@ std::optional<GameInstallation> GameDetectService::inspectGameInfo(
 
     Core::Path::FilesystemPath actualPath = gameInfoPath;
     if (actualPath.isDirectory()) {
-        // Try gameinfo.txt then gameinfo.gi
+        // 1. Try direct gameinfo.txt then gameinfo.gi
         Core::Path::FilesystemPath txtPath(QDir(actualPath.toString()).filePath(QStringLiteral("gameinfo.txt")));
         Core::Path::FilesystemPath giPath(QDir(actualPath.toString()).filePath(QStringLiteral("gameinfo.gi")));
-        if (txtPath.exists()) {
+        if (txtPath.exists() && txtPath.isFile()) {
             actualPath = txtPath;
-        } else if (giPath.exists()) {
+        } else if (giPath.exists() && giPath.isFile()) {
             actualPath = giPath;
         } else {
-            return std::nullopt;
+            // 2. Check Source 2 layout: actualPath/game/*/gameinfo.gi
+            QDir gameDir(QDir(actualPath.toString()).filePath(QStringLiteral("game")));
+            if (gameDir.exists()) {
+                const auto subdirs = gameDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+                for (const auto& subdir : subdirs) {
+                    Core::Path::FilesystemPath candidateGi(gameDir.filePath(subdir + QStringLiteral("/gameinfo.gi")));
+                    if (candidateGi.exists() && candidateGi.isFile()) {
+                        actualPath = candidateGi;
+                        break;
+                    }
+                }
+            }
+            if (!actualPath.isFile()) {
+                // 3. Check Source 1 layout: actualPath/*/gameinfo.txt
+                QDir baseDir(actualPath.toString());
+                const auto subdirs = baseDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+                for (const auto& subdir : subdirs) {
+                    Core::Path::FilesystemPath candidateTxt(baseDir.filePath(subdir + QStringLiteral("/gameinfo.txt")));
+                    if (candidateTxt.exists() && candidateTxt.isFile()) {
+                        actualPath = candidateTxt;
+                        break;
+                    }
+                }
+            }
+            if (!actualPath.isFile()) {
+                return std::nullopt;
+            }
         }
     }
 

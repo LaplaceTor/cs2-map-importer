@@ -29,10 +29,10 @@ public:
         Domain::Game::GameType type,
         const Core::Path::FilesystemPath& directory);
 
-    // Validates a Source 2 game installation directory (e.g. CS2: checks game/csgo/gameinfo.gi and game "Counter-Strike 2")
+    // Validates a Source 2 game installation directory (either a specific game type or any Source 2 game layout)
     static std::optional<GameInstallation> validateSource2(
         const Core::Path::FilesystemPath& directory,
-        Domain::Game::GameType type = Domain::Game::GameType::CS2);
+        Domain::Game::GameType type = Domain::Game::GameType::Unknown);
 
     // Validates a Source 1 game installation directory
     static std::optional<GameInstallation> validateSource1(

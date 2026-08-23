@@ -393,6 +393,29 @@ private slots:
         QVERIFY(identified.has_value());
         QCOMPARE(*identified, GameType::CS2);
     }
+
+    void testSource2GameDefinitionHelpers() {
+        const auto* cs2Def = GameRegistry::findByType(GameType::CS2);
+        QVERIFY(cs2Def != nullptr);
+        QVERIFY(cs2Def->isSource2());
+        QCOMPARE(cs2Def->modName(), QStringLiteral("csgo"));
+        QCOMPARE(cs2Def->contentSubdirectory(), QStringLiteral("content/csgo"));
+        QCOMPARE(cs2Def->addonModSubdirectory(), QStringLiteral("game/csgo_addons"));
+        QCOMPARE(cs2Def->addonContentSubdirectory(), QStringLiteral("content/csgo_addons"));
+        QCOMPARE(cs2Def->toolsBinarySubdirectory(), QStringLiteral("game/bin/win64"));
+
+        // Custom Source 2 definition
+        GameDefinition mockS2Def;
+        mockS2Def.engine = EngineType::Source2;
+        mockS2Def.modSubdirectory = QStringLiteral("game/custom_mod");
+        mockS2Def.gameInfoFileName = QStringLiteral("gameinfo.gi");
+        QVERIFY(mockS2Def.isSource2());
+        QCOMPARE(mockS2Def.modName(), QStringLiteral("custom_mod"));
+        QCOMPARE(mockS2Def.contentSubdirectory(), QStringLiteral("content/custom_mod"));
+        QCOMPARE(mockS2Def.addonModSubdirectory(), QStringLiteral("game/custom_mod_addons"));
+        QCOMPARE(mockS2Def.addonContentSubdirectory(), QStringLiteral("content/custom_mod_addons"));
+        QCOMPARE(mockS2Def.toolsBinarySubdirectory(), QStringLiteral("game/bin/win64"));
+    }
 };
 
 QTEST_MAIN(TestGameInfo)

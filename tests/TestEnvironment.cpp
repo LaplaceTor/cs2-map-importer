@@ -305,6 +305,69 @@ private slots:
         QCOMPARE(libraries[0].installedAppIds[0], 730);
         QCOMPARE(libraries[0].installedAppIds[1], 240);
     }
+
+    void testGameInstallationSource2Paths() {
+        GameInstallation inst;
+        inst.setType(GameType::CS2);
+        inst.setSource2(true);
+        inst.setBaseDirectory(Core::Path::FilesystemPath(QStringLiteral("C:/Games/CS2")));
+
+        QCOMPARE(inst.modName(), QStringLiteral("csgo"));
+        QCOMPARE(inst.contentDirectory().toString(), QStringLiteral("C:/Games/CS2/content/csgo"));
+        QCOMPARE(inst.modDirectory().toString(), QStringLiteral("C:/Games/CS2/game/csgo"));
+        QCOMPARE(inst.addonGameDirectory(QStringLiteral("my_map")).toString(), QStringLiteral("C:/Games/CS2/game/csgo_addons/my_map"));
+        QCOMPARE(inst.addonContentDirectory(QStringLiteral("my_map")).toString(), QStringLiteral("C:/Games/CS2/content/csgo_addons/my_map"));
+        QCOMPARE(inst.toolsBinaryDirectory().toString(), QStringLiteral("C:/Games/CS2/game/bin/win64"));
+        QCOMPARE(inst.resourceCompilerExecutable().toString(), QStringLiteral("C:/Games/CS2/game/bin/win64/resourcecompiler.exe"));
+    }
+
+    void testMockCustomSource2Installation() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+
+        QString customModDir = tempDir.filePath(QStringLiteral("game/future_game"));
+        QVERIFY(QDir().mkpath(customModDir));
+
+        QString giFilePath = QDir(customModDir).filePath(QStringLiteral("gameinfo.gi"));
+        QFile giFile(giFilePath);
+        QVERIFY(giFile.open(QIODevice::WriteOnly | QIODevice::Text));
+        giFile.write(
+            "\"GameInfo\"\n"
+            "{\n"
+            "    game \"Future Source 2 Game\"\n"
+            "    title \"Future Source 2 Game\"\n"
+            "    FileSystem\n"
+            "    {\n"
+            "        SearchPaths\n"
+            "        {\n"
+            "            Game future_game\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        );
+        giFile.close();
+
+        Core::Path::FilesystemPath rootPath(tempDir.path());
+
+        // Validate generic Source 2 directory without specifying game type
+        auto validated = GameDetectService::validateSource2(rootPath);
+        QVERIFY(validated.has_value());
+        QCOMPARE(validated->gameTitle(), QStringLiteral("Future Source 2 Game"));
+        QVERIFY(validated->isSource2());
+        QCOMPARE(validated->modName(), QStringLiteral("future_game"));
+        QCOMPARE(validated->addonGameDirectory(QStringLiteral("test_addon")).toString(),
+                 Core::Path::PathUtils::normalize(tempDir.filePath(QStringLiteral("game/future_game_addons/test_addon"))));
+        QCOMPARE(validated->addonContentDirectory(QStringLiteral("test_addon")).toString(),
+                 Core::Path::PathUtils::normalize(tempDir.filePath(QStringLiteral("content/future_game_addons/test_addon"))));
+        QCOMPARE(validated->resourceCompilerExecutable().toString(),
+                 Core::Path::PathUtils::normalize(tempDir.filePath(QStringLiteral("game/bin/win64/resourcecompiler.exe"))));
+
+        // Test inspectGameInfo on the root directory
+        auto inspected = GameDetectService::inspectGameInfo(rootPath);
+        QVERIFY(inspected.has_value());
+        QCOMPARE(inspected->gameTitle(), QStringLiteral("Future Source 2 Game"));
+        QVERIFY(inspected->isSource2());
+    }
 };
 
 QTEST_MAIN(TestEnvironment)

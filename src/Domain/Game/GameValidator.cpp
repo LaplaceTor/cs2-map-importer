@@ -30,10 +30,13 @@ bool GameValidator::validateGameInfo(const GameInfo& info, GameType expectedType
             return true;
         }
 
-        // Special lenient matchers for known titles
-        if (expectedType == GameType::CS2 && actualGame.contains(QStringLiteral("Counter-Strike 2"), Qt::CaseInsensitive)) {
+        // Generic substring match: any declared expected title in GameDefinition automatically matches
+        if (actualGame.contains(expectedTitle, Qt::CaseInsensitive) ||
+            actualTitle.contains(expectedTitle, Qt::CaseInsensitive)) {
             return true;
         }
+
+        // Special lenient matchers for known titles with historical differences
         if (expectedType == GameType::CSGO && actualGame.contains(QStringLiteral("Global Offensive"), Qt::CaseInsensitive)) {
             return true;
         }
@@ -110,6 +113,10 @@ Core::Path::FilesystemPath GameValidator::getExpectedGameInfoPath(
         if (gameDir.isFile()) {
             return gameDir;
         }
+        Core::Path::FilesystemPath giPath(QDir(baseStr).filePath(QStringLiteral("gameinfo.gi")));
+        if (giPath.exists() && giPath.isFile()) {
+            return giPath;
+        }
         return Core::Path::FilesystemPath(QDir(baseStr).filePath(QStringLiteral("gameinfo.txt")));
     }
 
@@ -145,7 +152,10 @@ std::optional<GameInfo> GameValidator::validateDirectory(
     }
 
     const auto* def = GameRegistry::findByType(type);
-    EngineType engine = def ? def->engine : EngineType::Source1;
+    EngineType engine = def ? def->engine
+                            : (targetGameInfoPath.extension().compare(QStringLiteral("gi"), Qt::CaseInsensitive) == 0
+                                   ? EngineType::Source2
+                                   : EngineType::Source1);
 
     QString error;
     auto optInfo = GameInfoParser::parse(targetGameInfoPath, engine, &error);

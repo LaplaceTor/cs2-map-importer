@@ -47,7 +47,14 @@ std::vector<SearchTarget> SearchPathResolver::resolve(
         if (QFileInfo(val).isAbsolute()) {
             absPath = Core::Path::PathUtils::normalize(val);
         } else {
-            absPath = Core::Path::PathUtils::normalize(QDir(baseDirPath).filePath(val));
+            const QString directCandidate = QDir(baseDirPath).filePath(val);
+            const QString gameCandidate = QDir(baseDirPath).filePath(QStringLiteral("game/") + val);
+            if (!QDir(directCandidate).exists() && !QFile::exists(directCandidate) &&
+                (QDir(gameCandidate).exists() || QFile::exists(gameCandidate) || modDirPath.contains(QStringLiteral("/game/"), Qt::CaseInsensitive))) {
+                absPath = Core::Path::PathUtils::normalize(gameCandidate);
+            } else {
+                absPath = Core::Path::PathUtils::normalize(directCandidate);
+            }
         }
 
         if (absPath.endsWith(QLatin1String("/*"))) {

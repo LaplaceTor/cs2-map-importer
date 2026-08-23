@@ -2,7 +2,9 @@
 
 #include "Domain/Game/GameType.h"
 #include "Domain/Game/GameInfo.h"
+#include "Domain/Game/GameRegistry.h"
 #include "Core/Path/FilesystemPath.h"
+#include <QDir>
 #include <QString>
 
 namespace Application::Environment {
@@ -40,6 +42,72 @@ public:
 
     const Domain::Game::GameInfo& gameInfo() const noexcept { return m_gameInfo; }
     void setGameInfo(Domain::Game::GameInfo info) { m_gameInfo = std::move(info); }
+
+    // Source 2 layout helpers
+    QString modName() const {
+        const auto* def = Domain::Game::GameRegistry::findByType(m_type);
+        if (def && m_type != Domain::Game::GameType::Custom && m_type != Domain::Game::GameType::Unknown && !def->modName().isEmpty()) {
+            return def->modName();
+        }
+        if (m_gameInfoPath.isValid()) {
+            return m_gameInfoPath.parentPath().fileName();
+        }
+        return QString();
+    }
+
+    Core::Path::FilesystemPath contentDirectory() const {
+        if (!m_baseDirectory.isValid()) return Core::Path::FilesystemPath();
+        const QString name = modName();
+        if (name.isEmpty()) return Core::Path::FilesystemPath();
+        return Core::Path::FilesystemPath(QDir(m_baseDirectory.toString()).filePath(
+            m_isSource2 ? (QStringLiteral("content/") + name) : name));
+    }
+
+    Core::Path::FilesystemPath modDirectory() const {
+        if (m_gameInfoPath.isValid()) {
+            return m_gameInfoPath.parentPath();
+        }
+        if (!m_baseDirectory.isValid()) return Core::Path::FilesystemPath();
+        const auto* def = Domain::Game::GameRegistry::findByType(m_type);
+        if (def && !def->modSubdirectory.isEmpty()) {
+            return Core::Path::FilesystemPath(QDir(m_baseDirectory.toString()).filePath(def->modSubdirectory));
+        }
+        return Core::Path::FilesystemPath();
+    }
+
+    Core::Path::FilesystemPath addonGameDirectory(const QString& addonName = QString()) const {
+        if (!m_baseDirectory.isValid() || !m_isSource2) return Core::Path::FilesystemPath();
+        const QString name = modName();
+        if (name.isEmpty()) return Core::Path::FilesystemPath();
+        QString rel = QStringLiteral("game/") + name + QStringLiteral("_addons");
+        if (!addonName.isEmpty()) {
+            rel += QLatin1Char('/') + addonName;
+        }
+        return Core::Path::FilesystemPath(QDir(m_baseDirectory.toString()).filePath(rel));
+    }
+
+    Core::Path::FilesystemPath addonContentDirectory(const QString& addonName = QString()) const {
+        if (!m_baseDirectory.isValid() || !m_isSource2) return Core::Path::FilesystemPath();
+        const QString name = modName();
+        if (name.isEmpty()) return Core::Path::FilesystemPath();
+        QString rel = QStringLiteral("content/") + name + QStringLiteral("_addons");
+        if (!addonName.isEmpty()) {
+            rel += QLatin1Char('/') + addonName;
+        }
+        return Core::Path::FilesystemPath(QDir(m_baseDirectory.toString()).filePath(rel));
+    }
+
+    Core::Path::FilesystemPath toolsBinaryDirectory() const {
+        if (!m_baseDirectory.isValid()) return Core::Path::FilesystemPath();
+        QString binRel = m_isSource2 ? QStringLiteral("game/bin/win64") : QStringLiteral("bin");
+        return Core::Path::FilesystemPath(QDir(m_baseDirectory.toString()).filePath(binRel));
+    }
+
+    Core::Path::FilesystemPath resourceCompilerExecutable() const {
+        auto binDir = toolsBinaryDirectory();
+        if (!binDir.isValid()) return Core::Path::FilesystemPath();
+        return Core::Path::FilesystemPath(QDir(binDir.toString()).filePath(QStringLiteral("resourcecompiler.exe")));
+    }
 
 private:
     Domain::Game::GameType m_type = Domain::Game::GameType::Unknown;
