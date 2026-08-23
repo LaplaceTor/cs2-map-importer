@@ -99,7 +99,7 @@ jobs:
       shell: pwsh
       run: |
         mkdir release
-        Copy-Item -Path build\Release -Destination release -Recurse
+        Copy-Item build\Release\cs2importerlegacy.exe release\
         windeployqt --qmldir src/qml release\cs2importerlegacy.exe
         Copy-Item -Path bin -Destination release\bin -Recurse
 
