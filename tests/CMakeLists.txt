@@ -85,3 +85,26 @@ target_include_directories(test_asset PRIVATE
 
 add_test(NAME test_asset COMMAND test_asset)
 
+qt_add_executable(test_environment
+    TestEnvironment.cpp
+)
+
+target_link_libraries(test_environment PRIVATE
+    cs2importer_application
+    cs2importer_domain
+    cs2importer_core
+    Qt6::Core
+    Qt6::Test
+)
+
+target_include_directories(test_environment PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+target_compile_definitions(test_environment PRIVATE
+    "GAMEINFO_TEST_DIR=\"${CMAKE_SOURCE_DIR}/gameinfotestfile\""
+)
+
+add_test(NAME test_environment COMMAND test_environment)
+
+

@@ -38,13 +38,23 @@ const Core::KeyValues::KeyValuesNode* GameInfoParser::findSearchPathsNode(
 
 Core::Path::FilesystemPath GameInfoParser::resolveBaseDirectory(
     const Core::Path::FilesystemPath& modDirectory,
-    const Core::KeyValues::KeyValuesNode& rootNode)
+    const Core::KeyValues::KeyValuesNode& rootNode,
+    EngineType engine)
 {
     const QString modDirPath = modDirectory.toString();
     if (modDirPath.isEmpty()) {
         return Core::Path::FilesystemPath();
     }
 
+    if (engine == EngineType::Source2) {
+        // Source 2 layout: mod is in <gameRoot>/game/<modName>
+        if (modDirectory.parentPath().fileName().compare(QStringLiteral("game"), Qt::CaseInsensitive) == 0) {
+            return modDirectory.parentPath().parentPath();
+        }
+        return modDirectory.parentPath();
+    }
+
+    // Source 1 layout
     const auto* gameInfoNode = rootNode.findChild(QStringLiteral("GameInfo"));
     const auto* fileSystemNode = gameInfoNode ? gameInfoNode->findChild(QStringLiteral("FileSystem"))
                                               : rootNode.findChild(QStringLiteral("FileSystem"));
@@ -75,7 +85,8 @@ Core::Path::FilesystemPath GameInfoParser::resolveBaseDirectory(
 
 GameInfo GameInfoParser::createFromDocument(
     Core::KeyValues::KeyValuesDocument doc,
-    const Core::Path::FilesystemPath& gameInfoPath)
+    const Core::Path::FilesystemPath& gameInfoPath,
+    EngineType engine)
 {
     const Core::Path::FilesystemPath modDirectory = gameInfoPath.isValid() ? gameInfoPath.parentPath()
                                                                            : Core::Path::FilesystemPath();
@@ -102,7 +113,7 @@ GameInfo GameInfoParser::createFromDocument(
         info.setToolsAppId(fileSystemNode->propertyInt(QStringLiteral("ToolsAppId")));
     }
 
-    const Core::Path::FilesystemPath baseDirectory = resolveBaseDirectory(modDirectory, rootNode);
+    const Core::Path::FilesystemPath baseDirectory = resolveBaseDirectory(modDirectory, rootNode, engine);
     info.setBaseDirectory(baseDirectory);
 
     const auto* searchPathsNode = findSearchPathsNode(rootNode, gameInfoNode, fileSystemNode);
@@ -115,6 +126,7 @@ GameInfo GameInfoParser::createFromDocument(
 
 std::optional<GameInfo> GameInfoParser::parse(
     const Core::Path::FilesystemPath& gameInfoPath,
+    EngineType engine,
     QString* errorMessage)
 {
     if (!gameInfoPath.isValid()) {
@@ -129,12 +141,20 @@ std::optional<GameInfo> GameInfoParser::parse(
         return std::nullopt;
     }
 
-    return createFromDocument(std::move(doc), gameInfoPath);
+    return createFromDocument(std::move(doc), gameInfoPath, engine);
+}
+
+std::optional<GameInfo> GameInfoParser::parse(
+    const Core::Path::FilesystemPath& gameInfoPath,
+    QString* errorMessage)
+{
+    return parse(gameInfoPath, EngineType::Source1, errorMessage);
 }
 
 std::optional<GameInfo> GameInfoParser::parseFromString(
     const QString& content,
     const Core::Path::FilesystemPath& gameInfoPath,
+    EngineType engine,
     QString* errorMessage)
 {
     Core::KeyValues::KeyValuesDocument doc;
@@ -142,7 +162,15 @@ std::optional<GameInfo> GameInfoParser::parseFromString(
         return std::nullopt;
     }
 
-    return createFromDocument(std::move(doc), gameInfoPath);
+    return createFromDocument(std::move(doc), gameInfoPath, engine);
+}
+
+std::optional<GameInfo> GameInfoParser::parseFromString(
+    const QString& content,
+    const Core::Path::FilesystemPath& gameInfoPath,
+    QString* errorMessage)
+{
+    return parseFromString(content, gameInfoPath, EngineType::Source1, errorMessage);
 }
 
 } // namespace Domain::Game

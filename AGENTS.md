@@ -79,7 +79,7 @@ src/
 │   ├── Asset/                    # AssetType, AssetTypeDetector, AssetPath
 │   ├── Audio/                    # Soundscape extraction and VMF audio linking
 │   ├── Bsp/                      # BSP unpacking, embedded file extraction
-│   ├── Game/                     # GameInfo parser, SearchPath resolution (GameInfo, SearchTarget, SearchPathResolver, GameInfoParser)
+│   ├── Game/                     # GameInfo parser, SearchPath resolution, GameType/Registry/Validator
 │   ├── Material/                 # VMT / VMAT conversion, skybox, UV & shader fixing
 │   ├── Package/                  # VPK asset extraction & indexing
 │   ├── Tool/                     # Tool wrappers (bspsrc, source1import, vpkeditcli, etc.)
@@ -92,11 +92,12 @@ src/
 │   ├── Model/                    # ModelImporter workflow
 │   └── Particle/                 # ParticleImporter workflow
 │
-├── Application/                  # Application services & execution orchestration
+├── Application/                  # Application services & execution orchestration (cs2importer_application)
 │   ├── Config/                   # Configuration persistence (AppConfig / settings)
-│   ├── Environment/              # Game / Steam library path detection
+│   ├── Environment/              # Game / Steam library path detection (SteamService, GameInstallation, GameDetectService)
 │   ├── Task/                     # WorkflowRunner, background worker thread management
-│   └── Update/                   # UpdateService (version checking)
+│   ├── Update/                   # UpdateService (version checking)
+│   └── CMakeLists.txt
 │
 ├── UI/                           # QML presentation controllers and ViewModels
 │   ├── Controllers/              # Main UI controller, Tab controller
@@ -117,11 +118,11 @@ src/
 | `MaterialFix.h/.cpp` | `Domain::Material` | `src/Domain/Material/` | Material (VMT/VMAT) corrections, shader properties, UV fixes. |
 | `SoundscapeImport.h/.cpp` | `Domain::Audio` | `src/Domain/Audio/` | Soundscape extraction and VMF entity sound connections. |
 | `FileExtractFromVPK.h/.cpp` | `Domain::Package` | `src/Domain/Package/` | Typed asset extraction from VPK archives. |
-| `Miscellaneous::ParseGameInfo`, `SearchTarget` | `Domain::Game` | `src/Domain/Game/` | `gameinfo.txt` parsing and game search path resolution. |
+| `Miscellaneous::ParseGameInfo`, `SearchTarget` | `Domain::Game` | `src/Domain/Game/` | `gameinfo.txt`/`gameinfo.gi` parsing, AST rule validation (`GameRegistry`, `GameValidator`), and game search path resolution. |
 | `ModelImporter.h/.cpp` | `Workflow::Model` | `src/Workflow/Model/` | Model import pipeline (.mdl $\rightarrow$ .vmdl). |
 | `ParticleImporter.h/.cpp` | `Workflow::Particle` | `src/Workflow/Particle/` | Particle import pipeline (.pcf $\rightarrow$ .vpcf). |
 | `MapImporter.h/.cpp` | `Workflow::Map` | `src/Workflow/Map/` | Map import pipeline (BSP $\rightarrow$ VMF $\rightarrow$ compile/assets). |
-| `Ui::AutoDetectPaths`, `IsValid*` | `Application::Environment` | `src/Application/Environment/` | Registry & Steam library scanning for game paths. |
+| `Ui::AutoDetectPaths`, `IsValid*` | `Application::Environment`<br>`Domain::Game` | `src/Application/Environment/`<br>`src/Domain/Game/` | Registry & Steam library scanning for game paths (`SteamService`, `GameDetectService`); domain game metadata and validation (`GameRegistry`, `GameValidator`). |
 | `Ui::CheckForUpdate` | `Application::Update` | `src/Application/Update/` | Update checking via network API. |
 | `Ui::LoadFromCfg`, `SaveToCfg` | `Application::Config` | `src/Application/Config/` | Application configuration load/save. |
 | `Ui::Start`, `m_workerThread`, `CancelAll` | `Application::Task` | `src/Application/Task/` | `WorkflowRunner`: Worker thread management, cancellation, exception handling. |
@@ -166,7 +167,7 @@ Direct creation of `QProcess` or shell execution across business files is forbid
 
 1. **Stage 1 (Completed)**: Core infrastructure extraction (`src/Core`).
 2. **Stage 2 (In Progress / Next)**: Domain foundations and tool wrappers:
-   * [x] Implement `Domain::Game` (`GameInfo`, `SearchTarget`, `SearchPathResolver`, `GameInfoParser` under `src/Domain/Game/`).
+   * [x] Implement `Domain::Game` (`GameInfo`, `SearchTarget`, `SearchPathResolver`, `GameInfoParser`, `GameType`, `GameDefinition`, `GameRegistry`, `GameValidator` under `src/Domain/Game/`).
    * [ ] Implement `Domain::Tool` (wrap tools with `Core::Process`).
    * [ ] Implement `Domain::Package` (VPK extraction with `Core::FileSystem`).
 3. **Stage 3**: Standalone Importers & Domain Processors:
@@ -175,8 +176,9 @@ Direct creation of `QProcess` or shell execution across business files is forbid
    * Refactor `MaterialFix` $\rightarrow$ `Domain::Material`.
    * Refactor `VmfBspProcess` $\rightarrow$ `Domain::Vmf` & `Domain::Bsp`.
 4. **Stage 4**: Application Services & WorkflowRunner:
-   * Implement `WorkflowRunner`, `ConfigService`, `GameDetectService`.
-   * Connect `Core::Logging` to UI sink.
+   * [x] Implement `Application::Environment` (`SteamService`, `GameInstallation`, `GameDetectService` under `src/Application/Environment/`).
+   * [ ] Implement `WorkflowRunner`, `ConfigService`, `UpdateService`.
+   * [ ] Connect `Core::Logging` to UI sink.
 5. **Stage 5**: MapImporter Migration & UI Slimming:
    * Migrate `MapImporter` $\rightarrow$ `src/Workflow/Map/`.
    * Refactor `Ui.cpp` into thin ViewModels / Controllers under `src/UI/`.
@@ -333,19 +335,31 @@ if (assetPath.isValid()) {
 ### Game & Search Paths: `Domain::Game`
 
 ```cpp
+#include "Domain/Game/GameType.h"
+#include "Domain/Game/GameDefinition.h"
+#include "Domain/Game/GameRegistry.h"
+#include "Domain/Game/GameValidator.h"
 #include "Domain/Game/GameInfo.h"
 #include "Domain/Game/GameInfoParser.h"
 #include "Domain/Game/SearchTarget.h"
 
-// Parse gameinfo.txt into structured Domain model
-Core::Path::FilesystemPath gameinfoPath(QStringLiteral("C:/game/cstrike/gameinfo.txt"));
-auto gameInfo = Domain::Game::GameInfoParser::parse(gameinfoPath);
+// 1. Query game registry
+const auto* cs2Def = Domain::Game::GameRegistry::findByType(Domain::Game::GameType::CS2);
+const auto* hl2Def = Domain::Game::GameRegistry::findByAppId(220);
+auto matchingDefs = Domain::Game::GameRegistry::findAllByAppId(730);
 
-if (gameInfo) {
-    const QString& title = gameInfo->game();
-    int appId = gameInfo->steamAppId();
-    const auto& baseDir = gameInfo->baseDirectory();
-    const auto& searchTargets = gameInfo->searchTargets();
+// 2. Parse gameinfo.txt or gameinfo.gi with explicit EngineType
+Core::Path::FilesystemPath gameinfoPath(QStringLiteral("C:/game/cstrike/gameinfo.txt"));
+auto gameInfoS1 = Domain::Game::GameInfoParser::parse(gameinfoPath, Domain::Game::EngineType::Source1);
+
+Core::Path::FilesystemPath cs2GiPath(QStringLiteral("C:/game/csgo/gameinfo.gi"));
+auto gameInfoS2 = Domain::Game::GameInfoParser::parse(cs2GiPath, Domain::Game::EngineType::Source2);
+
+if (gameInfoS1) {
+    const QString& title = gameInfoS1->game();
+    int appId = gameInfoS1->steamAppId();
+    const auto& baseDir = gameInfoS1->baseDirectory();
+    const auto& searchTargets = gameInfoS1->searchTargets();
 
     for (const auto& target : searchTargets) {
         if (target.isVpk()) {
@@ -355,12 +369,66 @@ if (gameInfo) {
         }
     }
 }
+
+// 3. Domain validation
+auto validatedInfo = Domain::Game::GameValidator::validateDirectory(
+    Core::Path::FilesystemPath(QStringLiteral("C:/game/cstrike")),
+    Domain::Game::GameType::CSS);
 ```
 
+* `GameType` & `EngineType`: Strongly-typed enums for all supported Valve titles (`CS2`, `CSGO`, `CSS`, `HL2`, `L4D`, `L4D2`, `Portal`, `Portal2`, `TF2`, `GMod`, `BlackMesa`, `Custom`) and engine versions (`Source1`, `Source2`).
+* `GameDefinition`: Metadata struct containing Steam AppIDs, mod subdirectories, expected game title, `gameinfo` file name (`gameinfo.txt` vs `gameinfo.gi`), and `EngineType`.
+* `GameRegistry`: Query repository providing `findByType`, `findById`, `findByAppId`, `findAllByAppId`, and string conversions.
+* `GameValidator`: AST rule validation and directory validation against game definitions.
 * `SearchTarget`: Value object encapsulating `SearchTargetType` (`Directory` or `Vpk`) and `Core::Path::FilesystemPath`.
 * `GameInfo`: Encapsulates game name, title, SteamAppId, ToolsAppId, modDirectory, baseDirectory, searchTargets, and `Core::KeyValues::KeyValuesDocument`.
 * `SearchPathResolver`: Resolves Source 1 `SearchPaths` KV nodes (handles `|gameinfo_path|`, wildcard skipping, `.vpk` to `_dir.vpk` normalization, and deduplication).
-* `GameInfoParser`: Parses `gameinfo.txt` via `Core::KeyValues`, detects game base directory from `game+game_write` or parent path fallback, and resolves all search paths.
+* `GameInfoParser`: Parses `gameinfo.txt` and `gameinfo.gi` with explicit `EngineType` parameter (`EngineType::Source1` / `EngineType::Source2`), resolving base directory and search paths without heuristic guessing.
+
+---
+
+## Application API Reference
+
+`src/Application/CMakeLists.txt` builds `cs2importer_application` as a static library linking `cs2importer_domain`, `cs2importer_core`, and `Qt6::Core`. Its public include root is `src/`:
+
+```cpp
+#include "Application/Environment/SteamService.h"
+#include "Application/Environment/GameInstallation.h"
+#include "Application/Environment/GameDetectService.h"
+```
+
+### Environment & Steam Discovery: `Application::Environment`
+
+```cpp
+#include "Application/Environment/SteamService.h"
+#include "Application/Environment/GameInstallation.h"
+#include "Application/Environment/GameDetectService.h"
+
+// 1. Steam registry & library detection
+auto steamPath = Application::Environment::SteamService::detectSteamInstallPath();
+auto libraries = Application::Environment::SteamService::detectLibraries();
+
+// 2. Discover games across all Steam libraries based on AppIDs
+auto detectedGames = Application::Environment::GameDetectService::detectAllGames();
+for (const auto& game : detectedGames) {
+    qDebug() << "Found:" << game.gameTitle() << "at" << game.baseDirectory().toString();
+}
+
+// 3. Detect specific game
+auto cs2 = Application::Environment::GameDetectService::detectGame(Domain::Game::GameType::CS2);
+
+// 4. Validate user-selected directories
+auto s1Game = Application::Environment::GameDetectService::validateSource1(
+    Domain::Game::GameType::CSS,
+    Core::Path::FilesystemPath(QStringLiteral("D:/SteamLibrary/steamapps/common/Counter-Strike Source")));
+
+auto s2Game = Application::Environment::GameDetectService::validateSource2(
+    Core::Path::FilesystemPath(QStringLiteral("D:/SteamLibrary/steamapps/common/Counter-Strike Global Offensive")));
+```
+
+* `SteamService`: Detects Steam installation path from Windows Registry (`HKCU`, `HKLM`, `WOW6432Node`), parses `steamapps/libraryfolders.vdf`, and reads `appmanifest_<appid>.acf` for `installdir` and app state.
+* `GameInstallation`: Value object encapsulating detected/validated game installations (GameType, gameTitle, baseDirectory, modDirectory, gameInfoPath, `isSource2()`, and associated `GameInfo`).
+* `GameDetectService`: High-level detection and validation service. Maps installed AppIDs in Steam libraries directly to fixed `GameDefinition`s (`isSource2()`), dispatching to `validateSource2` (Source 2) or `validateSource1` (Source 1). Also provides `validateGameDirectory` and arbitrary `inspectGameInfo`.
 
 ---
 
@@ -375,7 +443,7 @@ if (gameInfo) {
 
 * Require CMake 3.28+ and Qt 6.8+.
 * Use `qt_standard_project_setup()` where appropriate.
-* Use `qt_add_executable()` for the application, `qt_add_library()` for Core/Domain libraries, and `qt_add_qml_module()` for QML.
+* Use `qt_add_executable()` for the application, `qt_add_library()` for Core/Domain/Application libraries, and `qt_add_qml_module()` for QML.
 * Use `qt_add_resources()` only for non-QML resources.
 * Prefer target-based configuration with explicit `PRIVATE`, `PUBLIC`, or `INTERFACE` visibility.
 * Do not use global include paths when target-specific configuration is sufficient.
@@ -393,7 +461,7 @@ cmake --build --preset windows-debug
 ctest --test-dir build/local-debug --output-on-failure
 ```
 
-Tests reside under `tests/` (`test_logmanager`, `logging_test`, `test_keyvalues`, `test_gameinfo`).
+Tests reside under `tests/` (`test_logmanager`, `logging_test`, `test_keyvalues`, `test_gameinfo`, `test_asset`, `test_environment`).
 
 ## Skills — Auto-Load Rules
 

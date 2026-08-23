@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Domain/Game/GameInfo.h"
+#include "Domain/Game/GameType.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/KeyValues/KeyValuesDocument.h"
 #include <optional>
@@ -12,6 +13,17 @@ class GameInfoParser {
 public:
     static std::optional<GameInfo> parse(
         const Core::Path::FilesystemPath& gameInfoPath,
+        EngineType engine = EngineType::Source1,
+        QString* errorMessage = nullptr);
+
+    static std::optional<GameInfo> parse(
+        const Core::Path::FilesystemPath& gameInfoPath,
+        QString* errorMessage);
+
+    static std::optional<GameInfo> parseFromString(
+        const QString& content,
+        const Core::Path::FilesystemPath& gameInfoPath,
+        EngineType engine,
         QString* errorMessage = nullptr);
 
     static std::optional<GameInfo> parseFromString(
@@ -21,12 +33,14 @@ public:
 
     static Core::Path::FilesystemPath resolveBaseDirectory(
         const Core::Path::FilesystemPath& modDirectory,
-        const Core::KeyValues::KeyValuesNode& rootNode);
+        const Core::KeyValues::KeyValuesNode& rootNode,
+        EngineType engine = EngineType::Source1);
 
 private:
     static GameInfo createFromDocument(
         Core::KeyValues::KeyValuesDocument doc,
-        const Core::Path::FilesystemPath& gameInfoPath);
+        const Core::Path::FilesystemPath& gameInfoPath,
+        EngineType engine = EngineType::Source1);
 
     static const Core::KeyValues::KeyValuesNode* findSearchPathsNode(
         const Core::KeyValues::KeyValuesNode& rootNode,

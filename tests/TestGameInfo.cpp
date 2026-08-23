@@ -5,6 +5,10 @@
 #include "Domain/Game/GameInfoParser.h"
 #include "Domain/Game/SearchPathResolver.h"
 #include "Domain/Game/SearchTarget.h"
+#include "Domain/Game/GameType.h"
+#include "Domain/Game/GameDefinition.h"
+#include "Domain/Game/GameRegistry.h"
+#include "Domain/Game/GameValidator.h"
 #include "Core/Path/FilesystemPath.h"
 
 using namespace Domain::Game;
@@ -271,6 +275,123 @@ private slots:
         auto result = GameInfoParser::parse(nonExistent, &error);
         QVERIFY(!result.has_value());
         QVERIFY(!error.isEmpty());
+    }
+
+    void testGameRegistry() {
+        const auto& defs = GameRegistry::allDefinitions();
+        QVERIFY(defs.size() >= 10);
+
+        const auto* cs2Def = GameRegistry::findByType(GameType::CS2);
+        QVERIFY(cs2Def != nullptr);
+        QCOMPARE(cs2Def->id, QStringLiteral("cs2"));
+        QCOMPARE(cs2Def->primaryAppId, 730);
+        QCOMPARE(cs2Def->gameInfoFileName, QStringLiteral("gameinfo.gi"));
+        QCOMPARE(cs2Def->modSubdirectory, QStringLiteral("game/csgo"));
+        QVERIFY(cs2Def->isSource2());
+
+        const auto* cssDef = GameRegistry::findById(QStringLiteral("css"));
+        QVERIFY(cssDef != nullptr);
+        QCOMPARE(cssDef->type, GameType::CSS);
+        QCOMPARE(cssDef->primaryAppId, 240);
+        QVERIFY(!cssDef->isSource2());
+
+        const auto* hl2Def = GameRegistry::findByAppId(220);
+        QVERIFY(hl2Def != nullptr);
+        QCOMPARE(hl2Def->type, GameType::HL2);
+
+        QCOMPARE(GameRegistry::gameTypeToString(GameType::Portal2), QStringLiteral("portal2"));
+        QCOMPARE(GameRegistry::stringToGameType(QStringLiteral("tf2")), GameType::TF2);
+    }
+
+    void testGameValidatorWithFixtures() {
+        // Counter-Strike Source fixture
+        QString cssDirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source"));
+        auto cssValidation = GameValidator::validateDirectory(Core::Path::FilesystemPath(cssDirStr), GameType::CSS);
+        QVERIFY(cssValidation.has_value());
+        QCOMPARE(cssValidation->game(), QStringLiteral("Counter-Strike Source"));
+
+        // Half-Life 2 fixture
+        QString hl2DirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Half-Life 2"));
+        auto hl2Validation = GameValidator::validateDirectory(Core::Path::FilesystemPath(hl2DirStr), GameType::HL2);
+        QVERIFY(hl2Validation.has_value());
+        QCOMPARE(hl2Validation->game(), QStringLiteral("HALF-LIFE 2"));
+
+        // Portal 2 fixture
+        QString portal2DirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Portal 2"));
+        auto portal2Validation = GameValidator::validateDirectory(Core::Path::FilesystemPath(portal2DirStr), GameType::Portal2);
+        QVERIFY(portal2Validation.has_value());
+        QCOMPARE(portal2Validation->game(), QStringLiteral("PORTAL 2"));
+
+        // Team Fortress 2 fixture
+        QString tf2DirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Team Fortress 2"));
+        auto tf2Validation = GameValidator::validateDirectory(Core::Path::FilesystemPath(tf2DirStr), GameType::TF2);
+        QVERIFY(tf2Validation.has_value());
+        QCOMPARE(tf2Validation->game(), QStringLiteral("Team Fortress 2"));
+
+        // Left 4 Dead 2 fixture
+        QString l4d2DirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Left 4 Dead 2"));
+        auto l4d2Validation = GameValidator::validateDirectory(Core::Path::FilesystemPath(l4d2DirStr), GameType::L4D2);
+        QVERIFY(l4d2Validation.has_value());
+        QCOMPARE(l4d2Validation->game(), QStringLiteral("Left 4 Dead 2"));
+
+        // CS:GO Legacy fixture
+        QString csgoDirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("csgo legacy"));
+        auto csgoValidation = GameValidator::validateDirectory(Core::Path::FilesystemPath(csgoDirStr), GameType::CSGO);
+        QVERIFY(csgoValidation.has_value());
+        QCOMPARE(csgoValidation->game(), QStringLiteral("Counter-Strike: Global Offensive"));
+
+        // Negative test: validate Half-Life 2 as CS:S should fail
+        auto wrongValidation = GameValidator::validateDirectory(Core::Path::FilesystemPath(hl2DirStr), GameType::CSS);
+        QVERIFY(!wrongValidation.has_value());
+
+        // Test auto-identification
+        auto identifiedType = GameValidator::identifyGameType(*cssValidation);
+        QVERIFY(identifiedType.has_value());
+        QCOMPARE(*identifiedType, GameType::CSS);
+    }
+
+    void testCs2GameInfoParser() {
+        QString cs2GiContent = QStringLiteral(
+            "\"GameInfo\"\n"
+            "{\n"
+            "    game \"Counter-Strike 2\"\n"
+            "    title \"Counter-Strike 2\"\n"
+            "    LayeredOnMod csgo_imported\n"
+            "    FileSystem\n"
+            "    {\n"
+            "        SearchPaths\n"
+            "        {\n"
+            "            Game_LowViolence csgo_lv\n"
+            "            Game csgo\n"
+            "            Game csgo_imported\n"
+            "            Game csgo_core\n"
+            "            Game core\n"
+            "            Mod csgo\n"
+            "            Mod csgo_imported\n"
+            "            Mod csgo_core\n"
+            "            AddonRoot csgo_addons\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        );
+
+        Core::Path::FilesystemPath mockGiPath(QStringLiteral("C:/Games/SteamLibrary/steamapps/common/Counter-Strike Global Offensive/game/csgo/gameinfo.gi"));
+        QString error;
+        auto result = GameInfoParser::parseFromString(cs2GiContent, mockGiPath, EngineType::Source2, &error);
+        QVERIFY2(result.has_value(), qPrintable(error));
+
+        const auto& info = *result;
+        QCOMPARE(info.game(), QStringLiteral("Counter-Strike 2"));
+        QCOMPARE(info.title(), QStringLiteral("Counter-Strike 2"));
+        QCOMPARE(info.modDirectory().toString(), QStringLiteral("C:/Games/SteamLibrary/steamapps/common/Counter-Strike Global Offensive/game/csgo"));
+        QCOMPARE(info.baseDirectory().toString(), QStringLiteral("C:/Games/SteamLibrary/steamapps/common/Counter-Strike Global Offensive"));
+
+        QVERIFY(GameValidator::validateGameInfo(info, GameType::CS2));
+        QVERIFY(!GameValidator::validateGameInfo(info, GameType::CSS));
+
+        auto identified = GameValidator::identifyGameType(info);
+        QVERIFY(identified.has_value());
+        QCOMPARE(*identified, GameType::CS2);
     }
 };
 
