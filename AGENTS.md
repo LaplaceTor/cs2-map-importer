@@ -76,14 +76,15 @@ src/
 │   ├── VmfBspProcess, MaterialFix, SoundscapeImport, FileExtractFromVPK
 │   └── CMakeLists.txt
 │
-├── Domain/                       # Valve & Source 1/2 domain models, parsers, and tool adapters
+├── Domain/                       # Valve & Source 1/2 domain models, parsers, and tool adapters (cs2importer_domain)
 │   ├── Audio/                    # Soundscape extraction and VMF audio linking
 │   ├── Bsp/                      # BSP unpacking, embedded file extraction
-│   ├── Game/                     # GameInfo parser, SearchPath resolution
+│   ├── Game/                     # GameInfo parser, SearchPath resolution (GameInfo, SearchTarget, SearchPathResolver, GameInfoParser)
 │   ├── Material/                 # VMT / VMAT conversion, skybox, UV & shader fixing
 │   ├── Package/                  # VPK asset extraction & indexing
 │   ├── Tool/                     # Tool wrappers (bspsrc, source1import, vpkeditcli, etc.)
-│   └── Vmf/                      # VMF AST parsing, entity/brush manipulation, serialization
+│   ├── Vmf/                      # VMF AST parsing, entity/brush manipulation, serialization
+│   └── CMakeLists.txt
 │
 ├── Workflow/                     # Concrete import pipeline use-cases
 │   ├── Common/                   # ImportContext, CancellationToken, IImporter
@@ -165,9 +166,9 @@ Direct creation of `QProcess` or shell execution across business files is forbid
 
 1. **Stage 1 (Completed)**: Core infrastructure extraction (`src/Core`).
 2. **Stage 2 (In Progress / Next)**: Domain foundations and tool wrappers:
-   * Implement `Domain::Tool` (wrap tools with `Core::Process`).
-   * Implement `Domain::Game` (GameInfo and search path resolver with `Core::Path`).
-   * Implement `Domain::Package` (VPK extraction with `Core::FileSystem`).
+   * [x] Implement `Domain::Game` (`GameInfo`, `SearchTarget`, `SearchPathResolver`, `GameInfoParser` under `src/Domain/Game/`).
+   * [ ] Implement `Domain::Tool` (wrap tools with `Core::Process`).
+   * [ ] Implement `Domain::Package` (VPK extraction with `Core::FileSystem`).
 3. **Stage 3**: Standalone Importers & Domain Processors:
    * Migrate `ModelImporter` $\rightarrow$ `src/Workflow/Model/`.
    * Migrate `ParticleImporter` $\rightarrow$ `src/Workflow/Particle/`.
@@ -305,6 +306,50 @@ task->complete(QStringLiteral("Finished"));
 
 ---
 
+## Domain API Reference
+
+`src/Domain/CMakeLists.txt` builds `cs2importer_domain` as a static library linking `cs2importer_core` and `Qt6::Core`. Its public include root is `src/`:
+
+```cpp
+#include "Domain/Game/GameInfo.h"
+#include "Domain/Game/GameInfoParser.h"
+#include "Domain/Game/SearchTarget.h"
+```
+
+### Game & Search Paths: `Domain::Game`
+
+```cpp
+#include "Domain/Game/GameInfo.h"
+#include "Domain/Game/GameInfoParser.h"
+#include "Domain/Game/SearchTarget.h"
+
+// Parse gameinfo.txt into structured Domain model
+Core::Path::FilesystemPath gameinfoPath(QStringLiteral("C:/game/cstrike/gameinfo.txt"));
+auto gameInfo = Domain::Game::GameInfoParser::parse(gameinfoPath);
+
+if (gameInfo) {
+    const QString& title = gameInfo->game();
+    int appId = gameInfo->steamAppId();
+    const auto& baseDir = gameInfo->baseDirectory();
+    const auto& searchTargets = gameInfo->searchTargets();
+
+    for (const auto& target : searchTargets) {
+        if (target.isVpk()) {
+            // target.path() is a Core::Path::FilesystemPath to _dir.vpk
+        } else {
+            // target.path() is a directory path
+        }
+    }
+}
+```
+
+* `SearchTarget`: Value object encapsulating `SearchTargetType` (`Directory` or `Vpk`) and `Core::Path::FilesystemPath`.
+* `GameInfo`: Encapsulates game name, title, SteamAppId, ToolsAppId, modDirectory, baseDirectory, searchTargets, and `Core::KeyValues::KeyValuesDocument`.
+* `SearchPathResolver`: Resolves Source 1 `SearchPaths` KV nodes (handles `|gameinfo_path|`, wildcard skipping, `.vpk` to `_dir.vpk` normalization, and deduplication).
+* `GameInfoParser`: Parses `gameinfo.txt` via `Core::KeyValues`, detects game base directory from `game+game_write` or parent path fallback, and resolves all search paths.
+
+---
+
 ## C++ and Coding Conventions
 
 * Use C++17, Qt types, RAII, deterministic ownership, `const` correctness, and lightweight headers.
@@ -326,14 +371,15 @@ task->complete(QStringLiteral("Finished"));
 
 ## Build and Tests
 
-Standard local build:
+Standard local build using CMake Presets:
 
 ```bash
-cmake -S . -B build
-cmake --build build --config Release
+cmake --preset windows-debug
+cmake --build --preset windows-debug
+ctest --test-dir build/local-debug --output-on-failure
 ```
 
-Tests reside under `tests/`.
+Tests reside under `tests/` (`test_logmanager`, `logging_test`, `test_keyvalues`, `test_gameinfo`).
 
 ## Skills — Auto-Load Rules
 
