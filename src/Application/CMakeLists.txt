@@ -10,6 +10,7 @@ target_link_libraries(cs2importer_application PUBLIC
     cs2importer_domain
     cs2importer_core
     Qt6::Core
+    Qt6::Gui
 )
 
 target_include_directories(cs2importer_application PUBLIC

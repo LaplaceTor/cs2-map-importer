@@ -178,10 +178,10 @@ Direct creation of `QProcess` or shell execution across business files is forbid
 4. **Stage 4**: Application Services & WorkflowRunner:
    * [x] Implement `Application::Environment` (`SteamService`, `GameInstallation`, `GameDetectService` under `src/Application/Environment/`).
    * [ ] Implement `WorkflowRunner`, `ConfigService`, `UpdateService`.
-   * [ ] Connect `Core::Logging` to UI sink.
+   * [x] Connect `Core::Logging` to UI sink (`UI::ViewModels::LogViewModel`).
 5. **Stage 5**: MapImporter Migration & UI Slimming:
    * Migrate `MapImporter` $\rightarrow$ `src/Workflow/Map/`.
-   * Refactor `Ui.cpp` into thin ViewModels / Controllers under `src/UI/`.
+   * [x] Refactor UI into modern modular ViewModels / Controllers (`src/UI/`) and Qt 6 QML components (`src/qml/cs2importer/`), with detached Log Window and Source 1 / Source 2 game detection.
 
 > [!IMPORTANT]
 > **Preserve Existing Behavior**: Do not combine refactor stages. When migrating a specific component, keep its functional behavior intact while replacing legacy utilities with the target architectural abstractions.

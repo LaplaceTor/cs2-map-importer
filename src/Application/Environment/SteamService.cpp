@@ -1,10 +1,13 @@
 #include "Application/Environment/SteamService.h"
 #include "Core/KeyValues/KeyValuesDocument.h"
 #include "Core/Path/PathUtils.h"
+#include "Domain/Game/GameRegistry.h"
+#include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QSettings>
+#include <QUrl>
 #include <algorithm>
 
 namespace Application::Environment {
@@ -228,6 +231,22 @@ QString SteamService::readAppName(const Core::Path::FilesystemPath& libraryPath,
     const auto* node = appState ? appState : &doc.root();
 
     return node->property(QStringLiteral("name"));
+}
+
+bool SteamService::validateGameFiles(int appId) {
+    if (appId <= 0) {
+        return false;
+    }
+    QUrl validateUrl(QStringLiteral("steam://validate/") + QString::number(appId));
+    return QDesktopServices::openUrl(validateUrl);
+}
+
+bool SteamService::validateGameFiles(Domain::Game::GameType type) {
+    const auto* def = Domain::Game::GameRegistry::findByType(type);
+    if (!def || def->primaryAppId <= 0) {
+        return false;
+    }
+    return validateGameFiles(def->primaryAppId);
 }
 
 } // namespace Application::Environment

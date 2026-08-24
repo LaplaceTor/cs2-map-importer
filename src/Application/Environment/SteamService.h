@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Core/Path/FilesystemPath.h"
+#include "Domain/Game/GameType.h"
 #include <QString>
 #include <vector>
 
@@ -27,6 +28,12 @@ public:
 
     // Read full app name from appmanifest_<appId>.acf in a steamapps folder
     static QString readAppName(const Core::Path::FilesystemPath& libraryPath, int appId);
+
+    // Launch Steam game files validation for a specific Steam AppID
+    static bool validateGameFiles(int appId);
+
+    // Launch Steam game files validation for a registered GameType
+    static bool validateGameFiles(Domain::Game::GameType type);
 };
 
 } // namespace Application::Environment

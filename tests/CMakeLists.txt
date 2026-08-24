@@ -107,4 +107,29 @@ target_compile_definitions(test_environment PRIVATE
 
 add_test(NAME test_environment COMMAND test_environment)
 
+qt_add_executable(test_uiviewmodels
+    TestUiViewModels.cpp
+)
+
+target_link_libraries(test_uiviewmodels PRIVATE
+    cs2importer_ui
+    cs2importer_application
+    cs2importer_domain
+    cs2importer_core
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Test
+)
+
+target_include_directories(test_uiviewmodels PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+)
+
+target_compile_definitions(test_uiviewmodels PRIVATE
+    "GAMEINFO_TEST_DIR=\"${CMAKE_SOURCE_DIR}/gameinfotestfile\""
+)
+
+add_test(NAME test_uiviewmodels COMMAND test_uiviewmodels)
+
+
 
