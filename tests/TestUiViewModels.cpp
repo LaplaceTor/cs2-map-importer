@@ -58,8 +58,8 @@ private slots:
         QCOMPARE(vm.s1GameTitle(), QStringLiteral("Counter-Strike Source"));
         QVERIFY(vm.s1Installation().isValid());
         QCOMPARE(vm.s1Installation().type(), Domain::Game::GameType::CSS);
-        QVERIFY(spyS1Path.count() >= 1);
-        QVERIFY(spyS1Valid.count() >= 1);
+        QVERIFY(spyS1Path.size() >= 1);
+        QVERIFY(spyS1Valid.size() >= 1);
     }
 
     void testGameViewModelSource2Validation() {
@@ -114,7 +114,7 @@ private slots:
         logVm.appendLog(QStringLiteral("ERROR: failed to load"), 3); // Error
 
         QCOMPARE(logVm.lineCount(), 3);
-        QVERIFY(spyLog.count() >= 3);
+        QVERIFY(spyLog.size() >= 3);
 
         QString html = logVm.formattedLogText();
         QVERIFY(html.contains(QStringLiteral("color='#FF5252'"))); // Error red
@@ -132,7 +132,7 @@ private slots:
         QCOMPARE(controller.activeTab(), 0);
         controller.setActiveTab(1);
         QCOMPARE(controller.activeTab(), 1);
-        QCOMPARE(spyTab.count(), 1);
+        QCOMPARE(spyTab.size(), 1);
 
         QCOMPARE(controller.theme(), QStringLiteral("system"));
         controller.cycleTheme();
@@ -141,7 +141,7 @@ private slots:
         QCOMPARE(controller.theme(), QStringLiteral("dark"));
         controller.cycleTheme();
         QCOMPARE(controller.theme(), QStringLiteral("system"));
-        QCOMPARE(spyTheme.count(), 3);
+        QCOMPARE(spyTheme.size(), 3);
 
         QVERIFY(!controller.appVersion().isEmpty());
     }

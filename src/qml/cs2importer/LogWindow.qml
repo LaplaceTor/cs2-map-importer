@@ -5,7 +5,7 @@ import QtQuick.Layouts
 Window {
     id: root
 
-    property var logViewModel: null
+    property QtObject logViewModel: null
 
     width: 800
     height: 520
@@ -79,9 +79,10 @@ Window {
 
                 TextArea {
                     id: logOutput
+                    width: logScrollView.availableWidth
                     readOnly: true
                     selectByMouse: true
-                    wrapMode: TextArea.Wrap
+                    wrapMode: TextEdit.Wrap
                     textFormat: Text.RichText
                     font.family: "Consolas, 'Courier New', monospace"
                     font.pixelSize: 12

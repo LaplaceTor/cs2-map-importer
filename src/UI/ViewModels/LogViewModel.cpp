@@ -24,10 +24,7 @@ void LogViewModel::registerWithLogManager() {
 }
 
 void LogViewModel::unregisterFromLogManager() {
-    try {
-        Core::Logging::LogManager::instance().removeSink(shared_from_this());
-    } catch (...) {
-    }
+    Core::Logging::LogManager::instance().removeSink(sinkId());
 }
 
 QString LogViewModel::formattedLogText() const {

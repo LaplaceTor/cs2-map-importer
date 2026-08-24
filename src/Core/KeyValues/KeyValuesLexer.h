@@ -48,7 +48,7 @@ private:
     int m_pos = 0;
     int m_line = 1;
     int m_column = 1;
-    std::optional<Token> m_peeked;
+    std::optional<Token> m_peeked = std::nullopt;
 };
 
 } // namespace Core::KeyValues

@@ -6,8 +6,8 @@ import "../components"
 Item {
     id: root
 
-    property var gameViewModel: null
-    property var mainController: null
+    property QtObject gameViewModel: null
+    property QtObject mainController: null
     property string selectedMdlPath: ""
 
     signal requestBrowseS1()
@@ -85,14 +85,14 @@ Item {
             spacing: 10
 
             Button {
+                text: root.selectedMdlPath === "" ? qsTr("Select Source 1 MDL File") : root.selectedMdlPath
+                enabled: !(root.mainController && root.mainController.isProcessing)
                 Layout.fillWidth: true
                 Layout.preferredHeight: 38
-                enabled: !(root.mainController && root.mainController.isProcessing)
-                text: root.selectedMdlPath === "" ? qsTr("Select Source 1 MDL File") : root.selectedMdlPath
 
                 contentItem: Text {
                     text: parent.text
-                    elide: Text.ElideMiddle
+                    elide: Text.ElideLeft
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     color: parent.palette.buttonText
@@ -110,11 +110,22 @@ Item {
 
             ComboBox {
                 id: addonCombo
-                Layout.fillWidth: true
-                Layout.preferredHeight: 38
-                enabled: !(root.mainController && root.mainController.isProcessing)
                 model: root.gameViewModel ? root.gameViewModel.s2AddonsList : []
                 currentIndex: Math.max(0, model && root.gameViewModel ? model.indexOf(root.gameViewModel.selectedAddon) : 0)
+                enabled: !(root.mainController && root.mainController.isProcessing)
+                Layout.fillWidth: true
+                Layout.preferredHeight: 38
+
+                contentItem: Text {
+                    text: addonCombo.displayText
+                    font: addonCombo.font
+                    color: addonCombo.palette.text
+                    leftPadding: 10
+                    rightPadding: addonCombo.indicator ? addonCombo.indicator.width + 10 : 20
+                    verticalAlignment: Text.AlignVCenter
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideLeft
+                }
 
                 onActivated: {
                     if (root.gameViewModel) {
@@ -177,12 +188,12 @@ Item {
             spacing: 12
 
             Button {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                enabled: !(root.mainController && root.mainController.isProcessing) &&
-                         (root.gameViewModel && root.gameViewModel.isS1Valid && root.gameViewModel.isS2Valid && root.selectedMdlPath !== "")
                 text: qsTr("START IMPORT")
                 font.bold: true
+                enabled: !(root.mainController && root.mainController.isProcessing) &&
+                         (root.gameViewModel && root.gameViewModel.isS1Valid && root.gameViewModel.isS2Valid && root.selectedMdlPath !== "")
+                Layout.fillWidth: true
+                Layout.fillHeight: true
 
                 onClicked: {
                     if (root.mainController) {
@@ -192,11 +203,11 @@ Item {
             }
 
             Button {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                enabled: root.mainController && root.mainController.isProcessing
                 text: qsTr("STOP")
                 font.bold: true
+                enabled: root.mainController && root.mainController.isProcessing
+                Layout.fillWidth: true
+                Layout.fillHeight: true
 
                 onClicked: {
                     if (root.mainController) {

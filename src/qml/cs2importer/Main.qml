@@ -8,14 +8,17 @@ ApplicationWindow {
     id: window
     width: 640
     height: 720
-    minimumWidth: 560
-    minimumHeight: 620
+    minimumWidth: 640
+    maximumWidth: 640
+    minimumHeight: 720
+    maximumHeight: 720
+    flags: Qt.Window | Qt.MSWindowsFixedSizeDialogHint | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint
     visible: true
     title: qsTr("CS2 IMPORTER")
 
-    property var gameViewModel: gameViewModelInstance
-    property var logViewModel: logViewModelInstance
-    property var mainController: mainControllerInstance
+    property QtObject gameViewModel: gameViewModelInstance
+    property QtObject logViewModel: logViewModelInstance
+    property QtObject mainController: mainControllerInstance
 
     property string selectedMapFileName: ""
     property string selectedMdlFileName: ""

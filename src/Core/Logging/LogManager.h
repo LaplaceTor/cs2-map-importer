@@ -57,6 +57,7 @@ public:
      */
     void addSink(std::shared_ptr<ILogSink> sink);
     void removeSink(std::shared_ptr<ILogSink> sink);
+    void removeSink(quint64 sinkId);
     void clearSinks();
 
     /**

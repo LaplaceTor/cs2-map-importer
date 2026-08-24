@@ -78,7 +78,7 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const
         taskId, taskName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++);
     m_tasks.insert(taskId, context);
 
-    if (taskId >= m_nextTaskId && taskId != std::numeric_limits<quint64>::max()) {
+    if (taskId >= m_nextTaskId && taskId != (std::numeric_limits<quint64>::max)()) {
         m_nextTaskId = taskId + 1;
     }
 
@@ -154,15 +154,27 @@ void LogManager::removeSink(std::shared_ptr<ILogSink> sink)
     if (!sink) {
         return;
     }
+    removeSink(sink->sinkId());
+}
+
+void LogManager::removeSink(quint64 sinkId)
+{
+    if (sinkId == 0) {
+        return;
+    }
 
     bool hasRemainingSinks = false;
     {
         QMutexLocker locker(&m_mutex);
-        if (!m_sinks.removeOne(sink)) {
+        auto it = std::find_if(m_sinks.begin(), m_sinks.end(), [sinkId](const std::shared_ptr<ILogSink>& s) {
+            return s && s->sinkId() == sinkId;
+        });
+        if (it == m_sinks.end()) {
             return;
         }
-        m_sinkCursors.remove(sink->sinkId());
-        m_sinkGenerations.remove(sink->sinkId());
+        m_sinks.erase(it);
+        m_sinkCursors.remove(sinkId);
+        m_sinkGenerations.remove(sinkId);
         hasRemainingSinks = !m_sinks.isEmpty();
     }
 
@@ -177,7 +189,7 @@ void LogManager::removeSink(std::shared_ptr<ILogSink> sink)
     for (const quint64 taskId : taskIds()) {
         const auto task = findTask(taskId);
         if (task) {
-            task->releaseSealedBlocksBefore(std::numeric_limits<quint64>::max());
+            task->releaseSealedBlocksBefore((std::numeric_limits<quint64>::max)());
         }
     }
 }
@@ -198,7 +210,7 @@ void LogManager::clearSinks()
     // clearSinks ends all outstanding sink responsibilities. Release pending
     // blocks now rather than retaining them for a sink that no longer exists.
     for (const auto& task : tasks) {
-        task->releaseSealedBlocksBefore(std::numeric_limits<quint64>::max());
+        task->releaseSealedBlocksBefore((std::numeric_limits<quint64>::max)());
     }
 }
 
@@ -383,11 +395,11 @@ bool LogManager::flushTask(quint64 taskId)
     {
         QMutexLocker locker(&m_mutex);
         if (!m_sinks.isEmpty()) {
-            quint64 releaseBefore = std::numeric_limits<quint64>::max();
+            quint64 releaseBefore = (std::numeric_limits<quint64>::max)();
             for (const auto& sink : m_sinks) {
-                releaseBefore = std::min(releaseBefore, m_sinkCursors[sink->sinkId()][taskId].committed);
+                releaseBefore = (std::min)(releaseBefore, m_sinkCursors[sink->sinkId()][taskId].committed);
             }
-            if (releaseBefore != std::numeric_limits<quint64>::max()) {
+            if (releaseBefore != (std::numeric_limits<quint64>::max)()) {
                 task->releaseSealedBlocksBefore(releaseBefore);
             }
         }

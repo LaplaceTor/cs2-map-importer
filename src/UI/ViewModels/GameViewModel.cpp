@@ -199,7 +199,7 @@ void GameViewModel::selectS1Folder(const QString& pathOrUrl) {
     Core::Path::FilesystemPath fsPath(rawPath);
     Domain::Game::GameType activeType = parseS1Type(m_selectedS1Type);
 
-    std::optional<Application::Environment::GameInstallation> validated;
+    std::optional<Application::Environment::GameInstallation> validated = std::nullopt;
     if (activeType == Domain::Game::GameType::Custom) {
         validated = Application::Environment::GameDetectService::inspectGameInfo(fsPath);
     } else {

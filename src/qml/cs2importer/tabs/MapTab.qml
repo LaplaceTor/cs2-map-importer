@@ -6,8 +6,8 @@ import "../components"
 Item {
     id: root
 
-    property var gameViewModel: null
-    property var mainController: null
+    property QtObject gameViewModel: null
+    property QtObject mainController: null
     property string selectedMapPath: ""
 
     signal requestBrowseS1()
@@ -85,14 +85,14 @@ Item {
             spacing: 10
 
             Button {
+                text: root.selectedMapPath === "" ? qsTr("Select VMF / BSP Map File") : root.selectedMapPath
+                enabled: !(root.mainController && root.mainController.isProcessing)
                 Layout.fillWidth: true
                 Layout.preferredHeight: 38
-                enabled: !(root.mainController && root.mainController.isProcessing)
-                text: root.selectedMapPath === "" ? qsTr("Select VMF / BSP Map File") : root.selectedMapPath
 
                 contentItem: Text {
                     text: parent.text
-                    elide: Text.ElideMiddle
+                    elide: Text.ElideLeft
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     color: parent.palette.buttonText
@@ -110,13 +110,13 @@ Item {
 
             TextField {
                 id: addonField
-                Layout.fillWidth: true
-                Layout.preferredHeight: 38
-                enabled: !(root.mainController && root.mainController.isProcessing)
                 placeholderText: qsTr("Addon Name in Source 2")
                 text: root.gameViewModel ? root.gameViewModel.selectedAddon : ""
                 horizontalAlignment: TextInput.AlignHCenter
                 verticalAlignment: TextInput.AlignVCenter
+                enabled: !(root.mainController && root.mainController.isProcessing)
+                Layout.fillWidth: true
+                Layout.preferredHeight: 38
 
                 onTextChanged: {
                     if (root.gameViewModel) {
@@ -191,12 +191,12 @@ Item {
 
             Button {
                 id: startBtn
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                enabled: !(root.mainController && root.mainController.isProcessing) &&
-                         (root.gameViewModel && root.gameViewModel.isS1Valid && root.gameViewModel.isS2Valid && root.selectedMapPath !== "")
                 text: qsTr("START IMPORT")
                 font.bold: true
+                enabled: !(root.mainController && root.mainController.isProcessing) &&
+                         (root.gameViewModel && root.gameViewModel.isS1Valid && root.gameViewModel.isS2Valid && root.selectedMapPath !== "")
+                Layout.fillWidth: true
+                Layout.fillHeight: true
 
                 onClicked: {
                     if (root.mainController) {
@@ -207,11 +207,11 @@ Item {
 
             Button {
                 id: stopBtn
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                enabled: root.mainController && root.mainController.isProcessing
                 text: qsTr("STOP")
                 font.bold: true
+                enabled: root.mainController && root.mainController.isProcessing
+                Layout.fillWidth: true
+                Layout.fillHeight: true
 
                 onClicked: {
                     if (root.mainController) {
