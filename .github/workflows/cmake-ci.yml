@@ -99,8 +99,8 @@ jobs:
       shell: pwsh
       run: |
         mkdir release
-        Copy-Item build\Release\cs2importerlegacy.exe release\
-        windeployqt --qmldir src/qml release\cs2importerlegacy.exe
+        Copy-Item build\Release\cs2importer.exe release\
+        windeployqt --qmldir src/qml release\cs2importer.exe
         Copy-Item -Path bin -Destination release\bin -Recurse
 
     - name: Upload Artifact
