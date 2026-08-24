@@ -376,14 +376,15 @@ auto validatedInfo = Domain::Game::GameValidator::validateDirectory(
     Domain::Game::GameType::CSS);
 ```
 
-* `GameType` & `EngineType`: Strongly-typed enums for all supported Valve titles (`CS2`, `CSGO`, `CSS`, `HL2`, `L4D`, `L4D2`, `Portal`, `Portal2`, `TF2`, `GMod`, `BlackMesa`, `Custom`) and engine versions (`Source1`, `Source2`).
-* `GameDefinition`: Metadata struct containing Steam AppIDs, mod subdirectories, expected game title, `gameinfo` file name (`gameinfo.txt` vs `gameinfo.gi`), and `EngineType`.
+* `GameType` & `EngineType`: Strongly-typed enums for supported Valve titles (`CS2`, `CSGO`, `CSS`, `HL2`, `L4D`, `L4D2`, `Portal`, `Portal2`, `TF2`, `GMod`, `BlackMesa`, `Custom`) and engine versions (`Source1`, `Source2`).
+* `GameDefinition`: Metadata struct containing Steam AppIDs, mod subdirectories, expected game title, `gameinfo` file name (`gameinfo.txt` vs `gameinfo.gi`), `EngineType`, and generic Source 2 layout helpers (`modName()`, `contentSubdirectory()`, `addonModSubdirectory()`, `addonContentSubdirectory()`).
 * `GameRegistry`: Query repository providing `findByType`, `findById`, `findByAppId`, `findAllByAppId`, and string conversions.
-* `GameValidator`: AST rule validation and directory validation against game definitions.
+* `GameValidator`: AST rule validation and directory validation against game definitions with generic `expectedGameTitle` matching (exact and substring) and dynamic `.gi` $\rightarrow$ `EngineType::Source2` detection.
 * `SearchTarget`: Value object encapsulating `SearchTargetType` (`Directory` or `Vpk`) and `Core::Path::FilesystemPath`.
 * `GameInfo`: Encapsulates game name, title, SteamAppId, ToolsAppId, modDirectory, baseDirectory, searchTargets, and `Core::KeyValues::KeyValuesDocument`.
-* `SearchPathResolver`: Resolves Source 1 `SearchPaths` KV nodes (handles `|gameinfo_path|`, wildcard skipping, `.vpk` to `_dir.vpk` normalization, and deduplication).
+* `SearchPathResolver`: Resolves Source 1 and Source 2 `SearchPaths` KV nodes (handles `|gameinfo_path|`, wildcard skipping, `.vpk` to `_dir.vpk` normalization, Source 2 `<baseDir>/game/<mod>` relative paths, and deduplication).
 * `GameInfoParser`: Parses `gameinfo.txt` and `gameinfo.gi` with explicit `EngineType` parameter (`EngineType::Source1` / `EngineType::Source2`), resolving base directory and search paths without heuristic guessing.
+* **Declaration-Only Extensibility**: Adding support for additional Source 2 or Source 1 games requires only declaring their metadata in `GameRegistry::buildDefinitions` without modifying domain or application functions.
 
 ---
 
@@ -417,7 +418,7 @@ for (const auto& game : detectedGames) {
 // 3. Detect specific game
 auto cs2 = Application::Environment::GameDetectService::detectGame(Domain::Game::GameType::CS2);
 
-// 4. Validate user-selected directories
+// 4. Validate user-selected directories (Source 1 or generic Source 2)
 auto s1Game = Application::Environment::GameDetectService::validateSource1(
     Domain::Game::GameType::CSS,
     Core::Path::FilesystemPath(QStringLiteral("D:/SteamLibrary/steamapps/common/Counter-Strike Source")));
@@ -427,8 +428,8 @@ auto s2Game = Application::Environment::GameDetectService::validateSource2(
 ```
 
 * `SteamService`: Detects Steam installation path from Windows Registry (`HKCU`, `HKLM`, `WOW6432Node`), parses `steamapps/libraryfolders.vdf`, and reads `appmanifest_<appid>.acf` for `installdir` and app state.
-* `GameInstallation`: Value object encapsulating detected/validated game installations (GameType, gameTitle, baseDirectory, modDirectory, gameInfoPath, `isSource2()`, and associated `GameInfo`).
-* `GameDetectService`: High-level detection and validation service. Maps installed AppIDs in Steam libraries directly to fixed `GameDefinition`s (`isSource2()`), dispatching to `validateSource2` (Source 2) or `validateSource1` (Source 1). Also provides `validateGameDirectory` and arbitrary `inspectGameInfo`.
+* `GameInstallation`: Value object encapsulating detected/validated game installations (GameType, gameTitle, baseDirectory, modDirectory, contentDirectory, addonGameDirectory, addonContentDirectory, gameInfoPath, `isSource2()`, and associated `GameInfo`).
+* `GameDetectService`: High-level detection and validation service. Maps installed AppIDs in Steam libraries directly to fixed `GameDefinition`s (`isSource2()`), dispatching to `validateSource2` (Source 2) or `validateSource1` (Source 1). `validateSource2` dynamically detects any Source 2 game layout (scanning `<baseDir>/game/*/gameinfo.gi` and root `gameinfo.gi`), and `inspectGameInfo` supports direct inspection of arbitrary Source 1 or Source 2 game root directories.
 
 ---
 

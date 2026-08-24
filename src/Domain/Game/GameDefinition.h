@@ -56,13 +56,6 @@ struct GameDefinition {
         }
         return QString();
     }
-
-    QString toolsBinarySubdirectory() const {
-        if (isSource2()) {
-            return QStringLiteral("game/bin/win64");
-        }
-        return QStringLiteral("bin");
-    }
 };
 
 } // namespace Domain::Game

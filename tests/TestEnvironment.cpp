@@ -317,8 +317,6 @@ private slots:
         QCOMPARE(inst.modDirectory().toString(), QStringLiteral("C:/Games/CS2/game/csgo"));
         QCOMPARE(inst.addonGameDirectory(QStringLiteral("my_map")).toString(), QStringLiteral("C:/Games/CS2/game/csgo_addons/my_map"));
         QCOMPARE(inst.addonContentDirectory(QStringLiteral("my_map")).toString(), QStringLiteral("C:/Games/CS2/content/csgo_addons/my_map"));
-        QCOMPARE(inst.toolsBinaryDirectory().toString(), QStringLiteral("C:/Games/CS2/game/bin/win64"));
-        QCOMPARE(inst.resourceCompilerExecutable().toString(), QStringLiteral("C:/Games/CS2/game/bin/win64/resourcecompiler.exe"));
     }
 
     void testMockCustomSource2Installation() {
@@ -359,8 +357,6 @@ private slots:
                  Core::Path::PathUtils::normalize(tempDir.filePath(QStringLiteral("game/future_game_addons/test_addon"))));
         QCOMPARE(validated->addonContentDirectory(QStringLiteral("test_addon")).toString(),
                  Core::Path::PathUtils::normalize(tempDir.filePath(QStringLiteral("content/future_game_addons/test_addon"))));
-        QCOMPARE(validated->resourceCompilerExecutable().toString(),
-                 Core::Path::PathUtils::normalize(tempDir.filePath(QStringLiteral("game/bin/win64/resourcecompiler.exe"))));
 
         // Test inspectGameInfo on the root directory
         auto inspected = GameDetectService::inspectGameInfo(rootPath);

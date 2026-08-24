@@ -402,7 +402,6 @@ private slots:
         QCOMPARE(cs2Def->contentSubdirectory(), QStringLiteral("content/csgo"));
         QCOMPARE(cs2Def->addonModSubdirectory(), QStringLiteral("game/csgo_addons"));
         QCOMPARE(cs2Def->addonContentSubdirectory(), QStringLiteral("content/csgo_addons"));
-        QCOMPARE(cs2Def->toolsBinarySubdirectory(), QStringLiteral("game/bin/win64"));
 
         // Custom Source 2 definition
         GameDefinition mockS2Def;
@@ -414,7 +413,6 @@ private slots:
         QCOMPARE(mockS2Def.contentSubdirectory(), QStringLiteral("content/custom_mod"));
         QCOMPARE(mockS2Def.addonModSubdirectory(), QStringLiteral("game/custom_mod_addons"));
         QCOMPARE(mockS2Def.addonContentSubdirectory(), QStringLiteral("content/custom_mod_addons"));
-        QCOMPARE(mockS2Def.toolsBinarySubdirectory(), QStringLiteral("game/bin/win64"));
     }
 };
 

@@ -97,18 +97,6 @@ public:
         return Core::Path::FilesystemPath(QDir(m_baseDirectory.toString()).filePath(rel));
     }
 
-    Core::Path::FilesystemPath toolsBinaryDirectory() const {
-        if (!m_baseDirectory.isValid()) return Core::Path::FilesystemPath();
-        QString binRel = m_isSource2 ? QStringLiteral("game/bin/win64") : QStringLiteral("bin");
-        return Core::Path::FilesystemPath(QDir(m_baseDirectory.toString()).filePath(binRel));
-    }
-
-    Core::Path::FilesystemPath resourceCompilerExecutable() const {
-        auto binDir = toolsBinaryDirectory();
-        if (!binDir.isValid()) return Core::Path::FilesystemPath();
-        return Core::Path::FilesystemPath(QDir(binDir.toString()).filePath(QStringLiteral("resourcecompiler.exe")));
-    }
-
 private:
     Domain::Game::GameType m_type = Domain::Game::GameType::Unknown;
     QString m_gameId;
