@@ -7,6 +7,7 @@ qt_add_qml_module(cs2importer_qml
         Main.qml
         LogWindow.qml
         components/GameSelectorBox.qml
+        components/StyledCheckBox.qml
         tabs/MapTab.qml
         tabs/ModelTab.qml
         tabs/ParticleTab.qml

@@ -11,7 +11,7 @@ GroupBox {
     property string gamePath: ""
     property string gameTitle: ""
     property bool isValid: false
-    property bool isCustomGame: false
+    property bool isCustomGame: selectedType.toLowerCase() === "custom" || selectedType.toLowerCase() === "other"
     property bool isProcessing: false
 
     signal typeSelected(string typeName)
@@ -19,20 +19,38 @@ GroupBox {
     signal validateClicked()
 
     title: titleText
-    Layout.fillWidth: true
-    Layout.preferredHeight: 190
+    label: Label {
+        x: root.leftPadding
+        width: root.availableWidth
+        text: root.titleText
+        font.bold: true
+        horizontalAlignment: Text.AlignHCenter
+        elide: Text.ElideRight
+        color: root.palette.windowText
+    }
+    implicitWidth: 165
+    implicitHeight: 165
+    Layout.preferredWidth: 165
+    Layout.preferredHeight: 165
+    Layout.minimumWidth: 165
+    Layout.maximumWidth: 165
+    Layout.minimumHeight: 165
+    Layout.maximumHeight: 165
+    Layout.fillWidth: false
+    Layout.fillHeight: false
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: 8
+        spacing: 4
 
         ComboBox {
             id: typeCombo
+            visible: root.gameTypesModel && root.gameTypesModel.length > 1
             model: root.gameTypesModel
             currentIndex: Math.max(0, model ? model.indexOf(root.selectedType) : 0)
             enabled: !root.isProcessing && root.gameTypesModel.length > 1
             Layout.fillWidth: true
-            Layout.preferredHeight: 32
+            Layout.preferredHeight: 28
 
             contentItem: Text {
                 text: typeCombo.displayText
@@ -56,35 +74,35 @@ GroupBox {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            contentItem: ColumnLayout {
-                spacing: 2
-                anchors.centerIn: parent
-                width: Math.max(0, folderButton.width - 20)
-
-                Text {
-                    text: {
-                        if (root.gamePath === "") {
-                            return root.isCustomGame ? qsTr("Press to Select gameinfo.txt") : qsTr("Press to Select Game Folder")
-                        }
-                        return root.gamePath
+            background: Rectangle {
+                radius: 4
+                color: {
+                    if (root.isValid) {
+                        return folderButton.down ? "#81C784" : (folderButton.hovered ? "#A5D6A7" : "#C8E6C9")
                     }
-                    font.pixelSize: 12
-                    font.bold: root.gamePath !== ""
-                    color: root.isValid ? (folderButton.palette.text) : (root.gamePath === "" ? folderButton.palette.placeholderText : "#E57373")
-                    horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideLeft
-                    Layout.fillWidth: true
+                    if (folderButton.down) return folderButton.palette.dark
+                    if (folderButton.hovered) return folderButton.palette.midlight
+                    return folderButton.palette.button
                 }
+                border.color: root.isValid ? "#4CAF50" : folderButton.palette.mid
+                border.width: root.isValid ? 2 : 1
+            }
 
-                Text {
-                    visible: root.isValid && root.gameTitle !== ""
-                    text: root.gameTitle
-                    font.pixelSize: 11
-                    color: "#81C784"
-                    horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideLeft
-                    Layout.fillWidth: true
+            contentItem: Text {
+                text: {
+                    if (root.gamePath === "") {
+                        return root.isCustomGame ? qsTr("Press to Select gameinfo.txt") : qsTr("Press to Select Game Folder")
+                    }
+                    return root.gamePath
                 }
+                font.pixelSize: 11
+                font.bold: root.gamePath !== ""
+                color: root.isValid ? "#1B5E20" : (root.gamePath === "" ? folderButton.palette.placeholderText : folderButton.palette.text)
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                wrapMode: Text.WrapAnywhere
+                elide: Text.ElideMiddle
+                padding: 6
             }
 
             onClicked: {
@@ -94,17 +112,17 @@ GroupBox {
 
         Button {
             id: validateButton
-            text: qsTr("Validate Game Files (Steam)")
+            text: qsTr("Validate Game File")
             enabled: !root.isProcessing && !root.isCustomGame
             Layout.fillWidth: true
-            Layout.preferredHeight: 30
+            Layout.preferredHeight: 26
 
             contentItem: Text {
                 text: validateButton.text
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 color: validateButton.palette.buttonText
-                elide: Text.ElideLeft
+                elide: Text.ElideRight
             }
 
             onClicked: {

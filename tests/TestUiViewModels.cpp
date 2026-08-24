@@ -36,7 +36,8 @@ private slots:
         auto s1Types = vm.s1GameTypes();
         QVERIFY(!s1Types.isEmpty());
         QVERIFY(s1Types.contains(QStringLiteral("CSGO")));
-        QVERIFY(s1Types.contains(QStringLiteral("CSS")));
+        QVERIFY(s1Types.contains(QStringLiteral("CS: Source")));
+        QVERIFY(s1Types.contains(QStringLiteral("Custom")));
 
         auto s2Types = vm.s2GameTypes();
         QVERIFY(!s2Types.isEmpty());
@@ -48,8 +49,8 @@ private slots:
         QSignalSpy spyS1Path(&vm, &GameViewModel::s1GamePathChanged);
         QSignalSpy spyS1Valid(&vm, &GameViewModel::s1ValidityChanged);
 
-        vm.setSelectedS1Type(QStringLiteral("CSS"));
-        QCOMPARE(vm.selectedS1Type(), QStringLiteral("CSS"));
+        vm.setSelectedS1Type(QStringLiteral("CS: Source"));
+        QCOMPARE(vm.selectedS1Type(), QStringLiteral("CS: Source"));
 
         QString cssDir = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source"));
         vm.selectS1Folder(cssDir);
@@ -60,6 +61,20 @@ private slots:
         QCOMPARE(vm.s1Installation().type(), Domain::Game::GameType::CSS);
         QVERIFY(spyS1Path.size() >= 1);
         QVERIFY(spyS1Valid.size() >= 1);
+    }
+
+    void testGameViewModelCustomSource1Selection() {
+        GameViewModel vm;
+        vm.setSelectedS1Type(QStringLiteral("Custom"));
+        QCOMPARE(vm.selectedS1Type(), QStringLiteral("Custom"));
+
+        QString cssGiPath = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source/cstrike/gameinfo.txt"));
+        vm.selectS1Folder(cssGiPath);
+
+        QVERIFY(vm.isS1Valid());
+        // Must remain "Custom" and not automatically jump to "CS: Source"
+        QCOMPARE(vm.selectedS1Type(), QStringLiteral("Custom"));
+        QCOMPARE(vm.s1GameTitle(), QStringLiteral("Counter-Strike Source"));
     }
 
     void testGameViewModelSource2Validation() {

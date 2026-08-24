@@ -87,7 +87,7 @@ private:
     void applyS1Installation(const Application::Environment::GameInstallation& inst);
     void applyS2Installation(const Application::Environment::GameInstallation& inst);
 
-    QString m_selectedS1Type = QStringLiteral("csgo");
+    QString m_selectedS1Type = QStringLiteral("CSGO");
     QString m_s1GamePath;
     QString m_s1GameTitle;
     bool m_isS1Valid = false;

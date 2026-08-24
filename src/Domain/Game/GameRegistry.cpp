@@ -23,7 +23,7 @@ const std::vector<GameDefinition>& buildDefinitions() {
             GameType::CSGO,
             EngineType::Source1,
             QStringLiteral("csgo"),
-            QStringLiteral("Counter-Strike: Global Offensive"),
+            QStringLiteral("CSGO"),
             730,
             {730, 4465480},
             QStringLiteral("csgo legacy"),
@@ -35,7 +35,7 @@ const std::vector<GameDefinition>& buildDefinitions() {
             GameType::CSS,
             EngineType::Source1,
             QStringLiteral("css"),
-            QStringLiteral("Counter-Strike: Source"),
+            QStringLiteral("CS: Source"),
             240,
             {240},
             QStringLiteral("Counter-Strike Source"),
@@ -143,7 +143,7 @@ const std::vector<GameDefinition>& buildDefinitions() {
             GameType::Custom,
             EngineType::Source1,
             QStringLiteral("custom"),
-            QStringLiteral("Custom Game"),
+            QStringLiteral("Custom"),
             0,
             {},
             QStringLiteral(""),
@@ -174,7 +174,8 @@ const GameDefinition* GameRegistry::findByType(GameType type) {
 const GameDefinition* GameRegistry::findById(const QString& id) {
     const auto& defs = buildDefinitions();
     for (const auto& def : defs) {
-        if (def.id.compare(id, Qt::CaseInsensitive) == 0) {
+        if (def.id.compare(id, Qt::CaseInsensitive) == 0 ||
+            def.displayName.compare(id, Qt::CaseInsensitive) == 0) {
             return &def;
         }
     }

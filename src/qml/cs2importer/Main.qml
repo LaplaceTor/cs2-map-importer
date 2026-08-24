@@ -6,15 +6,22 @@ import "tabs"
 
 ApplicationWindow {
     id: window
-    width: 640
-    height: 720
-    minimumWidth: 640
-    maximumWidth: 640
-    minimumHeight: 720
-    maximumHeight: 720
+    width: 420
+    height: 700
+    minimumWidth: 420
+    maximumWidth: 420
+    minimumHeight: 700
+    maximumHeight: 700
     flags: Qt.Window | Qt.MSWindowsFixedSizeDialogHint | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint
     visible: true
     title: qsTr("CS2 IMPORTER")
+
+    onClosing: function(closeEvent) {
+        if (logWindow) {
+            logWindow.close()
+        }
+        Qt.quit()
+    }
 
     property QtObject gameViewModel: gameViewModelInstance
     property QtObject logViewModel: logViewModelInstance
@@ -55,6 +62,40 @@ ApplicationWindow {
         id: alertDialog
         title: qsTr("Alert")
         buttons: MessageDialog.Ok
+    }
+
+    MessageDialog {
+        id: validateConfirmDialog
+        title: qsTr("Confirm Game Validation")
+        text: qsTr("Validating game files through Steam is only needed if you are certain there are corrupted or missing game files.\n\nDo you want to proceed?")
+        buttons: MessageDialog.Yes | MessageDialog.No
+
+        property var pendingCallback: null
+
+        onButtonClicked: function(button, role) {
+            if (button === MessageDialog.Yes && pendingCallback) {
+                pendingCallback()
+            }
+            pendingCallback = null
+        }
+    }
+
+    function confirmAndValidateS1() {
+        validateConfirmDialog.pendingCallback = function() {
+            if (window.gameViewModel) {
+                window.gameViewModel.validateS1InSteam()
+            }
+        }
+        validateConfirmDialog.open()
+    }
+
+    function confirmAndValidateS2() {
+        validateConfirmDialog.pendingCallback = function() {
+            if (window.gameViewModel) {
+                window.gameViewModel.validateS2InSteam()
+            }
+        }
+        validateConfirmDialog.open()
     }
 
     FolderDialog {
@@ -118,14 +159,15 @@ ApplicationWindow {
     // Standalone Log Window instance
     LogWindow {
         id: logWindow
+        transientParent: null
         logViewModel: window.logViewModel
     }
 
     // Main UI Layout
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 14
-        spacing: 12
+        anchors.margins: 10
+        spacing: 6
 
         // Top Navigation TabBar
         TabBar {
@@ -141,13 +183,25 @@ ApplicationWindow {
             }
 
             TabButton {
-                text: qsTr("Map Import")
+                text: qsTr("Map")
+                font.pixelSize: 13
+                implicitHeight: 25
+                topPadding: 6
+                bottomPadding: 6
             }
             TabButton {
-                text: qsTr("Model Import")
+                text: qsTr("Model")
+                font.pixelSize: 13
+                implicitHeight: 25
+                topPadding: 6
+                bottomPadding: 6
             }
             TabButton {
-                text: qsTr("Particle Import")
+                text: qsTr("Particle")
+                font.pixelSize: 13
+                implicitHeight: 25
+                topPadding: 6
+                bottomPadding: 6
             }
         }
 
@@ -164,7 +218,7 @@ ApplicationWindow {
                 selectedMapPath: window.selectedMapFileName
 
                 onRequestBrowseS1: {
-                    if (window.gameViewModel && (window.gameViewModel.selectedS1Type === "other" || window.gameViewModel.selectedS1Type === "Other Source 1 game")) {
+                    if (window.gameViewModel && (window.gameViewModel.selectedS1Type.toLowerCase() === "custom" || window.gameViewModel.selectedS1Type.toLowerCase() === "other")) {
                         s1GameInfoDialog.open()
                     } else {
                         s1FolderDialog.open()
@@ -172,6 +226,8 @@ ApplicationWindow {
                 }
                 onRequestBrowseS2: s2FolderDialog.open()
                 onRequestBrowseMap: mapFileDialog.open()
+                onRequestValidateS1: window.confirmAndValidateS1()
+                onRequestValidateS2: window.confirmAndValidateS2()
             }
 
             ModelTab {
@@ -180,7 +236,7 @@ ApplicationWindow {
                 selectedMdlPath: window.selectedMdlFileName
 
                 onRequestBrowseS1: {
-                    if (window.gameViewModel && (window.gameViewModel.selectedS1Type === "other" || window.gameViewModel.selectedS1Type === "Other Source 1 game")) {
+                    if (window.gameViewModel && (window.gameViewModel.selectedS1Type.toLowerCase() === "custom" || window.gameViewModel.selectedS1Type.toLowerCase() === "other")) {
                         s1GameInfoDialog.open()
                     } else {
                         s1FolderDialog.open()
@@ -188,6 +244,8 @@ ApplicationWindow {
                 }
                 onRequestBrowseS2: s2FolderDialog.open()
                 onRequestBrowseMdl: mdlFileDialog.open()
+                onRequestValidateS1: window.confirmAndValidateS1()
+                onRequestValidateS2: window.confirmAndValidateS2()
             }
 
             ParticleTab {
@@ -196,7 +254,7 @@ ApplicationWindow {
                 selectedPcfPath: window.selectedPcfFileName
 
                 onRequestBrowseS1: {
-                    if (window.gameViewModel && (window.gameViewModel.selectedS1Type === "other" || window.gameViewModel.selectedS1Type === "Other Source 1 game")) {
+                    if (window.gameViewModel && (window.gameViewModel.selectedS1Type.toLowerCase() === "custom" || window.gameViewModel.selectedS1Type.toLowerCase() === "other")) {
                         s1GameInfoDialog.open()
                     } else {
                         s1FolderDialog.open()
@@ -204,28 +262,31 @@ ApplicationWindow {
                 }
                 onRequestBrowseS2: s2FolderDialog.open()
                 onRequestBrowsePcf: pcfFileDialog.open()
+                onRequestValidateS1: window.confirmAndValidateS1()
+                onRequestValidateS2: window.confirmAndValidateS2()
             }
         }
 
         // Bottom Footer Bar
-        RowLayout {
+        Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: 36
-            spacing: 10
+            Layout.preferredHeight: 24
 
-            Label {
-                text: qsTr("Theme:")
-                Layout.alignment: Qt.AlignVCenter
-            }
-
+            // Left: Fixed-width Theme Button
             Button {
+                id: themeButton
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                width: 96
+                height: 24
+                implicitHeight: 24
+                font.pixelSize: 11
                 text: {
-                    if (!window.mainController) return qsTr("System")
-                    if (window.mainController.theme === "light") return qsTr("Light")
-                    if (window.mainController.theme === "dark") return qsTr("Dark")
-                    return qsTr("System")
+                    if (!window.mainController) return qsTr("Theme:System")
+                    if (window.mainController.theme === "light") return qsTr("Theme:Light")
+                    if (window.mainController.theme === "dark") return qsTr("Theme:Dark")
+                    return qsTr("Theme:System")
                 }
-                Layout.alignment: Qt.AlignVCenter
                 onClicked: {
                     if (window.mainController) {
                         window.mainController.cycleTheme()
@@ -233,10 +294,16 @@ ApplicationWindow {
                 }
             }
 
+            // Center: Check Update Button strictly centered
             Button {
+                id: checkUpdateButton
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
                 text: qsTr("Check Update")
                 enabled: !(window.mainController && window.mainController.isProcessing)
-                Layout.alignment: Qt.AlignVCenter
+                height: 24
+                implicitHeight: 24
+                font.pixelSize: 11
                 onClicked: {
                     if (window.mainController) {
                         window.mainController.checkForUpdates()
@@ -244,21 +311,27 @@ ApplicationWindow {
                 }
             }
 
+            // Version Label follows immediately after Check Update
             Label {
-                text: qsTr("Version: %1").arg(window.mainController ? window.mainController.appVersion : "1.0.0")
-                Layout.alignment: Qt.AlignVCenter
+                id: versionLabel
+                anchors.left: checkUpdateButton.right
+                anchors.leftMargin: 6
+                anchors.verticalCenter: parent.verticalCenter
+                text: qsTr("v%1").arg(window.mainController ? window.mainController.appVersion : "1.0.0")
+                font.pixelSize: 11
                 color: palette.placeholderText
             }
 
-            Item {
-                Layout.fillWidth: true
-            }
-
+            // Right: Fixed-width LOG Button
             Button {
                 id: logButton
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: 55
+                height: 24
+                implicitHeight: 24
+                font.pixelSize: 11
                 text: qsTr("LOG")
-                font.bold: true
-                Layout.alignment: Qt.AlignVCenter
                 highlighted: logWindow.visible
 
                 onClicked: {

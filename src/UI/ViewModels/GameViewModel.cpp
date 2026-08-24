@@ -13,16 +13,16 @@ GameViewModel::GameViewModel(QObject* parent)
 QStringList GameViewModel::s1GameTypes() const {
     return {
         QStringLiteral("CSGO"),
-        QStringLiteral("CSS"),
-        QStringLiteral("HL2"),
-        QStringLiteral("L4D"),
-        QStringLiteral("L4D2"),
+        QStringLiteral("CS: Source"),
+        QStringLiteral("Half-Life 2"),
+        QStringLiteral("Left 4 Dead"),
+        QStringLiteral("Left 4 Dead 2"),
         QStringLiteral("Portal"),
-        QStringLiteral("Portal2"),
-        QStringLiteral("TF2"),
-        QStringLiteral("GMod"),
-        QStringLiteral("BlackMesa"),
-        QStringLiteral("Other Source 1 game")
+        QStringLiteral("Portal 2"),
+        QStringLiteral("Team Fortress 2"),
+        QStringLiteral("Garry's Mod"),
+        QStringLiteral("Black Mesa"),
+        QStringLiteral("Custom")
     };
 }
 
@@ -34,17 +34,37 @@ QStringList GameViewModel::s2GameTypes() const {
 
 Domain::Game::GameType GameViewModel::parseS1Type(const QString& typeStr) const {
     const QString lower = typeStr.trimmed().toLower();
-    if (lower == QStringLiteral("csgo")) return Domain::Game::GameType::CSGO;
-    if (lower == QStringLiteral("css")) return Domain::Game::GameType::CSS;
-    if (lower == QStringLiteral("hl2")) return Domain::Game::GameType::HL2;
-    if (lower == QStringLiteral("l4d")) return Domain::Game::GameType::L4D;
-    if (lower == QStringLiteral("l4d2")) return Domain::Game::GameType::L4D2;
-    if (lower == QStringLiteral("portal")) return Domain::Game::GameType::Portal;
-    if (lower == QStringLiteral("portal2")) return Domain::Game::GameType::Portal2;
-    if (lower == QStringLiteral("tf2")) return Domain::Game::GameType::TF2;
-    if (lower == QStringLiteral("gmod")) return Domain::Game::GameType::GMod;
-    if (lower == QStringLiteral("blackmesa")) return Domain::Game::GameType::BlackMesa;
-    if (lower == QStringLiteral("other source 1 game") || lower == QStringLiteral("other") || lower == QStringLiteral("custom")) {
+    if (lower == QStringLiteral("cs: global offensive") || lower == QStringLiteral("cs:go") || lower == QStringLiteral("counter-strike: global offensive") || lower == QStringLiteral("counter-strike global offensive") || lower == QStringLiteral("csgo")) {
+        return Domain::Game::GameType::CSGO;
+    }
+    if (lower == QStringLiteral("cs: source") || lower == QStringLiteral("cs:s") || lower == QStringLiteral("counter-strike: source") || lower == QStringLiteral("counter-strike source") || lower == QStringLiteral("css")) {
+        return Domain::Game::GameType::CSS;
+    }
+    if (lower == QStringLiteral("half-life 2") || lower == QStringLiteral("hl2")) {
+        return Domain::Game::GameType::HL2;
+    }
+    if (lower == QStringLiteral("left 4 dead") || lower == QStringLiteral("l4d")) {
+        return Domain::Game::GameType::L4D;
+    }
+    if (lower == QStringLiteral("left 4 dead 2") || lower == QStringLiteral("l4d2")) {
+        return Domain::Game::GameType::L4D2;
+    }
+    if (lower == QStringLiteral("portal")) {
+        return Domain::Game::GameType::Portal;
+    }
+    if (lower == QStringLiteral("portal 2") || lower == QStringLiteral("portal2")) {
+        return Domain::Game::GameType::Portal2;
+    }
+    if (lower == QStringLiteral("team fortress 2") || lower == QStringLiteral("tf2")) {
+        return Domain::Game::GameType::TF2;
+    }
+    if (lower == QStringLiteral("garry's mod") || lower == QStringLiteral("garrysmod") || lower == QStringLiteral("gmod")) {
+        return Domain::Game::GameType::GMod;
+    }
+    if (lower == QStringLiteral("black mesa") || lower == QStringLiteral("blackmesa")) {
+        return Domain::Game::GameType::BlackMesa;
+    }
+    if (lower == QStringLiteral("custom") || lower == QStringLiteral("custom game") || lower == QStringLiteral("other") || lower == QStringLiteral("other source 1 game")) {
         return Domain::Game::GameType::Custom;
     }
     return Domain::Game::GameRegistry::stringToGameType(lower);
@@ -123,8 +143,11 @@ void GameViewModel::autoDetect() {
         for (const auto& fallbackType : {Domain::Game::GameType::CSS, Domain::Game::GameType::HL2, Domain::Game::GameType::L4D2, Domain::Game::GameType::TF2}) {
             auto itFallback = m_detectedGames.find(fallbackType);
             if (itFallback != m_detectedGames.end()) {
-                m_selectedS1Type = Domain::Game::GameRegistry::gameTypeToString(fallbackType).toUpper();
-                emit selectedS1TypeChanged();
+                const auto* def = Domain::Game::GameRegistry::findByType(fallbackType);
+                if (def) {
+                    m_selectedS1Type = def->displayName;
+                    emit selectedS1TypeChanged();
+                }
                 applyS1Installation(itFallback.value());
                 break;
             }

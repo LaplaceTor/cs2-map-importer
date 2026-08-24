@@ -1,8 +1,9 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "components"
 
-Window {
+ApplicationWindow {
     id: root
 
     property QtObject logViewModel: null
@@ -12,6 +13,9 @@ Window {
     minimumWidth: 500
     minimumHeight: 300
     title: qsTr("Logs — CS2 Importer")
+    color: palette.window
+    flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint | Qt.WindowCloseButtonHint
+    transientParent: null
 
     ColumnLayout {
         anchors.fill: parent
@@ -41,7 +45,7 @@ Window {
                 }
             }
 
-            CheckBox {
+            StyledCheckBox {
                 text: qsTr("Auto-scroll")
                 checked: root.logViewModel ? root.logViewModel.autoScroll : true
                 onCheckedChanged: {

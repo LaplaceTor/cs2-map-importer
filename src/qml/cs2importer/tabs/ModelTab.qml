@@ -13,15 +13,17 @@ Item {
     signal requestBrowseS1()
     signal requestBrowseS2()
     signal requestBrowseMdl()
+    signal requestValidateS1()
+    signal requestValidateS2()
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: 12
+        spacing: 6
 
         // Row 1: Game Selectors (Source 1 <-> Source 2)
         RowLayout {
-            Layout.fillWidth: true
-            spacing: 10
+            Layout.alignment: Qt.AlignHCenter
+            spacing: 15
 
             GameSelectorBox {
                 id: s1Box
@@ -31,7 +33,6 @@ Item {
                 gamePath: root.gameViewModel ? root.gameViewModel.s1GamePath : ""
                 gameTitle: root.gameViewModel ? root.gameViewModel.s1GameTitle : ""
                 isValid: root.gameViewModel ? root.gameViewModel.isS1Valid : false
-                isCustomGame: root.selectedType === "Other Source 1 game" || root.selectedType === "other"
                 isProcessing: root.mainController ? root.mainController.isProcessing : false
 
                 onTypeSelected: function(typeName) {
@@ -40,29 +41,26 @@ Item {
                     }
                 }
                 onBrowseClicked: root.requestBrowseS1()
-                onValidateClicked: {
-                    if (root.gameViewModel) {
-                        root.gameViewModel.validateS1InSteam()
-                    }
-                }
+                onValidateClicked: root.requestValidateS1()
             }
 
             Label {
-                text: "➔"
-                font.pixelSize: 26
+                text: "➡"
+                font.pixelSize: 40
+                Layout.preferredWidth: 40
                 Layout.alignment: Qt.AlignVCenter
+                horizontalAlignment: Text.AlignHCenter
                 color: palette.text
             }
 
             GameSelectorBox {
                 id: s2Box
-                titleText: qsTr("Source 2 Game")
+                titleText: qsTr("Counter-Strike 2")
                 gameTypesModel: root.gameViewModel ? root.gameViewModel.s2GameTypes : []
                 selectedType: root.gameViewModel ? root.gameViewModel.selectedS2Type : ""
                 gamePath: root.gameViewModel ? root.gameViewModel.s2GamePath : ""
                 gameTitle: root.gameViewModel ? root.gameViewModel.s2GameTitle : ""
                 isValid: root.gameViewModel ? root.gameViewModel.isS2Valid : false
-                isCustomGame: false
                 isProcessing: root.mainController ? root.mainController.isProcessing : false
 
                 onTypeSelected: function(typeName) {
@@ -71,28 +69,36 @@ Item {
                     }
                 }
                 onBrowseClicked: root.requestBrowseS2()
-                onValidateClicked: {
-                    if (root.gameViewModel) {
-                        root.gameViewModel.validateS2InSteam()
-                    }
-                }
+                onValidateClicked: root.requestValidateS2()
             }
         }
 
         // Row 2: Model File & Target Addon
         RowLayout {
-            Layout.fillWidth: true
-            spacing: 10
+            Layout.alignment: Qt.AlignHCenter
+            spacing: 15
 
             Button {
-                text: root.selectedMdlPath === "" ? qsTr("Select Source 1 MDL File") : root.selectedMdlPath
+                id: mdlBtn
+                text: {
+                    if (root.selectedMdlPath === "") return qsTr("SELECT MDL")
+                    let path = root.selectedMdlPath
+                    return path.substring(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1)
+                }
                 enabled: !(root.mainController && root.mainController.isProcessing)
-                Layout.fillWidth: true
-                Layout.preferredHeight: 38
+                Layout.preferredWidth: 165
+                Layout.preferredHeight: 40
+                Layout.minimumWidth: 165
+                Layout.maximumWidth: 165
+                Layout.minimumHeight: 40
+                Layout.maximumHeight: 40
+                implicitWidth: 165
+                implicitHeight: 40
+                Layout.fillWidth: false
 
                 contentItem: Text {
-                    text: parent.text
-                    elide: Text.ElideLeft
+                    text: mdlBtn.text
+                    elide: Text.ElideMiddle
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     color: parent.palette.buttonText
@@ -102,9 +108,11 @@ Item {
             }
 
             Label {
-                text: "➔"
-                font.pixelSize: 26
+                text: "➡"
+                font.pixelSize: 40
+                Layout.preferredWidth: 40
                 Layout.alignment: Qt.AlignVCenter
+                horizontalAlignment: Text.AlignHCenter
                 color: palette.text
             }
 
@@ -113,8 +121,15 @@ Item {
                 model: root.gameViewModel ? root.gameViewModel.s2AddonsList : []
                 currentIndex: Math.max(0, model && root.gameViewModel ? model.indexOf(root.gameViewModel.selectedAddon) : 0)
                 enabled: !(root.mainController && root.mainController.isProcessing)
-                Layout.fillWidth: true
-                Layout.preferredHeight: 38
+                Layout.preferredWidth: 165
+                Layout.preferredHeight: 40
+                Layout.minimumWidth: 165
+                Layout.maximumWidth: 165
+                Layout.minimumHeight: 40
+                Layout.maximumHeight: 40
+                implicitWidth: 165
+                implicitHeight: 40
+                Layout.fillWidth: false
 
                 contentItem: Text {
                     text: addonCombo.displayText
@@ -137,42 +152,65 @@ Item {
 
         // Row 3: Model Options
         GroupBox {
-            title: qsTr("Model Options")
+            id: optionsBox
+            title: qsTr("OPTIONS")
             Layout.fillWidth: true
             Layout.fillHeight: true
 
+            label: Label {
+                x: optionsBox.leftPadding
+                width: optionsBox.availableWidth
+                text: optionsBox.title
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+                color: optionsBox.palette.windowText
+            }
+
             ColumnLayout {
                 anchors.fill: parent
-                spacing: 6
+                spacing: 4
 
-                CheckBox {
-                    text: qsTr("Skip animation import (-skipcommondmxwrite)")
+                StyledCheckBox {
+                    text: qsTr("Skip Animation Import (-skipcommondmxwrite)")
                     checked: false
+                    ToolTip.text: qsTr("Converts only the static 3D mesh model without extracting skeletal animations (.dmx files), significantly accelerating conversion.")
+                    ToolTip.visible: hovered
                 }
 
-                CheckBox {
-                    text: qsTr("Change bindpose from Yup to Zup (-YupToZup)")
+                StyledCheckBox {
+                    text: qsTr("Convert Coordinate (Y-Up to Z-Up) (-YupToZup)")
                     checked: false
+                    ToolTip.text: qsTr("Transforms the model's base pose from Y-axis Up (Source 1/Maya) to Z-axis Up (Source 2 standard) to fix lying-down or rotated models.")
+                    ToolTip.visible: hovered
                 }
 
-                CheckBox {
-                    text: qsTr("Override \"lean\" sequence (-overridelean)")
+                StyledCheckBox {
+                    text: qsTr("Override \"lean\" Sequence (-overridelean)")
                     checked: false
+                    ToolTip.text: qsTr("Overrides directional leaning animation sequences for characters or weapons with standard default poses.")
+                    ToolTip.visible: hovered
                 }
 
-                CheckBox {
-                    text: qsTr("Import mdl hull bounds from studiohdr (-header_hull_bounds)")
+                StyledCheckBox {
+                    text: qsTr("Use Studiohdr Bounds (-header_hull_bounds)")
                     checked: false
+                    ToolTip.text: qsTr("Uses the bounding box dimensions defined in the MDL studio header directly, rather than calculating boundaries from collision physics hulls.")
+                    ToolTip.visible: hovered
                 }
 
-                CheckBox {
-                    text: qsTr("Import all LODs (-lods)")
+                StyledCheckBox {
+                    text: qsTr("Import All LODs (-lods)")
                     checked: false
+                    ToolTip.text: qsTr("Imports all distance-based Level-of-Detail meshes (LOD 0, 1, 2...). When unchecked, only the highest detail LOD 0 is imported.")
+                    ToolTip.visible: hovered
                 }
 
-                CheckBox {
-                    text: qsTr("Write weapon sequences & weightlists into prefab (-write_weapon_anim_prefab)")
+                StyledCheckBox {
+                    text: qsTr("Export Weapon Anim Prefab (-write_weapon_anim_prefab)")
                     checked: false
+                    ToolTip.text: qsTr("Writes weapon animation sequences and bone weightlists into a reusable prefab file, prefixing each entry with the weapon filename.")
+                    ToolTip.visible: hovered
                 }
 
                 Item {
@@ -184,16 +222,27 @@ Item {
         // Row 4: Action Buttons (START / STOP)
         RowLayout {
             Layout.fillWidth: true
-            Layout.preferredHeight: 42
-            spacing: 12
+            Layout.preferredHeight: 36
+            Layout.minimumHeight: 36
+            Layout.maximumHeight: 36
+            spacing: 10
 
             Button {
-                text: qsTr("START IMPORT")
+                id: startBtn
+                text: qsTr("START")
                 font.bold: true
                 enabled: !(root.mainController && root.mainController.isProcessing) &&
                          (root.gameViewModel && root.gameViewModel.isS1Valid && root.gameViewModel.isS2Valid && root.selectedMdlPath !== "")
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+
+                contentItem: Text {
+                    text: parent.text
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    font.bold: true
+                    color: parent.palette.buttonText
+                }
 
                 onClicked: {
                     if (root.mainController) {
@@ -203,11 +252,20 @@ Item {
             }
 
             Button {
+                id: stopBtn
                 text: qsTr("STOP")
                 font.bold: true
                 enabled: root.mainController && root.mainController.isProcessing
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+
+                contentItem: Text {
+                    text: parent.text
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    font.bold: true
+                    color: parent.palette.buttonText
+                }
 
                 onClicked: {
                     if (root.mainController) {
