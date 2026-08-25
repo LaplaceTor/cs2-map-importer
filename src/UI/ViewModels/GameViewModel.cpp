@@ -190,14 +190,31 @@ void GameViewModel::setSelectedS1Type(const QString& typeId) {
         return;
     }
 
-    // Check if existing path is valid for this newly selected type
+    // Check if existing path is valid for this newly selected type asynchronously off UI thread
     if (!m_s1GamePath.isEmpty() && key != QStringLiteral("custom") && m_envService) {
-        auto validated = m_envService->validateSource1Folder(typeId, m_s1GamePath);
-        if (validated.has_value() && validated->isValid) {
-            m_detectedGames.insert(key, *validated);
-            applyS1Installation(*validated);
-            return;
-        }
+        const QString currentPath = m_s1GamePath;
+        const QString requestedType = typeId;
+        m_envService->validateSource1FolderAsync(
+            requestedType,
+            currentPath,
+            this,
+            [this, requestedType, key](const std::optional<Application::Environment::GameInstallationInfo>& validated) {
+                if (m_selectedS1Type == requestedType && validated.has_value() && validated->isValid) {
+                    m_detectedGames.insert(key, *validated);
+                    applyS1Installation(*validated);
+                } else if (m_selectedS1Type == requestedType) {
+                    m_s1Installation = Application::Environment::GameInstallationInfo();
+                    m_s1GamePath.clear();
+                    m_s1GameTitle.clear();
+                    m_isS1Valid = false;
+
+                    emit s1GamePathChanged();
+                    emit s1GameTitleChanged();
+                    emit s1ValidityChanged();
+                }
+            }
+        );
+        return;
     }
 
     // Reset validation for newly selected game

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
+#include <vector>
 
 namespace Application::Environment {
 
@@ -20,5 +22,12 @@ struct GameInstallationInfo {
     bool isSource2 = false;
 };
 
-} // namespace Application::Environment
+/**
+ * @brief Plain UI-facing detection result DTO.
+ */
+struct DetectionResult {
+    std::vector<GameInstallationInfo> installations;
+    QStringList warnings;
+};
 
+} // namespace Application::Environment

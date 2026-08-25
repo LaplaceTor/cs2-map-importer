@@ -7,7 +7,6 @@
 #include <memory>
 #include <optional>
 #include "Application/Environment/GameInstallationInfo.h"
-#include "Application/Environment/GameDetectService.h"
 #include "Application/Environment/VpkSignatureLeaseService.h"
 
 namespace Application::Environment {

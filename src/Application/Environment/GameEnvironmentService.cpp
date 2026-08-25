@@ -1,4 +1,5 @@
 #include "Application/Environment/GameEnvironmentService.h"
+#include "Application/Environment/GameDetectService.h"
 #include "Application/Environment/GameInstallation.h"
 #include "Application/Environment/GameInstallationValidator.h"
 #include "Application/Environment/SteamService.h"

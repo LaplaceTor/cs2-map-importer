@@ -1,4 +1,5 @@
 #include "Application/Environment/GameDetectService.h"
+#include "Application/Environment/GameInstallationValidator.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Core/Path/PathUtils.h"
 #include <QDir>

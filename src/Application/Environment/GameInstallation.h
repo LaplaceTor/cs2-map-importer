@@ -73,13 +73,6 @@ public:
         return res;
     }
 
-    // Delegates layout operations to Domain
-    QString modName() const { return toResolved().modName(); }
-    Core::Path::FilesystemPath contentDirectory() const { return toResolved().contentDirectory(); }
-    Core::Path::FilesystemPath modDirectory() const { return toResolved().modDirectory(); }
-    Core::Path::FilesystemPath addonGameDirectory(const QString& addonName = QString()) const { return toResolved().addonGameDirectory(addonName); }
-    Core::Path::FilesystemPath addonContentDirectory(const QString& addonName = QString()) const { return toResolved().addonContentDirectory(addonName); }
-
 private:
     Domain::Game::GameType m_type = Domain::Game::GameType::Unknown;
     QString m_gameId;

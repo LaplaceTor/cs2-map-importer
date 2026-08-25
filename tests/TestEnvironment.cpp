@@ -189,7 +189,7 @@ private slots:
     void testValidateDirectoryWithFixtures() {
         // Counter-Strike Source fixture
         QString cssDirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source"));
-        auto cssValidation = GameDetectService::validateGameDirectory(GameType::CSS, Core::Path::FilesystemPath(cssDirStr));
+        auto cssValidation = GameInstallationValidator::validateGameDirectory(GameType::CSS, Core::Path::FilesystemPath(cssDirStr));
         QVERIFY(cssValidation.has_value());
         QCOMPARE(cssValidation->type(), GameType::CSS);
         QCOMPARE(cssValidation->gameTitle(), QStringLiteral("Counter-Strike Source"));
@@ -197,38 +197,38 @@ private slots:
 
         // Half-Life 2 fixture
         QString hl2DirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Half-Life 2"));
-        auto hl2Validation = GameDetectService::validateGameDirectory(GameType::HL2, Core::Path::FilesystemPath(hl2DirStr));
+        auto hl2Validation = GameInstallationValidator::validateGameDirectory(GameType::HL2, Core::Path::FilesystemPath(hl2DirStr));
         QVERIFY(hl2Validation.has_value());
         QCOMPARE(hl2Validation->type(), GameType::HL2);
         QCOMPARE(hl2Validation->gameTitle(), QStringLiteral("HALF-LIFE 2"));
 
         // Left 4 Dead 2 fixture
         QString l4d2DirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Left 4 Dead 2"));
-        auto l4d2Validation = GameDetectService::validateGameDirectory(GameType::L4D2, Core::Path::FilesystemPath(l4d2DirStr));
+        auto l4d2Validation = GameInstallationValidator::validateGameDirectory(GameType::L4D2, Core::Path::FilesystemPath(l4d2DirStr));
         QVERIFY(l4d2Validation.has_value());
         QCOMPARE(l4d2Validation->gameTitle(), QStringLiteral("Left 4 Dead 2"));
 
         // Portal 2 fixture
         QString portal2DirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Portal 2"));
-        auto portal2Validation = GameDetectService::validateGameDirectory(GameType::Portal2, Core::Path::FilesystemPath(portal2DirStr));
+        auto portal2Validation = GameInstallationValidator::validateGameDirectory(GameType::Portal2, Core::Path::FilesystemPath(portal2DirStr));
         QVERIFY(portal2Validation.has_value());
         QCOMPARE(portal2Validation->gameTitle(), QStringLiteral("PORTAL 2"));
 
         // Team Fortress 2 fixture
         QString tf2DirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Team Fortress 2"));
-        auto tf2Validation = GameDetectService::validateGameDirectory(GameType::TF2, Core::Path::FilesystemPath(tf2DirStr));
+        auto tf2Validation = GameInstallationValidator::validateGameDirectory(GameType::TF2, Core::Path::FilesystemPath(tf2DirStr));
         QVERIFY(tf2Validation.has_value());
         QCOMPARE(tf2Validation->gameTitle(), QStringLiteral("Team Fortress 2"));
 
         // CS:GO legacy fixture
         QString csgoDirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("csgo legacy"));
-        auto csgoValidation = GameDetectService::validateGameDirectory(GameType::CSGO, Core::Path::FilesystemPath(csgoDirStr));
+        auto csgoValidation = GameInstallationValidator::validateGameDirectory(GameType::CSGO, Core::Path::FilesystemPath(csgoDirStr));
         QVERIFY(csgoValidation.has_value());
         QCOMPARE(csgoValidation->gameTitle(), QStringLiteral("Counter-Strike: Global Offensive"));
 
         // Custom inspection
         QString customGiPath = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source/cstrike/gameinfo.txt"));
-        auto customValidation = GameDetectService::inspectGameInfo(Core::Path::FilesystemPath(customGiPath));
+        auto customValidation = GameInstallationValidator::inspectGameInfo(Core::Path::FilesystemPath(customGiPath));
         QVERIFY(customValidation.has_value());
         QCOMPARE(customValidation->type(), GameType::CSS);
         QCOMPARE(customValidation->gameTitle(), QStringLiteral("Counter-Strike Source"));
@@ -261,7 +261,7 @@ private slots:
         giFile.close();
 
         Core::Path::FilesystemPath rootPath(tempDir.path());
-        auto validated = GameDetectService::validateSource2(rootPath);
+        auto validated = GameInstallationValidator::validateSource2(rootPath);
         QVERIFY(validated.has_value());
         QCOMPARE(validated->type(), GameType::CS2);
         QCOMPARE(validated->gameTitle(), QStringLiteral("Counter-Strike 2"));
@@ -270,7 +270,7 @@ private slots:
         QCOMPARE(validated->baseDirectory().toString(), Core::Path::PathUtils::normalize(tempDir.path()));
 
         // Also test selecting gameinfo.gi directly
-        auto directValidation = GameDetectService::validateSource2(Core::Path::FilesystemPath(giFilePath));
+        auto directValidation = GameInstallationValidator::validateSource2(Core::Path::FilesystemPath(giFilePath));
         QVERIFY(directValidation.has_value());
         QCOMPARE(directValidation->gameTitle(), QStringLiteral("Counter-Strike 2"));
     }
@@ -310,16 +310,16 @@ private slots:
     }
 
     void testGameInstallationSource2Paths() {
-        GameInstallation inst;
-        inst.setType(GameType::CS2);
-        inst.setSource2(true);
-        inst.setBaseDirectory(Core::Path::FilesystemPath(QStringLiteral("C:/Games/CS2")));
+        ResolvedGameInstallation res;
+        res.type = GameType::CS2;
+        res.isSource2 = true;
+        res.baseDirectory = Core::Path::FilesystemPath(QStringLiteral("C:/Games/CS2"));
 
-        QCOMPARE(inst.modName(), QStringLiteral("csgo"));
-        QCOMPARE(inst.contentDirectory().toString(), QStringLiteral("C:/Games/CS2/content/csgo"));
-        QCOMPARE(inst.modDirectory().toString(), QStringLiteral("C:/Games/CS2/game/csgo"));
-        QCOMPARE(inst.addonGameDirectory(QStringLiteral("my_map")).toString(), QStringLiteral("C:/Games/CS2/game/csgo_addons/my_map"));
-        QCOMPARE(inst.addonContentDirectory(QStringLiteral("my_map")).toString(), QStringLiteral("C:/Games/CS2/content/csgo_addons/my_map"));
+        QCOMPARE(res.modName(), QStringLiteral("csgo"));
+        QCOMPARE(res.contentDirectory().toString(), QStringLiteral("C:/Games/CS2/content/csgo"));
+        QCOMPARE(res.modDirectory().toString(), QStringLiteral("C:/Games/CS2/game/csgo"));
+        QCOMPARE(res.addonGameDirectory(QStringLiteral("my_map")).toString(), QStringLiteral("C:/Games/CS2/game/csgo_addons/my_map"));
+        QCOMPARE(res.addonContentDirectory(QStringLiteral("my_map")).toString(), QStringLiteral("C:/Games/CS2/content/csgo_addons/my_map"));
     }
 
     void testMockCustomSource2Installation() {
@@ -351,18 +351,18 @@ private slots:
         Core::Path::FilesystemPath rootPath(tempDir.path());
 
         // Validate generic Source 2 directory without specifying game type
-        auto validated = GameDetectService::validateSource2(rootPath);
-        QVERIFY(validated.has_value());
-        QCOMPARE(validated->gameTitle(), QStringLiteral("Future Source 2 Game"));
-        QVERIFY(validated->isSource2());
-        QCOMPARE(validated->modName(), QStringLiteral("future_game"));
-        QCOMPARE(validated->addonGameDirectory(QStringLiteral("test_addon")).toString(),
+        auto resolved = GameInstallationResolver::resolveSource2(rootPath);
+        QVERIFY(resolved.has_value());
+        QCOMPARE(resolved->gameInfo.game(), QStringLiteral("Future Source 2 Game"));
+        QVERIFY(resolved->isSource2);
+        QCOMPARE(resolved->modName(), QStringLiteral("future_game"));
+        QCOMPARE(resolved->addonGameDirectory(QStringLiteral("test_addon")).toString(),
                  Core::Path::PathUtils::normalize(tempDir.filePath(QStringLiteral("game/future_game_addons/test_addon"))));
-        QCOMPARE(validated->addonContentDirectory(QStringLiteral("test_addon")).toString(),
+        QCOMPARE(resolved->addonContentDirectory(QStringLiteral("test_addon")).toString(),
                  Core::Path::PathUtils::normalize(tempDir.filePath(QStringLiteral("content/future_game_addons/test_addon"))));
 
         // Test inspectGameInfo on the root directory
-        auto inspected = GameDetectService::inspectGameInfo(rootPath);
+        auto inspected = GameInstallationValidator::inspectGameInfo(rootPath);
         QVERIFY(inspected.has_value());
         QCOMPARE(inspected->gameTitle(), QStringLiteral("Future Source 2 Game"));
         QVERIFY(inspected->isSource2());
