@@ -5,9 +5,31 @@
 
 namespace UI::ViewModels {
 
-GameViewModel::GameViewModel(QObject* parent)
+GameViewModel::GameViewModel(Application::Environment::VpkSignatureLeaseService* vpkLeaseService, QObject* parent)
     : QObject(parent)
 {
+    setVpkSignatureLeaseService(vpkLeaseService);
+}
+
+void GameViewModel::setVpkSignatureLeaseService(Application::Environment::VpkSignatureLeaseService* service) {
+    if (m_vpkLeaseService == service) {
+        return;
+    }
+    if (m_vpkLeaseService) {
+        disconnect(m_vpkLeaseService, nullptr, this, nullptr);
+    }
+    m_vpkLeaseService = service;
+    if (m_vpkLeaseService) {
+        connect(m_vpkLeaseService, &Application::Environment::VpkSignatureLeaseService::leaseStateChanged,
+                this, &GameViewModel::vpkLeaseStateChanged);
+        connect(m_vpkLeaseService, &Application::Environment::VpkSignatureLeaseService::leaseConflictOccurred,
+                this, &GameViewModel::vpkSignatureOccupied);
+    }
+    emit vpkLeaseStateChanged();
+}
+
+bool GameViewModel::isVpkLeaseHeld() const noexcept {
+    return m_vpkLeaseService ? m_vpkLeaseService->isLeaseHeld() : false;
 }
 
 QStringList GameViewModel::s1GameTypes() const {
@@ -110,32 +132,19 @@ void GameViewModel::applyS2Installation(const Application::Environment::GameInst
 
     refreshS2Addons();
 
-    // Automatically lease vpk.signatures exclusively throughout application lifetime
-    if (m_isS2Valid && inst.type() == Domain::Game::GameType::CS2) {
-        QString errorMsg;
-        if (!m_vpkSignatureLeaseService.acquireLease(inst.baseDirectory(), &errorMsg)) {
-            const QString targetPath = QDir(inst.baseDirectory().toString()).filePath(QStringLiteral("game/bin/win64/vpk.signatures"));
-            if (QFileInfo::exists(targetPath)) {
-                emit vpkSignatureOccupied(
-                    QStringLiteral("Counter-Strike 2 is Running"),
-                    QStringLiteral("vpk.signatures is currently in use by Counter-Strike 2 or another application.\n\nPlease close Counter-Strike 2 before using CS2 Importer.")
-                );
-            }
+    // Delegate vpk.signatures lease management to Application lease service
+    if (m_vpkLeaseService) {
+        if (m_isS2Valid && inst.type() == Domain::Game::GameType::CS2) {
+            m_vpkLeaseService->acquireLease(inst.baseDirectory());
+        } else {
+            m_vpkLeaseService->releaseLease();
         }
-    } else {
-        m_vpkSignatureLeaseService.releaseLease();
     }
 }
 
 void GameViewModel::retryVpkSignatureLease() {
-    if (m_isS2Valid && m_s2Installation.type() == Domain::Game::GameType::CS2) {
-        QString errorMsg;
-        if (!m_vpkSignatureLeaseService.acquireLease(m_s2Installation.baseDirectory(), &errorMsg)) {
-            emit vpkSignatureOccupied(
-                QStringLiteral("Counter-Strike 2 is Still Running"),
-                QStringLiteral("vpk.signatures is still in use.\n\nPlease ensure Counter-Strike 2 is completely closed and click Retry, or Exit to quit.")
-            );
-        }
+    if (m_vpkLeaseService && m_isS2Valid && m_s2Installation.type() == Domain::Game::GameType::CS2) {
+        m_vpkLeaseService->acquireLease(m_s2Installation.baseDirectory());
     }
 }
 
@@ -238,7 +247,9 @@ void GameViewModel::setSelectedS2Type(const QString& typeId) {
         if (it != m_detectedGames.end()) {
             applyS2Installation(it.value());
         } else {
-            m_vpkSignatureLeaseService.releaseLease();
+            if (m_vpkLeaseService) {
+                m_vpkLeaseService->releaseLease();
+            }
             m_s2Installation = Application::Environment::GameInstallation();
             m_s2GamePath.clear();
             m_s2GameTitle.clear();
@@ -298,7 +309,9 @@ void GameViewModel::selectS2Folder(const QString& pathOrUrl) {
         m_detectedGames.insert(validated->type(), *validated);
         applyS2Installation(*validated);
     } else {
-        m_vpkSignatureLeaseService.releaseLease();
+        if (m_vpkLeaseService) {
+            m_vpkLeaseService->releaseLease();
+        }
         m_isS2Valid = false;
         emit s2ValidityChanged();
 

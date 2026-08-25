@@ -33,12 +33,13 @@ class GameViewModel : public QObject {
     Q_PROPERTY(bool isS2Valid READ isS2Valid NOTIFY s2ValidityChanged)
     Q_PROPERTY(QStringList s2AddonsList READ s2AddonsList NOTIFY s2AddonsListChanged)
     Q_PROPERTY(QString selectedAddon READ selectedAddon WRITE setSelectedAddon NOTIFY selectedAddonChanged)
+    Q_PROPERTY(bool isVpkLeaseHeld READ isVpkLeaseHeld NOTIFY vpkLeaseStateChanged)
 
     // Detection State
     Q_PROPERTY(bool isDetecting READ isDetecting NOTIFY isDetectingChanged)
 
 public:
-    explicit GameViewModel(QObject* parent = nullptr);
+    explicit GameViewModel(Application::Environment::VpkSignatureLeaseService* vpkLeaseService = nullptr, QObject* parent = nullptr);
     ~GameViewModel() override = default;
 
     bool isDetecting() const noexcept { return m_isDetecting; }
@@ -56,10 +57,13 @@ public:
     bool isS2Valid() const noexcept { return m_isS2Valid; }
     QStringList s2AddonsList() const noexcept { return m_s2AddonsList; }
     QString selectedAddon() const noexcept { return m_selectedAddon; }
+    bool isVpkLeaseHeld() const noexcept;
+
+    void setVpkSignatureLeaseService(Application::Environment::VpkSignatureLeaseService* service);
+    Application::Environment::VpkSignatureLeaseService* vpkSignatureLeaseService() const noexcept { return m_vpkLeaseService; }
 
     const Application::Environment::GameInstallation& s1Installation() const noexcept { return m_s1Installation; }
     const Application::Environment::GameInstallation& s2Installation() const noexcept { return m_s2Installation; }
-    const Application::Environment::VpkSignatureLeaseService& vpkSignatureLeaseService() const noexcept { return m_vpkSignatureLeaseService; }
 
 public slots:
     void autoDetect();
@@ -89,6 +93,7 @@ signals:
     void isDetectingChanged();
     void detectionFinished();
 
+    void vpkLeaseStateChanged();
     void alertRequested(const QString& title, const QString& message);
     void vpkSignatureOccupied(const QString& title, const QString& message);
 
@@ -115,7 +120,7 @@ private:
     QStringList m_s2AddonsList;
     QString m_selectedAddon;
     Application::Environment::GameInstallation m_s2Installation;
-    Application::Environment::VpkSignatureLeaseService m_vpkSignatureLeaseService;
+    Application::Environment::VpkSignatureLeaseService* m_vpkLeaseService = nullptr;
 
     // Cache for detected installations across Steam libraries: [GameType -> GameInstallation]
     QHash<Domain::Game::GameType, Application::Environment::GameInstallation> m_detectedGames;

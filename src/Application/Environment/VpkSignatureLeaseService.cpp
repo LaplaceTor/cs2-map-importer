@@ -66,6 +66,10 @@ bool VpkSignatureLeaseService::acquireLease(const Core::Path::FilesystemPath& cs
         }
         Core::Logging::Logger::error(diagnosticMsg);
         emit leaseStateChanged(false, QString());
+        emit leaseConflictOccurred(
+            QStringLiteral("Counter-Strike 2 is Running"),
+            QStringLiteral("vpk.signatures is currently in use by Counter-Strike 2 or another application.\n\nPlease close Counter-Strike 2 before using CS2 Importer.")
+        );
         return false;
     }
 

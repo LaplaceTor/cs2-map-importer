@@ -53,6 +53,7 @@ public:
 
 signals:
     void leaseStateChanged(bool isHeld, const QString& filePath);
+    void leaseConflictOccurred(const QString& title, const QString& message);
 
 private:
     Core::FileSystem::FileLease m_lease;

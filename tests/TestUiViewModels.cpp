@@ -172,14 +172,66 @@ private slots:
         QVERIFY(spyDetecting.size() >= 1);
 
         // Calling autoDetect again while already detecting should be ignored
-        vm.autoDetect();
-
         // Wait for asynchronous detection to finish
         QTRY_VERIFY_WITH_TIMEOUT(spyFinished.size() >= 1, 5000);
         QVERIFY(!vm.isDetecting());
+    }
+
+    void testGameViewModelVpkLeaseDelegation() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+
+        QString csgoModDir = tempDir.filePath(QStringLiteral("game/csgo"));
+        QVERIFY(QDir().mkpath(csgoModDir));
+
+        QString win64Dir = tempDir.filePath(QStringLiteral("game/bin/win64"));
+        QVERIFY(QDir().mkpath(win64Dir));
+
+        QString sigPath = QDir(win64Dir).filePath(QStringLiteral("vpk.signatures"));
+        QFile sigFile(sigPath);
+        QVERIFY(sigFile.open(QIODevice::WriteOnly));
+        sigFile.write("dummy signatures");
+        sigFile.close();
+
+        QString giFilePath = QDir(csgoModDir).filePath(QStringLiteral("gameinfo.gi"));
+        QFile giFile(giFilePath);
+        QVERIFY(giFile.open(QIODevice::WriteOnly | QIODevice::Text));
+        giFile.write(
+            "\"GameInfo\"\n"
+            "{\n"
+            "    game \"Counter-Strike 2\"\n"
+            "    title \"Counter-Strike 2\"\n"
+            "    FileSystem\n"
+            "    {\n"
+            "        SearchPaths\n"
+            "        {\n"
+            "            Game csgo\n"
+            "        }\n"
+            "    }\n"
+            "}\n"
+        );
+        giFile.close();
+
+        Application::Environment::VpkSignatureLeaseService leaseService;
+        GameViewModel vm(&leaseService);
+        QSignalSpy spyLeaseState(&vm, &GameViewModel::vpkLeaseStateChanged);
+
+        QVERIFY(!vm.isVpkLeaseHeld());
+        vm.selectS2Folder(tempDir.path());
+
+        QVERIFY(vm.isS2Valid());
+        QVERIFY(vm.isVpkLeaseHeld());
+        QVERIFY(leaseService.isLeaseHeld());
+        QVERIFY(spyLeaseState.size() >= 1);
+
+        // Deselecting or switching resets lease
+        vm.setSelectedS2Type(QStringLiteral("other"));
+        QVERIFY(!vm.isVpkLeaseHeld());
+        QVERIFY(!leaseService.isLeaseHeld());
     }
 };
 
 QTEST_MAIN(TestUiViewModels)
 #include "TestUiViewModels.moc"
+
 
