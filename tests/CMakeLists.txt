@@ -10,11 +10,18 @@ qt_standard_project_setup(REQUIRES 6.8)
 
 enable_testing()
 
-# Include source libraries
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src/Core ${CMAKE_CURRENT_BINARY_DIR}/src/Core)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src/Domain ${CMAKE_CURRENT_BINARY_DIR}/src/Domain)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src/Application ${CMAKE_CURRENT_BINARY_DIR}/src/Application)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src/UI ${CMAKE_CURRENT_BINARY_DIR}/src/UI)
+if(NOT TARGET cs2importer_core)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src/Core ${CMAKE_CURRENT_BINARY_DIR}/src/Core)
+endif()
+if(NOT TARGET cs2importer_domain)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src/Domain ${CMAKE_CURRENT_BINARY_DIR}/src/Domain)
+endif()
+if(NOT TARGET cs2importer_application)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src/Application ${CMAKE_CURRENT_BINARY_DIR}/src/Application)
+endif()
+if(NOT TARGET cs2importer_ui)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src/UI ${CMAKE_CURRENT_BINARY_DIR}/src/UI)
+endif()
 
 set(GAMEINFO_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../gameinfotestfile")
 
@@ -148,6 +155,24 @@ target_compile_definitions(test_uiviewmodels PRIVATE
 )
 
 add_test(NAME test_uiviewmodels COMMAND test_uiviewmodels)
+
+qt_add_executable(test_filelease
+    TestFileLease.cpp
+)
+
+target_link_libraries(test_filelease PRIVATE
+    cs2importer_application
+    cs2importer_domain
+    cs2importer_core
+    Qt6::Core
+    Qt6::Test
+)
+
+target_include_directories(test_filelease PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+add_test(NAME test_filelease COMMAND test_filelease)
 
 
 

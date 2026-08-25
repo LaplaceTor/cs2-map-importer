@@ -5,6 +5,8 @@ qt_add_library(cs2importer_core STATIC
     FileSystem/AtomicFile.cpp
     FileSystem/DirectorySnapshot.h
     FileSystem/DirectorySnapshot.cpp
+    FileSystem/FileLease.h
+    FileSystem/FileLease.cpp
     FileSystem/FileSystem.h
     FileSystem/FileSystem.cpp
     KeyValues/KeyValuesNode.h

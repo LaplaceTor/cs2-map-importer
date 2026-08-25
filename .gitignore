@@ -4,7 +4,7 @@
 *.json
 release
 build/
-
+particles/
 build/
 build_dir/
 _build/

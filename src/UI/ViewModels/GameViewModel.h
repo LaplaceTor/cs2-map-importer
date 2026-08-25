@@ -8,6 +8,7 @@
 #include "Application/Environment/GameInstallation.h"
 #include "Application/Environment/GameDetectService.h"
 #include "Application/Environment/SteamService.h"
+#include "Application/Environment/VpkSignatureLeaseService.h"
 #include "Domain/Game/GameType.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Core/Path/FilesystemPath.h"
@@ -58,6 +59,7 @@ public:
 
     const Application::Environment::GameInstallation& s1Installation() const noexcept { return m_s1Installation; }
     const Application::Environment::GameInstallation& s2Installation() const noexcept { return m_s2Installation; }
+    const Application::Environment::VpkSignatureLeaseService& vpkSignatureLeaseService() const noexcept { return m_vpkSignatureLeaseService; }
 
 public slots:
     void autoDetect();
@@ -69,6 +71,7 @@ public slots:
     void validateS2InSteam();
     void setSelectedAddon(const QString& addon);
     void refreshS2Addons();
+    void retryVpkSignatureLease();
 
 signals:
     void selectedS1TypeChanged();
@@ -87,6 +90,7 @@ signals:
     void detectionFinished();
 
     void alertRequested(const QString& title, const QString& message);
+    void vpkSignatureOccupied(const QString& title, const QString& message);
 
 private:
     Domain::Game::GameType parseS1Type(const QString& typeStr) const;
@@ -111,6 +115,7 @@ private:
     QStringList m_s2AddonsList;
     QString m_selectedAddon;
     Application::Environment::GameInstallation m_s2Installation;
+    Application::Environment::VpkSignatureLeaseService m_vpkSignatureLeaseService;
 
     // Cache for detected installations across Steam libraries: [GameType -> GameInstallation]
     QHash<Domain::Game::GameType, Application::Environment::GameInstallation> m_detectedGames;

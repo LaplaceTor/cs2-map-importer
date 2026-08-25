@@ -61,7 +61,7 @@ The project is undergoing a staged architecture refactor. The reusable Core laye
 src/
 ├── Core/                         # Reusable infrastructure (cs2importer_core)
 │   ├── Error/                    # ImportErrorCode and ImportException
-│   ├── FileSystem/               # FileSystem, AtomicFile, DirectorySnapshot
+│   ├── FileSystem/               # FileSystem, AtomicFile, DirectorySnapshot, FileLease
 │   ├── KeyValues/                # KeyValuesNode, Document, Lexer, Parser, Writer (Single I/O AST)
 │   ├── Logging/                  # Task-oriented logging, Sinks, FaultBarrier
 │   ├── Path/                     # FilesystemPath, PathUtils (Sanitization)
@@ -94,7 +94,7 @@ src/
 │
 ├── Application/                  # Application services & execution orchestration (cs2importer_application)
 │   ├── Config/                   # Configuration persistence (AppConfig / settings)
-│   ├── Environment/              # Game / Steam library path detection (SteamService, GameInstallation, GameDetectService)
+│   ├── Environment/              # Game / Steam library path detection & leasing (SteamService, GameInstallation, GameDetectService, VpkSignatureLeaseService)
 │   ├── Task/                     # WorkflowRunner, background worker thread management
 │   ├── Update/                   # UpdateService (version checking)
 │   └── CMakeLists.txt
@@ -123,6 +123,7 @@ src/
 | `ParticleImporter.h/.cpp` | `Workflow::Particle` | `src/Workflow/Particle/` | Particle import pipeline (.pcf $\rightarrow$ .vpcf). |
 | `MapImporter.h/.cpp` | `Workflow::Map` | `src/Workflow/Map/` | Map import pipeline (BSP $\rightarrow$ VMF $\rightarrow$ compile/assets). |
 | `Ui::AutoDetectPaths`, `IsValid*` | `Application::Environment`<br>`Domain::Game` | `src/Application/Environment/`<br>`src/Domain/Game/` | Registry & Steam library scanning for game paths (`SteamService`, `GameDetectService`); domain game metadata and validation (`GameRegistry`, `GameValidator`). |
+| `vpk.signatures` locking | `Application::Environment`<br>`Core::FileSystem` | `src/Application/Environment/`<br>`src/Core/FileSystem/` | Exclusive file lease management (`FileLease`, `VpkSignatureLeaseService`) on `game/bin/win64/vpk.signatures` during application runtime. |
 | `Ui::CheckForUpdate` | `Application::Update` | `src/Application/Update/` | Update checking via network API. |
 | `Ui::LoadFromCfg`, `SaveToCfg` | `Application::Config` | `src/Application/Config/` | Application configuration load/save. |
 | `Ui::Start`, `m_workerThread`, `CancelAll` | `Application::Task` | `src/Application/Task/` | `WorkflowRunner`: Worker thread management, cancellation, exception handling. |
@@ -255,11 +256,16 @@ doc.saveToFile(vmfPath);
 
 `Core::Error::ImportException` derives from `QException` and stores an error code and message. Use `ImportException` in migrated code instead of legacy `AppException`.
 
-### Filesystem: `Core::FileSystem`
+### Filesystem & Leases: `Core::FileSystem`
 
 * `FileSystem`: Static helpers for `exists`, `isFile`, `isDirectory`, `createDirectory`, `remove`, `copy`, `move`, `readAll`, `writeAll`.
 * `AtomicFile`: Move-only RAII wrapper around `QSaveFile`. `writeAtomic(target, data)` is the one-shot helper.
 * `DirectorySnapshot`: Captures relative directory snapshots (`FileEntry`) and computes diffs (`added`, `removed`, `modified`).
+* `FileLease`: Move-only RAII wrapper for holding an OS-level exclusive file lock (`dwShareMode = 0` on Windows). Forbids concurrent write/sharing by other processes and automatically releases the handle upon destruction or process termination.
+  * `acquireExclusive(const QString& filePath, QString* errorMessage = nullptr)` $\rightarrow$ `bool`
+  * `release() noexcept`
+  * `isHeld() const noexcept` $\rightarrow$ `bool`
+  * `filePath() const` $\rightarrow$ `QString`
 
 ### Processes: `Core::Process`
 
@@ -396,6 +402,7 @@ auto validatedInfo = Domain::Game::GameValidator::validateDirectory(
 #include "Application/Environment/SteamService.h"
 #include "Application/Environment/GameInstallation.h"
 #include "Application/Environment/GameDetectService.h"
+#include "Application/Environment/VpkSignatureLeaseService.h"
 ```
 
 ### Environment & Steam Discovery: `Application::Environment`
@@ -404,6 +411,7 @@ auto validatedInfo = Domain::Game::GameValidator::validateDirectory(
 #include "Application/Environment/SteamService.h"
 #include "Application/Environment/GameInstallation.h"
 #include "Application/Environment/GameDetectService.h"
+#include "Application/Environment/VpkSignatureLeaseService.h"
 
 // 1. Steam registry & library detection
 auto steamPath = Application::Environment::SteamService::detectSteamInstallPath();
@@ -425,11 +433,20 @@ auto s1Game = Application::Environment::GameDetectService::validateSource1(
 
 auto s2Game = Application::Environment::GameDetectService::validateSource2(
     Core::Path::FilesystemPath(QStringLiteral("D:/SteamLibrary/steamapps/common/Counter-Strike Global Offensive")));
+
+// 5. Exclusive lease on vpk.signatures
+Application::Environment::VpkSignatureLeaseService leaseService;
+QString leaseError;
+if (!leaseService.acquireLease(cs2->baseDirectory(), &leaseError)) {
+    // File locked by CS2 or another process
+}
 ```
 
 * `SteamService`: Detects Steam installation path from Windows Registry (`HKCU`, `HKLM`, `WOW6432Node`), parses `steamapps/libraryfolders.vdf`, and reads `appmanifest_<appid>.acf` for `installdir` and app state.
 * `GameInstallation`: Value object encapsulating detected/validated game installations (GameType, gameTitle, baseDirectory, modDirectory, contentDirectory, addonGameDirectory, addonContentDirectory, gameInfoPath, `isSource2()`, and associated `GameInfo`).
 * `GameDetectService`: High-level detection and validation service. Maps installed AppIDs in Steam libraries directly to fixed `GameDefinition`s (`isSource2()`), dispatching to `validateSource2` (Source 2) or `validateSource1` (Source 1). `validateSource2` dynamically detects any Source 2 game layout (scanning `<baseDir>/game/*/gameinfo.gi` and root `gameinfo.gi`), and `inspectGameInfo` supports direct inspection of arbitrary Source 1 or Source 2 game root directories.
+* `VpkSignatureLeaseService`: Application service that acquires and holds an exclusive `Core::FileSystem::FileLease` on `<cs2BasePath>/game/bin/win64/vpk.signatures` during the app session, releasing it cleanly on exit or game type switch and emitting `leaseStateChanged(bool isHeld, const QString& filePath)`.
+
 
 ---
 
@@ -468,10 +485,18 @@ cmake --preset windows-debug
 cmake --build --preset windows-debug
 ```
 
-### Standalone Tests Build & Execution
+### Test Execution
 
-The test suite is decoupled from the main project into an independent CMake project located under `tests/`. It must be configured and built separately:
+Tests can be configured and executed either as part of the main build tree (when `BUILD_TESTING` is enabled) or as an independent standalone CMake project:
 
+#### 1. Via Main Application Build / CMake Presets
+```bash
+cmake --preset windows-debug
+cmake --build --preset windows-debug
+ctest --test-dir build/local-debug --output-on-failure
+```
+
+#### 2. Via Standalone Tests Project
 ```bash
 # Configure & build test suite
 cmake -B build-tests -S tests
@@ -494,6 +519,7 @@ ctest --test-dir build-tests --output-on-failure
   * `TestAsset.cpp` (`test_asset`): `AssetPath` validation and `AssetTypeDetector`.
   * `TestEnvironment.cpp` (`test_environment`): `SteamService` and `GameDetectService` discovery and detection.
   * `TestUiViewModels.cpp` (`test_uiviewmodels`): `GameViewModel`, `LogViewModel`, and `MainController`.
+  * `TestFileLease.cpp` (`test_filelease`): OS-level exclusive file leases (`FileLease`) and `VpkSignatureLeaseService`.
 * **Adding a new test target**:
   1. Add the test source file to `tests/` (e.g. `tests/TestFeature.cpp`).
   2. In `tests/CMakeLists.txt`, register the executable with `qt_add_executable(test_feature TestFeature.cpp)`.

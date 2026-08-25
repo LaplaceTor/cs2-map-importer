@@ -4,6 +4,8 @@ qt_add_library(cs2importer_application STATIC
     Environment/SteamService.cpp
     Environment/GameDetectService.h
     Environment/GameDetectService.cpp
+    Environment/VpkSignatureLeaseService.h
+    Environment/VpkSignatureLeaseService.cpp
 )
 
 target_link_libraries(cs2importer_application PUBLIC

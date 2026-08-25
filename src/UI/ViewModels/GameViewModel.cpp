@@ -109,6 +109,34 @@ void GameViewModel::applyS2Installation(const Application::Environment::GameInst
     emit s2ValidityChanged();
 
     refreshS2Addons();
+
+    // Automatically lease vpk.signatures exclusively throughout application lifetime
+    if (m_isS2Valid && inst.type() == Domain::Game::GameType::CS2) {
+        QString errorMsg;
+        if (!m_vpkSignatureLeaseService.acquireLease(inst.baseDirectory(), &errorMsg)) {
+            const QString targetPath = QDir(inst.baseDirectory().toString()).filePath(QStringLiteral("game/bin/win64/vpk.signatures"));
+            if (QFileInfo::exists(targetPath)) {
+                emit vpkSignatureOccupied(
+                    QStringLiteral("Counter-Strike 2 is Running"),
+                    QStringLiteral("vpk.signatures is currently in use by Counter-Strike 2 or another application.\n\nPlease close Counter-Strike 2 before using CS2 Importer.")
+                );
+            }
+        }
+    } else {
+        m_vpkSignatureLeaseService.releaseLease();
+    }
+}
+
+void GameViewModel::retryVpkSignatureLease() {
+    if (m_isS2Valid && m_s2Installation.type() == Domain::Game::GameType::CS2) {
+        QString errorMsg;
+        if (!m_vpkSignatureLeaseService.acquireLease(m_s2Installation.baseDirectory(), &errorMsg)) {
+            emit vpkSignatureOccupied(
+                QStringLiteral("Counter-Strike 2 is Still Running"),
+                QStringLiteral("vpk.signatures is still in use.\n\nPlease ensure Counter-Strike 2 is completely closed and click Retry, or Exit to quit.")
+            );
+        }
+    }
 }
 
 void GameViewModel::autoDetect() {
@@ -210,6 +238,7 @@ void GameViewModel::setSelectedS2Type(const QString& typeId) {
         if (it != m_detectedGames.end()) {
             applyS2Installation(it.value());
         } else {
+            m_vpkSignatureLeaseService.releaseLease();
             m_s2Installation = Application::Environment::GameInstallation();
             m_s2GamePath.clear();
             m_s2GameTitle.clear();
@@ -269,6 +298,7 @@ void GameViewModel::selectS2Folder(const QString& pathOrUrl) {
         m_detectedGames.insert(validated->type(), *validated);
         applyS2Installation(*validated);
     } else {
+        m_vpkSignatureLeaseService.releaseLease();
         m_isS2Valid = false;
         emit s2ValidityChanged();
 

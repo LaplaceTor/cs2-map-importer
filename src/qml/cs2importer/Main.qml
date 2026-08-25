@@ -55,6 +55,11 @@ ApplicationWindow {
             alertDialog.text = message
             alertDialog.open()
         }
+        function onVpkSignatureOccupied(title, message) {
+            vpkConflictDialog.title = title
+            vpkConflictDialog.text = message
+            vpkConflictDialog.open()
+        }
     }
 
     // Dialogs
@@ -62,6 +67,26 @@ ApplicationWindow {
         id: alertDialog
         title: qsTr("Alert")
         buttons: MessageDialog.Ok
+    }
+
+    MessageDialog {
+        id: vpkConflictDialog
+        title: qsTr("Counter-Strike 2 is Running")
+        text: qsTr("vpk.signatures is currently in use by Counter-Strike 2 or another application.\n\nPlease close Counter-Strike 2 before using CS2 Importer.")
+        buttons: MessageDialog.Retry | MessageDialog.Close
+
+        onButtonClicked: function(button, role) {
+            if (button === MessageDialog.Retry) {
+                if (window.gameViewModel) {
+                    window.gameViewModel.retryVpkSignatureLease()
+                }
+            } else {
+                Qt.quit()
+            }
+        }
+        onRejected: {
+            Qt.quit()
+        }
     }
 
     MessageDialog {
