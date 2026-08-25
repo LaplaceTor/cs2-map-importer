@@ -364,6 +364,25 @@ private slots:
         QCOMPARE(inspected->gameTitle(), QStringLiteral("Future Source 2 Game"));
         QVERIFY(inspected->isSource2());
     }
+
+    void testDetectEnvironmentResult() {
+        auto result = GameDetectService::detectEnvironment();
+        // Result must be valid, installations can be empty or populated depending on host
+        QVERIFY(result.installations.size() >= 0);
+        // detectAllGames should return matching count
+        auto allGames = GameDetectService::detectAllGames();
+        QCOMPARE(allGames.size(), result.installations.size());
+    }
+
+    void testDetectEnvironmentAsync() {
+        bool finished = false;
+        GameDetectService::detectEnvironmentAsync(this, [&](const DetectionResult& result) {
+            finished = true;
+            QVERIFY(result.installations.size() >= 0);
+        });
+
+        QTRY_VERIFY_WITH_TIMEOUT(finished, 5000);
+    }
 };
 
 QTEST_MAIN(TestEnvironment)

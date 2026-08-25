@@ -33,7 +33,7 @@ Item {
                 gamePath: root.gameViewModel ? root.gameViewModel.s1GamePath : ""
                 gameTitle: root.gameViewModel ? root.gameViewModel.s1GameTitle : ""
                 isValid: root.gameViewModel ? root.gameViewModel.isS1Valid : false
-                isProcessing: root.mainController ? root.mainController.isProcessing : false
+                isProcessing: (root.mainController ? root.mainController.isProcessing : false) || (root.gameViewModel ? root.gameViewModel.isDetecting : false)
 
                 onTypeSelected: function(typeName) {
                     if (root.gameViewModel) {
@@ -61,7 +61,7 @@ Item {
                 gamePath: root.gameViewModel ? root.gameViewModel.s2GamePath : ""
                 gameTitle: root.gameViewModel ? root.gameViewModel.s2GameTitle : ""
                 isValid: root.gameViewModel ? root.gameViewModel.isS2Valid : false
-                isProcessing: root.mainController ? root.mainController.isProcessing : false
+                isProcessing: (root.mainController ? root.mainController.isProcessing : false) || (root.gameViewModel ? root.gameViewModel.isDetecting : false)
 
                 onTypeSelected: function(typeName) {
                     if (root.gameViewModel) {

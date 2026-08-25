@@ -8,14 +8,32 @@
 #include "Domain/Game/GameValidator.h"
 #include "Domain/Game/GameInfoParser.h"
 #include "Core/Path/FilesystemPath.h"
+#include <functional>
 #include <optional>
 #include <vector>
+#include <QObject>
+#include <QStringList>
 
 namespace Application::Environment {
 
+struct DetectionResult {
+    std::vector<GameInstallation> installations;
+    QStringList warnings;
+};
+
 class GameDetectService {
 public:
-    // Detect all supported Source and Source 2 games across all detected Steam libraries
+    // Asynchronous environment detection dispatched on a worker thread and marshaled safely to caller's QObject context
+    static void detectEnvironmentAsync(
+        QObject* context,
+        std::function<void(const DetectionResult&)> callback,
+        const Core::Path::FilesystemPath& customSteamPath = {});
+
+    // Synchronous environment detection returning both installations and any non-fatal scan warnings
+    static DetectionResult detectEnvironment(
+        const Core::Path::FilesystemPath& customSteamPath = {});
+
+    // Detect all supported Source and Source 2 games across all detected Steam libraries (convenience wrapper)
     static std::vector<GameInstallation> detectAllGames(
         const Core::Path::FilesystemPath& customSteamPath = {});
 

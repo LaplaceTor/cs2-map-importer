@@ -27,9 +27,6 @@ int main(int argc, char *argv[])
 
     logViewModel->registerWithLogManager();
 
-    // Trigger initial game detection across Steam libraries
-    gameViewModel->autoDetect();
-
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("gameViewModelInstance"), gameViewModel.get());
     engine.rootContext()->setContextProperty(QStringLiteral("logViewModelInstance"), logViewModel.get());
@@ -43,6 +40,9 @@ int main(int argc, char *argv[])
     }, Qt::QueuedConnection);
 
     engine.loadFromModule(QStringLiteral("cs2importer"), QStringLiteral("Main"));
+
+    // Trigger non-blocking asynchronous game detection in the background
+    gameViewModel->autoDetect();
 
     return app.exec();
 }

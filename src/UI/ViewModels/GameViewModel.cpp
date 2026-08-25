@@ -112,10 +112,25 @@ void GameViewModel::applyS2Installation(const Application::Environment::GameInst
 }
 
 void GameViewModel::autoDetect() {
-    auto detected = Application::Environment::GameDetectService::detectAllGames();
+    if (m_isDetecting) {
+        return;
+    }
+
+    m_isDetecting = true;
+    emit isDetectingChanged();
+
+    Application::Environment::GameDetectService::detectEnvironmentAsync(
+        this,
+        [this](const Application::Environment::DetectionResult& result) {
+            applyDetectionResult(result);
+        }
+    );
+}
+
+void GameViewModel::applyDetectionResult(const Application::Environment::DetectionResult& result) {
     m_detectedGames.clear();
 
-    for (const auto& game : detected) {
+    for (const auto& game : result.installations) {
         if (game.isValid()) {
             m_detectedGames.insert(game.type(), game);
         }
@@ -125,12 +140,6 @@ void GameViewModel::autoDetect() {
     auto itCs2 = m_detectedGames.find(Domain::Game::GameType::CS2);
     if (itCs2 != m_detectedGames.end()) {
         applyS2Installation(itCs2.value());
-    } else {
-        auto cs2Direct = Application::Environment::GameDetectService::detectGame(Domain::Game::GameType::CS2);
-        if (cs2Direct.has_value() && cs2Direct->isValid()) {
-            m_detectedGames.insert(Domain::Game::GameType::CS2, *cs2Direct);
-            applyS2Installation(*cs2Direct);
-        }
     }
 
     // Auto-select current S1 game if found
@@ -153,6 +162,10 @@ void GameViewModel::autoDetect() {
             }
         }
     }
+
+    m_isDetecting = false;
+    emit isDetectingChanged();
+    emit detectionFinished();
 }
 
 void GameViewModel::setSelectedS1Type(const QString& typeId) {

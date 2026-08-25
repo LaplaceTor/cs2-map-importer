@@ -1,6 +1,9 @@
 #include "Application/Environment/GameDetectService.h"
 #include <QDir>
 #include <QFileInfo>
+#include <QPointer>
+#include <QThreadPool>
+#include <QMetaObject>
 #include <algorithm>
 
 namespace Application::Environment {
@@ -34,23 +37,47 @@ std::optional<GameInstallation> GameDetectService::createInstallationFromGameInf
     return inst;
 }
 
-std::vector<GameInstallation> GameDetectService::detectAllGames(
+void GameDetectService::detectEnvironmentAsync(
+    QObject* context,
+    std::function<void(const DetectionResult&)> callback,
     const Core::Path::FilesystemPath& customSteamPath)
 {
-    std::vector<GameInstallation> detected;
+    QPointer<QObject> contextGuard(context);
+
+    QThreadPool::globalInstance()->start([contextGuard, callback = std::move(callback), customSteamPath]() {
+        DetectionResult result = detectEnvironment(customSteamPath);
+
+        if (!contextGuard) {
+            return;
+        }
+
+        QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, callback = std::move(callback), res = std::move(result)]() {
+            if (contextGuard && callback) {
+                callback(res);
+            }
+        }, Qt::QueuedConnection);
+    });
+}
+
+DetectionResult GameDetectService::detectEnvironment(
+    const Core::Path::FilesystemPath& customSteamPath)
+{
+    DetectionResult result;
     auto libraries = SteamService::detectLibraries(customSteamPath);
     if (libraries.empty()) {
-        return detected;
+        result.warnings.append(QStringLiteral("No Steam libraries or installations detected."));
+        return result;
     }
 
     auto isAlreadyAdded = [&](Domain::Game::GameType type) {
-        return std::any_of(detected.begin(), detected.end(), [type](const GameInstallation& inst) {
+        return std::any_of(result.installations.begin(), result.installations.end(), [type](const GameInstallation& inst) {
             return inst.type() == type;
         });
     };
 
     for (const auto& lib : libraries) {
         if (!lib.path.isValid() || !lib.path.isDirectory()) {
+            result.warnings.append(QStringLiteral("Invalid Steam library path: %1").arg(lib.path.toString()));
             continue;
         }
 
@@ -75,7 +102,7 @@ std::vector<GameInstallation> GameDetectService::detectAllGames(
                     auto validated = def->isSource2() ? validateSource2(candidateDir, def->type)
                                                       : validateSource1(def->type, candidateDir);
                     if (validated.has_value()) {
-                        detected.push_back(std::move(*validated));
+                        result.installations.push_back(std::move(*validated));
                         continue;
                     }
                 }
@@ -86,14 +113,20 @@ std::vector<GameInstallation> GameDetectService::detectAllGames(
                     auto validated = def->isSource2() ? validateSource2(candidateDir, def->type)
                                                       : validateSource1(def->type, candidateDir);
                     if (validated.has_value()) {
-                        detected.push_back(std::move(*validated));
+                        result.installations.push_back(std::move(*validated));
                     }
                 }
             }
         }
     }
 
-    return detected;
+    return result;
+}
+
+std::vector<GameInstallation> GameDetectService::detectAllGames(
+    const Core::Path::FilesystemPath& customSteamPath)
+{
+    return detectEnvironment(customSteamPath).installations;
 }
 
 std::optional<GameInstallation> GameDetectService::detectGame(

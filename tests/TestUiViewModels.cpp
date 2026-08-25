@@ -160,6 +160,24 @@ private slots:
 
         QVERIFY(!controller.appVersion().isEmpty());
     }
+
+    void testGameViewModelAsyncAutoDetect() {
+        GameViewModel vm;
+        QSignalSpy spyDetecting(&vm, &GameViewModel::isDetectingChanged);
+        QSignalSpy spyFinished(&vm, &GameViewModel::detectionFinished);
+
+        QVERIFY(!vm.isDetecting());
+
+        vm.autoDetect();
+        QVERIFY(spyDetecting.size() >= 1);
+
+        // Calling autoDetect again while already detecting should be ignored
+        vm.autoDetect();
+
+        // Wait for asynchronous detection to finish
+        QTRY_VERIFY_WITH_TIMEOUT(spyFinished.size() >= 1, 5000);
+        QVERIFY(!vm.isDetecting());
+    }
 };
 
 QTEST_MAIN(TestUiViewModels)

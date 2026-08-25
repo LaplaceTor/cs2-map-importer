@@ -33,9 +33,14 @@ class GameViewModel : public QObject {
     Q_PROPERTY(QStringList s2AddonsList READ s2AddonsList NOTIFY s2AddonsListChanged)
     Q_PROPERTY(QString selectedAddon READ selectedAddon WRITE setSelectedAddon NOTIFY selectedAddonChanged)
 
+    // Detection State
+    Q_PROPERTY(bool isDetecting READ isDetecting NOTIFY isDetectingChanged)
+
 public:
     explicit GameViewModel(QObject* parent = nullptr);
     ~GameViewModel() override = default;
+
+    bool isDetecting() const noexcept { return m_isDetecting; }
 
     QStringList s1GameTypes() const;
     QString selectedS1Type() const noexcept { return m_selectedS1Type; }
@@ -78,14 +83,20 @@ signals:
     void s2AddonsListChanged();
     void selectedAddonChanged();
 
+    void isDetectingChanged();
+    void detectionFinished();
+
     void alertRequested(const QString& title, const QString& message);
 
 private:
     Domain::Game::GameType parseS1Type(const QString& typeStr) const;
     Domain::Game::GameType parseS2Type(const QString& typeStr) const;
     QString cleanInputPath(const QString& pathOrUrl) const;
+    void applyDetectionResult(const Application::Environment::DetectionResult& result);
     void applyS1Installation(const Application::Environment::GameInstallation& inst);
     void applyS2Installation(const Application::Environment::GameInstallation& inst);
+
+    bool m_isDetecting = false;
 
     QString m_selectedS1Type = QStringLiteral("CSGO");
     QString m_s1GamePath;
