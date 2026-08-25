@@ -5,13 +5,8 @@
 #include <QStringList>
 #include <QHash>
 #include <memory>
+#include "Application/Environment/GameEnvironmentService.h"
 #include "Application/Environment/GameInstallation.h"
-#include "Application/Environment/GameDetectService.h"
-#include "Application/Environment/SteamService.h"
-#include "Application/Environment/VpkSignatureLeaseService.h"
-#include "Domain/Game/GameType.h"
-#include "Domain/Game/GameRegistry.h"
-#include "Core/Path/FilesystemPath.h"
 
 namespace UI::ViewModels {
 
@@ -39,7 +34,7 @@ class GameViewModel : public QObject {
     Q_PROPERTY(bool isDetecting READ isDetecting NOTIFY isDetectingChanged)
 
 public:
-    explicit GameViewModel(Application::Environment::VpkSignatureLeaseService* vpkLeaseService = nullptr, QObject* parent = nullptr);
+    explicit GameViewModel(Application::Environment::GameEnvironmentService* envService = nullptr, QObject* parent = nullptr);
     ~GameViewModel() override = default;
 
     bool isDetecting() const noexcept { return m_isDetecting; }
@@ -59,8 +54,8 @@ public:
     QString selectedAddon() const noexcept { return m_selectedAddon; }
     bool isVpkLeaseHeld() const noexcept;
 
-    void setVpkSignatureLeaseService(Application::Environment::VpkSignatureLeaseService* service);
-    Application::Environment::VpkSignatureLeaseService* vpkSignatureLeaseService() const noexcept { return m_vpkLeaseService; }
+    void setEnvironmentService(Application::Environment::GameEnvironmentService* envService);
+    Application::Environment::GameEnvironmentService* environmentService() const noexcept { return m_envService; }
 
     const Application::Environment::GameInstallation& s1Installation() const noexcept { return m_s1Installation; }
     const Application::Environment::GameInstallation& s2Installation() const noexcept { return m_s2Installation; }
@@ -98,9 +93,6 @@ signals:
     void vpkSignatureOccupied(const QString& title, const QString& message);
 
 private:
-    Domain::Game::GameType parseS1Type(const QString& typeStr) const;
-    Domain::Game::GameType parseS2Type(const QString& typeStr) const;
-    QString cleanInputPath(const QString& pathOrUrl) const;
     void applyDetectionResult(const Application::Environment::DetectionResult& result);
     void applyS1Installation(const Application::Environment::GameInstallation& inst);
     void applyS2Installation(const Application::Environment::GameInstallation& inst);
@@ -114,18 +106,19 @@ private:
     bool m_isS1Valid = false;
     Application::Environment::GameInstallation m_s1Installation;
 
-    QString m_selectedS2Type = QStringLiteral("cs2");
+    QString m_selectedS2Type = QStringLiteral("Counter-Strike 2");
     QString m_s2GamePath;
     QString m_s2GameTitle;
     bool m_isS2Valid = false;
     QStringList m_s2AddonsList;
     QString m_selectedAddon;
     Application::Environment::GameInstallation m_s2Installation;
-    Application::Environment::VpkSignatureLeaseService* m_vpkLeaseService = nullptr;
 
-    // Cache for detected installations across Steam libraries: [GameType -> GameInstallation]
-    QHash<Domain::Game::GameType, Application::Environment::GameInstallation> m_detectedGames;
+    std::unique_ptr<Application::Environment::GameEnvironmentService> m_ownedEnvService;
+    Application::Environment::GameEnvironmentService* m_envService = nullptr;
+
+    // Cache for detected installations across Steam libraries: [normalized identifier -> GameInstallation]
+    QHash<QString, Application::Environment::GameInstallation> m_detectedGames;
 };
 
 } // namespace UI::ViewModels
-

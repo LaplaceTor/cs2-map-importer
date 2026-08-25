@@ -9,8 +9,6 @@ qt_add_library(cs2importer_ui STATIC
 
 target_link_libraries(cs2importer_ui PUBLIC
     cs2importer_application
-    cs2importer_domain
-    cs2importer_core
     Qt6::Core
     Qt6::Gui
     Qt6::Qml
@@ -24,4 +22,3 @@ target_include_directories(cs2importer_ui PUBLIC
 
 set(APP_VERSION "${PROJECT_VERSION}" CACHE STRING "Application version")
 target_compile_definitions(cs2importer_ui PRIVATE "APP_VERSION=\"${APP_VERSION}\"")
-

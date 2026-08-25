@@ -1,106 +1,52 @@
 #include "UI/ViewModels/GameViewModel.h"
-#include "Core/Path/PathUtils.h"
-#include <QDir>
-#include <QUrl>
 
 namespace UI::ViewModels {
 
-GameViewModel::GameViewModel(Application::Environment::VpkSignatureLeaseService* vpkLeaseService, QObject* parent)
+GameViewModel::GameViewModel(Application::Environment::GameEnvironmentService* envService, QObject* parent)
     : QObject(parent)
 {
-    setVpkSignatureLeaseService(vpkLeaseService);
+    setEnvironmentService(envService);
 }
 
-void GameViewModel::setVpkSignatureLeaseService(Application::Environment::VpkSignatureLeaseService* service) {
-    if (m_vpkLeaseService == service) {
+void GameViewModel::setEnvironmentService(Application::Environment::GameEnvironmentService* envService) {
+    if (m_envService == envService && m_envService != nullptr) {
         return;
     }
-    if (m_vpkLeaseService) {
-        disconnect(m_vpkLeaseService, nullptr, this, nullptr);
+
+    if (m_envService && m_envService->vpkSignatureLeaseService()) {
+        disconnect(m_envService->vpkSignatureLeaseService(), nullptr, this, nullptr);
     }
-    m_vpkLeaseService = service;
-    if (m_vpkLeaseService) {
-        connect(m_vpkLeaseService, &Application::Environment::VpkSignatureLeaseService::leaseStateChanged,
+
+    if (envService) {
+        m_ownedEnvService.reset();
+        m_envService = envService;
+    } else {
+        m_ownedEnvService = std::make_unique<Application::Environment::GameEnvironmentService>(nullptr, this);
+        m_envService = m_ownedEnvService.get();
+    }
+
+    if (m_envService && m_envService->vpkSignatureLeaseService()) {
+        connect(m_envService->vpkSignatureLeaseService(), &Application::Environment::VpkSignatureLeaseService::leaseStateChanged,
                 this, &GameViewModel::vpkLeaseStateChanged);
+        connect(m_envService->vpkSignatureLeaseService(), &Application::Environment::VpkSignatureLeaseService::leaseStatusChanged,
+                this, &GameViewModel::onVpkLeaseStatusChanged);
     }
+
     emit vpkLeaseStateChanged();
 }
 
 bool GameViewModel::isVpkLeaseHeld() const noexcept {
-    return m_vpkLeaseService ? m_vpkLeaseService->isLeaseHeld() : false;
+    return (m_envService && m_envService->vpkSignatureLeaseService())
+        ? m_envService->vpkSignatureLeaseService()->isLeaseHeld()
+        : false;
 }
 
 QStringList GameViewModel::s1GameTypes() const {
-    return {
-        QStringLiteral("CSGO"),
-        QStringLiteral("CS: Source"),
-        QStringLiteral("Half-Life 2"),
-        QStringLiteral("Left 4 Dead"),
-        QStringLiteral("Left 4 Dead 2"),
-        QStringLiteral("Portal"),
-        QStringLiteral("Portal 2"),
-        QStringLiteral("Team Fortress 2"),
-        QStringLiteral("Garry's Mod"),
-        QStringLiteral("Black Mesa"),
-        QStringLiteral("Custom")
-    };
+    return m_envService ? m_envService->s1GameTypes() : QStringList();
 }
 
 QStringList GameViewModel::s2GameTypes() const {
-    return {
-        QStringLiteral("Counter-Strike 2")
-    };
-}
-
-Domain::Game::GameType GameViewModel::parseS1Type(const QString& typeStr) const {
-    const QString lower = typeStr.trimmed().toLower();
-    if (lower == QStringLiteral("cs: global offensive") || lower == QStringLiteral("cs:go") || lower == QStringLiteral("counter-strike: global offensive") || lower == QStringLiteral("counter-strike global offensive") || lower == QStringLiteral("csgo")) {
-        return Domain::Game::GameType::CSGO;
-    }
-    if (lower == QStringLiteral("cs: source") || lower == QStringLiteral("cs:s") || lower == QStringLiteral("counter-strike: source") || lower == QStringLiteral("counter-strike source") || lower == QStringLiteral("css")) {
-        return Domain::Game::GameType::CSS;
-    }
-    if (lower == QStringLiteral("half-life 2") || lower == QStringLiteral("hl2")) {
-        return Domain::Game::GameType::HL2;
-    }
-    if (lower == QStringLiteral("left 4 dead") || lower == QStringLiteral("l4d")) {
-        return Domain::Game::GameType::L4D;
-    }
-    if (lower == QStringLiteral("left 4 dead 2") || lower == QStringLiteral("l4d2")) {
-        return Domain::Game::GameType::L4D2;
-    }
-    if (lower == QStringLiteral("portal")) {
-        return Domain::Game::GameType::Portal;
-    }
-    if (lower == QStringLiteral("portal 2") || lower == QStringLiteral("portal2")) {
-        return Domain::Game::GameType::Portal2;
-    }
-    if (lower == QStringLiteral("team fortress 2") || lower == QStringLiteral("tf2")) {
-        return Domain::Game::GameType::TF2;
-    }
-    if (lower == QStringLiteral("garry's mod") || lower == QStringLiteral("garrysmod") || lower == QStringLiteral("gmod")) {
-        return Domain::Game::GameType::GMod;
-    }
-    if (lower == QStringLiteral("black mesa") || lower == QStringLiteral("blackmesa")) {
-        return Domain::Game::GameType::BlackMesa;
-    }
-    if (lower == QStringLiteral("custom") || lower == QStringLiteral("custom game") || lower == QStringLiteral("other") || lower == QStringLiteral("other source 1 game")) {
-        return Domain::Game::GameType::Custom;
-    }
-    return Domain::Game::GameRegistry::stringToGameType(lower);
-}
-
-Domain::Game::GameType GameViewModel::parseS2Type(const QString& typeStr) const {
-    return Domain::Game::GameRegistry::stringToGameType(typeStr);
-}
-
-QString GameViewModel::cleanInputPath(const QString& pathOrUrl) const {
-    if (pathOrUrl.isEmpty()) {
-        return QString();
-    }
-    QUrl url(pathOrUrl);
-    QString path = url.isLocalFile() ? url.toLocalFile() : pathOrUrl;
-    return Core::Path::PathUtils::normalize(path);
+    return m_envService ? m_envService->s2GameTypes() : QStringList();
 }
 
 void GameViewModel::applyS1Installation(const Application::Environment::GameInstallation& inst) {
@@ -126,19 +72,22 @@ void GameViewModel::applyS2Installation(const Application::Environment::GameInst
 
     refreshS2Addons();
 
-    // Delegate vpk.signatures lease lifecycle entirely to the Application service
-    if (m_vpkLeaseService) {
-        m_vpkLeaseService->updateInstallation(inst);
+    if (m_envService) {
+        m_envService->updateVpkLease(inst);
     }
 }
 
 void GameViewModel::retryVpkSignatureLease() {
-    if (m_vpkLeaseService) {
-        m_vpkLeaseService->retryLease();
+    if (m_envService) {
+        m_envService->retryVpkLease();
     }
 }
 
-void GameViewModel::onVpkLeaseStatusChanged(Application::Environment::VpkSignatureLeaseStatus status, const QString& filePath, const QString& systemMessage) {
+void GameViewModel::onVpkLeaseStatusChanged(
+    Application::Environment::VpkSignatureLeaseStatus status,
+    const QString& filePath,
+    const QString& systemMessage)
+{
     switch (status) {
     case Application::Environment::VpkSignatureLeaseStatus::AlreadyInUse:
         emit vpkSignatureOccupied(
@@ -167,14 +116,14 @@ void GameViewModel::onVpkLeaseStatusChanged(Application::Environment::VpkSignatu
 }
 
 void GameViewModel::autoDetect() {
-    if (m_isDetecting) {
+    if (m_isDetecting || !m_envService) {
         return;
     }
 
     m_isDetecting = true;
     emit isDetectingChanged();
 
-    Application::Environment::GameDetectService::detectEnvironmentAsync(
+    m_envService->detectEnvironmentAsync(
         this,
         [this](const Application::Environment::DetectionResult& result) {
             applyDetectionResult(result);
@@ -187,31 +136,36 @@ void GameViewModel::applyDetectionResult(const Application::Environment::Detecti
 
     for (const auto& game : result.installations) {
         if (game.isValid()) {
-            m_detectedGames.insert(game.type(), game);
+            if (!game.gameId().isEmpty()) {
+                m_detectedGames.insert(game.gameId().toLower(), game);
+            }
+            if (!game.displayName().isEmpty()) {
+                m_detectedGames.insert(game.displayName().toLower(), game);
+            }
         }
     }
 
     // Auto-select CS2 if found
-    auto itCs2 = m_detectedGames.find(Domain::Game::GameType::CS2);
+    auto itCs2 = m_detectedGames.find(QStringLiteral("cs2"));
+    if (itCs2 == m_detectedGames.end()) {
+        itCs2 = m_detectedGames.find(QStringLiteral("counter-strike 2"));
+    }
     if (itCs2 != m_detectedGames.end()) {
         applyS2Installation(itCs2.value());
     }
 
     // Auto-select current S1 game if found
-    Domain::Game::GameType activeType = parseS1Type(m_selectedS1Type);
-    auto itS1 = m_detectedGames.find(activeType);
+    const QString currentS1Key = m_selectedS1Type.trimmed().toLower();
+    auto itS1 = m_detectedGames.find(currentS1Key);
     if (itS1 != m_detectedGames.end()) {
         applyS1Installation(itS1.value());
-    } else if (activeType == Domain::Game::GameType::CSGO) {
-        // If CSGO is default and not found, check CSS or HL2
-        for (const auto& fallbackType : {Domain::Game::GameType::CSS, Domain::Game::GameType::HL2, Domain::Game::GameType::L4D2, Domain::Game::GameType::TF2}) {
-            auto itFallback = m_detectedGames.find(fallbackType);
+    } else if (currentS1Key == QStringLiteral("csgo") || currentS1Key == QStringLiteral("cs:go")) {
+        // Fallback checks
+        for (const QString& fallbackKey : {QStringLiteral("css"), QStringLiteral("cs: source"), QStringLiteral("hl2"), QStringLiteral("half-life 2"), QStringLiteral("l4d2"), QStringLiteral("left 4 dead 2"), QStringLiteral("tf2"), QStringLiteral("team fortress 2")}) {
+            auto itFallback = m_detectedGames.find(fallbackKey);
             if (itFallback != m_detectedGames.end()) {
-                const auto* def = Domain::Game::GameRegistry::findByType(fallbackType);
-                if (def) {
-                    m_selectedS1Type = def->displayName;
-                    emit selectedS1TypeChanged();
-                }
+                m_selectedS1Type = itFallback.value().displayName();
+                emit selectedS1TypeChanged();
                 applyS1Installation(itFallback.value());
                 break;
             }
@@ -224,126 +178,141 @@ void GameViewModel::applyDetectionResult(const Application::Environment::Detecti
 }
 
 void GameViewModel::setSelectedS1Type(const QString& typeId) {
-    if (m_selectedS1Type != typeId) {
-        m_selectedS1Type = typeId;
-        emit selectedS1TypeChanged();
+    if (m_selectedS1Type == typeId) {
+        return;
+    }
 
-        Domain::Game::GameType type = parseS1Type(typeId);
-        auto it = m_detectedGames.find(type);
-        if (it != m_detectedGames.end()) {
-            applyS1Installation(it.value());
-        } else {
-            // Check if existing path is valid for this newly selected type
-            if (!m_s1GamePath.isEmpty() && type != Domain::Game::GameType::Custom) {
-                auto validated = Application::Environment::GameDetectService::validateSource1(type, Core::Path::FilesystemPath(m_s1GamePath));
-                if (validated.has_value() && validated->isValid()) {
-                    m_detectedGames.insert(type, *validated);
-                    applyS1Installation(*validated);
-                    return;
-                }
-            }
-            // Reset validation for newly selected game
-            m_s1Installation = Application::Environment::GameInstallation();
-            m_s1GamePath.clear();
-            m_s1GameTitle.clear();
-            m_isS1Valid = false;
+    m_selectedS1Type = typeId;
+    emit selectedS1TypeChanged();
 
-            emit s1GamePathChanged();
-            emit s1GameTitleChanged();
-            emit s1ValidityChanged();
+    const QString key = typeId.trimmed().toLower();
+    auto it = m_detectedGames.find(key);
+    if (it != m_detectedGames.end()) {
+        applyS1Installation(it.value());
+        return;
+    }
+
+    // Check if existing path is valid for this newly selected type
+    if (!m_s1GamePath.isEmpty() && key != QStringLiteral("custom") && m_envService) {
+        auto validated = m_envService->validateSource1Folder(typeId, m_s1GamePath);
+        if (validated.has_value() && validated->isValid()) {
+            m_detectedGames.insert(key, *validated);
+            applyS1Installation(*validated);
+            return;
         }
     }
+
+    // Reset validation for newly selected game
+    m_s1Installation = Application::Environment::GameInstallation();
+    m_s1GamePath.clear();
+    m_s1GameTitle.clear();
+    m_isS1Valid = false;
+
+    emit s1GamePathChanged();
+    emit s1GameTitleChanged();
+    emit s1ValidityChanged();
 }
 
 void GameViewModel::setSelectedS2Type(const QString& typeId) {
-    if (m_selectedS2Type != typeId) {
-        m_selectedS2Type = typeId;
-        emit selectedS2TypeChanged();
+    if (m_selectedS2Type == typeId) {
+        return;
+    }
 
-        Domain::Game::GameType type = parseS2Type(typeId);
-        auto it = m_detectedGames.find(type);
-        if (it != m_detectedGames.end()) {
-            applyS2Installation(it.value());
-        } else {
-            m_s2Installation = Application::Environment::GameInstallation();
-            if (m_vpkLeaseService) {
-                m_vpkLeaseService->updateInstallation(m_s2Installation);
-            }
-            m_s2GamePath.clear();
-            m_s2GameTitle.clear();
-            m_isS2Valid = false;
-            m_s2AddonsList.clear();
-            m_selectedAddon.clear();
+    m_selectedS2Type = typeId;
+    emit selectedS2TypeChanged();
 
-            emit s2GamePathChanged();
-            emit s2GameTitleChanged();
-            emit s2ValidityChanged();
-            emit s2AddonsListChanged();
-            emit selectedAddonChanged();
+    const QString key = typeId.trimmed().toLower();
+    auto it = m_detectedGames.find(key);
+    if (it != m_detectedGames.end()) {
+        applyS2Installation(it.value());
+    } else {
+        m_s2Installation = Application::Environment::GameInstallation();
+        if (m_envService) {
+            m_envService->updateVpkLease(m_s2Installation);
         }
+        m_s2GamePath.clear();
+        m_s2GameTitle.clear();
+        m_isS2Valid = false;
+        m_s2AddonsList.clear();
+        m_selectedAddon.clear();
+
+        emit s2GamePathChanged();
+        emit s2GameTitleChanged();
+        emit s2ValidityChanged();
+        emit s2AddonsListChanged();
+        emit selectedAddonChanged();
     }
 }
 
 void GameViewModel::selectS1Folder(const QString& pathOrUrl) {
-    QString rawPath = cleanInputPath(pathOrUrl);
-    if (rawPath.isEmpty()) {
+    if (pathOrUrl.isEmpty() || !m_envService) {
         return;
     }
 
-    Core::Path::FilesystemPath fsPath(rawPath);
-    Domain::Game::GameType activeType = parseS1Type(m_selectedS1Type);
+    const QString capturedType = m_selectedS1Type;
 
-    std::optional<Application::Environment::GameInstallation> validated = std::nullopt;
-    if (activeType == Domain::Game::GameType::Custom) {
-        validated = Application::Environment::GameDetectService::inspectGameInfo(fsPath);
-    } else {
-        validated = Application::Environment::GameDetectService::validateSource1(activeType, fsPath);
-    }
+    m_envService->validateSource1FolderAsync(
+        capturedType,
+        pathOrUrl,
+        this,
+        [this, capturedType](const std::optional<Application::Environment::GameInstallation>& validated) {
+            if (validated.has_value() && validated->isValid()) {
+                const QString key = capturedType.trimmed().toLower();
+                m_detectedGames.insert(key, *validated);
+                if (!validated->gameId().isEmpty()) {
+                    m_detectedGames.insert(validated->gameId().toLower(), *validated);
+                }
+                applyS1Installation(*validated);
+            } else {
+                m_isS1Valid = false;
+                emit s1ValidityChanged();
 
-    if (validated.has_value() && validated->isValid()) {
-        m_detectedGames.insert(activeType, *validated);
-        applyS1Installation(*validated);
-    } else {
-        m_isS1Valid = false;
-        emit s1ValidityChanged();
-
-        emit alertRequested(
-            QStringLiteral("Invalid Source 1 Installation"),
-            QStringLiteral("The selected directory is not a valid installation for the selected game.\nPlease verify that it contains the expected game files and gameinfo.txt.")
-        );
-    }
+                emit alertRequested(
+                    QStringLiteral("Invalid Source 1 Installation"),
+                    QStringLiteral("The selected directory is not a valid installation for the selected game.\nPlease verify that it contains the expected game files and gameinfo.txt.")
+                );
+            }
+        }
+    );
 }
 
 void GameViewModel::selectS2Folder(const QString& pathOrUrl) {
-    QString rawPath = cleanInputPath(pathOrUrl);
-    if (rawPath.isEmpty()) {
+    if (pathOrUrl.isEmpty() || !m_envService) {
         return;
     }
 
-    Core::Path::FilesystemPath fsPath(rawPath);
-    auto validated = Application::Environment::GameDetectService::validateSource2(fsPath);
+    m_envService->validateSource2FolderAsync(
+        pathOrUrl,
+        this,
+        [this](const std::optional<Application::Environment::GameInstallation>& validated) {
+            if (validated.has_value() && validated->isValid()) {
+                if (!validated->gameId().isEmpty()) {
+                    m_detectedGames.insert(validated->gameId().toLower(), *validated);
+                }
+                applyS2Installation(*validated);
+            } else {
+                m_s2Installation = Application::Environment::GameInstallation();
+                if (m_envService) {
+                    m_envService->updateVpkLease(m_s2Installation);
+                }
+                m_isS2Valid = false;
+                emit s2ValidityChanged();
 
-    if (validated.has_value() && validated->isValid()) {
-        m_detectedGames.insert(validated->type(), *validated);
-        applyS2Installation(*validated);
-    } else {
-        m_s2Installation = Application::Environment::GameInstallation();
-        if (m_vpkLeaseService) {
-            m_vpkLeaseService->updateInstallation(m_s2Installation);
+                emit alertRequested(
+                    QStringLiteral("Invalid Source 2 Installation"),
+                    QStringLiteral("The selected folder is not a valid Source 2 installation.\nPlease ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.")
+                );
+            }
         }
-        m_isS2Valid = false;
-        emit s2ValidityChanged();
-
-        emit alertRequested(
-            QStringLiteral("Invalid Source 2 Installation"),
-            QStringLiteral("The selected folder is not a valid Source 2 installation.\nPlease ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.")
-        );
-    }
+    );
 }
 
 void GameViewModel::validateS1InSteam() {
-    Domain::Game::GameType type = m_s1Installation.isValid() ? m_s1Installation.type() : parseS1Type(m_selectedS1Type);
-    bool ok = Application::Environment::SteamService::validateGameFiles(type);
+    if (!m_envService) {
+        return;
+    }
+    const QString target = m_s1Installation.isValid() ? m_s1Installation.gameId() : m_selectedS1Type;
+    bool ok = m_envService->validateGameInSteam(target);
     if (!ok) {
         emit alertRequested(
             QStringLiteral("Steam Validation Unavailable"),
@@ -353,8 +322,11 @@ void GameViewModel::validateS1InSteam() {
 }
 
 void GameViewModel::validateS2InSteam() {
-    Domain::Game::GameType type = m_s2Installation.isValid() ? m_s2Installation.type() : parseS2Type(m_selectedS2Type);
-    bool ok = Application::Environment::SteamService::validateGameFiles(type);
+    if (!m_envService) {
+        return;
+    }
+    const QString target = m_s2Installation.isValid() ? m_s2Installation.gameId() : m_selectedS2Type;
+    bool ok = m_envService->validateGameInSteam(target);
     if (!ok) {
         emit alertRequested(
             QStringLiteral("Steam Validation Unavailable"),
@@ -372,15 +344,8 @@ void GameViewModel::setSelectedAddon(const QString& addon) {
 
 void GameViewModel::refreshS2Addons() {
     QStringList addons;
-    if (m_s2Installation.isValid()) {
-        Core::Path::FilesystemPath addonsDir = m_s2Installation.addonGameDirectory();
-        if (addonsDir.isValid() && addonsDir.exists() && addonsDir.isDirectory()) {
-            QDir dir(addonsDir.toString());
-            const QStringList entries = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-            for (const auto& entry : entries) {
-                addons.append(entry);
-            }
-        }
+    if (m_envService && m_s2Installation.isValid()) {
+        addons = m_envService->listSource2Addons(m_s2Installation);
     }
 
     m_s2AddonsList = addons;
@@ -396,4 +361,3 @@ void GameViewModel::refreshS2Addons() {
 }
 
 } // namespace UI::ViewModels
-

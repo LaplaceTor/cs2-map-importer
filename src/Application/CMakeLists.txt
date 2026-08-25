@@ -1,11 +1,15 @@
 qt_add_library(cs2importer_application STATIC
     Environment/GameInstallation.h
+    Environment/GameInstallationValidator.h
+    Environment/GameInstallationValidator.cpp
     Environment/SteamService.h
     Environment/SteamService.cpp
     Environment/GameDetectService.h
     Environment/GameDetectService.cpp
     Environment/VpkSignatureLeaseService.h
     Environment/VpkSignatureLeaseService.cpp
+    Environment/GameEnvironmentService.h
+    Environment/GameEnvironmentService.cpp
 )
 
 target_link_libraries(cs2importer_application PUBLIC
@@ -18,4 +22,3 @@ target_link_libraries(cs2importer_application PUBLIC
 target_include_directories(cs2importer_application PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
 )
-

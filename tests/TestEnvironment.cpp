@@ -4,6 +4,8 @@
 #include <QFile>
 #include "Application/Environment/SteamService.h"
 #include "Application/Environment/GameDetectService.h"
+#include "Application/Environment/GameInstallationValidator.h"
+#include "Application/Environment/GameEnvironmentService.h"
 #include "Application/Environment/GameInstallation.h"
 #include "Domain/Game/GameType.h"
 #include "Domain/Game/GameRegistry.h"
@@ -382,6 +384,38 @@ private slots:
         });
 
         QTRY_VERIFY_WITH_TIMEOUT(finished, 5000);
+    }
+
+    void testGameInstallationValidatorDirect() {
+        QString cssDirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source"));
+        auto cssValidation = GameInstallationValidator::validateSource1(GameType::CSS, Core::Path::FilesystemPath(cssDirStr));
+        QVERIFY(cssValidation.has_value());
+        QCOMPARE(cssValidation->type(), GameType::CSS);
+        QCOMPARE(cssValidation->gameTitle(), QStringLiteral("Counter-Strike Source"));
+
+        QString customGiPath = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source/cstrike/gameinfo.txt"));
+        auto customValidation = GameInstallationValidator::inspectGameInfo(Core::Path::FilesystemPath(customGiPath));
+        QVERIFY(customValidation.has_value());
+        QCOMPARE(customValidation->type(), GameType::CSS);
+    }
+
+    void testGameEnvironmentServiceFacade() {
+        GameEnvironmentService envService;
+        QCOMPARE(envService.s1GameTypes().contains(QStringLiteral("CSGO")), true);
+        QCOMPARE(envService.s2GameTypes().contains(QStringLiteral("Counter-Strike 2")), true);
+
+        QString cssDirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source"));
+        auto cssRes = envService.validateSource1Folder(QStringLiteral("CS: Source"), cssDirStr);
+        QVERIFY(cssRes.has_value());
+        QCOMPARE(cssRes->gameTitle(), QStringLiteral("Counter-Strike Source"));
+
+        bool asyncFinished = false;
+        envService.validateSource1FolderAsync(QStringLiteral("CS: Source"), cssDirStr, this, [&](const std::optional<GameInstallation>& res) {
+            asyncFinished = true;
+            QVERIFY(res.has_value());
+            QCOMPARE(res->gameTitle(), QStringLiteral("Counter-Strike Source"));
+        });
+        QTRY_VERIFY_WITH_TIMEOUT(asyncFinished, 5000);
     }
 };
 

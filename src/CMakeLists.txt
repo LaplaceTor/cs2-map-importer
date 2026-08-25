@@ -25,9 +25,6 @@ qt_add_resources(cs2importer "cs2importer_icons"
 
 target_link_libraries(cs2importer PRIVATE
     cs2importer_ui
-    cs2importer_application
-    cs2importer_domain
-    cs2importer_core
     cs2importer_qml
     cs2importer_qmlplugin
     Qt6::Core

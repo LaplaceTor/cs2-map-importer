@@ -7,6 +7,8 @@
 #include "UI/ViewModels/GameViewModel.h"
 #include "UI/ViewModels/LogViewModel.h"
 #include "UI/Controllers/MainController.h"
+#include "Application/Environment/GameEnvironmentService.h"
+#include "Application/Environment/VpkSignatureLeaseService.h"
 #include "Domain/Game/GameType.h"
 
 using namespace UI::ViewModels;
@@ -55,7 +57,7 @@ private slots:
         QString cssDir = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source"));
         vm.selectS1Folder(cssDir);
 
-        QVERIFY(vm.isS1Valid());
+        QTRY_VERIFY(vm.isS1Valid());
         QCOMPARE(vm.s1GameTitle(), QStringLiteral("Counter-Strike Source"));
         QVERIFY(vm.s1Installation().isValid());
         QCOMPARE(vm.s1Installation().type(), Domain::Game::GameType::CSS);
@@ -71,7 +73,7 @@ private slots:
         QString cssGiPath = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source/cstrike/gameinfo.txt"));
         vm.selectS1Folder(cssGiPath);
 
-        QVERIFY(vm.isS1Valid());
+        QTRY_VERIFY(vm.isS1Valid());
         // Must remain "Custom" and not automatically jump to "CS: Source"
         QCOMPARE(vm.selectedS1Type(), QStringLiteral("Custom"));
         QCOMPARE(vm.s1GameTitle(), QStringLiteral("Counter-Strike Source"));
@@ -110,7 +112,7 @@ private slots:
         GameViewModel vm;
         vm.selectS2Folder(tempDir.path());
 
-        QVERIFY(vm.isS2Valid());
+        QTRY_VERIFY(vm.isS2Valid());
         QCOMPARE(vm.s2GameTitle(), QStringLiteral("Counter-Strike 2"));
         QVERIFY(vm.s2Installation().isValid());
         QCOMPARE(vm.s2Installation().type(), Domain::Game::GameType::CS2);
@@ -171,7 +173,6 @@ private slots:
         vm.autoDetect();
         QVERIFY(spyDetecting.size() >= 1);
 
-        // Calling autoDetect again while already detecting should be ignored
         // Wait for asynchronous detection to finish
         QTRY_VERIFY_WITH_TIMEOUT(spyFinished.size() >= 1, 5000);
         QVERIFY(!vm.isDetecting());
@@ -213,13 +214,14 @@ private slots:
         giFile.close();
 
         Application::Environment::VpkSignatureLeaseService leaseService;
-        GameViewModel vm(&leaseService);
+        Application::Environment::GameEnvironmentService envService(&leaseService);
+        GameViewModel vm(&envService);
         QSignalSpy spyLeaseState(&vm, &GameViewModel::vpkLeaseStateChanged);
 
         QVERIFY(!vm.isVpkLeaseHeld());
         vm.selectS2Folder(tempDir.path());
 
-        QVERIFY(vm.isS2Valid());
+        QTRY_VERIFY(vm.isS2Valid());
         QVERIFY(vm.isVpkLeaseHeld());
         QVERIFY(leaseService.isLeaseHeld());
         QVERIFY(spyLeaseState.size() >= 1);
@@ -233,5 +235,3 @@ private slots:
 
 QTEST_MAIN(TestUiViewModels)
 #include "TestUiViewModels.moc"
-
-

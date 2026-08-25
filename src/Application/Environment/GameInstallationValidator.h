@@ -1,0 +1,47 @@
+#pragma once
+
+#include "Application/Environment/GameInstallation.h"
+#include "Domain/Game/GameType.h"
+#include "Domain/Game/GameDefinition.h"
+#include "Domain/Game/GameRegistry.h"
+#include "Domain/Game/GameValidator.h"
+#include "Domain/Game/GameInfoParser.h"
+#include "Core/Path/FilesystemPath.h"
+#include <optional>
+
+namespace Application::Environment {
+
+/**
+ * @brief Application service responsible for validating game installations,
+ * searching gameinfo files, and constructing GameInstallation metadata.
+ */
+class GameInstallationValidator {
+public:
+    // Validates a Source 1 game installation directory against expected GameType
+    static std::optional<GameInstallation> validateSource1(
+        Domain::Game::GameType type,
+        const Core::Path::FilesystemPath& directory);
+
+    // Validates a Source 2 game installation directory or gameinfo.gi file
+    static std::optional<GameInstallation> validateSource2(
+        const Core::Path::FilesystemPath& directory,
+        Domain::Game::GameType type = Domain::Game::GameType::Unknown);
+
+    // Inspects an arbitrary gameinfo.txt or gameinfo.gi file/directory and creates a GameInstallation
+    static std::optional<GameInstallation> inspectGameInfo(
+        const Core::Path::FilesystemPath& gameInfoPath);
+
+    // Generic entry point that validates a user-supplied directory according to GameType
+    static std::optional<GameInstallation> validateGameDirectory(
+        Domain::Game::GameType type,
+        const Core::Path::FilesystemPath& directory);
+
+    // Constructs a GameInstallation value object from parsed GameInfo
+    static std::optional<GameInstallation> createInstallationFromGameInfo(
+        Domain::Game::GameType type,
+        const Core::Path::FilesystemPath& baseDir,
+        const Domain::Game::GameInfo& info);
+};
+
+} // namespace Application::Environment
+

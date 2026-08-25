@@ -2,9 +2,11 @@
 
 #include <QString>
 #include <QObject>
+#include <memory>
 #include "Application/Environment/GameInstallation.h"
 #include "Core/FileSystem/FileLease.h"
 #include "Core/Path/FilesystemPath.h"
+#include "Core/Logging/TaskLoggingContext.h"
 
 namespace Application::Environment {
 
@@ -39,11 +41,20 @@ class VpkSignatureLeaseService : public QObject
     Q_OBJECT
 
 public:
-    explicit VpkSignatureLeaseService(QObject* parent = nullptr);
+    explicit VpkSignatureLeaseService(
+        std::shared_ptr<Core::Logging::TaskLoggingContext> loggingContext = nullptr,
+        QObject* parent = nullptr);
+    explicit VpkSignatureLeaseService(QObject* parent);
     ~VpkSignatureLeaseService() override;
 
     VpkSignatureLeaseService(const VpkSignatureLeaseService&) = delete;
     VpkSignatureLeaseService& operator=(const VpkSignatureLeaseService&) = delete;
+
+    /**
+     * @brief Set or update the task-oriented logging context.
+     */
+    void setLoggingContext(std::shared_ptr<Core::Logging::TaskLoggingContext> loggingContext) noexcept;
+    std::shared_ptr<Core::Logging::TaskLoggingContext> loggingContext() const noexcept { return m_loggingContext; }
 
     /**
      * @brief Updates the active Source 2 installation policy.
@@ -95,6 +106,7 @@ signals:
 private:
     VpkSignatureLeaseResult acquireLeaseInternal(const Core::Path::FilesystemPath& cs2BasePath);
 
+    std::shared_ptr<Core::Logging::TaskLoggingContext> m_loggingContext;
     Core::FileSystem::FileLease m_lease;
     GameInstallation m_activeInstallation;
     VpkSignatureLeaseStatus m_lastStatus = VpkSignatureLeaseStatus::Inactive;

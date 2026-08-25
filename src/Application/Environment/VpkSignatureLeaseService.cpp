@@ -1,19 +1,33 @@
 #include "Application/Environment/VpkSignatureLeaseService.h"
-#include "Core/Logging/Logger.h"
 #include "Domain/Game/GameType.h"
 #include <QDir>
 #include <QFileInfo>
+#include <utility>
 
 namespace Application::Environment {
 
+VpkSignatureLeaseService::VpkSignatureLeaseService(
+    std::shared_ptr<Core::Logging::TaskLoggingContext> loggingContext,
+    QObject* parent)
+    : QObject(parent)
+    , m_loggingContext(std::move(loggingContext))
+{
+}
+
 VpkSignatureLeaseService::VpkSignatureLeaseService(QObject* parent)
     : QObject(parent)
+    , m_loggingContext(nullptr)
 {
 }
 
 VpkSignatureLeaseService::~VpkSignatureLeaseService()
 {
     releaseLease();
+}
+
+void VpkSignatureLeaseService::setLoggingContext(std::shared_ptr<Core::Logging::TaskLoggingContext> loggingContext) noexcept
+{
+    m_loggingContext = std::move(loggingContext);
 }
 
 VpkSignatureLeaseResult VpkSignatureLeaseService::updateInstallation(const GameInstallation& s2Installation)
@@ -51,7 +65,9 @@ VpkSignatureLeaseResult VpkSignatureLeaseService::acquireLeaseInternal(const Cor
         result.status = VpkSignatureLeaseStatus::NotFound;
         result.systemMessage = QStringLiteral("CS2 base directory is invalid or does not exist: %1").arg(cs2BasePath.toString());
         m_lastStatus = result.status;
-        Core::Logging::Logger::warning(result.systemMessage);
+        if (m_loggingContext) {
+            m_loggingContext->warning(result.systemMessage);
+        }
         emit leaseStatusChanged(result.status, QString(), result.systemMessage);
         return result;
     }
@@ -65,7 +81,9 @@ VpkSignatureLeaseResult VpkSignatureLeaseService::acquireLeaseInternal(const Cor
         result.status = VpkSignatureLeaseStatus::NotFound;
         result.systemMessage = QStringLiteral("vpk.signatures does not exist at expected path: %1").arg(targetPath);
         m_lastStatus = result.status;
-        Core::Logging::Logger::warning(result.systemMessage);
+        if (m_loggingContext) {
+            m_loggingContext->warning(result.systemMessage);
+        }
         emit leaseStatusChanged(result.status, targetPath, result.systemMessage);
         return result;
     }
@@ -74,7 +92,9 @@ VpkSignatureLeaseResult VpkSignatureLeaseService::acquireLeaseInternal(const Cor
         result.status = VpkSignatureLeaseStatus::Failed;
         result.systemMessage = QStringLiteral("Target vpk.signatures is not a regular file: %1").arg(targetPath);
         m_lastStatus = result.status;
-        Core::Logging::Logger::warning(result.systemMessage);
+        if (m_loggingContext) {
+            m_loggingContext->warning(result.systemMessage);
+        }
         emit leaseStatusChanged(result.status, targetPath, result.systemMessage);
         return result;
     }
@@ -108,9 +128,11 @@ VpkSignatureLeaseResult VpkSignatureLeaseService::acquireLeaseInternal(const Cor
 
         result.systemMessage = leaseRes.message;
         m_lastStatus = result.status;
-        Core::Logging::Logger::error(QStringLiteral("Failed to acquire exclusive lease for vpk.signatures at '%1': %2")
-            .arg(targetPath)
-            .arg(leaseRes.message));
+        if (m_loggingContext) {
+            m_loggingContext->error(QStringLiteral("Failed to acquire exclusive lease for vpk.signatures at '%1': %2")
+                .arg(targetPath)
+                .arg(leaseRes.message));
+        }
         emit leaseStateChanged(false, QString());
         emit leaseStatusChanged(result.status, targetPath, result.systemMessage);
         return result;
@@ -118,7 +140,9 @@ VpkSignatureLeaseResult VpkSignatureLeaseService::acquireLeaseInternal(const Cor
 
     result.status = VpkSignatureLeaseStatus::Acquired;
     m_lastStatus = result.status;
-    Core::Logging::Logger::info(QStringLiteral("Acquired exclusive file lease on %1").arg(m_lease.filePath()));
+    if (m_loggingContext) {
+        m_loggingContext->info(QStringLiteral("Acquired exclusive file lease on %1").arg(m_lease.filePath()));
+    }
 
     emit leaseStateChanged(true, m_lease.filePath());
     emit leaseStatusChanged(result.status, m_lease.filePath(), QString());
@@ -131,7 +155,9 @@ void VpkSignatureLeaseService::releaseLease() noexcept
         const QString prevPath = m_lease.filePath();
         m_lease.release();
         m_lastStatus = VpkSignatureLeaseStatus::Inactive;
-        Core::Logging::Logger::info(QStringLiteral("Released exclusive file lease on %1").arg(prevPath));
+        if (m_loggingContext) {
+            m_loggingContext->info(QStringLiteral("Released exclusive file lease on %1").arg(prevPath));
+        }
         emit leaseStateChanged(false, QString());
     }
 }

@@ -1,6 +1,7 @@
 #include "Domain/Game/GameValidator.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Domain/Game/GameInfoParser.h"
+#include <algorithm>
 #include <QDir>
 #include <QFileInfo>
 

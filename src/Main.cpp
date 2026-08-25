@@ -6,6 +6,7 @@
 #include <QtPlugin>
 #include <memory>
 
+#include "Application/Environment/GameEnvironmentService.h"
 #include "Application/Environment/VpkSignatureLeaseService.h"
 #include "UI/ViewModels/GameViewModel.h"
 #include "UI/ViewModels/LogViewModel.h"
@@ -22,8 +23,8 @@ int main(int argc, char *argv[])
 
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 
-    auto vpkLeaseService = std::make_unique<Application::Environment::VpkSignatureLeaseService>();
-    auto gameViewModel = std::make_unique<UI::ViewModels::GameViewModel>(vpkLeaseService.get());
+    auto gameEnvService = std::make_unique<Application::Environment::GameEnvironmentService>();
+    auto gameViewModel = std::make_unique<UI::ViewModels::GameViewModel>(gameEnvService.get());
     auto logViewModel = std::make_shared<UI::ViewModels::LogViewModel>();
     auto mainController = std::make_unique<UI::Controllers::MainController>();
 

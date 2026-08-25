@@ -1,12 +1,9 @@
 #pragma once
 
 #include "Application/Environment/GameInstallation.h"
+#include "Application/Environment/GameInstallationValidator.h"
 #include "Application/Environment/SteamService.h"
 #include "Domain/Game/GameType.h"
-#include "Domain/Game/GameDefinition.h"
-#include "Domain/Game/GameRegistry.h"
-#include "Domain/Game/GameValidator.h"
-#include "Domain/Game/GameInfoParser.h"
 #include "Core/Path/FilesystemPath.h"
 #include <functional>
 #include <optional>
@@ -21,6 +18,9 @@ struct DetectionResult {
     QStringList warnings;
 };
 
+/**
+ * @brief Application service responsible for discovering game installations across Steam libraries.
+ */
 class GameDetectService {
 public:
     // Asynchronous environment detection dispatched on a worker thread and marshaled safely to caller's QObject context
@@ -33,7 +33,7 @@ public:
     static DetectionResult detectEnvironment(
         const Core::Path::FilesystemPath& customSteamPath = {});
 
-    // Detect all supported Source and Source 2 games across all detected Steam libraries (convenience wrapper)
+    // Detect all supported Source and Source 2 games across all detected Steam libraries
     static std::vector<GameInstallation> detectAllGames(
         const Core::Path::FilesystemPath& customSteamPath = {});
 
@@ -42,31 +42,33 @@ public:
         Domain::Game::GameType type,
         const Core::Path::FilesystemPath& customSteamPath = {});
 
-    // Validates if a user-supplied directory contains a valid installation of `type`
+    // Convenience delegates to GameInstallationValidator
     static std::optional<GameInstallation> validateGameDirectory(
         Domain::Game::GameType type,
-        const Core::Path::FilesystemPath& directory);
+        const Core::Path::FilesystemPath& directory)
+    {
+        return GameInstallationValidator::validateGameDirectory(type, directory);
+    }
 
-    // Validates a Source 2 game installation directory (either a specific game type or any Source 2 game layout)
     static std::optional<GameInstallation> validateSource2(
         const Core::Path::FilesystemPath& directory,
-        Domain::Game::GameType type = Domain::Game::GameType::Unknown);
+        Domain::Game::GameType type = Domain::Game::GameType::Unknown)
+    {
+        return GameInstallationValidator::validateSource2(directory, type);
+    }
 
-    // Validates a Source 1 game installation directory
     static std::optional<GameInstallation> validateSource1(
         Domain::Game::GameType type,
-        const Core::Path::FilesystemPath& directory);
+        const Core::Path::FilesystemPath& directory)
+    {
+        return GameInstallationValidator::validateSource1(type, directory);
+    }
 
-    // Inspects an arbitrary gameinfo.txt or gameinfo.gi file and creates a GameInstallation object
     static std::optional<GameInstallation> inspectGameInfo(
-        const Core::Path::FilesystemPath& gameInfoPath);
-
-private:
-    static std::optional<GameInstallation> createInstallationFromGameInfo(
-        Domain::Game::GameType type,
-        const Core::Path::FilesystemPath& baseDir,
-        const Domain::Game::GameInfo& info);
+        const Core::Path::FilesystemPath& gameInfoPath)
+    {
+        return GameInstallationValidator::inspectGameInfo(gameInfoPath);
+    }
 };
 
 } // namespace Application::Environment
-
