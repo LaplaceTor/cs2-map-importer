@@ -1,8 +1,10 @@
 #include "Application/Environment/GameEnvironmentService.h"
+#include "Application/Environment/GameInstallation.h"
 #include "Application/Environment/GameInstallationValidator.h"
 #include "Application/Environment/SteamService.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Domain/Game/GameType.h"
+#include "Domain/Game/GameInstallationResolver.h"
 #include "Core/Path/PathUtils.h"
 #include <QDir>
 #include <QMetaObject>
@@ -77,10 +79,25 @@ GameEnvironmentService::GameEnvironmentService(
         m_ownedLeaseService = std::make_unique<VpkSignatureLeaseService>(this);
         m_leaseService = m_ownedLeaseService.get();
     }
+    hookLeaseSignals();
+}
+
+void GameEnvironmentService::hookLeaseSignals()
+{
+    if (m_leaseService) {
+        connect(m_leaseService, &VpkSignatureLeaseService::leaseStateChanged,
+                this, &GameEnvironmentService::vpkLeaseStateChanged, Qt::UniqueConnection);
+        connect(m_leaseService, &VpkSignatureLeaseService::leaseStatusChanged,
+                this, &GameEnvironmentService::vpkLeaseStatusChanged, Qt::UniqueConnection);
+    }
 }
 
 void GameEnvironmentService::setVpkSignatureLeaseService(VpkSignatureLeaseService* service) noexcept
 {
+    if (m_leaseService) {
+        disconnect(m_leaseService, nullptr, this, nullptr);
+    }
+
     if (service) {
         m_ownedLeaseService.reset();
         m_leaseService = service;
@@ -88,6 +105,22 @@ void GameEnvironmentService::setVpkSignatureLeaseService(VpkSignatureLeaseServic
         m_ownedLeaseService = std::make_unique<VpkSignatureLeaseService>(this);
         m_leaseService = m_ownedLeaseService.get();
     }
+    hookLeaseSignals();
+}
+
+bool GameEnvironmentService::isVpkLeaseHeld() const noexcept
+{
+    return m_leaseService ? m_leaseService->isLeaseHeld() : false;
+}
+
+VpkSignatureLeaseStatus GameEnvironmentService::vpkLeaseStatus() const noexcept
+{
+    return m_leaseService ? m_leaseService->currentStatus() : VpkSignatureLeaseStatus::Inactive;
+}
+
+QString GameEnvironmentService::leasedVpkFilePath() const
+{
+    return m_leaseService ? m_leaseService->leasedFilePath() : QString();
 }
 
 QStringList GameEnvironmentService::s1GameTypes() const
@@ -253,30 +286,11 @@ bool GameEnvironmentService::validateGameInSteam(const QString& typeName)
 
 QStringList GameEnvironmentService::listSource2Addons(const QString& s2BasePath) const
 {
-    QStringList addons;
     if (s2BasePath.isEmpty()) {
-        return addons;
+        return QStringList();
     }
-
-    QString normalizedBase = cleanPath(s2BasePath);
-    // Look for addons in <s2BasePath>/game/csgo_addons, or search <s2BasePath>/game/*_addons
-    QDir gameDir(QDir(normalizedBase).filePath(QStringLiteral("game")));
-    if (gameDir.exists()) {
-        const QStringList subdirs = gameDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-        for (const auto& sub : subdirs) {
-            if (sub.endsWith(QStringLiteral("_addons"), Qt::CaseInsensitive)) {
-                QDir addonsDir(gameDir.filePath(sub));
-                const QStringList addonEntries = addonsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-                for (const auto& entry : addonEntries) {
-                    if (!addons.contains(entry)) {
-                        addons.append(entry);
-                    }
-                }
-            }
-        }
-    }
-
-    return addons;
+    Core::Path::FilesystemPath fsPath(cleanPath(s2BasePath));
+    return Domain::Game::GameInstallationResolver::listSource2Addons(fsPath);
 }
 
 QStringList GameEnvironmentService::listSource2Addons(const GameInstallationInfo& s2Installation) const

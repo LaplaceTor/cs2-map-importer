@@ -9,6 +9,64 @@
 
 namespace Domain::Game {
 
+QString ResolvedGameInstallation::modName() const
+{
+    const auto* def = GameRegistry::findByType(type);
+    if (def && type != GameType::Custom && type != GameType::Unknown && !def->modName().isEmpty()) {
+        return def->modName();
+    }
+    if (gameInfoPath.isValid()) {
+        return gameInfoPath.parentPath().fileName();
+    }
+    return QString();
+}
+
+Core::Path::FilesystemPath ResolvedGameInstallation::contentDirectory() const
+{
+    if (!baseDirectory.isValid()) return Core::Path::FilesystemPath();
+    const QString name = modName();
+    if (name.isEmpty()) return Core::Path::FilesystemPath();
+    return Core::Path::FilesystemPath(QDir(baseDirectory.toString()).filePath(
+        isSource2 ? (QStringLiteral("content/") + name) : name));
+}
+
+Core::Path::FilesystemPath ResolvedGameInstallation::modDirectory() const
+{
+    if (gameInfoPath.isValid()) {
+        return gameInfoPath.parentPath();
+    }
+    if (!baseDirectory.isValid()) return Core::Path::FilesystemPath();
+    const auto* def = GameRegistry::findByType(type);
+    if (def && !def->modSubdirectory.isEmpty()) {
+        return Core::Path::FilesystemPath(QDir(baseDirectory.toString()).filePath(def->modSubdirectory));
+    }
+    return Core::Path::FilesystemPath();
+}
+
+Core::Path::FilesystemPath ResolvedGameInstallation::addonGameDirectory(const QString& addonName) const
+{
+    if (!baseDirectory.isValid() || !isSource2) return Core::Path::FilesystemPath();
+    const QString name = modName();
+    if (name.isEmpty()) return Core::Path::FilesystemPath();
+    QString rel = QStringLiteral("game/") + name + QStringLiteral("_addons");
+    if (!addonName.isEmpty()) {
+        rel += QLatin1Char('/') + addonName;
+    }
+    return Core::Path::FilesystemPath(QDir(baseDirectory.toString()).filePath(rel));
+}
+
+Core::Path::FilesystemPath ResolvedGameInstallation::addonContentDirectory(const QString& addonName) const
+{
+    if (!baseDirectory.isValid() || !isSource2) return Core::Path::FilesystemPath();
+    const QString name = modName();
+    if (name.isEmpty()) return Core::Path::FilesystemPath();
+    QString rel = QStringLiteral("content/") + name + QStringLiteral("_addons");
+    if (!addonName.isEmpty()) {
+        rel += QLatin1Char('/') + addonName;
+    }
+    return Core::Path::FilesystemPath(QDir(baseDirectory.toString()).filePath(rel));
+}
+
 std::optional<ResolvedGameInstallation> GameInstallationResolver::createResolved(
     GameType type,
     const Core::Path::FilesystemPath& baseDir,
@@ -224,5 +282,30 @@ std::optional<ResolvedGameInstallation> GameInstallationResolver::resolveGameDir
     return resolveSource1(type, directory);
 }
 
-} // namespace Domain::Game
+QStringList GameInstallationResolver::listSource2Addons(const Core::Path::FilesystemPath& s2BasePath)
+{
+    QStringList addons;
+    if (!s2BasePath.isValid() || !s2BasePath.exists() || !s2BasePath.isDirectory()) {
+        return addons;
+    }
 
+    QDir gameDir(QDir(s2BasePath.toString()).filePath(QStringLiteral("game")));
+    if (gameDir.exists()) {
+        const QStringList subdirs = gameDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const auto& sub : subdirs) {
+            if (sub.endsWith(QStringLiteral("_addons"), Qt::CaseInsensitive)) {
+                QDir addonsDir(gameDir.filePath(sub));
+                const QStringList addonEntries = addonsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+                for (const auto& entry : addonEntries) {
+                    if (!addons.contains(entry)) {
+                        addons.append(entry);
+                    }
+                }
+            }
+        }
+    }
+
+    return addons;
+}
+
+} // namespace Domain::Game

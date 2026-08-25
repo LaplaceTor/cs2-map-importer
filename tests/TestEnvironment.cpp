@@ -433,6 +433,31 @@ private slots:
         });
         QTRY_VERIFY_WITH_TIMEOUT(asyncFinished, 5000);
     }
+
+    void testGameInstallationResolverAddons() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+
+        QString addonDir = tempDir.filePath(QStringLiteral("game/csgo_addons/de_dust2_sub"));
+        QVERIFY(QDir().mkpath(addonDir));
+
+        auto addons = GameInstallationResolver::listSource2Addons(Core::Path::FilesystemPath(tempDir.path()));
+        QCOMPARE(addons.size(), 1);
+        QCOMPARE(addons.first(), QStringLiteral("de_dust2_sub"));
+
+        GameEnvironmentService envService;
+        auto facadeAddons = envService.listSource2Addons(tempDir.path());
+        QCOMPARE(facadeAddons.size(), 1);
+        QCOMPARE(facadeAddons.first(), QStringLiteral("de_dust2_sub"));
+    }
+
+    void testFacadeLeaseEncapsulation() {
+        Application::Environment::VpkSignatureLeaseService leaseService;
+        GameEnvironmentService envService(&leaseService);
+
+        QVERIFY(!envService.isVpkLeaseHeld());
+        QCOMPARE(envService.vpkLeaseStatus(), Application::Environment::VpkSignatureLeaseStatus::Inactive);
+    }
 };
 
 QTEST_MAIN(TestEnvironment)

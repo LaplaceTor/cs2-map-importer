@@ -6,7 +6,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include "Application/Environment/GameInstallation.h"
+#include "Application/Environment/GameInstallationInfo.h"
 #include "Application/Environment/GameDetectService.h"
 #include "Application/Environment/VpkSignatureLeaseService.h"
 
@@ -75,14 +75,21 @@ public:
     QStringList listSource2Addons(const QString& s2BasePath) const;
     QStringList listSource2Addons(const GameInstallationInfo& s2Installation) const;
 
-    // VPK signature lease operations
-    VpkSignatureLeaseService* vpkSignatureLeaseService() const noexcept { return m_leaseService; }
+    // VPK signature lease operations encapsulated in facade
     void setVpkSignatureLeaseService(VpkSignatureLeaseService* service) noexcept;
+    bool isVpkLeaseHeld() const noexcept;
+    VpkSignatureLeaseStatus vpkLeaseStatus() const noexcept;
+    QString leasedVpkFilePath() const;
     VpkSignatureLeaseResult updateVpkLease(const QString& s2BasePath);
     VpkSignatureLeaseResult updateVpkLease(const GameInstallationInfo& s2Installation);
     VpkSignatureLeaseResult retryVpkLease();
 
+signals:
+    void vpkLeaseStateChanged(bool isHeld, const QString& filePath);
+    void vpkLeaseStatusChanged(Application::Environment::VpkSignatureLeaseStatus status, const QString& filePath, const QString& systemMessage);
+
 private:
+    void hookLeaseSignals();
     QString cleanPath(const QString& pathOrUrl) const;
 
     std::unique_ptr<VpkSignatureLeaseService> m_ownedLeaseService;

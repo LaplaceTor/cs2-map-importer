@@ -13,8 +13,8 @@ void GameViewModel::setEnvironmentService(Application::Environment::GameEnvironm
         return;
     }
 
-    if (m_envService && m_envService->vpkSignatureLeaseService()) {
-        disconnect(m_envService->vpkSignatureLeaseService(), nullptr, this, nullptr);
+    if (m_envService) {
+        disconnect(m_envService, nullptr, this, nullptr);
     }
 
     if (envService) {
@@ -25,10 +25,10 @@ void GameViewModel::setEnvironmentService(Application::Environment::GameEnvironm
         m_envService = m_ownedEnvService.get();
     }
 
-    if (m_envService && m_envService->vpkSignatureLeaseService()) {
-        connect(m_envService->vpkSignatureLeaseService(), &Application::Environment::VpkSignatureLeaseService::leaseStateChanged,
+    if (m_envService) {
+        connect(m_envService, &Application::Environment::GameEnvironmentService::vpkLeaseStateChanged,
                 this, &GameViewModel::vpkLeaseStateChanged);
-        connect(m_envService->vpkSignatureLeaseService(), &Application::Environment::VpkSignatureLeaseService::leaseStatusChanged,
+        connect(m_envService, &Application::Environment::GameEnvironmentService::vpkLeaseStatusChanged,
                 this, &GameViewModel::onVpkLeaseStatusChanged);
     }
 
@@ -36,9 +36,7 @@ void GameViewModel::setEnvironmentService(Application::Environment::GameEnvironm
 }
 
 bool GameViewModel::isVpkLeaseHeld() const noexcept {
-    return (m_envService && m_envService->vpkSignatureLeaseService())
-        ? m_envService->vpkSignatureLeaseService()->isLeaseHeld()
-        : false;
+    return m_envService ? m_envService->isVpkLeaseHeld() : false;
 }
 
 QStringList GameViewModel::s1GameTypes() const {

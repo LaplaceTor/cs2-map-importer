@@ -1,4 +1,5 @@
 qt_add_library(cs2importer_application STATIC
+    Environment/GameInstallationInfo.h
     Environment/GameInstallation.h
     Environment/GameInstallationValidator.h
     Environment/GameInstallationValidator.cpp

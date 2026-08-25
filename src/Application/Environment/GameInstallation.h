@@ -1,30 +1,21 @@
 #pragma once
 
+#include "Application/Environment/GameInstallationInfo.h"
 #include "Domain/Game/GameType.h"
 #include "Domain/Game/GameInfo.h"
 #include "Domain/Game/GameRegistry.h"
+#include "Domain/Game/GameInstallationResolver.h"
 #include "Core/Path/FilesystemPath.h"
-#include <QDir>
 #include <QString>
 
 namespace Application::Environment {
 
 /**
- * @brief Plain UI-facing Application Contract DTO.
+ * @brief Application internal representation of a game installation.
  *
- * Exposes strings and primitives so UI ViewModels never need to depend on or inspect
- * Domain/Core implementation types like FilesystemPath, GameType, or GameInfo.
+ * Holds full Domain/Core metadata for lower-layer pipelines and workflows,
+ * while providing .toInfo() for UI contract conversion.
  */
-struct GameInstallationInfo {
-    QString gameId;
-    QString displayName;
-    QString gameTitle;
-    QString basePath;
-    QString gameInfoPath;
-    bool isValid = false;
-    bool isSource2 = false;
-};
-
 class GameInstallation {
 public:
     GameInstallation() = default;
@@ -71,59 +62,23 @@ public:
         return info;
     }
 
-    // Source 2 layout helpers
-    QString modName() const {
-        const auto* def = Domain::Game::GameRegistry::findByType(m_type);
-        if (def && m_type != Domain::Game::GameType::Custom && m_type != Domain::Game::GameType::Unknown && !def->modName().isEmpty()) {
-            return def->modName();
-        }
-        if (m_gameInfoPath.isValid()) {
-            return m_gameInfoPath.parentPath().fileName();
-        }
-        return QString();
+    Domain::Game::ResolvedGameInstallation toResolved() const {
+        Domain::Game::ResolvedGameInstallation res;
+        res.type = m_type;
+        res.baseDirectory = m_baseDirectory;
+        res.gameInfoPath = m_gameInfoPath;
+        res.gameInfo = m_gameInfo;
+        res.isValid = m_isValid;
+        res.isSource2 = m_isSource2;
+        return res;
     }
 
-    Core::Path::FilesystemPath contentDirectory() const {
-        if (!m_baseDirectory.isValid()) return Core::Path::FilesystemPath();
-        const QString name = modName();
-        if (name.isEmpty()) return Core::Path::FilesystemPath();
-        return Core::Path::FilesystemPath(QDir(m_baseDirectory.toString()).filePath(
-            m_isSource2 ? (QStringLiteral("content/") + name) : name));
-    }
-
-    Core::Path::FilesystemPath modDirectory() const {
-        if (m_gameInfoPath.isValid()) {
-            return m_gameInfoPath.parentPath();
-        }
-        if (!m_baseDirectory.isValid()) return Core::Path::FilesystemPath();
-        const auto* def = Domain::Game::GameRegistry::findByType(m_type);
-        if (def && !def->modSubdirectory.isEmpty()) {
-            return Core::Path::FilesystemPath(QDir(m_baseDirectory.toString()).filePath(def->modSubdirectory));
-        }
-        return Core::Path::FilesystemPath();
-    }
-
-    Core::Path::FilesystemPath addonGameDirectory(const QString& addonName = QString()) const {
-        if (!m_baseDirectory.isValid() || !m_isSource2) return Core::Path::FilesystemPath();
-        const QString name = modName();
-        if (name.isEmpty()) return Core::Path::FilesystemPath();
-        QString rel = QStringLiteral("game/") + name + QStringLiteral("_addons");
-        if (!addonName.isEmpty()) {
-            rel += QLatin1Char('/') + addonName;
-        }
-        return Core::Path::FilesystemPath(QDir(m_baseDirectory.toString()).filePath(rel));
-    }
-
-    Core::Path::FilesystemPath addonContentDirectory(const QString& addonName = QString()) const {
-        if (!m_baseDirectory.isValid() || !m_isSource2) return Core::Path::FilesystemPath();
-        const QString name = modName();
-        if (name.isEmpty()) return Core::Path::FilesystemPath();
-        QString rel = QStringLiteral("content/") + name + QStringLiteral("_addons");
-        if (!addonName.isEmpty()) {
-            rel += QLatin1Char('/') + addonName;
-        }
-        return Core::Path::FilesystemPath(QDir(m_baseDirectory.toString()).filePath(rel));
-    }
+    // Delegates layout operations to Domain
+    QString modName() const { return toResolved().modName(); }
+    Core::Path::FilesystemPath contentDirectory() const { return toResolved().contentDirectory(); }
+    Core::Path::FilesystemPath modDirectory() const { return toResolved().modDirectory(); }
+    Core::Path::FilesystemPath addonGameDirectory(const QString& addonName = QString()) const { return toResolved().addonGameDirectory(addonName); }
+    Core::Path::FilesystemPath addonContentDirectory(const QString& addonName = QString()) const { return toResolved().addonContentDirectory(addonName); }
 
 private:
     Domain::Game::GameType m_type = Domain::Game::GameType::Unknown;
@@ -139,4 +94,3 @@ private:
 };
 
 } // namespace Application::Environment
-

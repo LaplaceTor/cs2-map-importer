@@ -6,7 +6,7 @@
 #include <QHash>
 #include <memory>
 #include "Application/Environment/GameEnvironmentService.h"
-#include "Application/Environment/GameInstallation.h"
+#include "Application/Environment/GameInstallationInfo.h"
 
 namespace UI::ViewModels {
 
