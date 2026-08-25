@@ -454,15 +454,54 @@ auto s2Game = Application::Environment::GameDetectService::validateSource2(
 
 ## Build and Tests
 
-Standard local build using CMake Presets:
+### Main Application Build
 
+```bash
+# Build main application
+cmake -B build -S .
+cmake --build build
+```
+
+Or using CMake Presets (if configured):
 ```bash
 cmake --preset windows-debug
 cmake --build --preset windows-debug
-ctest --test-dir build/local-debug --output-on-failure
 ```
 
-Tests reside under `tests/` (`test_logmanager`, `logging_test`, `test_keyvalues`, `test_gameinfo`, `test_asset`, `test_environment`).
+### Standalone Tests Build & Execution
+
+The test suite is decoupled from the main project into an independent CMake project located under `tests/`. It must be configured and built separately:
+
+```bash
+# Configure & build test suite
+cmake -B build-tests -S tests
+cmake --build build-tests
+
+# Run all unit tests
+ctest --test-dir build-tests --output-on-failure
+```
+
+> [!NOTE]
+> On Windows, ensure Qt's `bin` directory (containing Qt DLLs) is present in your `PATH` environment variable when running `ctest` or test executables directly (e.g. `set PATH=<Qt_Dir>/bin;%PATH%`).
+
+### Test Structure & Adding New Tests
+
+* Test suites reside in `tests/`:
+  * `TestLogManager.cpp` (`test_logmanager`): Logging, `FaultBarrier`, and `LogManager`.
+  * `LoggingStressTest.cpp` (`test_logging_stress`): Concurrent logging stress tests.
+  * `TestKeyValues.cpp` (`test_keyvalues`): Valve KeyValues AST parsing, token handling, and serialization.
+  * `TestGameInfo.cpp` (`test_gameinfo`): `GameInfo` parsing, `SearchPathResolver`, and `GameValidator`.
+  * `TestAsset.cpp` (`test_asset`): `AssetPath` validation and `AssetTypeDetector`.
+  * `TestEnvironment.cpp` (`test_environment`): `SteamService` and `GameDetectService` discovery and detection.
+  * `TestUiViewModels.cpp` (`test_uiviewmodels`): `GameViewModel`, `LogViewModel`, and `MainController`.
+* **Adding a new test target**:
+  1. Add the test source file to `tests/` (e.g. `tests/TestFeature.cpp`).
+  2. In `tests/CMakeLists.txt`, register the executable with `qt_add_executable(test_feature TestFeature.cpp)`.
+  3. Link required modules (`cs2importer_core`, `cs2importer_domain`, `cs2importer_application`, `cs2importer_ui`, `Qt6::Test`).
+  4. Include `src` via `target_include_directories(test_feature PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src)`.
+  5. If test fixtures/gameinfo files are needed, define `"GAMEINFO_TEST_DIR=\"${GAMEINFO_TEST_DIR}\""`.
+  6. Register with CTest: `add_test(NAME test_feature COMMAND test_feature)`.
+
 
 ## Skills — Auto-Load Rules
 

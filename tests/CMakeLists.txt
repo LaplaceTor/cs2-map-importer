@@ -1,4 +1,22 @@
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Test)
+cmake_minimum_required(VERSION 3.28)
+project(cs2importer_tests VERSION 1.0.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network Test)
+
+qt_standard_project_setup(REQUIRES 6.8)
+
+enable_testing()
+
+# Include source libraries
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src/Core ${CMAKE_CURRENT_BINARY_DIR}/src/Core)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src/Domain ${CMAKE_CURRENT_BINARY_DIR}/src/Domain)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src/Application ${CMAKE_CURRENT_BINARY_DIR}/src/Application)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src/UI ${CMAKE_CURRENT_BINARY_DIR}/src/UI)
+
+set(GAMEINFO_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../gameinfotestfile")
 
 qt_add_executable(test_logmanager
     TestLogManager.cpp
@@ -11,25 +29,25 @@ target_link_libraries(test_logmanager PRIVATE
 )
 
 target_include_directories(test_logmanager PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
 
 add_test(NAME test_logmanager COMMAND test_logmanager)
 
-qt_add_executable(logging_test
+qt_add_executable(test_logging_stress
     LoggingStressTest.cpp
 )
 
-target_link_libraries(logging_test PRIVATE
+target_link_libraries(test_logging_stress PRIVATE
     cs2importer_core
     Qt6::Core
 )
 
-target_include_directories(logging_test PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
+target_include_directories(test_logging_stress PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
 
-add_test(NAME logging_test COMMAND logging_test)
+add_test(NAME test_logging_stress COMMAND test_logging_stress)
 
 qt_add_executable(test_keyvalues
     TestKeyValues.cpp
@@ -42,7 +60,7 @@ target_link_libraries(test_keyvalues PRIVATE
 )
 
 target_include_directories(test_keyvalues PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
 
 add_test(NAME test_keyvalues COMMAND test_keyvalues)
@@ -59,11 +77,11 @@ target_link_libraries(test_gameinfo PRIVATE
 )
 
 target_include_directories(test_gameinfo PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
 
 target_compile_definitions(test_gameinfo PRIVATE
-    "GAMEINFO_TEST_DIR=\"${CMAKE_SOURCE_DIR}/gameinfotestfile\""
+    "GAMEINFO_TEST_DIR=\"${GAMEINFO_TEST_DIR}\""
 )
 
 add_test(NAME test_gameinfo COMMAND test_gameinfo)
@@ -80,7 +98,7 @@ target_link_libraries(test_asset PRIVATE
 )
 
 target_include_directories(test_asset PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
 
 add_test(NAME test_asset COMMAND test_asset)
@@ -98,11 +116,11 @@ target_link_libraries(test_environment PRIVATE
 )
 
 target_include_directories(test_environment PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
 
 target_compile_definitions(test_environment PRIVATE
-    "GAMEINFO_TEST_DIR=\"${CMAKE_SOURCE_DIR}/gameinfotestfile\""
+    "GAMEINFO_TEST_DIR=\"${GAMEINFO_TEST_DIR}\""
 )
 
 add_test(NAME test_environment COMMAND test_environment)
@@ -122,14 +140,15 @@ target_link_libraries(test_uiviewmodels PRIVATE
 )
 
 target_include_directories(test_uiviewmodels PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
 
 target_compile_definitions(test_uiviewmodels PRIVATE
-    "GAMEINFO_TEST_DIR=\"${CMAKE_SOURCE_DIR}/gameinfotestfile\""
+    "GAMEINFO_TEST_DIR=\"${GAMEINFO_TEST_DIR}\""
 )
 
 add_test(NAME test_uiviewmodels COMMAND test_uiviewmodels)
+
 
 
 

@@ -8,7 +8,4 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Netwo
 
 qt_standard_project_setup(REQUIRES 6.8)
 
-enable_testing()
-
 add_subdirectory(src)
-add_subdirectory(tests)
