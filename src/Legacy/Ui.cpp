@@ -25,6 +25,7 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QJsonArray>
+#include <utility>
 
 #ifndef APP_VERSION
 #define APP_VERSION "1.0.0"

@@ -1,6 +1,7 @@
 #include "AtomicFile.h"
 #include <QFileInfo>
 #include <QDir>
+#include <utility>
 
 namespace Core::FileSystem {
 

@@ -2,6 +2,7 @@
 
 #include "Core/Path/FilesystemPath.h"
 #include <QString>
+#include <utility>
 
 namespace Domain::Game {
 

@@ -5,6 +5,7 @@
 #include "Core/Path/FilesystemPath.h"
 #include <QString>
 #include <QByteArray>
+#include <utility>
 
 namespace Core::KeyValues {
 

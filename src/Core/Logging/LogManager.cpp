@@ -2,6 +2,7 @@
 #include <QMutexLocker>
 #include <algorithm>
 #include <limits>
+#include <utility>
 
 namespace Core::Logging {
 

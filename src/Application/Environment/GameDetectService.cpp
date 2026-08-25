@@ -5,6 +5,8 @@
 #include <QThreadPool>
 #include <QMetaObject>
 #include <algorithm>
+#include <functional>
+#include <utility>
 
 namespace Application::Environment {
 

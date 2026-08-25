@@ -5,6 +5,7 @@
 #include "Core/Path/FilesystemPath.h"
 #include <QString>
 #include <vector>
+#include <utility>
 
 namespace Domain::Game {
 

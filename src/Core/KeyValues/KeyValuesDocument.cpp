@@ -4,6 +4,7 @@
 #include "Core/FileSystem/AtomicFile.h"
 #include "Core/Error/ImportException.h"
 #include "Core/Error/ImportError.h"
+#include <utility>
 
 namespace Core::KeyValues {
 

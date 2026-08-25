@@ -2,6 +2,7 @@
 #include "Domain/Game/SearchPathResolver.h"
 #include <QDir>
 #include <QFileInfo>
+#include <utility>
 
 namespace Domain::Game {
 

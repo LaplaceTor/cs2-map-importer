@@ -9,6 +9,7 @@
 #include <QSettings>
 #include <QUrl>
 #include <algorithm>
+#include <utility>
 
 namespace Application::Environment {
 

@@ -1,4 +1,5 @@
 #include "LogBlock.h"
+#include <utility>
 
 namespace Core::Logging {
 

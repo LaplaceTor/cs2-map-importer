@@ -1,6 +1,7 @@
 #include "TaskLoggingContext.h"
 #include <algorithm>
 #include <QRecursiveMutex>
+#include <utility>
 
 namespace Core::Logging {
 
