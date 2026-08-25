@@ -252,18 +252,18 @@ Item {
 
                 StyledCheckBox {
                     id: cleanFacesCheck
-                    text: qsTr("Clean Unnecessary Faces (VBSP)")
+                    text: qsTr("Clean Unnecessary Faces (-usebsp)")
                     checked: true
-                    ToolTip.text: qsTr("Preprocesses brushes via VBSP to remove internal/hidden coplanar faces, producing clean, optimized map geometry for Source 2 Hammer.")
+                    ToolTip.text: qsTr("Runs the map through a special VBSP process to generate clean map geometry from brushes, removing hidden faces and stitching edges for easier editing in Hammer.\n• Preserves world (vis) and func_detail brushes for Source 2 compatibility.\n• Merges all func_instances into world geometry.\n• Note: Final geometry will be triangulated.")
                     ToolTip.visible: hovered
                 }
 
                 StyledCheckBox {
                     id: keepInstancesCheck
-                    text: qsTr("Preserve func_instance Sub-maps")
+                    text: qsTr("Preserve func_instance Sub-maps (-usebsp_nomergeinstances)")
                     checked: false
                     enabled: cleanFacesCheck.checked
-                    ToolTip.text: qsTr("Preserves func_instance sub-map prefabs as separate entities rather than merging their brush geometry into the main world.")
+                    ToolTip.text: qsTr("Generates clean map geometry while preserving func_instance sub-maps as separate entities instead of merging them into world geometry.\n• Takes longer as it runs through the import process twice.\n• Final geometry will be triangulated.\n• Requires Clean Unnecessary Faces (-usebsp) to be enabled.")
                     ToolTip.visible: hovered
                 }
 
@@ -271,7 +271,7 @@ Item {
                     id: keepFuncDetailCheck
                     text: qsTr("Keep func_detail as func_brush")
                     checked: false
-                    ToolTip.text: qsTr("Converts func_detail brushes into separate func_brush entities instead of baking them into static world geometry.")
+                    ToolTip.text: qsTr("Converts Source 1 func_detail brushes into separate func_brush entities instead of baking them into static world geometry.")
                     ToolTip.visible: hovered
                 }
 
@@ -279,7 +279,7 @@ Item {
                     id: skipDepsCheck
                     text: qsTr("Skip Dependencies (Map Geometry Only)")
                     checked: false
-                    ToolTip.text: qsTr("Generates only the .vmap map structure, skipping model, material, texture, and audio extraction to save time.")
+                    ToolTip.text: qsTr("Generates only the .vmap map structure, skipping model, material, texture, and sound extraction to accelerate conversion for quick testing.")
                     ToolTip.visible: hovered
                 }
 

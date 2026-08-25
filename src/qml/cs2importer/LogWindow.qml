@@ -12,7 +12,7 @@ ApplicationWindow {
     height: 520
     minimumWidth: 500
     minimumHeight: 300
-    title: qsTr("Logs — CS2 Importer")
+    title: qsTr("CS2 IMPORTER - Logs")
     color: palette.window
     flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint | Qt.WindowCloseButtonHint
     transientParent: null
