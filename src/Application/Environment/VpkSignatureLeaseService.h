@@ -66,6 +66,7 @@ public:
      * @return VpkSignatureLeaseResult containing status and diagnostics.
      */
     VpkSignatureLeaseResult updateInstallation(const GameInstallation& s2Installation);
+    VpkSignatureLeaseResult updateInstallation(const GameInstallationInfo& s2Info);
 
     /**
      * @brief Directly acquires an exclusive file lease for the specified CS2 base directory.
@@ -73,6 +74,7 @@ public:
      * @return VpkSignatureLeaseResult containing status and diagnostics.
      */
     VpkSignatureLeaseResult acquireLease(const Core::Path::FilesystemPath& cs2BasePath);
+    VpkSignatureLeaseResult acquireLease(const QString& cs2BasePath);
 
     /**
      * @brief Retries acquiring the lease for the currently active installation.

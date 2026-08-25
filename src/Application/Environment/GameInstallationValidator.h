@@ -4,16 +4,15 @@
 #include "Domain/Game/GameType.h"
 #include "Domain/Game/GameDefinition.h"
 #include "Domain/Game/GameRegistry.h"
-#include "Domain/Game/GameValidator.h"
-#include "Domain/Game/GameInfoParser.h"
+#include "Domain/Game/GameInstallationResolver.h"
 #include "Core/Path/FilesystemPath.h"
 #include <optional>
 
 namespace Application::Environment {
 
 /**
- * @brief Application service responsible for validating game installations,
- * searching gameinfo files, and constructing GameInstallation metadata.
+ * @brief Application service responsible for coordinating domain game validation
+ * and constructing Application GameInstallation models.
  */
 class GameInstallationValidator {
 public:
@@ -31,12 +30,16 @@ public:
     static std::optional<GameInstallation> inspectGameInfo(
         const Core::Path::FilesystemPath& gameInfoPath);
 
-    // Generic entry point that validates a user-supplied directory according to GameType
+    // Generic entry point that validates a directory according to GameType
     static std::optional<GameInstallation> validateGameDirectory(
         Domain::Game::GameType type,
         const Core::Path::FilesystemPath& directory);
 
-    // Constructs a GameInstallation value object from parsed GameInfo
+    // Constructs a GameInstallation value object from a Domain ResolvedGameInstallation
+    static std::optional<GameInstallation> createInstallationFromResolved(
+        const Domain::Game::ResolvedGameInstallation& resolved);
+
+    // Constructs a GameInstallation value object from parsed GameInfo and baseDir
     static std::optional<GameInstallation> createInstallationFromGameInfo(
         Domain::Game::GameType type,
         const Core::Path::FilesystemPath& baseDir,
@@ -44,4 +47,3 @@ public:
 };
 
 } // namespace Application::Environment
-

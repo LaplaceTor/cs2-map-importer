@@ -57,8 +57,8 @@ public:
     void setEnvironmentService(Application::Environment::GameEnvironmentService* envService);
     Application::Environment::GameEnvironmentService* environmentService() const noexcept { return m_envService; }
 
-    const Application::Environment::GameInstallation& s1Installation() const noexcept { return m_s1Installation; }
-    const Application::Environment::GameInstallation& s2Installation() const noexcept { return m_s2Installation; }
+    const Application::Environment::GameInstallationInfo& s1Installation() const noexcept { return m_s1Installation; }
+    const Application::Environment::GameInstallationInfo& s2Installation() const noexcept { return m_s2Installation; }
 
 public slots:
     void autoDetect();
@@ -94,8 +94,8 @@ signals:
 
 private:
     void applyDetectionResult(const Application::Environment::DetectionResult& result);
-    void applyS1Installation(const Application::Environment::GameInstallation& inst);
-    void applyS2Installation(const Application::Environment::GameInstallation& inst);
+    void applyS1Installation(const Application::Environment::GameInstallationInfo& inst);
+    void applyS2Installation(const Application::Environment::GameInstallationInfo& inst);
     void onVpkLeaseStatusChanged(Application::Environment::VpkSignatureLeaseStatus status, const QString& filePath, const QString& systemMessage);
 
     bool m_isDetecting = false;
@@ -104,7 +104,7 @@ private:
     QString m_s1GamePath;
     QString m_s1GameTitle;
     bool m_isS1Valid = false;
-    Application::Environment::GameInstallation m_s1Installation;
+    Application::Environment::GameInstallationInfo m_s1Installation;
 
     QString m_selectedS2Type = QStringLiteral("Counter-Strike 2");
     QString m_s2GamePath;
@@ -112,13 +112,13 @@ private:
     bool m_isS2Valid = false;
     QStringList m_s2AddonsList;
     QString m_selectedAddon;
-    Application::Environment::GameInstallation m_s2Installation;
+    Application::Environment::GameInstallationInfo m_s2Installation;
 
     std::unique_ptr<Application::Environment::GameEnvironmentService> m_ownedEnvService;
     Application::Environment::GameEnvironmentService* m_envService = nullptr;
 
-    // Cache for detected installations across Steam libraries: [normalized identifier -> GameInstallation]
-    QHash<QString, Application::Environment::GameInstallation> m_detectedGames;
+    // Cache for detected installations across Steam libraries: [normalized identifier -> GameInstallationInfo]
+    QHash<QString, Application::Environment::GameInstallationInfo> m_detectedGames;
 };
 
 } // namespace UI::ViewModels

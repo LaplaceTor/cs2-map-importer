@@ -44,9 +44,26 @@ VpkSignatureLeaseResult VpkSignatureLeaseService::updateInstallation(const GameI
     return {VpkSignatureLeaseStatus::Inactive, QString(), QString()};
 }
 
+VpkSignatureLeaseResult VpkSignatureLeaseService::updateInstallation(const GameInstallationInfo& s2Info)
+{
+    if (s2Info.isValid && (s2Info.gameId == QStringLiteral("cs2") || s2Info.gameTitle == QStringLiteral("Counter-Strike 2") || s2Info.displayName == QStringLiteral("Counter-Strike 2"))) {
+        return acquireLease(s2Info.basePath);
+    }
+
+    releaseLease();
+    m_lastStatus = VpkSignatureLeaseStatus::Inactive;
+    emit leaseStatusChanged(m_lastStatus, QString(), QString());
+    return {VpkSignatureLeaseStatus::Inactive, QString(), QString()};
+}
+
 VpkSignatureLeaseResult VpkSignatureLeaseService::acquireLease(const Core::Path::FilesystemPath& cs2BasePath)
 {
     return acquireLeaseInternal(cs2BasePath);
+}
+
+VpkSignatureLeaseResult VpkSignatureLeaseService::acquireLease(const QString& cs2BasePath)
+{
+    return acquireLeaseInternal(Core::Path::FilesystemPath(cs2BasePath));
 }
 
 VpkSignatureLeaseResult VpkSignatureLeaseService::retryLease()

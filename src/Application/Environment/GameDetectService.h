@@ -13,8 +13,11 @@
 
 namespace Application::Environment {
 
+/**
+ * @brief Plain UI-facing detection result DTO.
+ */
 struct DetectionResult {
-    std::vector<GameInstallation> installations;
+    std::vector<GameInstallationInfo> installations;
     QStringList warnings;
 };
 
@@ -29,15 +32,23 @@ public:
         std::function<void(const DetectionResult&)> callback,
         const Core::Path::FilesystemPath& customSteamPath = {});
 
-    // Synchronous environment detection returning both installations and any non-fatal scan warnings
+    static void detectEnvironmentAsync(
+        QObject* context,
+        std::function<void(const DetectionResult&)> callback,
+        const QString& customSteamPath);
+
+    // Synchronous environment detection returning both installations (as UI DTOs) and any non-fatal scan warnings
     static DetectionResult detectEnvironment(
         const Core::Path::FilesystemPath& customSteamPath = {});
 
-    // Detect all supported Source and Source 2 games across all detected Steam libraries
+    static DetectionResult detectEnvironment(
+        const QString& customSteamPath);
+
+    // Detect all supported Source and Source 2 games across all detected Steam libraries (Application internal model)
     static std::vector<GameInstallation> detectAllGames(
         const Core::Path::FilesystemPath& customSteamPath = {});
 
-    // Detect a specific game in Steam libraries
+    // Detect a specific game in Steam libraries (Application internal model)
     static std::optional<GameInstallation> detectGame(
         Domain::Game::GameType type,
         const Core::Path::FilesystemPath& customSteamPath = {});

@@ -9,6 +9,22 @@
 
 namespace Application::Environment {
 
+/**
+ * @brief Plain UI-facing Application Contract DTO.
+ *
+ * Exposes strings and primitives so UI ViewModels never need to depend on or inspect
+ * Domain/Core implementation types like FilesystemPath, GameType, or GameInfo.
+ */
+struct GameInstallationInfo {
+    QString gameId;
+    QString displayName;
+    QString gameTitle;
+    QString basePath;
+    QString gameInfoPath;
+    bool isValid = false;
+    bool isSource2 = false;
+};
+
 class GameInstallation {
 public:
     GameInstallation() = default;
@@ -42,6 +58,18 @@ public:
 
     const Domain::Game::GameInfo& gameInfo() const noexcept { return m_gameInfo; }
     void setGameInfo(Domain::Game::GameInfo info) { m_gameInfo = std::move(info); }
+
+    GameInstallationInfo toInfo() const {
+        GameInstallationInfo info;
+        info.gameId = m_gameId;
+        info.displayName = m_displayName;
+        info.gameTitle = m_gameTitle;
+        info.basePath = m_baseDirectory.toString();
+        info.gameInfoPath = m_gameInfoPath.toString();
+        info.isValid = m_isValid;
+        info.isSource2 = m_isSource2;
+        return info;
+    }
 
     // Source 2 layout helpers
     QString modName() const {

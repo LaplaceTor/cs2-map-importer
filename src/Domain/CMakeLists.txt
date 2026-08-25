@@ -16,6 +16,8 @@ qt_add_library(cs2importer_domain STATIC
     Game/SearchPathResolver.cpp
     Game/GameInfoParser.h
     Game/GameInfoParser.cpp
+    Game/GameInstallationResolver.h
+    Game/GameInstallationResolver.cpp
 )
 
 target_link_libraries(cs2importer_domain PUBLIC

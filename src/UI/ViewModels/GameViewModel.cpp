@@ -49,22 +49,22 @@ QStringList GameViewModel::s2GameTypes() const {
     return m_envService ? m_envService->s2GameTypes() : QStringList();
 }
 
-void GameViewModel::applyS1Installation(const Application::Environment::GameInstallation& inst) {
+void GameViewModel::applyS1Installation(const Application::Environment::GameInstallationInfo& inst) {
     m_s1Installation = inst;
-    m_s1GamePath = inst.baseDirectory().toString();
-    m_s1GameTitle = inst.gameTitle();
-    m_isS1Valid = inst.isValid();
+    m_s1GamePath = inst.basePath;
+    m_s1GameTitle = inst.gameTitle;
+    m_isS1Valid = inst.isValid;
 
     emit s1GamePathChanged();
     emit s1GameTitleChanged();
     emit s1ValidityChanged();
 }
 
-void GameViewModel::applyS2Installation(const Application::Environment::GameInstallation& inst) {
+void GameViewModel::applyS2Installation(const Application::Environment::GameInstallationInfo& inst) {
     m_s2Installation = inst;
-    m_s2GamePath = inst.baseDirectory().toString();
-    m_s2GameTitle = inst.gameTitle();
-    m_isS2Valid = inst.isValid();
+    m_s2GamePath = inst.basePath;
+    m_s2GameTitle = inst.gameTitle;
+    m_isS2Valid = inst.isValid;
 
     emit s2GamePathChanged();
     emit s2GameTitleChanged();
@@ -135,12 +135,12 @@ void GameViewModel::applyDetectionResult(const Application::Environment::Detecti
     m_detectedGames.clear();
 
     for (const auto& game : result.installations) {
-        if (game.isValid()) {
-            if (!game.gameId().isEmpty()) {
-                m_detectedGames.insert(game.gameId().toLower(), game);
+        if (game.isValid) {
+            if (!game.gameId.isEmpty()) {
+                m_detectedGames.insert(game.gameId.toLower(), game);
             }
-            if (!game.displayName().isEmpty()) {
-                m_detectedGames.insert(game.displayName().toLower(), game);
+            if (!game.displayName.isEmpty()) {
+                m_detectedGames.insert(game.displayName.toLower(), game);
             }
         }
     }
@@ -164,7 +164,7 @@ void GameViewModel::applyDetectionResult(const Application::Environment::Detecti
         for (const QString& fallbackKey : {QStringLiteral("css"), QStringLiteral("cs: source"), QStringLiteral("hl2"), QStringLiteral("half-life 2"), QStringLiteral("l4d2"), QStringLiteral("left 4 dead 2"), QStringLiteral("tf2"), QStringLiteral("team fortress 2")}) {
             auto itFallback = m_detectedGames.find(fallbackKey);
             if (itFallback != m_detectedGames.end()) {
-                m_selectedS1Type = itFallback.value().displayName();
+                m_selectedS1Type = itFallback.value().displayName;
                 emit selectedS1TypeChanged();
                 applyS1Installation(itFallback.value());
                 break;
@@ -195,7 +195,7 @@ void GameViewModel::setSelectedS1Type(const QString& typeId) {
     // Check if existing path is valid for this newly selected type
     if (!m_s1GamePath.isEmpty() && key != QStringLiteral("custom") && m_envService) {
         auto validated = m_envService->validateSource1Folder(typeId, m_s1GamePath);
-        if (validated.has_value() && validated->isValid()) {
+        if (validated.has_value() && validated->isValid) {
             m_detectedGames.insert(key, *validated);
             applyS1Installation(*validated);
             return;
@@ -203,7 +203,7 @@ void GameViewModel::setSelectedS1Type(const QString& typeId) {
     }
 
     // Reset validation for newly selected game
-    m_s1Installation = Application::Environment::GameInstallation();
+    m_s1Installation = Application::Environment::GameInstallationInfo();
     m_s1GamePath.clear();
     m_s1GameTitle.clear();
     m_isS1Valid = false;
@@ -226,7 +226,7 @@ void GameViewModel::setSelectedS2Type(const QString& typeId) {
     if (it != m_detectedGames.end()) {
         applyS2Installation(it.value());
     } else {
-        m_s2Installation = Application::Environment::GameInstallation();
+        m_s2Installation = Application::Environment::GameInstallationInfo();
         if (m_envService) {
             m_envService->updateVpkLease(m_s2Installation);
         }
@@ -255,12 +255,12 @@ void GameViewModel::selectS1Folder(const QString& pathOrUrl) {
         capturedType,
         pathOrUrl,
         this,
-        [this, capturedType](const std::optional<Application::Environment::GameInstallation>& validated) {
-            if (validated.has_value() && validated->isValid()) {
+        [this, capturedType](const std::optional<Application::Environment::GameInstallationInfo>& validated) {
+            if (validated.has_value() && validated->isValid) {
                 const QString key = capturedType.trimmed().toLower();
                 m_detectedGames.insert(key, *validated);
-                if (!validated->gameId().isEmpty()) {
-                    m_detectedGames.insert(validated->gameId().toLower(), *validated);
+                if (!validated->gameId.isEmpty()) {
+                    m_detectedGames.insert(validated->gameId.toLower(), *validated);
                 }
                 applyS1Installation(*validated);
             } else {
@@ -284,14 +284,14 @@ void GameViewModel::selectS2Folder(const QString& pathOrUrl) {
     m_envService->validateSource2FolderAsync(
         pathOrUrl,
         this,
-        [this](const std::optional<Application::Environment::GameInstallation>& validated) {
-            if (validated.has_value() && validated->isValid()) {
-                if (!validated->gameId().isEmpty()) {
-                    m_detectedGames.insert(validated->gameId().toLower(), *validated);
+        [this](const std::optional<Application::Environment::GameInstallationInfo>& validated) {
+            if (validated.has_value() && validated->isValid) {
+                if (!validated->gameId.isEmpty()) {
+                    m_detectedGames.insert(validated->gameId.toLower(), *validated);
                 }
                 applyS2Installation(*validated);
             } else {
-                m_s2Installation = Application::Environment::GameInstallation();
+                m_s2Installation = Application::Environment::GameInstallationInfo();
                 if (m_envService) {
                     m_envService->updateVpkLease(m_s2Installation);
                 }
@@ -311,7 +311,7 @@ void GameViewModel::validateS1InSteam() {
     if (!m_envService) {
         return;
     }
-    const QString target = m_s1Installation.isValid() ? m_s1Installation.gameId() : m_selectedS1Type;
+    const QString target = m_s1Installation.isValid ? m_s1Installation.gameId : m_selectedS1Type;
     bool ok = m_envService->validateGameInSteam(target);
     if (!ok) {
         emit alertRequested(
@@ -325,7 +325,7 @@ void GameViewModel::validateS2InSteam() {
     if (!m_envService) {
         return;
     }
-    const QString target = m_s2Installation.isValid() ? m_s2Installation.gameId() : m_selectedS2Type;
+    const QString target = m_s2Installation.isValid ? m_s2Installation.gameId : m_selectedS2Type;
     bool ok = m_envService->validateGameInSteam(target);
     if (!ok) {
         emit alertRequested(
@@ -344,7 +344,7 @@ void GameViewModel::setSelectedAddon(const QString& addon) {
 
 void GameViewModel::refreshS2Addons() {
     QStringList addons;
-    if (m_envService && m_s2Installation.isValid()) {
+    if (m_envService && m_s2Installation.isValid) {
         addons = m_envService->listSource2Addons(m_s2Installation);
     }
 

@@ -1,0 +1,29 @@
+********* Start testing of TestEnvironment *********
+Config: Using QtTest library 6.11.1, Qt 6.11.1 (x86_64-little_endian-llp64 shared (dynamic) debug build; by MSVC 2022), windows 11
+PASS   : TestEnvironment::initTestCase()
+PASS   : TestEnvironment::testSteamRegistryDetection()
+PASS   : TestEnvironment::testSteamLibraryDetection()
+PASS   : TestEnvironment::testHostCs2Detection()
+PASS   : TestEnvironment::testHostSource1GamesDetection()
+PASS   : TestEnvironment::testHostCssDetection()
+PASS   : TestEnvironment::testHostHl2Detection()
+PASS   : TestEnvironment::testHostL4d2Detection()
+PASS   : TestEnvironment::testHostPortal2Detection()
+PASS   : TestEnvironment::testHostTf2Detection()
+PASS   : TestEnvironment::testHostCsgoLegacyDetection()
+PASS   : TestEnvironment::testValidateDirectoryWithFixtures()
+PASS   : TestEnvironment::testMockCs2Installation()
+PASS   : TestEnvironment::testMockSteamLibraryFolders()
+PASS   : TestEnvironment::testGameInstallationSource2Paths()
+PASS   : TestEnvironment::testMockCustomSource2Installation()
+PASS   : TestEnvironment::testDetectEnvironmentResult()
+PASS   : TestEnvironment::testDetectEnvironmentAsync()
+PASS   : TestEnvironment::testGameInstallationValidatorDirect()
+FAIL!  : TestEnvironment::testGameInstallationResolver() Compared values are not the same
+   Actual   (cssRes->gameInfo.title())               : "COUNTER-STRIKE'"
+   Expected (QStringLiteral("Counter-Strike Source")): "Counter-Strike Source"
+C:\Users\KEY\Documents\GitHub\cs2-map-importer\tests\TestEnvironment.cpp(410) : failure location
+PASS   : TestEnvironment::testGameEnvironmentServiceFacade()
+PASS   : TestEnvironment::cleanupTestCase()
+Totals: 21 passed, 1 failed, 0 skipped, 0 blacklisted, 217ms
+********* Finished testing of TestEnvironment *********

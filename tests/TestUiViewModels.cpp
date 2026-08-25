@@ -9,7 +9,6 @@
 #include "UI/Controllers/MainController.h"
 #include "Application/Environment/GameEnvironmentService.h"
 #include "Application/Environment/VpkSignatureLeaseService.h"
-#include "Domain/Game/GameType.h"
 
 using namespace UI::ViewModels;
 using namespace UI::Controllers;
@@ -59,8 +58,8 @@ private slots:
 
         QTRY_VERIFY(vm.isS1Valid());
         QCOMPARE(vm.s1GameTitle(), QStringLiteral("Counter-Strike Source"));
-        QVERIFY(vm.s1Installation().isValid());
-        QCOMPARE(vm.s1Installation().type(), Domain::Game::GameType::CSS);
+        QVERIFY(vm.s1Installation().isValid);
+        QCOMPARE(vm.s1Installation().gameId, QStringLiteral("css"));
         QVERIFY(spyS1Path.size() >= 1);
         QVERIFY(spyS1Valid.size() >= 1);
     }
@@ -114,8 +113,8 @@ private slots:
 
         QTRY_VERIFY(vm.isS2Valid());
         QCOMPARE(vm.s2GameTitle(), QStringLiteral("Counter-Strike 2"));
-        QVERIFY(vm.s2Installation().isValid());
-        QCOMPARE(vm.s2Installation().type(), Domain::Game::GameType::CS2);
+        QVERIFY(vm.s2Installation().isValid);
+        QCOMPARE(vm.s2Installation().gameId, QStringLiteral("cs2"));
 
         QVERIFY(vm.s2AddonsList().contains(QStringLiteral("de_sample")));
         QCOMPARE(vm.selectedAddon(), QStringLiteral("de_sample"));

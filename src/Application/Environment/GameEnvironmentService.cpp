@@ -1,4 +1,6 @@
 #include "Application/Environment/GameEnvironmentService.h"
+#include "Application/Environment/GameInstallationValidator.h"
+#include "Application/Environment/SteamService.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Domain/Game/GameType.h"
 #include "Core/Path/PathUtils.h"
@@ -10,6 +12,59 @@
 #include <utility>
 
 namespace Application::Environment {
+
+namespace {
+
+Domain::Game::GameType resolveGameTypeFromName(const QString& typeName)
+{
+    const QString lower = typeName.trimmed().toLower();
+    if (lower == QStringLiteral("cs: global offensive") || lower == QStringLiteral("cs:go") ||
+        lower == QStringLiteral("counter-strike: global offensive") ||
+        lower == QStringLiteral("counter-strike global offensive") ||
+        lower == QStringLiteral("csgo")) {
+        return Domain::Game::GameType::CSGO;
+    }
+    if (lower == QStringLiteral("cs: source") || lower == QStringLiteral("cs:s") ||
+        lower == QStringLiteral("counter-strike: source") ||
+        lower == QStringLiteral("counter-strike source") ||
+        lower == QStringLiteral("css")) {
+        return Domain::Game::GameType::CSS;
+    }
+    if (lower == QStringLiteral("half-life 2") || lower == QStringLiteral("hl2")) {
+        return Domain::Game::GameType::HL2;
+    }
+    if (lower == QStringLiteral("left 4 dead") || lower == QStringLiteral("l4d")) {
+        return Domain::Game::GameType::L4D;
+    }
+    if (lower == QStringLiteral("left 4 dead 2") || lower == QStringLiteral("l4d2")) {
+        return Domain::Game::GameType::L4D2;
+    }
+    if (lower == QStringLiteral("portal")) {
+        return Domain::Game::GameType::Portal;
+    }
+    if (lower == QStringLiteral("portal 2") || lower == QStringLiteral("portal2")) {
+        return Domain::Game::GameType::Portal2;
+    }
+    if (lower == QStringLiteral("team fortress 2") || lower == QStringLiteral("tf2")) {
+        return Domain::Game::GameType::TF2;
+    }
+    if (lower == QStringLiteral("garry's mod") || lower == QStringLiteral("garrysmod") || lower == QStringLiteral("gmod")) {
+        return Domain::Game::GameType::GMod;
+    }
+    if (lower == QStringLiteral("black mesa") || lower == QStringLiteral("blackmesa")) {
+        return Domain::Game::GameType::BlackMesa;
+    }
+    if (lower == QStringLiteral("counter-strike 2") || lower == QStringLiteral("cs2")) {
+        return Domain::Game::GameType::CS2;
+    }
+    if (lower == QStringLiteral("custom") || lower == QStringLiteral("custom game") ||
+        lower == QStringLiteral("other") || lower == QStringLiteral("other source 1 game")) {
+        return Domain::Game::GameType::Custom;
+    }
+    return Domain::Game::GameRegistry::stringToGameType(typeName);
+}
+
+} // anonymous namespace
 
 GameEnvironmentService::GameEnvironmentService(
     VpkSignatureLeaseService* leaseService,
@@ -59,55 +114,6 @@ QStringList GameEnvironmentService::s2GameTypes() const
     };
 }
 
-Domain::Game::GameType GameEnvironmentService::resolveGameType(const QString& typeName) const
-{
-    const QString lower = typeName.trimmed().toLower();
-    if (lower == QStringLiteral("cs: global offensive") || lower == QStringLiteral("cs:go") ||
-        lower == QStringLiteral("counter-strike: global offensive") ||
-        lower == QStringLiteral("counter-strike global offensive") ||
-        lower == QStringLiteral("csgo")) {
-        return Domain::Game::GameType::CSGO;
-    }
-    if (lower == QStringLiteral("cs: source") || lower == QStringLiteral("cs:s") ||
-        lower == QStringLiteral("counter-strike: source") ||
-        lower == QStringLiteral("counter-strike source") ||
-        lower == QStringLiteral("css")) {
-        return Domain::Game::GameType::CSS;
-    }
-    if (lower == QStringLiteral("half-life 2") || lower == QStringLiteral("hl2")) {
-        return Domain::Game::GameType::HL2;
-    }
-    if (lower == QStringLiteral("left 4 dead") || lower == QStringLiteral("l4d")) {
-        return Domain::Game::GameType::L4D;
-    }
-    if (lower == QStringLiteral("left 4 dead 2") || lower == QStringLiteral("l4d2")) {
-        return Domain::Game::GameType::L4D2;
-    }
-    if (lower == QStringLiteral("portal")) {
-        return Domain::Game::GameType::Portal;
-    }
-    if (lower == QStringLiteral("portal 2") || lower == QStringLiteral("portal2")) {
-        return Domain::Game::GameType::Portal2;
-    }
-    if (lower == QStringLiteral("team fortress 2") || lower == QStringLiteral("tf2")) {
-        return Domain::Game::GameType::TF2;
-    }
-    if (lower == QStringLiteral("garry's mod") || lower == QStringLiteral("garrysmod") || lower == QStringLiteral("gmod")) {
-        return Domain::Game::GameType::GMod;
-    }
-    if (lower == QStringLiteral("black mesa") || lower == QStringLiteral("blackmesa")) {
-        return Domain::Game::GameType::BlackMesa;
-    }
-    if (lower == QStringLiteral("counter-strike 2") || lower == QStringLiteral("cs2")) {
-        return Domain::Game::GameType::CS2;
-    }
-    if (lower == QStringLiteral("custom") || lower == QStringLiteral("custom game") ||
-        lower == QStringLiteral("other") || lower == QStringLiteral("other source 1 game")) {
-        return Domain::Game::GameType::Custom;
-    }
-    return Domain::Game::GameRegistry::stringToGameType(typeName);
-}
-
 QString GameEnvironmentService::cleanPath(const QString& pathOrUrl) const
 {
     if (pathOrUrl.isEmpty()) {
@@ -121,13 +127,13 @@ QString GameEnvironmentService::cleanPath(const QString& pathOrUrl) const
 void GameEnvironmentService::detectEnvironmentAsync(
     QObject* context,
     std::function<void(const DetectionResult&)> callback,
-    const Core::Path::FilesystemPath& customSteamPath)
+    const QString& customSteamPath)
 {
     GameDetectService::detectEnvironmentAsync(context, std::move(callback), customSteamPath);
 }
 
 DetectionResult GameEnvironmentService::detectEnvironment(
-    const Core::Path::FilesystemPath& customSteamPath)
+    const QString& customSteamPath)
 {
     return GameDetectService::detectEnvironment(customSteamPath);
 }
@@ -136,20 +142,24 @@ void GameEnvironmentService::validateSource1FolderAsync(
     const QString& typeName,
     const QString& pathOrUrl,
     QObject* context,
-    std::function<void(const std::optional<GameInstallation>&)> callback)
+    std::function<void(const std::optional<GameInstallationInfo>&)> callback)
 {
     QPointer<QObject> contextGuard(context);
     QString normalizedPath = cleanPath(pathOrUrl);
-    Domain::Game::GameType type = resolveGameType(typeName);
+    Domain::Game::GameType type = resolveGameTypeFromName(typeName);
 
-    QThreadPool::globalInstance()->start([this, contextGuard, callback = std::move(callback), type, normalizedPath]() {
-        std::optional<GameInstallation> result;
+    QThreadPool::globalInstance()->start([contextGuard, callback = std::move(callback), type, normalizedPath]() {
+        std::optional<GameInstallationInfo> result;
         if (!normalizedPath.isEmpty()) {
             Core::Path::FilesystemPath fsPath(normalizedPath);
+            std::optional<GameInstallation> inst;
             if (type == Domain::Game::GameType::Custom) {
-                result = GameInstallationValidator::inspectGameInfo(fsPath);
+                inst = GameInstallationValidator::inspectGameInfo(fsPath);
             } else {
-                result = GameInstallationValidator::validateSource1(type, fsPath);
+                inst = GameInstallationValidator::validateSource1(type, fsPath);
+            }
+            if (inst.has_value()) {
+                result = inst->toInfo();
             }
         }
 
@@ -165,7 +175,7 @@ void GameEnvironmentService::validateSource1FolderAsync(
     });
 }
 
-std::optional<GameInstallation> GameEnvironmentService::validateSource1Folder(
+std::optional<GameInstallationInfo> GameEnvironmentService::validateSource1Folder(
     const QString& typeName,
     const QString& pathOrUrl)
 {
@@ -175,26 +185,36 @@ std::optional<GameInstallation> GameEnvironmentService::validateSource1Folder(
     }
 
     Core::Path::FilesystemPath fsPath(normalizedPath);
-    Domain::Game::GameType type = resolveGameType(typeName);
+    Domain::Game::GameType type = resolveGameTypeFromName(typeName);
+    std::optional<GameInstallation> inst;
     if (type == Domain::Game::GameType::Custom) {
-        return GameInstallationValidator::inspectGameInfo(fsPath);
+        inst = GameInstallationValidator::inspectGameInfo(fsPath);
+    } else {
+        inst = GameInstallationValidator::validateSource1(type, fsPath);
     }
-    return GameInstallationValidator::validateSource1(type, fsPath);
+
+    if (!inst.has_value()) {
+        return std::nullopt;
+    }
+    return inst->toInfo();
 }
 
 void GameEnvironmentService::validateSource2FolderAsync(
     const QString& pathOrUrl,
     QObject* context,
-    std::function<void(const std::optional<GameInstallation>&)> callback)
+    std::function<void(const std::optional<GameInstallationInfo>&)> callback)
 {
     QPointer<QObject> contextGuard(context);
     QString normalizedPath = cleanPath(pathOrUrl);
 
     QThreadPool::globalInstance()->start([contextGuard, callback = std::move(callback), normalizedPath]() {
-        std::optional<GameInstallation> result;
+        std::optional<GameInstallationInfo> result;
         if (!normalizedPath.isEmpty()) {
             Core::Path::FilesystemPath fsPath(normalizedPath);
-            result = GameInstallationValidator::validateSource2(fsPath);
+            auto inst = GameInstallationValidator::validateSource2(fsPath);
+            if (inst.has_value()) {
+                result = inst->toInfo();
+            }
         }
 
         if (!contextGuard) {
@@ -209,7 +229,7 @@ void GameEnvironmentService::validateSource2FolderAsync(
     });
 }
 
-std::optional<GameInstallation> GameEnvironmentService::validateSource2Folder(
+std::optional<GameInstallationInfo> GameEnvironmentService::validateSource2Folder(
     const QString& pathOrUrl)
 {
     QString normalizedPath = cleanPath(pathOrUrl);
@@ -218,32 +238,61 @@ std::optional<GameInstallation> GameEnvironmentService::validateSource2Folder(
     }
 
     Core::Path::FilesystemPath fsPath(normalizedPath);
-    return GameInstallationValidator::validateSource2(fsPath);
+    auto inst = GameInstallationValidator::validateSource2(fsPath);
+    if (!inst.has_value()) {
+        return std::nullopt;
+    }
+    return inst->toInfo();
 }
 
 bool GameEnvironmentService::validateGameInSteam(const QString& typeName)
 {
-    Domain::Game::GameType type = resolveGameType(typeName);
+    Domain::Game::GameType type = resolveGameTypeFromName(typeName);
     return SteamService::validateGameFiles(type);
 }
 
-QStringList GameEnvironmentService::listSource2Addons(const GameInstallation& s2Installation) const
+QStringList GameEnvironmentService::listSource2Addons(const QString& s2BasePath) const
 {
     QStringList addons;
-    if (s2Installation.isValid()) {
-        Core::Path::FilesystemPath addonsDir = s2Installation.addonGameDirectory();
-        if (addonsDir.isValid() && addonsDir.exists() && addonsDir.isDirectory()) {
-            QDir dir(addonsDir.toString());
-            const QStringList entries = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-            for (const auto& entry : entries) {
-                addons.append(entry);
+    if (s2BasePath.isEmpty()) {
+        return addons;
+    }
+
+    QString normalizedBase = cleanPath(s2BasePath);
+    // Look for addons in <s2BasePath>/game/csgo_addons, or search <s2BasePath>/game/*_addons
+    QDir gameDir(QDir(normalizedBase).filePath(QStringLiteral("game")));
+    if (gameDir.exists()) {
+        const QStringList subdirs = gameDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const auto& sub : subdirs) {
+            if (sub.endsWith(QStringLiteral("_addons"), Qt::CaseInsensitive)) {
+                QDir addonsDir(gameDir.filePath(sub));
+                const QStringList addonEntries = addonsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+                for (const auto& entry : addonEntries) {
+                    if (!addons.contains(entry)) {
+                        addons.append(entry);
+                    }
+                }
             }
         }
     }
+
     return addons;
 }
 
-VpkSignatureLeaseResult GameEnvironmentService::updateVpkLease(const GameInstallation& s2Installation)
+QStringList GameEnvironmentService::listSource2Addons(const GameInstallationInfo& s2Installation) const
+{
+    return listSource2Addons(s2Installation.basePath);
+}
+
+VpkSignatureLeaseResult GameEnvironmentService::updateVpkLease(const QString& s2BasePath)
+{
+    if (m_leaseService) {
+        return m_leaseService->acquireLease(cleanPath(s2BasePath));
+    }
+    return {VpkSignatureLeaseStatus::Inactive, QString(), QString()};
+}
+
+VpkSignatureLeaseResult GameEnvironmentService::updateVpkLease(const GameInstallationInfo& s2Installation)
 {
     if (m_leaseService) {
         return m_leaseService->updateInstallation(s2Installation);
@@ -260,4 +309,3 @@ VpkSignatureLeaseResult GameEnvironmentService::retryVpkLease()
 }
 
 } // namespace Application::Environment
-

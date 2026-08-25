@@ -9,6 +9,7 @@
 #include "Application/Environment/GameInstallation.h"
 #include "Domain/Game/GameType.h"
 #include "Domain/Game/GameRegistry.h"
+#include "Domain/Game/GameInstallationResolver.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Path/PathUtils.h"
 #include "Core/FileSystem/FileSystem.h"
@@ -399,6 +400,21 @@ private slots:
         QCOMPARE(customValidation->type(), GameType::CSS);
     }
 
+    void testGameInstallationResolver() {
+        QString cssDirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source"));
+        auto cssRes = GameInstallationResolver::resolveSource1(GameType::CSS, Core::Path::FilesystemPath(cssDirStr));
+        QVERIFY(cssRes.has_value());
+        QCOMPARE(cssRes->type, GameType::CSS);
+        QVERIFY(cssRes->isValid);
+        QVERIFY(!cssRes->isSource2);
+        QCOMPARE(cssRes->gameInfo.game(), QStringLiteral("Counter-Strike Source"));
+
+        QString customGiPath = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source/cstrike/gameinfo.txt"));
+        auto customRes = GameInstallationResolver::inspectGameInfo(Core::Path::FilesystemPath(customGiPath));
+        QVERIFY(customRes.has_value());
+        QCOMPARE(customRes->type, GameType::CSS);
+    }
+
     void testGameEnvironmentServiceFacade() {
         GameEnvironmentService envService;
         QCOMPARE(envService.s1GameTypes().contains(QStringLiteral("CSGO")), true);
@@ -407,13 +423,13 @@ private slots:
         QString cssDirStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source"));
         auto cssRes = envService.validateSource1Folder(QStringLiteral("CS: Source"), cssDirStr);
         QVERIFY(cssRes.has_value());
-        QCOMPARE(cssRes->gameTitle(), QStringLiteral("Counter-Strike Source"));
+        QCOMPARE(cssRes->gameTitle, QStringLiteral("Counter-Strike Source"));
 
         bool asyncFinished = false;
-        envService.validateSource1FolderAsync(QStringLiteral("CS: Source"), cssDirStr, this, [&](const std::optional<GameInstallation>& res) {
+        envService.validateSource1FolderAsync(QStringLiteral("CS: Source"), cssDirStr, this, [&](const std::optional<GameInstallationInfo>& res) {
             asyncFinished = true;
             QVERIFY(res.has_value());
-            QCOMPARE(res->gameTitle(), QStringLiteral("Counter-Strike Source"));
+            QCOMPARE(res->gameTitle, QStringLiteral("Counter-Strike Source"));
         });
         QTRY_VERIFY_WITH_TIMEOUT(asyncFinished, 5000);
     }
