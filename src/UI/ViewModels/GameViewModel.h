@@ -104,6 +104,7 @@ private:
     void applyDetectionResult(const Application::Environment::DetectionResult& result);
     void applyS1Installation(const Application::Environment::GameInstallation& inst);
     void applyS2Installation(const Application::Environment::GameInstallation& inst);
+    void onVpkLeaseStatusChanged(Application::Environment::VpkSignatureLeaseStatus status, const QString& filePath, const QString& systemMessage);
 
     bool m_isDetecting = false;
 

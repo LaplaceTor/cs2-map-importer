@@ -4,6 +4,23 @@
 
 namespace Core::FileSystem {
 
+enum class FileLeaseError {
+    None,
+    InvalidPath,
+    NotFound,
+    AlreadyInUse,   // Win32 ERROR_SHARING_VIOLATION / ERROR_LOCK_VIOLATION
+    AccessDenied,   // Win32 ERROR_ACCESS_DENIED
+    Unsupported,
+    Unknown
+};
+
+struct FileLeaseResult {
+    FileLeaseError error = FileLeaseError::None;
+    QString message;
+
+    bool isSuccess() const noexcept { return error == FileLeaseError::None; }
+};
+
 /**
  * @brief Move-only RAII abstraction for holding an OS-level exclusive file lease.
  *
@@ -27,12 +44,9 @@ public:
     /**
      * @brief Attempts to acquire an exclusive OS handle on the specified file.
      * @param filePath Host filesystem path to the target file.
-     * @param errorMessage Optional pointer to receive error description if acquisition fails.
-     * @return true if exclusive lease was acquired successfully, false otherwise.
+     * @return FileLeaseResult containing the error status and system error description.
      */
-    bool acquireExclusive(
-        const QString& filePath,
-        QString* errorMessage = nullptr);
+    FileLeaseResult acquireExclusive(const QString& filePath);
 
     /**
      * @brief Releases the currently held OS file handle, if any.
@@ -58,4 +72,3 @@ private:
 };
 
 } // namespace Core::FileSystem
-

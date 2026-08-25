@@ -22,8 +22,6 @@ void GameViewModel::setVpkSignatureLeaseService(Application::Environment::VpkSig
     if (m_vpkLeaseService) {
         connect(m_vpkLeaseService, &Application::Environment::VpkSignatureLeaseService::leaseStateChanged,
                 this, &GameViewModel::vpkLeaseStateChanged);
-        connect(m_vpkLeaseService, &Application::Environment::VpkSignatureLeaseService::leaseConflictOccurred,
-                this, &GameViewModel::vpkSignatureOccupied);
     }
     emit vpkLeaseStateChanged();
 }
@@ -93,11 +91,7 @@ Domain::Game::GameType GameViewModel::parseS1Type(const QString& typeStr) const 
 }
 
 Domain::Game::GameType GameViewModel::parseS2Type(const QString& typeStr) const {
-    const QString lower = typeStr.trimmed().toLower();
-    if (lower == QStringLiteral("cs2") || lower == QStringLiteral("counter-strike 2")) {
-        return Domain::Game::GameType::CS2;
-    }
-    return Domain::Game::GameRegistry::stringToGameType(lower);
+    return Domain::Game::GameRegistry::stringToGameType(typeStr);
 }
 
 QString GameViewModel::cleanInputPath(const QString& pathOrUrl) const {
@@ -132,19 +126,43 @@ void GameViewModel::applyS2Installation(const Application::Environment::GameInst
 
     refreshS2Addons();
 
-    // Delegate vpk.signatures lease management to Application lease service
+    // Delegate vpk.signatures lease lifecycle entirely to the Application service
     if (m_vpkLeaseService) {
-        if (m_isS2Valid && inst.type() == Domain::Game::GameType::CS2) {
-            m_vpkLeaseService->acquireLease(inst.baseDirectory());
-        } else {
-            m_vpkLeaseService->releaseLease();
-        }
+        m_vpkLeaseService->updateInstallation(inst);
     }
 }
 
 void GameViewModel::retryVpkSignatureLease() {
-    if (m_vpkLeaseService && m_isS2Valid && m_s2Installation.type() == Domain::Game::GameType::CS2) {
-        m_vpkLeaseService->acquireLease(m_s2Installation.baseDirectory());
+    if (m_vpkLeaseService) {
+        m_vpkLeaseService->retryLease();
+    }
+}
+
+void GameViewModel::onVpkLeaseStatusChanged(Application::Environment::VpkSignatureLeaseStatus status, const QString& filePath, const QString& systemMessage) {
+    switch (status) {
+    case Application::Environment::VpkSignatureLeaseStatus::AlreadyInUse:
+        emit vpkSignatureOccupied(
+            QStringLiteral("Counter-Strike 2 is Running"),
+            QStringLiteral("vpk.signatures is currently in use by Counter-Strike 2 or another application.\n\nPlease close the occupying application and click Retry, or Exit to quit.")
+        );
+        break;
+    case Application::Environment::VpkSignatureLeaseStatus::AccessDenied:
+        emit alertRequested(
+            QStringLiteral("Access Denied"),
+            QStringLiteral("Permission denied when trying to access vpk.signatures:\n%1\n\nPlease check file permissions or run as administrator.").arg(filePath)
+        );
+        break;
+    case Application::Environment::VpkSignatureLeaseStatus::Failed:
+        emit alertRequested(
+            QStringLiteral("File Lease Failed"),
+            QStringLiteral("Failed to acquire exclusive lease on vpk.signatures:\n%1").arg(systemMessage)
+        );
+        break;
+    case Application::Environment::VpkSignatureLeaseStatus::Acquired:
+    case Application::Environment::VpkSignatureLeaseStatus::NotFound:
+    case Application::Environment::VpkSignatureLeaseStatus::Inactive:
+    default:
+        break;
     }
 }
 
@@ -247,10 +265,10 @@ void GameViewModel::setSelectedS2Type(const QString& typeId) {
         if (it != m_detectedGames.end()) {
             applyS2Installation(it.value());
         } else {
-            if (m_vpkLeaseService) {
-                m_vpkLeaseService->releaseLease();
-            }
             m_s2Installation = Application::Environment::GameInstallation();
+            if (m_vpkLeaseService) {
+                m_vpkLeaseService->updateInstallation(m_s2Installation);
+            }
             m_s2GamePath.clear();
             m_s2GameTitle.clear();
             m_isS2Valid = false;
@@ -309,8 +327,9 @@ void GameViewModel::selectS2Folder(const QString& pathOrUrl) {
         m_detectedGames.insert(validated->type(), *validated);
         applyS2Installation(*validated);
     } else {
+        m_s2Installation = Application::Environment::GameInstallation();
         if (m_vpkLeaseService) {
-            m_vpkLeaseService->releaseLease();
+            m_vpkLeaseService->updateInstallation(m_s2Installation);
         }
         m_isS2Valid = false;
         emit s2ValidityChanged();

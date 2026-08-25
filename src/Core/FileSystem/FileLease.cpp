@@ -47,30 +47,21 @@ FileLease& FileLease::operator=(FileLease&& other) noexcept
     return *this;
 }
 
-bool FileLease::acquireExclusive(const QString& filePath, QString* errorMessage)
+FileLeaseResult FileLease::acquireExclusive(const QString& filePath)
 {
     release();
 
     if (filePath.isEmpty()) {
-        if (errorMessage) {
-            *errorMessage = QStringLiteral("File path is empty.");
-        }
-        return false;
+        return {FileLeaseError::InvalidPath, QStringLiteral("File path is empty.")};
     }
 
     QFileInfo info(filePath);
     if (!info.exists()) {
-        if (errorMessage) {
-            *errorMessage = QStringLiteral("File does not exist: %1").arg(filePath);
-        }
-        return false;
+        return {FileLeaseError::NotFound, QStringLiteral("File does not exist: %1").arg(filePath)};
     }
 
     if (!info.isFile()) {
-        if (errorMessage) {
-            *errorMessage = QStringLiteral("Path is not a regular file: %1").arg(filePath);
-        }
-        return false;
+        return {FileLeaseError::InvalidPath, QStringLiteral("Path is not a regular file: %1").arg(filePath)};
     }
 
     const QString nativePath = QDir::toNativeSeparators(info.absoluteFilePath());
@@ -80,7 +71,7 @@ bool FileLease::acquireExclusive(const QString& filePath, QString* errorMessage)
     HANDLE hFile = CreateFileW(
         reinterpret_cast<LPCWSTR>(nativePath.utf16()),
         GENERIC_READ | GENERIC_WRITE,
-        0, // Exclusive access
+        0, // Exclusive access: no sharing
         nullptr,
         OPEN_EXISTING,
         FILE_ATTRIBUTE_NORMAL,
@@ -94,7 +85,7 @@ bool FileLease::acquireExclusive(const QString& filePath, QString* errorMessage)
             hFile = CreateFileW(
                 reinterpret_cast<LPCWSTR>(nativePath.utf16()),
                 GENERIC_READ,
-                0, // Exclusive access
+                0, // Exclusive access: no sharing
                 nullptr,
                 OPEN_EXISTING,
                 FILE_ATTRIBUTE_NORMAL,
@@ -105,23 +96,28 @@ bool FileLease::acquireExclusive(const QString& filePath, QString* errorMessage)
 
     if (hFile == INVALID_HANDLE_VALUE) {
         DWORD err = GetLastError();
-        if (errorMessage) {
-            *errorMessage = QStringLiteral("Failed to acquire exclusive handle on '%1' (Windows Error %2): %3")
-                .arg(nativePath)
-                .arg(err)
-                .arg(QString::fromLocal8Bit(std::system_category().message(err).c_str()).trimmed());
+        FileLeaseError errorType = FileLeaseError::Unknown;
+        if (err == ERROR_SHARING_VIOLATION || err == ERROR_LOCK_VIOLATION) {
+            errorType = FileLeaseError::AlreadyInUse;
+        } else if (err == ERROR_ACCESS_DENIED) {
+            errorType = FileLeaseError::AccessDenied;
+        } else if (err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND) {
+            errorType = FileLeaseError::NotFound;
         }
-        return false;
+
+        const QString systemMsg = QStringLiteral("Failed to acquire exclusive handle on '%1' (Windows Error %2): %3")
+            .arg(nativePath)
+            .arg(err)
+            .arg(QString::fromLocal8Bit(std::system_category().message(err).c_str()).trimmed());
+
+        return {errorType, systemMsg};
     }
 
     m_handle = static_cast<void*>(hFile);
     m_filePath = nativePath;
-    return true;
+    return {FileLeaseError::None, QString()};
 #else
-    if (errorMessage) {
-        *errorMessage = QStringLiteral("Exclusive file lease is only supported on Windows.");
-    }
-    return false;
+    return {FileLeaseError::Unsupported, QStringLiteral("Exclusive file lease is only supported on Windows.")};
 #endif
 }
 
@@ -151,4 +147,3 @@ QString FileLease::filePath() const
 }
 
 } // namespace Core::FileSystem
-

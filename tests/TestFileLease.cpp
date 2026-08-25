@@ -33,6 +33,7 @@ private slots:
     void testScopeLifetime();
     void testVpkSignatureLeaseServiceIntegration();
     void testVpkSignatureConflictAndRetry();
+    void testVpkSignatureServiceInstallationLifecycle();
 };
 
 void TestFileLease::testBasicAcquireAndRelease() {
@@ -49,9 +50,9 @@ void TestFileLease::testBasicAcquireAndRelease() {
     QVERIFY(!lease.isHeld());
     QVERIFY(lease.filePath().isEmpty());
 
-    QString errorMsg;
-    bool ok = lease.acquireExclusive(testFilePath, &errorMsg);
-    QVERIFY2(ok, qPrintable(errorMsg));
+    FileLeaseResult res = lease.acquireExclusive(testFilePath);
+    QVERIFY2(res.isSuccess(), qPrintable(res.message));
+    QCOMPARE(res.error, FileLeaseError::None);
     QVERIFY(lease.isHeld());
     QCOMPARE(lease.filePath(), QDir::toNativeSeparators(QFileInfo(testFilePath).absoluteFilePath()));
 
@@ -62,26 +63,26 @@ void TestFileLease::testBasicAcquireAndRelease() {
 
 void TestFileLease::testNonexistentAndInvalidPaths() {
     FileLease lease;
-    QString errorMsg;
 
     // Empty path
-    QVERIFY(!lease.acquireExclusive(QString(), &errorMsg));
+    FileLeaseResult emptyRes = lease.acquireExclusive(QString());
+    QVERIFY(!emptyRes.isSuccess());
+    QCOMPARE(emptyRes.error, FileLeaseError::InvalidPath);
     QVERIFY(!lease.isHeld());
-    QVERIFY(!errorMsg.isEmpty());
 
     // Nonexistent file
-    errorMsg.clear();
-    QVERIFY(!lease.acquireExclusive(QStringLiteral("C:/nonexistent_file_xyz_12345.bin"), &errorMsg));
+    FileLeaseResult missingRes = lease.acquireExclusive(QStringLiteral("C:/nonexistent_file_xyz_12345.bin"));
+    QVERIFY(!missingRes.isSuccess());
+    QCOMPARE(missingRes.error, FileLeaseError::NotFound);
     QVERIFY(!lease.isHeld());
-    QVERIFY(!errorMsg.isEmpty());
 
     // Directory path
     QTemporaryDir tempDir;
     QVERIFY(tempDir.isValid());
-    errorMsg.clear();
-    QVERIFY(!lease.acquireExclusive(tempDir.path(), &errorMsg));
+    FileLeaseResult dirRes = lease.acquireExclusive(tempDir.path());
+    QVERIFY(!dirRes.isSuccess());
+    QCOMPARE(dirRes.error, FileLeaseError::InvalidPath);
     QVERIFY(!lease.isHeld());
-    QVERIFY(!errorMsg.isEmpty());
 }
 
 void TestFileLease::testMoveSemantics() {
@@ -95,7 +96,7 @@ void TestFileLease::testMoveSemantics() {
     file.close();
 
     FileLease lease1;
-    QVERIFY(lease1.acquireExclusive(testFilePath));
+    QVERIFY(lease1.acquireExclusive(testFilePath).isSuccess());
     QVERIFY(lease1.isHeld());
 
     // Move constructor
@@ -126,13 +127,13 @@ void TestFileLease::testDestructorReleasesHandle() {
 
     {
         FileLease lease;
-        QVERIFY(lease.acquireExclusive(testFilePath));
+        QVERIFY(lease.acquireExclusive(testFilePath).isSuccess());
         QVERIFY(lease.isHeld());
     }
 
     // After destruction, another lease should be acquired immediately without sharing violation
     FileLease lease2;
-    QVERIFY(lease2.acquireExclusive(testFilePath));
+    QVERIFY(lease2.acquireExclusive(testFilePath).isSuccess());
     QVERIFY(lease2.isHeld());
 }
 
@@ -148,7 +149,7 @@ void TestFileLease::testOsLevelExclusionOnWindows() {
     file.close();
 
     FileLease lease;
-    QVERIFY(lease.acquireExclusive(testFilePath));
+    QVERIFY(lease.acquireExclusive(testFilePath).isSuccess());
     QVERIFY(lease.isHeld());
 
     const QString nativePath = QDir::toNativeSeparators(QFileInfo(testFilePath).absoluteFilePath());
@@ -203,7 +204,7 @@ void TestFileLease::testScopeLifetime() {
 
     {
         FileLease lease;
-        QVERIFY(lease.acquireExclusive(testFilePath));
+        QVERIFY(lease.acquireExclusive(testFilePath).isSuccess());
 
         // Conflicting open MUST fail here
         HANDLE hConflict = CreateFileW(
@@ -253,9 +254,9 @@ void TestFileLease::testVpkSignatureLeaseServiceIntegration() {
     QVERIFY(service.leasedFilePath().isEmpty());
 
     // Acquire lease through service
-    QString errorMsg;
-    bool ok = service.acquireLease(FilesystemPath(tempDir.path()), &errorMsg);
-    QVERIFY2(ok, qPrintable(errorMsg));
+    VpkSignatureLeaseResult res = service.acquireLease(FilesystemPath(tempDir.path()));
+    QVERIFY(res.isSuccess());
+    QCOMPARE(res.status, VpkSignatureLeaseStatus::Acquired);
     QVERIFY(service.isLeaseHeld());
     QCOMPARE(service.leasedFilePath(), QDir::toNativeSeparators(QFileInfo(sigPath).absoluteFilePath()));
 
@@ -323,26 +324,67 @@ void TestFileLease::testVpkSignatureConflictAndRetry() {
     );
     QVERIFY(hExternalCs2 != INVALID_HANDLE_VALUE);
 
-    // 2. Service tries to acquire exclusive lease while CS2 is holding it -> must FAIL
+    // 2. Service tries to acquire exclusive lease while CS2 is holding it -> must FAIL with AlreadyInUse
     VpkSignatureLeaseService service;
-    QString errorMsg;
-    bool ok = service.acquireLease(FilesystemPath(tempDir.path()), &errorMsg);
-    QVERIFY(!ok);
+    VpkSignatureLeaseResult res = service.acquireLease(FilesystemPath(tempDir.path()));
+    QVERIFY(!res.isSuccess());
+    QCOMPARE(res.status, VpkSignatureLeaseStatus::AlreadyInUse);
     QVERIFY(!service.isLeaseHeld());
-    QVERIFY(!errorMsg.isEmpty());
+    QVERIFY(!res.systemMessage.isEmpty());
 
     // 3. User closes CS2 (simulate closing handle)
     CloseHandle(hExternalCs2);
 
     // 4. Retry acquiring lease -> must SUCCEED
-    ok = service.acquireLease(FilesystemPath(tempDir.path()), &errorMsg);
-    QVERIFY2(ok, qPrintable(errorMsg));
+    res = service.acquireLease(FilesystemPath(tempDir.path()));
+    QVERIFY(res.isSuccess());
+    QCOMPARE(res.status, VpkSignatureLeaseStatus::Acquired);
     QVERIFY(service.isLeaseHeld());
 
     service.releaseLease();
 #endif
 }
 
+void TestFileLease::testVpkSignatureServiceInstallationLifecycle() {
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+
+    const QString win64Dir = QDir(tempDir.path()).filePath(QStringLiteral("game/bin/win64"));
+    QVERIFY(QDir().mkpath(win64Dir));
+    const QString sigPath = QDir(win64Dir).filePath(QStringLiteral("vpk.signatures"));
+    QFile file(sigPath);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("CS2 signatures");
+    file.close();
+
+    VpkSignatureLeaseService service;
+
+    // 1. Non-CS2 installation (e.g. CSS) -> should be Inactive and not hold lease
+    GameInstallation cssInst;
+    cssInst.setType(Domain::Game::GameType::CSS);
+    cssInst.setBaseDirectory(FilesystemPath(tempDir.path()));
+    cssInst.setValid(true);
+
+    auto res = service.updateInstallation(cssInst);
+    QCOMPARE(res.status, VpkSignatureLeaseStatus::Inactive);
+    QVERIFY(!service.isLeaseHeld());
+
+    // 2. Valid CS2 installation -> should automatically acquire lease
+    GameInstallation cs2Inst;
+    cs2Inst.setType(Domain::Game::GameType::CS2);
+    cs2Inst.setBaseDirectory(FilesystemPath(tempDir.path()));
+    cs2Inst.setValid(true);
+
+    res = service.updateInstallation(cs2Inst);
+    QCOMPARE(res.status, VpkSignatureLeaseStatus::Acquired);
+    QVERIFY(service.isLeaseHeld());
+
+    // 3. Reset / invalid installation -> should automatically release lease
+    GameInstallation invalidInst;
+    res = service.updateInstallation(invalidInst);
+    QCOMPARE(res.status, VpkSignatureLeaseStatus::Inactive);
+    QVERIFY(!service.isLeaseHeld());
+}
+
 QTEST_MAIN(TestFileLease)
 #include "TestFileLease.moc"
-
