@@ -17,6 +17,7 @@ struct GameDefinition {
     QString modSubdirectory;
     QString gameInfoFileName = QStringLiteral("gameinfo.txt");
     QString expectedGameTitle;
+    std::vector<QString> titleAliases;
 
     bool isSource2() const noexcept {
         return engine == EngineType::Source2;

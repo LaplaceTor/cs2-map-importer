@@ -344,10 +344,124 @@ private slots:
         auto wrongValidation = GameValidator::validateDirectory(Core::Path::FilesystemPath(hl2DirStr), GameType::CSS);
         QVERIFY(!wrongValidation.has_value());
 
-        // Test auto-identification
-        auto identifiedType = GameValidator::identifyGameType(*cssValidation);
-        QVERIFY(identifiedType.has_value());
-        QCOMPARE(*identifiedType, GameType::CSS);
+        // Negative tests: Portal 2 should NOT validate as Portal, Left 4 Dead 2 should NOT validate as L4D
+        QVERIFY(!GameValidator::validateGameInfo(*portal2Validation, GameType::Portal));
+        QVERIFY(!GameValidator::validateGameInfo(*l4d2Validation, GameType::L4D));
+
+        // Test auto-identification across all fixtures
+        auto identifiedCss = GameValidator::identifyGameType(*cssValidation);
+        QVERIFY(identifiedCss.has_value());
+        QCOMPARE(*identifiedCss, GameType::CSS);
+
+        auto identifiedHl2 = GameValidator::identifyGameType(*hl2Validation);
+        QVERIFY(identifiedHl2.has_value());
+        QCOMPARE(*identifiedHl2, GameType::HL2);
+
+        auto identifiedPortal2 = GameValidator::identifyGameType(*portal2Validation);
+        QVERIFY(identifiedPortal2.has_value());
+        QCOMPARE(*identifiedPortal2, GameType::Portal2);
+        QVERIFY(*identifiedPortal2 != GameType::Portal);
+
+        auto identifiedL4d2 = GameValidator::identifyGameType(*l4d2Validation);
+        QVERIFY(identifiedL4d2.has_value());
+        QCOMPARE(*identifiedL4d2, GameType::L4D2);
+        QVERIFY(*identifiedL4d2 != GameType::L4D);
+
+        auto identifiedTf2 = GameValidator::identifyGameType(*tf2Validation);
+        QVERIFY(identifiedTf2.has_value());
+        QCOMPARE(*identifiedTf2, GameType::TF2);
+
+        auto identifiedCsgo = GameValidator::identifyGameType(*csgoValidation);
+        QVERIFY(identifiedCsgo.has_value());
+        QCOMPARE(*identifiedCsgo, GameType::CSGO);
+    }
+
+    void testIdentifyGameTypeTieredResolution() {
+        // 1. Exact title matching without AppID
+        {
+            QString content = QStringLiteral("\"GameInfo\" { game \"PORTAL 2\" }\n");
+            auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
+            QVERIFY(parsed.has_value());
+            auto type = GameValidator::identifyGameType(*parsed);
+            QVERIFY(type.has_value());
+            QCOMPARE(*type, GameType::Portal2);
+            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::Portal));
+        }
+        {
+            QString content = QStringLiteral("\"GameInfo\" { game \"Portal\" }\n");
+            auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
+            QVERIFY(parsed.has_value());
+            auto type = GameValidator::identifyGameType(*parsed);
+            QVERIFY(type.has_value());
+            QCOMPARE(*type, GameType::Portal);
+            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::Portal2));
+        }
+        {
+            QString content = QStringLiteral("\"GameInfo\" { game \"Left 4 Dead 2\" }\n");
+            auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
+            QVERIFY(parsed.has_value());
+            auto type = GameValidator::identifyGameType(*parsed);
+            QVERIFY(type.has_value());
+            QCOMPARE(*type, GameType::L4D2);
+            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::L4D));
+        }
+        {
+            QString content = QStringLiteral("\"GameInfo\" { game \"Left 4 Dead\" }\n");
+            auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
+            QVERIFY(parsed.has_value());
+            auto type = GameValidator::identifyGameType(*parsed);
+            QVERIFY(type.has_value());
+            QCOMPARE(*type, GameType::L4D);
+            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::L4D2));
+        }
+
+        // 2. Exact alias matching
+        {
+            QString content = QStringLiteral("\"GameInfo\" { game \"Counter-Strike: Source\" }\n");
+            auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
+            QVERIFY(parsed.has_value());
+            auto type = GameValidator::identifyGameType(*parsed);
+            QVERIFY(type.has_value());
+            QCOMPARE(*type, GameType::CSS);
+        }
+
+        // 3. Steam AppID matching
+        {
+            QString content = QStringLiteral("\"GameInfo\" { game \"Unknown Mod\" FileSystem { SteamAppId 620 } }\n");
+            auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
+            QVERIFY(parsed.has_value());
+            auto type = GameValidator::identifyGameType(*parsed);
+            QVERIFY(type.has_value());
+            QCOMPARE(*type, GameType::Portal2);
+        }
+        {
+            QString content = QStringLiteral("\"GameInfo\" { game \"Unknown Mod\" FileSystem { SteamAppId 550 } }\n");
+            auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
+            QVERIFY(parsed.has_value());
+            auto type = GameValidator::identifyGameType(*parsed);
+            QVERIFY(type.has_value());
+            QCOMPARE(*type, GameType::L4D2);
+        }
+
+        // 4. Loose substring matching (longer matching pattern must take precedence)
+        {
+            QString content = QStringLiteral("\"GameInfo\" { game \"Portal 2 Thinking With Time Travel\" }\n");
+            auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
+            QVERIFY(parsed.has_value());
+            auto type = GameValidator::identifyGameType(*parsed);
+            QVERIFY(type.has_value());
+            QCOMPARE(*type, GameType::Portal2);
+            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::Portal));
+        }
+        {
+            QString content = QStringLiteral("\"GameInfo\" { game \"Left 4 Dead 2 Custom Campaign\" }\n");
+            auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
+            QVERIFY(parsed.has_value());
+            auto type = GameValidator::identifyGameType(*parsed);
+            QVERIFY(type.has_value());
+            QCOMPARE(*type, GameType::L4D2);
+            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::L4D));
+        }
     }
 
     void testCs2GameInfoParser() {

@@ -17,7 +17,11 @@ const std::vector<GameDefinition>& buildDefinitions() {
             QStringLiteral("Counter-Strike Global Offensive"),
             QStringLiteral("game/csgo"),
             QStringLiteral("gameinfo.gi"),
-            QStringLiteral("Counter-Strike 2")
+            QStringLiteral("Counter-Strike 2"),
+            {
+                QStringLiteral("Counter-Strike 2"),
+                QStringLiteral("cs2")
+            }
         },
         {
             GameType::CSGO,
@@ -29,7 +33,14 @@ const std::vector<GameDefinition>& buildDefinitions() {
             QStringLiteral("csgo legacy"),
             QStringLiteral("csgo"),
             QStringLiteral("gameinfo.txt"),
-            QStringLiteral("Counter-Strike: Global Offensive")
+            QStringLiteral("Counter-Strike: Global Offensive"),
+            {
+                QStringLiteral("Counter-Strike: Global Offensive"),
+                QStringLiteral("Counter-Strike Global Offensive"),
+                QStringLiteral("CS:GO"),
+                QStringLiteral("csgo"),
+                QStringLiteral("csgo legacy")
+            }
         },
         {
             GameType::CSS,
@@ -41,7 +52,14 @@ const std::vector<GameDefinition>& buildDefinitions() {
             QStringLiteral("Counter-Strike Source"),
             QStringLiteral("cstrike"),
             QStringLiteral("gameinfo.txt"),
-            QStringLiteral("Counter-Strike Source")
+            QStringLiteral("Counter-Strike Source"),
+            {
+                QStringLiteral("Counter-Strike Source"),
+                QStringLiteral("Counter-Strike: Source"),
+                QStringLiteral("CS:S"),
+                QStringLiteral("CSS"),
+                QStringLiteral("cstrike")
+            }
         },
         {
             GameType::HL2,
@@ -53,7 +71,13 @@ const std::vector<GameDefinition>& buildDefinitions() {
             QStringLiteral("Half-Life 2"),
             QStringLiteral("hl2"),
             QStringLiteral("gameinfo.txt"),
-            QStringLiteral("HALF-LIFE 2")
+            QStringLiteral("HALF-LIFE 2"),
+            {
+                QStringLiteral("HALF-LIFE 2"),
+                QStringLiteral("Half-Life 2"),
+                QStringLiteral("HL2"),
+                QStringLiteral("hl2")
+            }
         },
         {
             GameType::L4D,
@@ -65,7 +89,12 @@ const std::vector<GameDefinition>& buildDefinitions() {
             QStringLiteral("Left 4 Dead"),
             QStringLiteral("left4dead"),
             QStringLiteral("gameinfo.txt"),
-            QStringLiteral("Left 4 Dead")
+            QStringLiteral("Left 4 Dead"),
+            {
+                QStringLiteral("Left 4 Dead"),
+                QStringLiteral("L4D"),
+                QStringLiteral("left4dead")
+            }
         },
         {
             GameType::L4D2,
@@ -77,7 +106,12 @@ const std::vector<GameDefinition>& buildDefinitions() {
             QStringLiteral("Left 4 Dead 2"),
             QStringLiteral("left4dead2"),
             QStringLiteral("gameinfo.txt"),
-            QStringLiteral("Left 4 Dead 2")
+            QStringLiteral("Left 4 Dead 2"),
+            {
+                QStringLiteral("Left 4 Dead 2"),
+                QStringLiteral("L4D2"),
+                QStringLiteral("left4dead2")
+            }
         },
         {
             GameType::Portal,
@@ -89,7 +123,11 @@ const std::vector<GameDefinition>& buildDefinitions() {
             QStringLiteral("Portal"),
             QStringLiteral("portal"),
             QStringLiteral("gameinfo.txt"),
-            QStringLiteral("Portal")
+            QStringLiteral("Portal"),
+            {
+                QStringLiteral("Portal"),
+                QStringLiteral("portal")
+            }
         },
         {
             GameType::Portal2,
@@ -101,7 +139,12 @@ const std::vector<GameDefinition>& buildDefinitions() {
             QStringLiteral("Portal 2"),
             QStringLiteral("portal2"),
             QStringLiteral("gameinfo.txt"),
-            QStringLiteral("PORTAL 2")
+            QStringLiteral("PORTAL 2"),
+            {
+                QStringLiteral("PORTAL 2"),
+                QStringLiteral("Portal 2"),
+                QStringLiteral("portal2")
+            }
         },
         {
             GameType::TF2,
@@ -113,7 +156,13 @@ const std::vector<GameDefinition>& buildDefinitions() {
             QStringLiteral("Team Fortress 2"),
             QStringLiteral("tf"),
             QStringLiteral("gameinfo.txt"),
-            QStringLiteral("Team Fortress 2")
+            QStringLiteral("Team Fortress 2"),
+            {
+                QStringLiteral("Team Fortress 2"),
+                QStringLiteral("Team Fortress"),
+                QStringLiteral("TF2"),
+                QStringLiteral("tf")
+            }
         },
         {
             GameType::GMod,
@@ -125,7 +174,13 @@ const std::vector<GameDefinition>& buildDefinitions() {
             QStringLiteral("GarrysMod"),
             QStringLiteral("garrysmod"),
             QStringLiteral("gameinfo.txt"),
-            QStringLiteral("Garry's Mod")
+            QStringLiteral("Garry's Mod"),
+            {
+                QStringLiteral("Garry's Mod"),
+                QStringLiteral("Garrys Mod"),
+                QStringLiteral("GMod"),
+                QStringLiteral("garrysmod")
+            }
         },
         {
             GameType::BlackMesa,
@@ -137,7 +192,12 @@ const std::vector<GameDefinition>& buildDefinitions() {
             QStringLiteral("Black Mesa"),
             QStringLiteral("bms"),
             QStringLiteral("gameinfo.txt"),
-            QStringLiteral("Black Mesa")
+            QStringLiteral("Black Mesa"),
+            {
+                QStringLiteral("Black Mesa"),
+                QStringLiteral("Black Mesa: Source"),
+                QStringLiteral("bms")
+            }
         },
         {
             GameType::Custom,
@@ -149,7 +209,8 @@ const std::vector<GameDefinition>& buildDefinitions() {
             QStringLiteral(""),
             QStringLiteral(""),
             QStringLiteral("gameinfo.txt"),
-            QStringLiteral("")
+            QStringLiteral(""),
+            {}
         }
     };
     return definitions;
