@@ -1,13 +1,49 @@
 #include "UI/ViewModels/LogViewModel.h"
+#include "Core/Logging/ILogSink.h"
+#include "Core/Logging/LogManager.h"
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QMetaObject>
 #include <QMutexLocker>
+#include <QPointer>
 
 namespace UI::ViewModels {
 
+namespace {
+
+class LogViewModelSinkAdapter : public Core::Logging::ILogSink {
+public:
+    explicit LogViewModelSinkAdapter(LogViewModel* target)
+        : m_target(target)
+    {
+    }
+
+    bool writeBlock(const Core::Logging::LogBlock& block, const QString& taskName) override
+    {
+        if (!m_target) {
+            return false;
+        }
+        QMetaObject::invokeMethod(m_target.data(), [target = m_target, block, taskName]() {
+            if (target) {
+                target->processIncomingBlock(block, taskName);
+            }
+        }, Qt::QueuedConnection);
+        return true;
+    }
+
+    bool flush() override
+    {
+        return true;
+    }
+
+private:
+    QPointer<LogViewModel> m_target;
+};
+
+} // namespace
+
 LogViewModel::LogViewModel(QObject* parent)
-    : QAbstractListModel(parent)
+    : LogTaskModel(0, parent)
 {
 }
 
@@ -18,110 +54,26 @@ LogViewModel::~LogViewModel()
 
 void LogViewModel::registerWithLogManager()
 {
-    try {
-        Core::Logging::LogManager::instance().addSink(shared_from_this());
-    } catch (...) {
-        // Handle standalone/unregistered instances
+    if (m_registeredSinkId != 0) {
+        return;
     }
+    auto sink = std::make_shared<LogViewModelSinkAdapter>(this);
+    m_registeredSinkId = sink->sinkId();
+    Core::Logging::LogManager::instance().addSink(sink);
 }
 
 void LogViewModel::unregisterFromLogManager()
 {
-    Core::Logging::LogManager::instance().removeSink(sinkId());
-}
-
-int LogViewModel::rowCount(const QModelIndex& parent) const
-{
-    if (parent.isValid()) {
-        return 0;
+    if (m_registeredSinkId != 0) {
+        Core::Logging::LogManager::instance().removeSink(m_registeredSinkId);
+        m_registeredSinkId = 0;
     }
-    QMutexLocker locker(&m_mutex);
-    return m_tasks.size();
-}
-
-QVariant LogViewModel::data(const QModelIndex& index, int role) const
-{
-    if (!index.isValid()) {
-        return QVariant();
-    }
-
-    QMutexLocker locker(&m_mutex);
-    int row = index.row();
-    if (row < 0 || row >= m_tasks.size()) {
-        return QVariant();
-    }
-
-    const auto& task = m_tasks.at(row);
-
-    switch (role) {
-    case TaskIdRole:
-        return QVariant::fromValue(task.taskId);
-    case TaskNameRole:
-        return task.taskName;
-    case StateRole:
-        return static_cast<int>(task.state);
-    case StateStringRole:
-        return Core::Logging::taskStateToString(task.state);
-    case ProgressRole:
-        return task.progress;
-    case CurrentMessageRole:
-        return task.currentMessage;
-    case ExpandedRole:
-        return task.expanded;
-    case MessageCountRole:
-        return task.messages.size();
-    case FormattedMessagesRole:
-        return task.formattedMessages;
-    case Qt::DisplayRole:
-        return task.taskName;
-    default:
-        return QVariant();
-    }
-}
-
-QHash<int, QByteArray> LogViewModel::roleNames() const
-{
-    QHash<int, QByteArray> roles;
-    roles[TaskIdRole] = "taskId";
-    roles[TaskNameRole] = "taskName";
-    roles[StateRole] = "state";
-    roles[StateStringRole] = "stateString";
-    roles[ProgressRole] = "progress";
-    roles[CurrentMessageRole] = "currentMessage";
-    roles[ExpandedRole] = "expanded";
-    roles[MessageCountRole] = "messageCount";
-    roles[FormattedMessagesRole] = "formattedMessages";
-    return roles;
-}
-
-int LogViewModel::taskCount() const
-{
-    QMutexLocker locker(&m_mutex);
-    return m_tasks.size();
 }
 
 int LogViewModel::totalMessageCount() const
 {
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker locker(&m_vmMutex);
     return m_totalMessages;
-}
-
-int LogViewModel::lineCount() const
-{
-    QMutexLocker locker(&m_mutex);
-    return m_totalMessages;
-}
-
-QString LogViewModel::formattedLogText() const
-{
-    QMutexLocker locker(&m_mutex);
-    QStringList parts;
-    for (const auto& task : m_tasks) {
-        if (!task.formattedMessages.isEmpty()) {
-            parts.append(task.formattedMessages);
-        }
-    }
-    return parts.join(QStringLiteral("<br>"));
 }
 
 void LogViewModel::setAutoScroll(bool enabled)
@@ -132,17 +84,58 @@ void LogViewModel::setAutoScroll(bool enabled)
     }
 }
 
-bool LogViewModel::writeBlock(const Core::Logging::LogBlock& block, const QString& taskName)
+TaskRegistryEntry LogViewModel::ensureTaskRegistered(quint64 taskId, const QString& taskName)
 {
-    QMetaObject::invokeMethod(this, [this, block, taskName]() {
-        processIncomingBlock(block, taskName);
-    }, Qt::QueuedConnection);
-    return true;
-}
+    {
+        QMutexLocker locker(&m_vmMutex);
+        if (m_taskRegistry.contains(taskId)) {
+            return m_taskRegistry.value(taskId);
+        }
+    }
 
-bool LogViewModel::flush()
-{
-    return true;
+    // Look up context in LogManager
+    auto context = Core::Logging::LogManager::instance().findTask(taskId);
+    quint64 parentId = context ? context->parentTaskId() : 0;
+
+    LogTaskModel* targetModel = this;
+    int taskDepth = 0;
+
+    if (parentId != 0) {
+        TaskRegistryEntry parentEntry = ensureTaskRegistered(parentId, QString());
+        if (parentEntry.subTasksModel) {
+            targetModel = parentEntry.subTasksModel.get();
+            taskDepth = parentEntry.depth + 1;
+        }
+    }
+
+    LogTaskItem newTask;
+    newTask.taskId = taskId;
+    newTask.parentTaskId = parentId;
+    newTask.depth = taskDepth;
+    newTask.taskName = taskName.trimmed().isEmpty() ? QStringLiteral("Task %1").arg(taskId) : taskName.trimmed();
+    newTask.state = context ? context->state() : Core::Logging::TaskState::Running;
+    newTask.progress = context ? context->progress() : 0.0;
+    newTask.currentMessage = context ? context->currentMessage() : QString();
+    newTask.expanded = true;
+    newTask.messagesModel = std::make_shared<LogMessageListModel>();
+    newTask.subTasksModel = std::make_shared<LogTaskModel>(taskDepth + 1);
+
+    targetModel->appendTask(newTask);
+
+    TaskRegistryEntry entry;
+    entry.taskId = taskId;
+    entry.parentTaskId = parentId;
+    entry.depth = taskDepth;
+    entry.owningModel = targetModel;
+    entry.messagesModel = newTask.messagesModel;
+    entry.subTasksModel = newTask.subTasksModel;
+
+    {
+        QMutexLocker locker(&m_vmMutex);
+        m_taskRegistry.insert(taskId, entry);
+    }
+
+    return entry;
 }
 
 void LogViewModel::processIncomingBlock(const Core::Logging::LogBlock& block, const QString& taskName)
@@ -153,141 +146,54 @@ void LogViewModel::processIncomingBlock(const Core::Logging::LogBlock& block, co
         return;
     }
 
-    int taskIndex = -1;
-    bool isNewTask = false;
+    TaskRegistryEntry entry = ensureTaskRegistered(taskId, taskName);
 
-    {
-        QMutexLocker locker(&m_mutex);
-        if (m_taskIdToIndex.contains(taskId)) {
-            taskIndex = m_taskIdToIndex.value(taskId);
-        } else {
-            isNewTask = true;
-            taskIndex = m_tasks.size();
-        }
-    }
-
-    if (isNewTask) {
-        beginInsertRows(QModelIndex(), taskIndex, taskIndex);
-        {
-            QMutexLocker locker(&m_mutex);
-            LogTaskItem newTask;
-            newTask.taskId = taskId;
-            newTask.taskName = taskName.trimmed().isEmpty() ? QStringLiteral("Task %1").arg(taskId) : taskName.trimmed();
-            newTask.state = Core::Logging::TaskState::Running;
-            newTask.expanded = true;
-
-            // Fetch live metadata if context is available
-            auto context = Core::Logging::LogManager::instance().findTask(taskId);
-            if (context) {
-                newTask.state = context->state();
-                newTask.progress = context->progress();
-                newTask.currentMessage = context->currentMessage();
-            }
-
-            m_tasks.append(newTask);
-            m_taskIdToIndex.insert(taskId, taskIndex);
-        }
-        endInsertRows();
-        emit taskCountChanged();
-    }
-
-    // Append entries and update task
-    {
-        QMutexLocker locker(&m_mutex);
-        if (taskIndex < 0 || taskIndex >= m_tasks.size()) {
-            return;
-        }
-
-        auto& task = m_tasks[taskIndex];
-        if (!taskName.trimmed().isEmpty() && task.taskName.startsWith(QStringLiteral("Task "))) {
-            task.taskName = taskName.trimmed();
-        }
-
-        QStringList htmlAppends;
-        for (const auto& entry : entries) {
+    if (!entries.isEmpty() && entry.messagesModel) {
+        QVector<LogMessageItem> newItems;
+        newItems.reserve(entries.size());
+        for (const auto& logEntry : entries) {
             LogMessageItem msgItem;
-            msgItem.sequence = entry.sequence;
-            msgItem.timestamp = entry.timestamp;
-            msgItem.level = entry.level;
-            msgItem.message = entry.message;
-            msgItem.formattedHtml = formatMessageHtml(msgItem);
-
-            task.messages.append(msgItem);
-            htmlAppends.append(msgItem.formattedHtml);
-            m_totalMessages++;
+            msgItem.sequence = logEntry.sequence;
+            msgItem.timestamp = logEntry.timestamp;
+            msgItem.level = logEntry.level;
+            msgItem.message = logEntry.message;
+            newItems.append(msgItem);
         }
+        entry.messagesModel->appendEntries(newItems);
 
-        if (!htmlAppends.isEmpty()) {
-            if (!task.formattedMessages.isEmpty()) {
-                task.formattedMessages.append(QStringLiteral("<br>"));
-            }
-            task.formattedMessages.append(htmlAppends.join(QStringLiteral("<br>")));
-        }
-
-        // Refresh snapshot state
-        auto context = Core::Logging::LogManager::instance().findTask(taskId);
-        if (context) {
-            task.state = context->state();
-            task.progress = context->progress();
-            task.currentMessage = context->currentMessage();
+        {
+            QMutexLocker locker(&m_vmMutex);
+            m_totalMessages += entries.size();
         }
     }
 
-    QModelIndex changedIndex = index(taskIndex, 0);
-    emit dataChanged(changedIndex, changedIndex, {
-        TaskNameRole,
-        StateRole,
-        StateStringRole,
-        ProgressRole,
-        CurrentMessageRole,
-        MessageCountRole,
-        FormattedMessagesRole
-    });
+    // Refresh state from context
+    auto context = Core::Logging::LogManager::instance().findTask(taskId);
+    if (context && entry.owningModel) {
+        int row = entry.owningModel->findRowByTaskId(taskId);
+        if (row >= 0) {
+            entry.owningModel->updateTaskMetadata(row, context->state(), context->progress(), context->currentMessage(), taskName);
+        }
+    }
 
     emit totalMessageCountChanged();
-    emit logTextChanged();
 }
 
 void LogViewModel::clear()
 {
-    beginResetModel();
+    LogTaskModel::clear();
     {
-        QMutexLocker locker(&m_mutex);
-        m_tasks.clear();
-        m_taskIdToIndex.clear();
+        QMutexLocker locker(&m_vmMutex);
+        m_taskRegistry.clear();
         m_totalMessages = 0;
     }
-    endResetModel();
 
-    emit taskCountChanged();
     emit totalMessageCountChanged();
-    emit logTextChanged();
 }
 
 QString LogViewModel::getFullLogText() const
 {
-    QMutexLocker locker(&m_mutex);
-    QStringList result;
-    for (const auto& task : m_tasks) {
-        result.append(QStringLiteral("=== %1 ===").arg(task.taskName));
-        result.append(QString());
-        for (const auto& msg : task.messages) {
-            QString timeStr = msg.timestamp > 0
-                ? QDateTime::fromMSecsSinceEpoch(msg.timestamp).toString(QStringLiteral("hh:mm:ss"))
-                : QStringLiteral("00:00:00");
-            QString levelStr;
-            switch (msg.level) {
-            case Core::Logging::LogLevel::Debug:    levelStr = QStringLiteral("DEBUG"); break;
-            case Core::Logging::LogLevel::Info:     levelStr = QStringLiteral("INFO "); break;
-            case Core::Logging::LogLevel::Warning:  levelStr = QStringLiteral("WARN "); break;
-            case Core::Logging::LogLevel::Error:    levelStr = QStringLiteral("ERROR"); break;
-            case Core::Logging::LogLevel::Critical: levelStr = QStringLiteral("CRIT "); break;
-            }
-            result.append(QStringLiteral("[%1] %2  %3").arg(timeStr, levelStr, msg.message));
-        }
-        result.append(QString());
-    }
-    return result.join(QLatin1Char('\n'));
+    return formatLogText(0);
 }
 
 void LogViewModel::copyToClipboard()
@@ -296,52 +202,6 @@ void LogViewModel::copyToClipboard()
     QClipboard* clipboard = QGuiApplication::clipboard();
     if (clipboard) {
         clipboard->setText(fullText);
-    }
-}
-
-void LogViewModel::expandAll()
-{
-    QMutexLocker locker(&m_mutex);
-    for (int i = 0; i < m_tasks.size(); ++i) {
-        m_tasks[i].expanded = true;
-    }
-    if (!m_tasks.isEmpty()) {
-        emit dataChanged(index(0, 0), index(m_tasks.size() - 1, 0), {ExpandedRole});
-    }
-}
-
-void LogViewModel::collapseAll()
-{
-    QMutexLocker locker(&m_mutex);
-    for (int i = 0; i < m_tasks.size(); ++i) {
-        m_tasks[i].expanded = false;
-    }
-    if (!m_tasks.isEmpty()) {
-        emit dataChanged(index(0, 0), index(m_tasks.size() - 1, 0), {ExpandedRole});
-    }
-}
-
-void LogViewModel::toggleTaskExpanded(int index)
-{
-    QMutexLocker locker(&m_mutex);
-    if (index < 0 || index >= m_tasks.size()) {
-        return;
-    }
-    m_tasks[index].expanded = !m_tasks[index].expanded;
-    QModelIndex modelIdx = this->index(index, 0);
-    emit dataChanged(modelIdx, modelIdx, {ExpandedRole});
-}
-
-void LogViewModel::setTaskExpanded(int index, bool expanded)
-{
-    QMutexLocker locker(&m_mutex);
-    if (index < 0 || index >= m_tasks.size()) {
-        return;
-    }
-    if (m_tasks[index].expanded != expanded) {
-        m_tasks[index].expanded = expanded;
-        QModelIndex modelIdx = this->index(index, 0);
-        emit dataChanged(modelIdx, modelIdx, {ExpandedRole});
     }
 }
 
@@ -358,46 +218,6 @@ void LogViewModel::appendLog(const QString& message, int level)
     entry.message = message;
     block.append(entry);
     processIncomingBlock(block, QStringLiteral("General"));
-}
-
-QString LogViewModel::formatMessageHtml(const LogMessageItem& item) const
-{
-    QString timeStr = item.timestamp > 0
-        ? QDateTime::fromMSecsSinceEpoch(item.timestamp).toString(QStringLiteral("hh:mm:ss"))
-        : QString();
-    QString safeMsg = item.message.toHtmlEscaped();
-    QString levelColor = QStringLiteral("#E0E0E0");
-    QString levelTag = QStringLiteral("INFO");
-
-    switch (item.level) {
-    case Core::Logging::LogLevel::Debug:
-        levelColor = QStringLiteral("#9E9E9E");
-        levelTag = QStringLiteral("DEBUG");
-        break;
-    case Core::Logging::LogLevel::Info:
-        levelColor = QStringLiteral("#ECEFF1");
-        levelTag = QStringLiteral("INFO ");
-        break;
-    case Core::Logging::LogLevel::Warning:
-        levelColor = QStringLiteral("#FFD740");
-        levelTag = QStringLiteral("WARN ");
-        break;
-    case Core::Logging::LogLevel::Error:
-        levelColor = QStringLiteral("#FF5252");
-        levelTag = QStringLiteral("ERROR");
-        break;
-    case Core::Logging::LogLevel::Critical:
-        levelColor = QStringLiteral("#FF1744");
-        levelTag = QStringLiteral("CRIT ");
-        break;
-    }
-
-    if (!timeStr.isEmpty()) {
-        return QStringLiteral("<font color='#757575'>[%1]</font> <font color='%2'><b>%3</b> %4</font>")
-            .arg(timeStr, levelColor, levelTag, safeMsg);
-    } else {
-        return QStringLiteral("<font color='%1'><b>%2</b> %3</font>").arg(levelColor, levelTag, safeMsg);
-    }
 }
 
 } // namespace UI::ViewModels

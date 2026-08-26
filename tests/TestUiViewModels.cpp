@@ -122,22 +122,31 @@ private slots:
 
     void testLogViewModelFormatting() {
         LogViewModel logVm;
-        QSignalSpy spyLog(&logVm, &LogViewModel::logTextChanged);
+        QSignalSpy spyLog(&logVm, &LogViewModel::totalMessageCountChanged);
 
-        QCOMPARE(logVm.lineCount(), 0);
+        QCOMPARE(logVm.totalMessageCount(), 0);
         logVm.appendLog(QStringLiteral("Information entry"), 1); // Info
         logVm.appendLog(QStringLiteral("Warning: something missing"), 2); // Warning
         logVm.appendLog(QStringLiteral("ERROR: failed to load"), 3); // Error
 
-        QCOMPARE(logVm.lineCount(), 3);
+        QCOMPARE(logVm.totalMessageCount(), 3);
         QVERIFY(spyLog.size() >= 3);
 
-        QString html = logVm.formattedLogText();
-        QVERIFY(html.contains(QStringLiteral("color='#FF5252'"))); // Error red
-        QVERIFY(html.contains(QStringLiteral("color='#FFD740'"))); // Warning yellow
+        QModelIndex idx = logVm.index(0, 0);
+        QVariantList msgs = logVm.data(idx, LogViewModel::MessagesRole).toList();
+        QCOMPARE(msgs.size(), 3);
+        QCOMPARE(msgs[0].toMap()[QStringLiteral("message")].toString(), QStringLiteral("Information entry"));
+        QCOMPARE(msgs[1].toMap()[QStringLiteral("levelString")].toString(), QStringLiteral("WARNING"));
+        QCOMPARE(msgs[2].toMap()[QStringLiteral("levelString")].toString(), QStringLiteral("ERROR"));
+
+        QString fullText = logVm.getFullLogText();
+        QVERIFY(fullText.contains(QStringLiteral("=== General ===")));
+        QVERIFY(fullText.contains(QStringLiteral("INFO   Information entry")));
+        QVERIFY(fullText.contains(QStringLiteral("WARN   Warning: something missing")));
+        QVERIFY(fullText.contains(QStringLiteral("ERROR  ERROR: failed to load")));
 
         logVm.clear();
-        QCOMPARE(logVm.lineCount(), 0);
+        QCOMPARE(logVm.totalMessageCount(), 0);
     }
 
     void testMainControllerProperties() {

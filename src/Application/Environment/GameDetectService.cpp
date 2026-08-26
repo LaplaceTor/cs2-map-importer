@@ -1,10 +1,9 @@
 #include "Application/Environment/GameDetectService.h"
 #include "Application/Environment/GameInstallationValidator.h"
 #include "Application/Async/AsyncTaskRunner.h"
+#include "Domain/Game/SteamGameLocator.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Core/Path/PathUtils.h"
-#include <QDir>
-#include <QFileInfo>
 #include <algorithm>
 #include <functional>
 #include <utility>
@@ -58,10 +57,9 @@ DetectionResult GameDetectService::detectEnvironment(
         return result;
     }
 
-    auto isAlreadyAdded = [&](Domain::Game::GameType type) {
-        QString typeStr = Domain::Game::GameRegistry::gameTypeToString(type);
+    auto isAlreadyAdded = [&](const QString& gameId) {
         return std::any_of(result.installations.begin(), result.installations.end(), [&](const GameInstallationInfo& inst) {
-            return inst.gameId == typeStr;
+            return inst.gameId == gameId;
         });
     };
 
@@ -80,50 +78,29 @@ DetectionResult GameDetectService::detectEnvironment(
                 .arg(lib.path.toString()).arg(lib.installedAppIds.size()));
         }
 
-        const QString commonDir = QDir(lib.path.toString()).filePath(QStringLiteral("steamapps/common"));
+        auto resolvedList = Domain::Game::SteamGameLocator::resolveGamesInLibrary(
+            lib.path,
+            lib.installedAppIds,
+            [](const Core::Path::FilesystemPath& lPath, int appId) {
+                return SteamService::readAppInstallDir(lPath, appId);
+            });
 
-        for (int appId : lib.installedAppIds) {
-            auto matchingDefs = Domain::Game::GameRegistry::findAllByAppId(appId);
-            if (matchingDefs.empty()) {
+        for (const auto& resolved : resolvedList) {
+            auto optInst = GameInstallationValidator::createInstallationFromResolved(resolved);
+            if (!optInst.has_value()) {
                 continue;
             }
 
-            QString installDirName = SteamService::readAppInstallDir(lib.path, appId);
-
-            for (const auto* def : matchingDefs) {
-                if (!def || isAlreadyAdded(def->type)) {
-                    continue;
-                }
-
-                // Try directory from appmanifest
-                if (!installDirName.isEmpty()) {
-                    Core::Path::FilesystemPath candidateDir(QDir(commonDir).filePath(installDirName));
-                    auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, def->type, logCtx)
-                                                      : GameInstallationValidator::validateSource1(def->type, candidateDir, logCtx);
-                    if (validated.has_value()) {
-                        if (logCtx) {
-                            logCtx->info(QStringLiteral("Discovered %1 at: %2")
-                                .arg(validated->displayName(), validated->baseDirectory().toString()));
-                        }
-                        result.installations.push_back(validated->toInfo());
-                        continue;
-                    }
-                }
-
-                // Try default folder name if different
-                if (!def->defaultFolderName.isEmpty() && def->defaultFolderName != installDirName) {
-                    Core::Path::FilesystemPath candidateDir(QDir(commonDir).filePath(def->defaultFolderName));
-                    auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, def->type, logCtx)
-                                                      : GameInstallationValidator::validateSource1(def->type, candidateDir, logCtx);
-                    if (validated.has_value()) {
-                        if (logCtx) {
-                            logCtx->info(QStringLiteral("Discovered %1 at default folder: %2")
-                                .arg(validated->displayName(), validated->baseDirectory().toString()));
-                        }
-                        result.installations.push_back(validated->toInfo());
-                    }
-                }
+            auto info = optInst->toInfo();
+            if (isAlreadyAdded(info.gameId)) {
+                continue;
             }
+
+            if (logCtx) {
+                logCtx->info(QStringLiteral("Discovered %1 at: %2")
+                    .arg(info.displayName, info.basePath));
+            }
+            result.installations.push_back(std::move(info));
         }
     }
 
@@ -159,39 +136,20 @@ std::vector<GameInstallation> GameDetectService::detectAllGames(
             continue;
         }
 
-        const QString commonDir = QDir(lib.path.toString()).filePath(QStringLiteral("steamapps/common"));
+        auto resolvedList = Domain::Game::SteamGameLocator::resolveGamesInLibrary(
+            lib.path,
+            lib.installedAppIds,
+            [](const Core::Path::FilesystemPath& lPath, int appId) {
+                return SteamService::readAppInstallDir(lPath, appId);
+            });
 
-        for (int appId : lib.installedAppIds) {
-            auto matchingDefs = Domain::Game::GameRegistry::findAllByAppId(appId);
-            if (matchingDefs.empty()) {
+        for (const auto& resolved : resolvedList) {
+            if (isAlreadyAdded(resolved.type)) {
                 continue;
             }
-
-            QString installDirName = SteamService::readAppInstallDir(lib.path, appId);
-
-            for (const auto* def : matchingDefs) {
-                if (!def || isAlreadyAdded(def->type)) {
-                    continue;
-                }
-
-                if (!installDirName.isEmpty()) {
-                    Core::Path::FilesystemPath candidateDir(QDir(commonDir).filePath(installDirName));
-                    auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, def->type, logCtx)
-                                                      : GameInstallationValidator::validateSource1(def->type, candidateDir, logCtx);
-                    if (validated.has_value()) {
-                        result.push_back(std::move(*validated));
-                        continue;
-                    }
-                }
-
-                if (!def->defaultFolderName.isEmpty() && def->defaultFolderName != installDirName) {
-                    Core::Path::FilesystemPath candidateDir(QDir(commonDir).filePath(def->defaultFolderName));
-                    auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, def->type, logCtx)
-                                                      : GameInstallationValidator::validateSource1(def->type, candidateDir, logCtx);
-                    if (validated.has_value()) {
-                        result.push_back(std::move(*validated));
-                    }
-                }
+            auto optInst = GameInstallationValidator::createInstallationFromResolved(resolved);
+            if (optInst.has_value()) {
+                result.push_back(std::move(*optInst));
             }
         }
     }
@@ -208,11 +166,6 @@ std::optional<GameInstallation> GameDetectService::detectGame(
         return std::nullopt;
     }
 
-    const auto* def = Domain::Game::GameRegistry::findByType(type);
-    if (!def) {
-        return std::nullopt;
-    }
-
     auto libraries = SteamService::detectLibraries(customSteamPath, logCtx);
     if (libraries.empty()) {
         return std::nullopt;
@@ -223,27 +176,15 @@ std::optional<GameInstallation> GameDetectService::detectGame(
             continue;
         }
 
-        const QString commonDir = QDir(lib.path.toString()).filePath(QStringLiteral("steamapps/common"));
+        auto optResolved = Domain::Game::SteamGameLocator::resolveGameInLibrary(
+            lib.path,
+            type,
+            [](const Core::Path::FilesystemPath& lPath, int appId) {
+                return SteamService::readAppInstallDir(lPath, appId);
+            });
 
-        for (int appId : def->allAppIds) {
-            QString installDirName = SteamService::readAppInstallDir(lib.path, appId);
-            if (!installDirName.isEmpty()) {
-                Core::Path::FilesystemPath candidateDir(QDir(commonDir).filePath(installDirName));
-                auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, type, logCtx)
-                                                  : GameInstallationValidator::validateSource1(type, candidateDir, logCtx);
-                if (validated.has_value()) {
-                    return validated;
-                }
-            }
-        }
-
-        if (!def->defaultFolderName.isEmpty()) {
-            Core::Path::FilesystemPath candidateDir(QDir(commonDir).filePath(def->defaultFolderName));
-            auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, type, logCtx)
-                                              : GameInstallationValidator::validateSource1(type, candidateDir, logCtx);
-            if (validated.has_value()) {
-                return validated;
-            }
+        if (optResolved.has_value()) {
+            return GameInstallationValidator::createInstallationFromResolved(*optResolved);
         }
     }
 

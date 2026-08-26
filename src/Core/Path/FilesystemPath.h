@@ -20,7 +20,12 @@ public:
     FilesystemPath parentPath() const;
     FilesystemPath absolutePath() const;
     FilesystemPath canonicalPath() const;
+    FilesystemPath join(const QString& subpath) const;
+    FilesystemPath join(const FilesystemPath& subpath) const;
     QString toString() const;
+
+    FilesystemPath operator/(const QString& subpath) const;
+    FilesystemPath operator/(const FilesystemPath& subpath) const;
 
     bool operator==(const FilesystemPath& other) const;
     bool operator!=(const FilesystemPath& other) const;

@@ -51,7 +51,7 @@ bool LogManager::terminateAfterFault()
     return flushed && barrier->terminate();
 }
 
-std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskName)
+std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskName, quint64 parentTaskId)
 {
     QMutexLocker locker(&m_mutex);
     while (m_tasks.contains(m_nextTaskId) || m_nextTaskId == 0) {
@@ -59,12 +59,12 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskNa
     }
     quint64 id = m_nextTaskId++;
     auto context = std::make_shared<TaskLoggingContext>(
-        id, taskName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++);
+        id, taskName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++, parentTaskId);
     m_tasks.insert(id, context);
     return context;
 }
 
-std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const QString& taskName)
+std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const QString& taskName, quint64 parentTaskId)
 {
     if (taskId == 0) {
         return nullptr;
@@ -76,7 +76,7 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const
     }
 
     auto context = std::make_shared<TaskLoggingContext>(
-        taskId, taskName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++);
+        taskId, taskName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++, parentTaskId);
     m_tasks.insert(taskId, context);
 
     if (taskId >= m_nextTaskId && taskId != (std::numeric_limits<quint64>::max)()) {
@@ -84,6 +84,11 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const
     }
 
     return context;
+}
+
+std::shared_ptr<TaskLoggingContext> LogManager::createChildTask(quint64 parentTaskId, const QString& taskName)
+{
+    return createTask(taskName, parentTaskId);
 }
 
 std::shared_ptr<TaskLoggingContext> LogManager::findTask(quint64 taskId) const

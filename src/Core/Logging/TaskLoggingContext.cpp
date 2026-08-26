@@ -6,8 +6,10 @@
 namespace Core::Logging {
 
 TaskLoggingContext::TaskLoggingContext(quint64 taskId, QString taskName, qsizetype blockSizeThreshold,
-                                       std::shared_ptr<FaultBarrier> faultBarrier, quint64 creationSequence)
+                                       std::shared_ptr<FaultBarrier> faultBarrier, quint64 creationSequence,
+                                       quint64 parentTaskId)
     : m_taskId(taskId)
+    , m_parentTaskId(parentTaskId)
     , m_creationSequence(creationSequence)
     , m_faultBarrier(std::move(faultBarrier))
     , m_taskName(std::move(taskName))
@@ -37,6 +39,7 @@ TaskSnapshot TaskLoggingContext::snapshot() const
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     TaskSnapshot result;
     result.taskId = m_taskId;
+    result.parentTaskId = m_parentTaskId;
     result.creationSequence = m_creationSequence;
     result.taskName = m_taskName;
     result.state = m_state;

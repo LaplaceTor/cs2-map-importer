@@ -80,6 +80,28 @@ FilesystemPath FilesystemPath::canonicalPath() const {
     return FilesystemPath(canonical);
 }
 
+FilesystemPath FilesystemPath::join(const QString& subpath) const {
+    if (m_path.isEmpty()) {
+        return FilesystemPath(subpath);
+    }
+    if (subpath.isEmpty()) {
+        return *this;
+    }
+    return FilesystemPath(QDir(m_path).filePath(subpath));
+}
+
+FilesystemPath FilesystemPath::join(const FilesystemPath& subpath) const {
+    return join(subpath.toString());
+}
+
+FilesystemPath FilesystemPath::operator/(const QString& subpath) const {
+    return join(subpath);
+}
+
+FilesystemPath FilesystemPath::operator/(const FilesystemPath& subpath) const {
+    return join(subpath.toString());
+}
+
 QString FilesystemPath::toString() const {
     return m_path;
 }

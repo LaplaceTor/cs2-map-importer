@@ -3,6 +3,10 @@ qt_add_library(cs2importer_ui STATIC
     ViewModels/GameViewModel.cpp
     ViewModels/LogViewModel.h
     ViewModels/LogViewModel.cpp
+    ViewModels/LogTaskModel.h
+    ViewModels/LogTaskModel.cpp
+    ViewModels/LogMessageListModel.h
+    ViewModels/LogMessageListModel.cpp
     Controllers/MainController.h
     Controllers/MainController.cpp
 )

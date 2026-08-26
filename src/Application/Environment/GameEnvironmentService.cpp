@@ -208,7 +208,7 @@ void GameEnvironmentService::validateSource1FolderAsync(
 
             if (inst.has_value()) {
                 if (logCtx) {
-                    logCtx->info(QStringLiteral("Validation successful: %1").arg(inst->displayName()));
+                    logCtx->info(QStringLiteral("Validation completed successfully: %1").arg(inst->displayName()));
                 }
                 return inst->toInfo();
             }
@@ -270,13 +270,13 @@ void GameEnvironmentService::validateSource2FolderAsync(
             auto inst = GameInstallationValidator::validateSource2(fsPath, Domain::Game::GameType::Unknown, logCtx);
             if (inst.has_value()) {
                 if (logCtx) {
-                    logCtx->info(QStringLiteral("Source 2 validation successful: %1").arg(inst->displayName()));
+                    logCtx->info(QStringLiteral("Validation completed successfully: %1").arg(inst->displayName()));
                 }
                 return inst->toInfo();
             }
 
             if (logCtx) {
-                logCtx->error(QStringLiteral("Source 2 validation failed at: %1").arg(normalizedPath));
+                logCtx->error(QStringLiteral("Validation failed for Source 2 at: %1").arg(normalizedPath));
             }
             return std::nullopt;
         },

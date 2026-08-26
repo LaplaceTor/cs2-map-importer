@@ -38,13 +38,18 @@ public:
     bool beginFaultDraining();
     bool terminateAfterFault();
 
-    std::shared_ptr<TaskLoggingContext> createTask(const QString& taskName = QString());
+    std::shared_ptr<TaskLoggingContext> createTask(const QString& taskName = QString(), quint64 parentTaskId = 0);
 
     /**
      * @brief Create a task with an explicitly provided taskId.
      * @return std::shared_ptr<TaskLoggingContext> if successful, or nullptr if taskId already exists.
      */
-    std::shared_ptr<TaskLoggingContext> createTask(quint64 taskId, const QString& taskName = QString());
+    std::shared_ptr<TaskLoggingContext> createTask(quint64 taskId, const QString& taskName = QString(), quint64 parentTaskId = 0);
+
+    /**
+     * @brief Create a child task attached to a parent task.
+     */
+    std::shared_ptr<TaskLoggingContext> createChildTask(quint64 parentTaskId, const QString& taskName = QString());
 
     std::shared_ptr<TaskLoggingContext> findTask(quint64 taskId) const;
 

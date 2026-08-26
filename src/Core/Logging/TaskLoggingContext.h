@@ -19,7 +19,8 @@ class TaskLoggingContext {
 public:
     explicit TaskLoggingContext(quint64 taskId, QString taskName = QString(), qsizetype blockSizeThreshold = 0,
                                 std::shared_ptr<FaultBarrier> faultBarrier = nullptr,
-                                quint64 creationSequence = 0);
+                                quint64 creationSequence = 0,
+                                quint64 parentTaskId = 0);
     ~TaskLoggingContext() = default;
 
     TaskLoggingContext(const TaskLoggingContext&) = delete;
@@ -28,6 +29,7 @@ public:
     TaskLoggingContext& operator=(TaskLoggingContext&&) noexcept = delete;
 
     quint64 taskId() const noexcept { return m_taskId; }
+    quint64 parentTaskId() const noexcept { return m_parentTaskId; }
 
     TaskSnapshot snapshot() const;
 
@@ -145,6 +147,7 @@ private:
     bool appendLifecycleEntryLocked(LogLevel level, const QString& message);
 
     quint64 m_taskId = 0;
+    quint64 m_parentTaskId = 0;
     quint64 m_creationSequence = 0;
     mutable QRecursiveMutex m_mutex;
     std::shared_ptr<FaultBarrier> m_faultBarrier;

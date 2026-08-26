@@ -16,6 +16,7 @@ namespace Core::Logging {
  */
 struct TaskSnapshot {
     quint64 taskId = 0;
+    quint64 parentTaskId = 0;
     quint64 creationSequence = 0;
     QString taskName;
     TaskState state = TaskState::Pending;
