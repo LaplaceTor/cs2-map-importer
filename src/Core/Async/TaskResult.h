@@ -74,6 +74,9 @@ public:
     {
         TaskResult<T> r;
         r.m_status = TaskExecutionStatus::Failure;
+        if (error.isSuccess()) {
+            error = Core::Error::Error(Core::Error::ErrorCode::OperationFailed, QStringLiteral("Operation failed with non-specific error"));
+        }
         r.m_message = operationSummary.isEmpty() ? error.message() : std::move(operationSummary);
         r.m_error = std::move(error);
         r.m_value = std::move(partialValue);
@@ -93,7 +96,22 @@ public:
      */
     static TaskResult<T> failure(Core::Error::ErrorCode code, QString errorMessage = QString(), QString details = QString(), std::optional<T> partialValue = std::nullopt)
     {
+        if (code == Core::Error::ErrorCode::Success) {
+            code = Core::Error::ErrorCode::OperationFailed;
+        }
         return failure(Core::Error::Error(code, std::move(errorMessage), std::move(details)), QString(), std::move(partialValue));
+    }
+
+    /**
+     * @brief Convenient overload constructing a failure result with ErrorCode, error message, and partial value.
+     */
+    template <typename U = T, typename = std::enable_if_t<!std::is_same_v<std::decay_t<U>, QString>>>
+    static TaskResult<T> failure(Core::Error::ErrorCode code, QString errorMessage, std::optional<T> partialValue)
+    {
+        if (code == Core::Error::ErrorCode::Success) {
+            code = Core::Error::ErrorCode::OperationFailed;
+        }
+        return failure(Core::Error::Error(code, std::move(errorMessage)), QString(), std::move(partialValue));
     }
 
     /**
@@ -179,6 +197,9 @@ public:
     {
         TaskResult<void> r;
         r.m_status = TaskExecutionStatus::Failure;
+        if (error.isSuccess()) {
+            error = Core::Error::Error(Core::Error::ErrorCode::OperationFailed, QStringLiteral("Operation failed with non-specific error"));
+        }
         r.m_message = operationSummary.isEmpty() ? error.message() : std::move(operationSummary);
         r.m_error = std::move(error);
         return r;
@@ -186,6 +207,9 @@ public:
 
     static TaskResult<void> failure(Core::Error::ErrorCode code, QString errorMessage = QString(), QString details = QString())
     {
+        if (code == Core::Error::ErrorCode::Success) {
+            code = Core::Error::ErrorCode::OperationFailed;
+        }
         return failure(Core::Error::Error(code, std::move(errorMessage), std::move(details)));
     }
 

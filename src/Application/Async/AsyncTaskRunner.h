@@ -238,8 +238,9 @@ private:
                                 if constexpr (std::is_void_v<T>) {
                                     result = TaskResult<T>::cancelled(QStringLiteral("Contract violation: Task was cancelled"));
                                 } else {
-                                    result = TaskResult<T>::cancelled(QStringLiteral("Contract violation: Task was cancelled"),
-                                                                      result.hasValue() ? result.value() : T{});
+                                    result = TaskResult<T>::cancelled(
+                                        QStringLiteral("Contract violation: Task was cancelled"),
+                                        result.hasValue() ? std::make_optional(result.value()) : std::nullopt);
                                 }
                             } else if (currentState == Core::Logging::TaskState::Skipped) {
                                 taskContext->info(QStringLiteral("Contract violation: worker returned TaskResult::success after task was skipped"));
@@ -249,8 +250,9 @@ private:
                                 if constexpr (std::is_void_v<T>) {
                                     result = TaskResult<T>::skipped(QStringLiteral("Contract violation: Task was skipped"));
                                 } else {
-                                    result = TaskResult<T>::skipped(QStringLiteral("Contract violation: Task was skipped"),
-                                                                    result.hasValue() ? result.value() : T{});
+                                    result = TaskResult<T>::skipped(
+                                        QStringLiteral("Contract violation: Task was skipped"),
+                                        result.hasValue() ? std::make_optional(result.value()) : std::nullopt);
                                 }
                             } else {
                                 Core::Logging::LogManager::instance().forceTaskState(

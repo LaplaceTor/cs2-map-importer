@@ -249,6 +249,17 @@ void TestError::testTaskResultStatusErrorCodeInvariants()
         QVERIFY(f.errorCode() != ErrorCode::Success);
         QCOMPARE(f.errorCode(), ErrorCode::CorruptedData);
         QVERIFY(f.error().isFailure());
+
+        // 5. Invariant enforcement against Error::success() passed into failure()
+        auto defensiveErr = TaskResult<int>::failure(Error::success());
+        QVERIFY(defensiveErr.isFailure());
+        QVERIFY(defensiveErr.errorCode() != ErrorCode::Success);
+        QCOMPARE(defensiveErr.errorCode(), ErrorCode::OperationFailed);
+
+        auto defensiveVoid = TaskResult<void>::failure(ErrorCode::Success);
+        QVERIFY(defensiveVoid.isFailure());
+        QVERIFY(defensiveVoid.errorCode() != ErrorCode::Success);
+        QCOMPARE(defensiveVoid.errorCode(), ErrorCode::OperationFailed);
     }
 }
 
