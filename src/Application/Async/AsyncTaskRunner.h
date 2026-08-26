@@ -169,7 +169,7 @@ private:
             hasValidCallback = Detail::isCallableValid(callback);
         }
 
-        auto workerLambda = [taskContext, taskId, contextGuard, context, hasValidCallback,
+        auto workerLambda = [taskContext, taskId, taskName, contextGuard, context, hasValidCallback,
                              worker = DecayedWorker(std::forward<WorkerFn>(worker)),
                              callback = DecayedCallback(std::forward<CallbackFn>(callback))]() mutable {
             try {
@@ -185,28 +185,35 @@ private:
                             .arg(static_cast<int>(ex.errorCode()))
                             .arg(ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message()));
                     }
-                    result = TaskResult<T>::failure(ex.error());
+                    result = TaskResult<T>::failure(
+                        ex.error(),
+                        QStringLiteral("Task '%1' failed").arg(taskName));
                 } catch (const std::exception& ex) {
                     threwException = true;
                     if (taskContext) {
                         taskContext->error(QStringLiteral("Unhandled exception in task: %1").arg(QString::fromUtf8(ex.what())));
                     }
                     result = TaskResult<T>::failure(
-                        Core::Error::ErrorCode::Unknown,
-                        QStringLiteral("Unhandled standard exception"),
-                        QString::fromUtf8(ex.what()));
+                        Core::Error::Error::unknown(
+                            QStringLiteral("Unhandled standard exception"),
+                            QString::fromUtf8(ex.what())),
+                        QStringLiteral("Task '%1' failed").arg(taskName));
                 } catch (...) {
                     threwException = true;
                     if (taskContext) {
                         taskContext->error(QStringLiteral("Unhandled unknown exception in task"));
                     }
-                    result = TaskResult<T>::failure(Core::Error::ErrorCode::Unknown, QStringLiteral("Unhandled unknown exception"));
+                    result = TaskResult<T>::failure(
+                        Core::Error::Error::unknown(QStringLiteral("Unhandled unknown exception")),
+                        QStringLiteral("Task '%1' failed").arg(taskName));
                 }
 
                 if (taskContext) {
                     if (threwException) {
+                        QString taskSummary = QStringLiteral("Task '%1' failed with uncaught exception: %2")
+                            .arg(taskName, result.error().message().isEmpty() ? QStringLiteral("Unknown") : result.error().message());
                         Core::Logging::LogManager::instance().forceTaskState(
-                            taskId, Core::Logging::TaskState::Failed, result.message().isEmpty() ? QStringLiteral("Task failed with uncaught exception") : result.message());
+                            taskId, Core::Logging::TaskState::Failed, taskSummary);
                     } else {
                         const auto currentState = taskContext->state();
                         const bool hasErrors = taskContext->hasErrors();
@@ -381,7 +388,7 @@ private:
         taskContext->start();
         quint64 taskId = taskContext->taskId();
 
-        auto workerLambda = [taskContext, taskId,
+        auto workerLambda = [taskContext, taskId, taskName,
                              worker = DecayedWorker(std::forward<WorkerFn>(worker))]() mutable {
             try {
                 bool threwException = false;
@@ -410,7 +417,7 @@ private:
                 if (taskContext) {
                     if (threwException) {
                         Core::Logging::LogManager::instance().forceTaskState(
-                            taskId, Core::Logging::TaskState::Failed, QStringLiteral("Task failed with uncaught exception"));
+                            taskId, Core::Logging::TaskState::Failed, QStringLiteral("Task '%1' failed with uncaught exception").arg(taskName));
                     } else {
                         const auto currentState = taskContext->state();
                         if (taskContext->hasErrors() || currentState == Core::Logging::TaskState::Failed) {

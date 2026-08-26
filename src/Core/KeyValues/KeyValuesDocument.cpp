@@ -49,12 +49,14 @@ Core::Async::TaskResult<void> KeyValuesDocument::loadFromFile(const Path::Filesy
     if (!path.isValid() || path.isEmpty()) {
         return Core::Async::TaskResult<void>::failure(
             Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("Path is empty or invalid: %1").arg(path.toString()));
+            QStringLiteral("Path is empty or invalid"),
+            path.toString());
     }
     if (!path.exists()) {
         return Core::Async::TaskResult<void>::failure(
             Core::Error::ErrorCode::FileNotFound,
-            QStringLiteral("File does not exist: %1").arg(path.toString()));
+            QStringLiteral("File does not exist"),
+            path.toString());
     }
 
     try {

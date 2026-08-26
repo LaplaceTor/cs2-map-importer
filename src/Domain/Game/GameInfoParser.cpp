@@ -1,4 +1,5 @@
 #include "Domain/Game/GameInfoParser.h"
+#include "Domain/Game/GameError.h"
 #include "Domain/Game/SearchPathResolver.h"
 #include "Core/KeyValues/KeyValuesDocument.h"
 #include <QDir>
@@ -133,13 +134,17 @@ Core::Async::TaskResult<GameInfo> GameInfoParser::parse(
 {
     if (!gameInfoPath.isValid() || gameInfoPath.isEmpty()) {
         return Core::Async::TaskResult<GameInfo>::failure(
-            Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("GameInfo file path is invalid or empty: %1").arg(gameInfoPath.toString()));
+            GameError::gameInfoNotFound(
+                QStringLiteral("GameInfo file path is invalid or empty"),
+                gameInfoPath.toString()),
+            QStringLiteral("GameInfo parsing failed"));
     }
     if (!gameInfoPath.exists()) {
         return Core::Async::TaskResult<GameInfo>::failure(
-            Core::Error::ErrorCode::FileNotFound,
-            QStringLiteral("GameInfo file does not exist: %1").arg(gameInfoPath.toString()));
+            GameError::gameInfoNotFound(
+                QStringLiteral("GameInfo file does not exist"),
+                gameInfoPath.toString()),
+            QStringLiteral("GameInfo parsing failed"));
     }
 
     Core::KeyValues::KeyValuesDocument doc;
@@ -147,7 +152,7 @@ Core::Async::TaskResult<GameInfo> GameInfoParser::parse(
     if (!loadResult.isSuccess()) {
         return Core::Async::TaskResult<GameInfo>::failure(
             loadResult.error(),
-            QStringLiteral("Failed to load GameInfo from '%1'").arg(gameInfoPath.toString()));
+            QStringLiteral("Failed to load GameInfo"));
     }
 
     return Core::Async::TaskResult<GameInfo>::success(createFromDocument(std::move(doc), gameInfoPath, engine));
@@ -158,6 +163,13 @@ Core::Async::TaskResult<GameInfo> GameInfoParser::parseFromString(
     const Core::Path::FilesystemPath& gameInfoPath,
     EngineType engine)
 {
+    if (!gameInfoPath.isEmpty() && !gameInfoPath.isValid()) {
+        return Core::Async::TaskResult<GameInfo>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QStringLiteral("GameInfo path hint is invalid"),
+            gameInfoPath.toString());
+    }
+
     Core::KeyValues::KeyValuesDocument doc;
     auto loadResult = doc.loadFromString(content);
     if (!loadResult.isSuccess()) {

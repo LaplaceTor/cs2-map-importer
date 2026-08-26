@@ -268,6 +268,22 @@ private slots:
         auto result = GameInfoParser::parse(nonExistent);
         QVERIFY(!result.has_value());
         QVERIFY(!result.message().isEmpty());
+        QVERIFY(result.error().is(GameErrorCode::GameInfoNotFound));
+
+        // parseFromString with empty path hint succeeds for pure in-memory metadata
+        QString content = QStringLiteral("\"GameInfo\" { game \"MemoryGame\" }\n");
+        auto memResult = GameInfoParser::parseFromString(content);
+        QVERIFY(memResult.isSuccess());
+        QCOMPARE(memResult->game(), QStringLiteral("MemoryGame"));
+        QVERIFY(memResult->gameInfoPath().isEmpty());
+
+        // parseFromString with invalid (non-empty) path hint fails
+        Core::Path::FilesystemPath invalidPath(QStringLiteral("::invalid::path::"));
+        if (!invalidPath.isValid()) {
+            auto badPathResult = GameInfoParser::parseFromString(content, invalidPath);
+            QVERIFY(badPathResult.isFailure());
+            QCOMPARE(badPathResult.errorCode(), Core::Error::ErrorCode::InvalidPath);
+        }
     }
 
     void testGameRegistry() {

@@ -335,7 +335,11 @@ void TestAsyncTaskLogging::testStructuredExceptionHandling()
     QVERIFY(capturedResult.isFailure());
     QCOMPARE(capturedResult.errorCode(), Core::Error::ErrorCode::ProcessTimeout);
     QCOMPARE(capturedResult.error().code(), Core::Error::ErrorCode::ProcessTimeout);
-    QCOMPARE(capturedResult.message(), QStringLiteral("Compiler execution timed out"));
+    // Operation summary (TaskResult::message) carries task-level failure summary
+    QCOMPARE(capturedResult.message(), QStringLiteral("Task 'Structured Faulty Task' failed"));
+    // Failure reason (Error::message) carries specific domain/system failure
+    QCOMPARE(capturedResult.error().message(), QStringLiteral("Compiler execution timed out"));
+    // Technical diagnostics (Error::details / TaskResult::details)
     QCOMPARE(capturedResult.details(), QStringLiteral("resourcecompiler.exe --compile map.vmap"));
 
     QTRY_COMPARE(logVm->taskCount(), 1);
@@ -370,8 +374,10 @@ void TestAsyncTaskLogging::testStandardExceptionDiagnostics()
     QTRY_VERIFY(callbackInvoked.load());
     QVERIFY(capturedResult.isFailure());
     QCOMPARE(capturedResult.errorCode(), Core::Error::ErrorCode::Unknown);
-    // UI presentation message is a high-level summary
-    QCOMPARE(capturedResult.message(), QStringLiteral("Unhandled standard exception"));
+    // Operation summary (TaskResult::message) carries task-level failure summary
+    QCOMPARE(capturedResult.message(), QStringLiteral("Task 'Std Exception Task' failed"));
+    // Failure reason (Error::message)
+    QCOMPARE(capturedResult.error().message(), QStringLiteral("Unhandled standard exception"));
     // Technical diagnostic details carries ex.what()
     QCOMPARE(capturedResult.details(), QStringLiteral("Corrupted block in filesystem sector 4096"));
 

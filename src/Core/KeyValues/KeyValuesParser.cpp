@@ -22,17 +22,15 @@ Core::Async::TaskResult<void> KeyValuesParser::parse(const QString& source, KeyV
         if (token.isCloseBrace()) {
             return Core::Async::TaskResult<void>::failure(
                 Core::Error::ErrorCode::InvalidFile,
-                QStringLiteral("Unexpected '}' at line %1, column %2")
-                    .arg(token.line)
-                    .arg(token.column));
+                QStringLiteral("Unexpected '}' at top level"),
+                QStringLiteral("Line %1, column %2").arg(token.line).arg(token.column));
         }
 
         if (token.isOpenBrace()) {
             return Core::Async::TaskResult<void>::failure(
                 Core::Error::ErrorCode::InvalidFile,
-                QStringLiteral("Unexpected '{' without a preceding key at line %1, column %2")
-                    .arg(token.line)
-                    .arg(token.column));
+                QStringLiteral("Unexpected '{' without a preceding key"),
+                QStringLiteral("Line %1, column %2").arg(token.line).arg(token.column));
         }
 
         auto blockRes = parseBlock(lexer, rootNode);
@@ -61,9 +59,8 @@ Core::Async::TaskResult<void> KeyValuesParser::parseBlock(KeyValuesLexer& lexer,
     if (!keyToken.isString()) {
         return Core::Async::TaskResult<void>::failure(
             Core::Error::ErrorCode::InvalidFile,
-            QStringLiteral("Expected string token for key at line %1, column %2")
-                .arg(keyToken.line)
-                .arg(keyToken.column));
+            QStringLiteral("Expected string token for key"),
+            QStringLiteral("Line %1, column %2").arg(keyToken.line).arg(keyToken.column));
     }
 
     // Skip conditional if it appeared directly after the key (rare but possible)
@@ -99,7 +96,8 @@ Core::Async::TaskResult<void> KeyValuesParser::parseBlock(KeyValuesLexer& lexer,
             if (childToken.isOpenBrace()) {
                 return Core::Async::TaskResult<void>::failure(
                     Core::Error::ErrorCode::InvalidFile,
-                    QStringLiteral("Unexpected '{' inside section '%1' at line %2, column %3")
+                    QStringLiteral("Unexpected '{' inside section"),
+                    QStringLiteral("Section '%1' at line %2, column %3")
                         .arg(keyToken.text)
                         .arg(childToken.line)
                         .arg(childToken.column));
@@ -114,8 +112,8 @@ Core::Async::TaskResult<void> KeyValuesParser::parseBlock(KeyValuesLexer& lexer,
         if (!closed) {
             return Core::Async::TaskResult<void>::failure(
                 Core::Error::ErrorCode::InvalidFile,
-                QStringLiteral("Unclosed '{' block starting for section '%1' (reached EOF)")
-                    .arg(keyToken.text));
+                QStringLiteral("Unclosed '{' block (reached EOF)"),
+                QStringLiteral("Section '%1'").arg(keyToken.text));
         }
 
         parentNode.addChild(std::move(sectionNode));
@@ -143,9 +141,8 @@ Core::Async::TaskResult<void> KeyValuesParser::parseBlock(KeyValuesLexer& lexer,
 
     return Core::Async::TaskResult<void>::failure(
         Core::Error::ErrorCode::InvalidFile,
-        QStringLiteral("Unexpected token at line %1, column %2")
-            .arg(nextToken.line)
-            .arg(nextToken.column));
+        QStringLiteral("Unexpected token"),
+        QStringLiteral("Line %1, column %2").arg(nextToken.line).arg(nextToken.column));
 }
 
 } // namespace Core::KeyValues

@@ -83,13 +83,17 @@ Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::acqui
 
     if (cs2BasePath.isEmpty() || !cs2BasePath.exists() || !cs2BasePath.isDirectory()) {
         result.status = VpkSignatureLeaseStatus::NotFound;
-        result.systemMessage = QStringLiteral("CS2 base directory is invalid or does not exist: %1").arg(cs2BasePath.toString());
+        result.systemMessage = QStringLiteral("CS2 base directory is invalid or does not exist");
         m_lastStatus = result.status;
         if (m_loggingContext) {
-            m_loggingContext->warning(result.systemMessage);
+            m_loggingContext->warning(QStringLiteral("CS2 base directory is invalid or does not exist: %1").arg(cs2BasePath.toString()));
         }
         emit leaseStatusChanged(result.status, QString(), result.systemMessage);
-        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::DirectoryNotFound, result.systemMessage, QString(), result);
+        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(
+            Core::Error::ErrorCode::DirectoryNotFound,
+            result.systemMessage,
+            cs2BasePath.toString(),
+            result);
     }
 
     // Target is strictly: <cs2BasePath>/game/bin/win64/vpk.signatures
@@ -99,24 +103,32 @@ Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::acqui
 
     if (!targetInfo.exists()) {
         result.status = VpkSignatureLeaseStatus::NotFound;
-        result.systemMessage = QStringLiteral("vpk.signatures does not exist at expected path: %1").arg(targetPath);
+        result.systemMessage = QStringLiteral("vpk.signatures does not exist at expected path");
         m_lastStatus = result.status;
         if (m_loggingContext) {
-            m_loggingContext->warning(result.systemMessage);
+            m_loggingContext->warning(QStringLiteral("vpk.signatures does not exist at expected path: %1").arg(targetPath));
         }
         emit leaseStatusChanged(result.status, targetPath, result.systemMessage);
-        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::FileNotFound, result.systemMessage, QString(), result);
+        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(
+            Core::Error::ErrorCode::FileNotFound,
+            result.systemMessage,
+            targetPath,
+            result);
     }
 
     if (!targetInfo.isFile()) {
         result.status = VpkSignatureLeaseStatus::Failed;
-        result.systemMessage = QStringLiteral("Target vpk.signatures is not a regular file: %1").arg(targetPath);
+        result.systemMessage = QStringLiteral("Target vpk.signatures is not a regular file");
         m_lastStatus = result.status;
         if (m_loggingContext) {
-            m_loggingContext->warning(result.systemMessage);
+            m_loggingContext->warning(QStringLiteral("Target vpk.signatures is not a regular file: %1").arg(targetPath));
         }
         emit leaseStatusChanged(result.status, targetPath, result.systemMessage);
-        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidPath, result.systemMessage, QString(), result);
+        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            result.systemMessage,
+            targetPath,
+            result);
     }
 
     // If we already hold a lease on the exact same path, keep it active
@@ -160,7 +172,11 @@ Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::acqui
         }
         emit leaseStateChanged(false, QString());
         emit leaseStatusChanged(result.status, targetPath, result.systemMessage);
-        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(errCode, result.systemMessage, QString(), result);
+        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(
+            errCode,
+            result.systemMessage,
+            targetPath,
+            result);
     }
 
     result.status = VpkSignatureLeaseStatus::Acquired;

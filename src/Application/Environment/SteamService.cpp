@@ -2,6 +2,7 @@
 #include "Core/KeyValues/KeyValuesDocument.h"
 #include "Core/Path/PathUtils.h"
 #include "Domain/Game/GameRegistry.h"
+#include "Domain/Game/GameError.h"
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
@@ -280,11 +281,13 @@ Core::Async::TaskResult<void> SteamService::validateGameFiles(
     int appId,
     std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) {
     if (appId <= 0) {
-        QString errMsg = QStringLiteral("Invalid Steam AppID: %1").arg(appId);
         if (logCtx) {
-            logCtx->error(errMsg);
+            logCtx->error(QStringLiteral("Invalid Steam AppID: %1").arg(appId));
         }
-        return Core::Async::TaskResult<void>::failure(Core::Error::ErrorCode::InvalidArgument, errMsg);
+        return Core::Async::TaskResult<void>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QStringLiteral("Invalid Steam AppID"),
+            QString::number(appId));
     }
     if (logCtx) {
         logCtx->info(QStringLiteral("Requesting Steam game files validation for AppID: %1").arg(appId));
@@ -292,11 +295,13 @@ Core::Async::TaskResult<void> SteamService::validateGameFiles(
     QUrl validateUrl(QStringLiteral("steam://validate/") + QString::number(appId));
     bool ok = QDesktopServices::openUrl(validateUrl);
     if (!ok) {
-        QString errMsg = QStringLiteral("Failed to open Steam validation URL for AppID: %1").arg(appId);
         if (logCtx) {
-            logCtx->error(errMsg);
+            logCtx->error(QStringLiteral("Failed to open Steam validation URL for AppID: %1").arg(appId));
         }
-        return Core::Async::TaskResult<void>::failure(Core::Error::ErrorCode::OperationFailed, errMsg);
+        return Core::Async::TaskResult<void>::failure(
+            Core::Error::ErrorCode::OperationFailed,
+            QStringLiteral("Failed to open Steam validation URL"),
+            validateUrl.toString());
     }
     return Core::Async::TaskResult<void>::success();
 }
@@ -306,12 +311,14 @@ Core::Async::TaskResult<void> SteamService::validateGameFiles(
     std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) {
     const auto* def = Domain::Game::GameRegistry::findByType(type);
     if (!def || def->primaryAppId <= 0) {
-        QString errMsg = QStringLiteral("No primary AppID registered for game type: %1")
-            .arg(Domain::Game::GameRegistry::gameTypeToString(type));
+        QString typeStr = Domain::Game::GameRegistry::gameTypeToString(type);
         if (logCtx) {
-            logCtx->error(errMsg);
+            logCtx->error(QStringLiteral("No primary AppID registered for game type: %1").arg(typeStr));
         }
-        return Core::Async::TaskResult<void>::failure(Core::Error::ErrorCode::InvalidArgument, errMsg);
+        return Core::Async::TaskResult<void>::failure(
+            Domain::Game::GameError::unsupportedGame(
+                QStringLiteral("No primary AppID registered for game type"),
+                typeStr));
     }
     return validateGameFiles(def->primaryAppId, logCtx);
 }
