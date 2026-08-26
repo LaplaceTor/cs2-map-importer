@@ -336,10 +336,56 @@ To maintain strict conceptual clarity across async tasks and workflow operations
 * **`status()` / `isSuccess()` / `isFailure()` / `isCancelled()` / `isSkipped()`**: Authoritative source for business outcome branching. Always check `status()` or `isSuccess()` / `isFailure()` rather than relying solely on `errorCode()`.
 * **`error()`**: Machine-interpretable structured failure object (`Core::Error::Error`), carrying:
   * `error().code()`: Standardized `ErrorCode` enum for branching/routing logic (carries error semantics on `Failure` / `Cancelled`; returns `ErrorCode::Success` on `Success` and `Skipped`);
-  * `error().message()`: Semantic domain/system error reason (e.g. `"gameinfo.gi not found"`);
+  * `error().message()`: Semantic domain/system failure reason (e.g. `"gameinfo.gi not found"`);
   * `error().details()`: Technical diagnostic payload (e.g. file paths, stderr, syntax line info).
 * **`message()`**: High-level operation summary for presentation / UI (e.g. `"Validation failed for CS2"`). If no custom operation summary is set, it falls back to `error().message()`. For `Skipped`, `message()` carries the specific skip explanation (e.g. `"Already up to date"`).
-* **`details()`**: Direct proxy to `error().details()` for technical diagnosis.
+* **`details()`**: Direct proxy to `error().details()` for technical diagnosis. On `Success` and `Skipped`, `m_error` is `Error::success()`, so `details()` returns empty.
+
+##### Tripartite Diagnostic Contract (三层诊断分层规范)
+
+To avoid diagnostic information loss and UI message conflation, all Workflow, Application, and Domain implementations must strictly distinguish the three diagnostic tiers:
+
+| Diagnostic Tier | Accessor | Owner / Layer | Semantic Role | Example |
+| :--- | :--- | :--- | :--- | :--- |
+| **Operation Summary** | `TaskResult::message()` | Workflow / Application | High-level user/task-facing summary of *what high-level operation failed or succeeded*. | `"Map import 'de_dust2' failed"`, `"CS2 environment validation failed"` |
+| **Failure Reason** | `Error::message()` | Domain / Core | Concrete semantic/domain explanation of *why the failure happened*. | `"gameinfo.gi not found"`, `"Entity block parser syntax error"` |
+| **Technical Diagnostics** | `Error::details()` / `TaskResult::details()` | Domain / Core / Process | Low-level technical diagnostics for logs and troubleshooting (paths, stderr, AST line info, CLI args). | `"C:/Steam/steamapps/common/CS2/game/csgo/gameinfo.gi"`, compiler stderr output |
+
+##### Construction Anti-Patterns vs. Canonical Patterns
+
+* ❌ **Anti-Pattern 1: Conflating operation summary into `Error.message`**
+  ```cpp
+  // BAD: High-level operation summary replaces specific failure reason.
+  // The actual missing file and failure cause are lost!
+  return TaskResult<void>::failure(ErrorCode::FileNotFound, "Could not import map");
+  ```
+* ❌ **Anti-Pattern 2: String-formatting technical details into `Error.message`**
+  ```cpp
+  // BAD: Hardcodes file paths into failure message, polluting UI strings and preventing clean error grouping.
+  return TaskResult<void>::failure(ErrorCode::FileNotFound, "gameinfo.gi not found at C:/Games/CS2/gameinfo.gi");
+  ```
+* ✅ **Canonical Pattern 1: Multi-layer structured failure**
+  ```cpp
+  // GOOD: Error carries concrete reason + technical path; TaskResult wraps with operation summary.
+  auto err = Core::Error::Error::fileNotFound(
+      QStringLiteral("gameinfo.gi not found"), // Error.message: 具体失败原因
+      gamePath.toQString()                     // Error.details: 技术诊断细节（绝对路径）
+  );
+  return TaskResult<void>::failure(
+      err,
+      QStringLiteral("CS2 game directory validation failed") // TaskResult.message: 操作层总结
+  );
+  ```
+* ✅ **Canonical Pattern 2: Convenience overload with technical details**
+  ```cpp
+  // GOOD: ErrorCode + specific reason + technical path details.
+  return TaskResult<void>::failure(
+      Core::Error::ErrorCode::FileNotFound,
+      QStringLiteral("gameinfo.gi not found"), // Error.message
+      gamePath.toQString()                     // Error.details
+  );
+  ```
+
 
 #### Cross-Terminal State Conflict Arbitration Matrix (跨终态冲突仲裁矩阵)
 
