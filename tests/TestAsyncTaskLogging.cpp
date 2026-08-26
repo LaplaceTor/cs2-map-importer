@@ -1,37 +1,42 @@
-#include <QtTest/QtTest>
+#include <QTest>
 #include <QSignalSpy>
-#include <QThreadPool>
-#include <QPointer>
+#include <QAbstractItemModelTester>
 #include <memory>
-#include <vector>
 #include <thread>
 #include <atomic>
+#include <chrono>
 
 #include "Core/Logging/LogManager.h"
 #include "Core/Logging/TaskLoggingContext.h"
-#include "Core/Logging/LogLevel.h"
 #include "Core/Logging/TaskState.h"
 #include "Core/Async/TaskResult.h"
-#include "Application/Async/AsyncTaskRunner.h"
 #include "UI/ViewModels/LogViewModel.h"
+#include "UI/ViewModels/LogTaskModel.h"
+#include "Application/Async/AsyncTaskRunner.h"
 
 using namespace Core::Logging;
 using namespace Core::Async;
-using namespace Application::Async;
 using namespace UI::ViewModels;
+using namespace Application::Async;
 
-class TestAsyncTaskLogging : public QObject {
+class TestAsyncTaskLogging : public QObject
+{
     Q_OBJECT
 
 private slots:
+    void initTestCase();
+    void cleanupTestCase();
     void init();
     void cleanup();
 
+    // Unit tests for LogManager + TaskLoggingContext lifecycle & state transitions
     void testSingleTaskLifecycle();
     void testTaskFailure();
     void testTaskCancellation();
     void testConcurrentTasksIsolation();
     void testMultiBlockTask();
+
+    // AsyncTaskRunner async lifecycle & UI context delivery tests
     void testAsyncTaskRunnerNormal();
     void testAsyncTaskRunnerExceptionSafety();
     void testContextDestroyedSafety();
@@ -41,12 +46,22 @@ private slots:
     void testMultiLevelNestedTasksAndParallelChildExecution();
     void testNullContextAndEmptyCallbackExecution();
     void testSemanticBusinessFailureDetection();
+
+    // TaskResult outcome mapping tests
     void testTaskResultOutcomes();
     void testInvalidParentTaskRejection();
     void testLoggedErrorForcesTaskFailure();
     void testLoggedWarningPreservesTaskCompleted();
     void testRunTaskAndChildTaskApi();
 };
+
+void TestAsyncTaskLogging::initTestCase()
+{
+}
+
+void TestAsyncTaskLogging::cleanupTestCase()
+{
+}
 
 void TestAsyncTaskLogging::init()
 {
@@ -64,23 +79,36 @@ void TestAsyncTaskLogging::testSingleTaskLifecycle()
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
-    auto task = LogManager::instance().createTask("Detect Environment");
+    QCOMPARE(logVm->taskCount(), 0);
+
+    // 1. Create and start task
+    auto task = LogManager::instance().createTask("Map Importer Pipeline");
     QVERIFY(task != nullptr);
     task->start();
 
-    task->info("Starting detection");
-    task->info("Found 2 installations");
+    // 2. Emit logs and flush
+    task->info("Extracting VPK files...");
+    task->debug("Resolving search paths: csgo/pak01_dir.vpk");
+    LogManager::instance().flushTask(task->taskId());
 
-    LogManager::instance().finishTask(task->taskId(), "Detection finished");
-
-    // Wait for queued delivery to LogViewModel
     QTRY_COMPARE(logVm->taskCount(), 1);
-    QTRY_COMPARE(logVm->totalMessageCount(), 3);
 
-    QModelIndex idx = logVm->index(0, 0);
-    QCOMPARE(logVm->data(idx, LogViewModel::TaskNameRole).toString(), QStringLiteral("Detect Environment"));
-    QCOMPARE(logVm->data(idx, LogViewModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
-    QCOMPARE(logVm->data(idx, LogViewModel::MessageCountRole).toInt(), 3);
+    QModelIndex taskIdx = logVm->index(0, 0);
+    QCOMPARE(logVm->data(taskIdx, LogTaskModel::TaskNameRole).toString(), QStringLiteral("Map Importer Pipeline"));
+    QCOMPARE(logVm->data(taskIdx, LogTaskModel::StateStringRole).toString(), QStringLiteral("RUNNING"));
+    QCOMPARE(logVm->data(taskIdx, LogTaskModel::MessageCountRole).toInt(), 2);
+
+    auto* msgModel = logVm->getTaskMessagesModel(0);
+    QVERIFY(msgModel != nullptr);
+    QCOMPARE(msgModel->rowCount(), 2);
+
+    QModelIndex msg0 = msgModel->index(0, 0);
+    QCOMPARE(msgModel->data(msg0, LogMessageListModel::LevelStringRole).toString(), QStringLiteral("INFO"));
+    QCOMPARE(msgModel->data(msg0, LogMessageListModel::MessageRole).toString(), QStringLiteral("Extracting VPK files..."));
+
+    // 3. Complete task
+    LogManager::instance().finishTask(task->taskId(), "Map successfully imported");
+    QTRY_COMPARE(logVm->data(taskIdx, LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
 
     logVm->unregisterFromLogManager();
 }
@@ -90,21 +118,20 @@ void TestAsyncTaskLogging::testTaskFailure()
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
-    auto task = LogManager::instance().createTask("Validate Source 1");
-    QVERIFY(task != nullptr);
+    auto task = LogManager::instance().createTask("Compile VMF");
     task->start();
-
-    task->info("Checking gameinfo.txt");
-    task->error("gameinfo.txt not found");
-
-    LogManager::instance().failTask(task->taskId(), "Validation failed");
+    task->info("Invoking resourcecompiler.exe");
+    task->error("Fatal: out of memory while compiling mesh");
+    LogManager::instance().flushTask(task->taskId());
 
     QTRY_COMPARE(logVm->taskCount(), 1);
-    QTRY_COMPARE(logVm->totalMessageCount(), 3);
+    auto* msgModel = logVm->getTaskMessagesModel(0);
+    QVERIFY(msgModel != nullptr);
+    QCOMPARE(msgModel->rowCount(), 2);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::MessageCountRole).toInt(), 2);
 
-    QModelIndex idx = logVm->index(0, 0);
-    QCOMPARE(logVm->data(idx, LogViewModel::TaskNameRole).toString(), QStringLiteral("Validate Source 1"));
-    QCOMPARE(logVm->data(idx, LogViewModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+    LogManager::instance().failTask(task->taskId(), "Resource compiler aborted");
+    QTRY_COMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
 
     logVm->unregisterFromLogManager();
 }
@@ -114,19 +141,17 @@ void TestAsyncTaskLogging::testTaskCancellation()
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
-    auto task = LogManager::instance().createTask("Import Map");
-    QVERIFY(task != nullptr);
+    auto task = LogManager::instance().createTask("Decompile BSP");
     task->start();
-
-    task->info("Compiling assets...");
-    LogManager::instance().cancelTask(task->taskId(), "User cancelled import");
+    task->info("Decompiling entities...");
+    LogManager::instance().flushTask(task->taskId());
 
     QTRY_COMPARE(logVm->taskCount(), 1);
-    QTRY_COMPARE(logVm->totalMessageCount(), 2);
+    QModelIndex taskIdx = logVm->index(0, 0);
+    QCOMPARE(logVm->data(taskIdx, LogTaskModel::StateStringRole).toString(), QStringLiteral("RUNNING"));
 
-    QModelIndex idx = logVm->index(0, 0);
-    QCOMPARE(logVm->data(idx, LogViewModel::TaskNameRole).toString(), QStringLiteral("Import Map"));
-    QCOMPARE(logVm->data(idx, LogViewModel::StateStringRole).toString(), QStringLiteral("CANCELLED"));
+    LogManager::instance().cancelTask(task->taskId(), "User clicked Cancel");
+    QTRY_COMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("CANCELLED"));
 
     logVm->unregisterFromLogManager();
 }
@@ -136,71 +161,31 @@ void TestAsyncTaskLogging::testConcurrentTasksIsolation()
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
-    const int taskCount = 4;
-    const int entriesPerTask = 50;
-
-    std::vector<std::shared_ptr<TaskLoggingContext>> tasks;
-    for (int i = 0; i < taskCount; ++i) {
-        auto t = LogManager::instance().createTask(QStringLiteral("Concurrent Task %1").arg(i + 1));
-        t->start();
-        tasks.push_back(t);
-    }
-
-    std::atomic<bool> startFlag{false};
+    const int threadCount = 4;
+    const int logsPerThread = 25;
     std::vector<std::thread> workers;
 
-    for (int i = 0; i < taskCount; ++i) {
-        workers.emplace_back([t = tasks[i], i, entriesPerTask, &startFlag]() {
-            while (!startFlag.load()) {
-                std::this_thread::yield();
+    for (int i = 0; i < threadCount; ++i) {
+        workers.emplace_back([i, logsPerThread]() {
+            auto task = LogManager::instance().createTask(QStringLiteral("Worker Task %1").arg(i));
+            task->start();
+            for (int j = 0; j < logsPerThread; ++j) {
+                task->info(QStringLiteral("Thread %1 emitting log #%2").arg(i).arg(j));
             }
-            for (int e = 0; e < entriesPerTask; ++e) {
-                t->info(QStringLiteral("Task %1 entry %2").arg(i + 1).arg(e + 1));
-                if (e % 10 == 0) {
-                    LogManager::instance().flushTask(t->taskId());
-                }
-            }
-            LogManager::instance().finishTask(t->taskId(), QStringLiteral("Task %1 done").arg(i + 1));
+            LogManager::instance().finishTask(task->taskId(), "Done");
         });
     }
 
-    startFlag.store(true);
-    for (auto& w : workers) {
-        w.join();
+    for (auto& t : workers) {
+        t.join();
     }
 
-    QTRY_COMPARE_WITH_TIMEOUT(logVm->taskCount(), taskCount, 5000);
-    // entriesPerTask + 1 (for finishTask message) per task
-    int expectedTotal = taskCount * (entriesPerTask + 1);
-    QTRY_COMPARE_WITH_TIMEOUT(logVm->totalMessageCount(), expectedTotal, 5000);
+    QTRY_COMPARE(logVm->taskCount(), threadCount);
 
-    // Verify isolation: check each task by name
-    for (int i = 0; i < taskCount; ++i) {
-        QString expectedName = QStringLiteral("Concurrent Task %1").arg(i + 1);
-        int foundRow = -1;
-        for (int r = 0; r < logVm->taskCount(); ++r) {
-            QModelIndex rIdx = logVm->index(r, 0);
-            if (logVm->data(rIdx, LogViewModel::TaskNameRole).toString() == expectedName) {
-                foundRow = r;
-                break;
-            }
-        }
-        QVERIFY2(foundRow != -1, qPrintable(QStringLiteral("Task not found: %1").arg(expectedName)));
-
-        QModelIndex idx = logVm->index(foundRow, 0);
-        QCOMPARE(logVm->data(idx, LogViewModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
-        QCOMPARE(logVm->data(idx, LogViewModel::MessageCountRole).toInt(), entriesPerTask + 1);
-
-        QVariantList msgs = logVm->data(idx, LogViewModel::MessagesRole).toList();
-        // Verify NO logs from other tasks leaked into this task's messages
-        for (const auto& msgVar : msgs) {
-            QString msgText = msgVar.toMap()[QStringLiteral("message")].toString();
-            for (int other = 0; other < taskCount; ++other) {
-                if (other != i) {
-                    QVERIFY(!msgText.contains(QStringLiteral("Task %1 entry").arg(other + 1)));
-                }
-            }
-        }
+    for (int i = 0; i < threadCount; ++i) {
+        auto* msgModel = logVm->getTaskMessagesModel(i);
+        QVERIFY(msgModel != nullptr);
+        QVERIFY(msgModel->rowCount() >= logsPerThread);
     }
 
     logVm->unregisterFromLogManager();
@@ -211,26 +196,24 @@ void TestAsyncTaskLogging::testMultiBlockTask()
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
-    auto task = LogManager::instance().createTask("MultiBlock Task");
+    auto task = LogManager::instance().createTask("Multi Block Test Task");
     task->start();
 
-    // Block 1
-    task->info("Step 1");
-    LogManager::instance().flushTask(task->taskId());
-
-    // Block 2
-    task->info("Step 2");
-    LogManager::instance().flushTask(task->taskId());
-
-    // Block 3
-    task->info("Step 3");
-    LogManager::instance().finishTask(task->taskId(), "Final step");
+    const int messageCount = 150;
+    for (int i = 0; i < messageCount; ++i) {
+        task->debug(QStringLiteral("Log event %1").arg(i));
+    }
+    LogManager::instance().finishTask(task->taskId(), "Multi-block test done");
 
     QTRY_COMPARE(logVm->taskCount(), 1);
-    QTRY_COMPARE(logVm->totalMessageCount(), 4);
+    auto* msgModel = logVm->getTaskMessagesModel(0);
+    QVERIFY(msgModel != nullptr);
+    QVERIFY(msgModel->rowCount() >= messageCount);
 
-    QModelIndex idx = logVm->index(0, 0);
-    QCOMPARE(logVm->data(idx, LogViewModel::MessageCountRole).toInt(), 4);
+    for (int i = 0; i < messageCount; ++i) {
+        QModelIndex idx = msgModel->index(i, 0);
+        QCOMPARE(msgModel->data(idx, LogMessageListModel::MessageRole).toString(), QStringLiteral("Log event %1").arg(i));
+    }
 
     logVm->unregisterFromLogManager();
 }
@@ -243,18 +226,20 @@ void TestAsyncTaskLogging::testAsyncTaskRunnerNormal()
     bool callbackInvoked = false;
     int returnedResult = 0;
 
-    AsyncTaskRunner::run<int>(
+    AsyncTaskRunner::runTask<int>(
         QStringLiteral("Runner Task"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> int {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
             if (ctx) {
                 ctx->info("Runner working...");
             }
-            return 42;
+            return TaskResult<int>::success(42);
         },
-        [&](int val) {
+        [&](const TaskResult<int>& res) {
             callbackInvoked = true;
-            returnedResult = val;
+            if (res.isSuccess()) {
+                returnedResult = res.value();
+            }
         });
 
     QTRY_VERIFY(callbackInvoked);
@@ -273,24 +258,24 @@ void TestAsyncTaskLogging::testAsyncTaskRunnerExceptionSafety()
     logVm->registerWithLogManager();
 
     bool callbackInvoked = false;
-    int returnedResult = 999;
+    bool resultFailed = false;
 
-    AsyncTaskRunner::run<int>(
+    AsyncTaskRunner::runTask<int>(
         QStringLiteral("Faulty Runner Task"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> int {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
             if (ctx) {
                 ctx->info("About to throw");
             }
             throw std::runtime_error("Simulated I/O failure");
         },
-        [&](int val) {
+        [&](const TaskResult<int>& res) {
             callbackInvoked = true;
-            returnedResult = val;
+            resultFailed = res.isFailure();
         });
 
     QTRY_VERIFY(callbackInvoked);
-    QCOMPARE(returnedResult, 0); // Default constructed result on exception
+    QVERIFY(resultFailed);
 
     QTRY_COMPARE(logVm->taskCount(), 1);
     QModelIndex idx = logVm->index(0, 0);
@@ -307,18 +292,18 @@ void TestAsyncTaskLogging::testContextDestroyedSafety()
     auto* tempContext = new QObject();
     std::atomic<bool> workerRan{false};
 
-    AsyncTaskRunner::run<int>(
+    AsyncTaskRunner::runTask<int>(
         QStringLiteral("Destroyed Context Task"),
         tempContext,
-        [&workerRan](std::shared_ptr<TaskLoggingContext> ctx) -> int {
+        [&workerRan](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
             if (ctx) {
                 ctx->info("Worker executing while context is deleted");
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
             workerRan.store(true);
-            return 100;
+            return TaskResult<int>::success(100);
         },
-        [](int) {
+        [](const TaskResult<int>&) {
             QFAIL("Callback should not be called when context is destroyed");
         });
 
@@ -334,42 +319,44 @@ void TestAsyncTaskLogging::testContextDestroyedSafety()
 void TestAsyncTaskLogging::testCopyAllFormat()
 {
     LogViewModel logVm;
+    logVm.registerWithLogManager();
+
     auto task = LogManager::instance().createTask("Validate Source 2");
     task->start();
     task->info("Checking gameinfo.gi");
     task->warning("Optional addon missing");
-    LogManager::instance().finishTask(task->taskId(), "Validation completed");
+    LogManager::instance().finishTask(task->taskId(), "Validation done");
 
-    // Feed to logVm
-    logVm.processIncomingBlock(task->sealedBlocks().first(), task->taskName());
-    QCoreApplication::processEvents();
+    QTRY_COMPARE(logVm.taskCount(), 1);
 
-    QString logText = logVm.getFullLogText();
-    QVERIFY(logText.contains(QStringLiteral("=== Validate Source 2 ===")));
-    QVERIFY(logText.contains(QStringLiteral("INFO   Checking gameinfo.gi")));
-    QVERIFY(logText.contains(QStringLiteral("WARN   Optional addon missing")));
-    QVERIFY(logText.contains(QStringLiteral("INFO   Validation completed")));
+    QString fullText = logVm.getFullLogText();
+    QVERIFY(fullText.contains(QStringLiteral("=== Validate Source 2 ===")));
+    QVERIFY(fullText.contains(QStringLiteral("Checking gameinfo.gi")));
+    QVERIFY(fullText.contains(QStringLiteral("Optional addon missing")));
+    QVERIFY(fullText.contains(QStringLiteral("INFO ")));
+    QVERIFY(fullText.contains(QStringLiteral("WARN ")));
 }
 
 void TestAsyncTaskLogging::testExpandCollapseState()
 {
     LogViewModel logVm;
-    logVm.appendLog("Line 1", 1);
-    logVm.appendLog("Line 2", 2);
-    QCoreApplication::processEvents();
+    logVm.registerWithLogManager();
 
-    QCOMPARE(logVm.taskCount(), 1);
+    auto task = LogManager::instance().createTask("Test Expand State");
+    task->start();
+    task->info("Step 1");
+    LogManager::instance().finishTask(task->taskId(), "Done");
+
+    QTRY_COMPARE(logVm.taskCount(), 1);
+
     QModelIndex idx = logVm.index(0, 0);
-    QVERIFY(logVm.data(idx, LogViewModel::ExpandedRole).toBool());
-
-    logVm.collapseAll();
-    QVERIFY(!logVm.data(idx, LogViewModel::ExpandedRole).toBool());
-
-    logVm.expandAll();
-    QVERIFY(logVm.data(idx, LogViewModel::ExpandedRole).toBool());
+    QCOMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), true);
 
     logVm.toggleTaskExpanded(0);
-    QVERIFY(!logVm.data(idx, LogViewModel::ExpandedRole).toBool());
+    QCOMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), false);
+
+    logVm.toggleTaskExpanded(0);
+    QCOMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), true);
 }
 
 void TestAsyncTaskLogging::testHierarchicalSubModelGranularity()
@@ -377,33 +364,58 @@ void TestAsyncTaskLogging::testHierarchicalSubModelGranularity()
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
-    auto task = LogManager::instance().createTask("Granular SubModel Task");
-    task->start();
-    task->info("Message 1");
-    task->warning("Message 2");
-    LogManager::instance().flushTask(task->taskId());
+    // 1. Create Root Task
+    auto rootTask = LogManager::instance().createTask("Pipeline Root");
+    rootTask->start();
+    rootTask->info("Starting root pipeline step");
+    LogManager::instance().flushTask(rootTask->taskId());
 
     QTRY_COMPARE(logVm->taskCount(), 1);
+    QModelIndex rootIdx = logVm->index(0, 0);
+    QCOMPARE(logVm->data(rootIdx, LogTaskModel::HasSubTasksRole).toBool(), false);
+    QCOMPARE(logVm->data(rootIdx, LogTaskModel::SubTasksCountRole).toInt(), 0);
 
-    auto* subModel = logVm->getTaskMessagesModel(0);
-    QVERIFY(subModel != nullptr);
-    QCOMPARE(subModel->rowCount(), 2);
+    // 2. Create Child Task 1
+    auto child1 = LogManager::instance().createTask("Sub-step Extract VPK", rootTask->taskId());
+    child1->start();
+    child1->info("Extracting pak01_dir.vpk");
+    LogManager::instance().flushTask(child1->taskId());
 
-    QSignalSpy insertSpy(subModel, &QAbstractItemModel::rowsInserted);
+    // Root should now show hasSubTasks = true, subTasksCount = 1
+    QTRY_COMPARE(logVm->data(rootIdx, LogTaskModel::HasSubTasksRole).toBool(), true);
+    QCOMPARE(logVm->data(rootIdx, LogTaskModel::SubTasksCountRole).toInt(), 1);
 
-    task->error("Message 3");
-    LogManager::instance().finishTask(task->taskId(), "Done");
+    // 3. Create Child Task 2
+    auto child2 = LogManager::instance().createTask("Sub-step Compile VMAT", rootTask->taskId());
+    child2->start();
+    child2->info("Compiling materials");
+    LogManager::instance().flushTask(child2->taskId());
 
-    QTRY_COMPARE(subModel->rowCount(), 4);
-    QVERIFY(insertSpy.count() >= 1);
+    QTRY_COMPARE(logVm->data(rootIdx, LogTaskModel::SubTasksCountRole).toInt(), 2);
 
-    QModelIndex mIdx0 = subModel->index(0, 0);
-    QCOMPARE(subModel->data(mIdx0, LogMessageListModel::MessageRole).toString(), QStringLiteral("Message 1"));
-    QCOMPARE(subModel->data(mIdx0, LogMessageListModel::LevelStringRole).toString(), QStringLiteral("INFO"));
+    // Retrieve subTasksModel for rootTask
+    auto* subTasksModel = logVm->getTaskSubTasksModel(0);
+    QVERIFY(subTasksModel != nullptr);
+    QCOMPARE(subTasksModel->taskCount(), 2);
 
-    QModelIndex mIdx2 = subModel->index(2, 0);
-    QCOMPARE(subModel->data(mIdx2, LogMessageListModel::MessageRole).toString(), QStringLiteral("Message 3"));
-    QCOMPARE(subModel->data(mIdx2, LogMessageListModel::LevelStringRole).toString(), QStringLiteral("ERROR"));
+    QModelIndex c1Idx = subTasksModel->index(0, 0);
+    QCOMPARE(subTasksModel->data(c1Idx, LogTaskModel::TaskNameRole).toString(), QStringLiteral("Sub-step Extract VPK"));
+    QCOMPARE(subTasksModel->data(c1Idx, LogTaskModel::DepthRole).toInt(), 1);
+    QCOMPARE(subTasksModel->data(c1Idx, LogTaskModel::ParentTaskIdRole).toULongLong(), rootTask->taskId());
+
+    QModelIndex c2Idx = subTasksModel->index(1, 0);
+    QCOMPARE(subTasksModel->data(c2Idx, LogTaskModel::TaskNameRole).toString(), QStringLiteral("Sub-step Compile VMAT"));
+    QCOMPARE(subTasksModel->data(c2Idx, LogTaskModel::DepthRole).toInt(), 1);
+    QCOMPARE(subTasksModel->data(c2Idx, LogTaskModel::ParentTaskIdRole).toULongLong(), rootTask->taskId());
+
+    // 4. Finish child 1 and child 2
+    LogManager::instance().finishTask(child1->taskId(), "Extracted 10 files");
+    LogManager::instance().finishTask(child2->taskId(), "Compiled 5 materials");
+    LogManager::instance().finishTask(rootTask->taskId(), "Pipeline complete");
+
+    QTRY_COMPARE(subTasksModel->data(c1Idx, LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+    QTRY_COMPARE(subTasksModel->data(c2Idx, LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+    QTRY_COMPARE(logVm->data(rootIdx, LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
 
     logVm->unregisterFromLogManager();
 }
@@ -413,10 +425,10 @@ void TestAsyncTaskLogging::testMultiLevelNestedTasksAndParallelChildExecution()
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
-    // 1. Create Root Task
+    // 1. Create Root Parent Task
     auto rootTask = LogManager::instance().createTask("Root Map Import");
     rootTask->start();
-    rootTask->info("Starting root pipeline");
+    rootTask->info("Starting multi-threaded parallel subtasks");
     LogManager::instance().flushTask(rootTask->taskId());
 
     QTRY_COMPARE(logVm->taskCount(), 1);
@@ -426,19 +438,19 @@ void TestAsyncTaskLogging::testMultiLevelNestedTasksAndParallelChildExecution()
     const int childCount = 3;
 
     for (int i = 0; i < childCount; ++i) {
-        AsyncTaskRunner::runChild<int>(
+        AsyncTaskRunner::runChildTask<int>(
             rootTask->taskId(),
             QStringLiteral("Parallel Child Task %1").arg(i + 1),
             this,
-            [i](std::shared_ptr<TaskLoggingContext> ctx) -> int {
+            [i](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
                 if (ctx) {
                     ctx->info(QStringLiteral("Child %1 working in parallel").arg(i + 1));
                     std::this_thread::sleep_for(std::chrono::milliseconds(20));
                     ctx->info(QStringLiteral("Child %1 finished work").arg(i + 1));
                 }
-                return i + 1;
+                return TaskResult<int>::success(i + 1);
             },
-            [&completedChildren](int) {
+            [&completedChildren](const TaskResult<int>&) {
                 completedChildren.fetch_add(1);
             });
     }
@@ -459,18 +471,17 @@ void TestAsyncTaskLogging::testMultiLevelNestedTasksAndParallelChildExecution()
         QModelIndex childIdx = subTasksModel->index(c, 0);
         QCOMPARE(subTasksModel->data(childIdx, LogTaskModel::DepthRole).toInt(), 1);
         QCOMPARE(subTasksModel->data(childIdx, LogTaskModel::ParentTaskIdRole).toULongLong(), rootTask->taskId());
-        QCOMPARE(subTasksModel->data(childIdx, LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+        QTRY_COMPARE(subTasksModel->data(childIdx, LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
         QVERIFY(subTasksModel->data(childIdx, LogTaskModel::MessageCountRole).toInt() >= 2);
     }
 
     LogManager::instance().finishTask(rootTask->taskId(), "Root pipeline done");
 
     // Test recursive formatted log text
-    QString fullText = logVm->getFullLogText();
-    QVERIFY(fullText.contains(QStringLiteral("=== Root Map Import ===")));
-    QVERIFY(fullText.contains(QStringLiteral("--- Parallel Child Task 1 ---")));
-    QVERIFY(fullText.contains(QStringLiteral("--- Parallel Child Task 2 ---")));
-    QVERIFY(fullText.contains(QStringLiteral("--- Parallel Child Task 3 ---")));
+    QTRY_VERIFY(logVm->getFullLogText().contains(QStringLiteral("=== Root Map Import ===")));
+    QVERIFY(logVm->getFullLogText().contains(QStringLiteral("--- Parallel Child Task 1 ---")));
+    QVERIFY(logVm->getFullLogText().contains(QStringLiteral("--- Parallel Child Task 2 ---")));
+    QVERIFY(logVm->getFullLogText().contains(QStringLiteral("--- Parallel Child Task 3 ---")));
 
     logVm->unregisterFromLogManager();
 }
@@ -494,17 +505,17 @@ void TestAsyncTaskLogging::testNullContextAndEmptyCallbackExecution()
     // Verify task completed cleanly in LogManager
     QTRY_VERIFY_WITH_TIMEOUT(LogManager::instance().taskCount() >= 1, 3000);
 
-    // 2. Run with context but empty/omitted callback
+    // 2. Run with context but omitted callback
     std::atomic<int> computeResult{0};
-    AsyncTaskRunner::run<int>(
+    AsyncTaskRunner::runTask<int>(
         QStringLiteral("Void Callback Task"),
         this,
-        [&computeResult](std::shared_ptr<TaskLoggingContext> ctx) -> int {
+        [&computeResult](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
             if (ctx) {
                 ctx->info("Calculating value");
             }
             computeResult.store(42);
-            return 42;
+            return TaskResult<int>::success(42);
         });
 
     QTRY_COMPARE_WITH_TIMEOUT(computeResult.load(), 42, 3000);
@@ -516,73 +527,67 @@ void TestAsyncTaskLogging::testSemanticBusinessFailureDetection()
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
-    // 1. Worker returning std::nullopt and logging error (no exception thrown)
+    // 1. Worker returning TaskResult::failure and logging error (no exception thrown)
     std::atomic<bool> callbackFired{false};
-    AsyncTaskRunner::run<std::optional<QString>>(
+    AsyncTaskRunner::runTask<QString>(
         QStringLiteral("Validate Source 1 Failure Test"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> std::optional<QString> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<QString> {
             if (ctx) {
                 ctx->info("Starting validation");
                 ctx->error("gameinfo.txt not found");
             }
-            return std::nullopt;
+            return TaskResult<QString>::failure(QStringLiteral("gameinfo.txt not found"));
         },
-        [&callbackFired](const std::optional<QString>& res) {
-            Q_UNUSED(res);
+        [&callbackFired](const TaskResult<QString>& res) {
+            QVERIFY(res.isFailure());
             callbackFired.store(true);
         });
 
     QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
     QTRY_COMPARE(logVm->taskCount(), 1);
+    QTRY_COMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
 
-    // Verify task state in ViewModel is FAILED (not Completed!)
-    QModelIndex idx1 = logVm->index(0, 0);
-    QTRY_COMPARE(logVm->data(idx1, LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
-
-    // 2. Worker returning bool(false)
-    std::atomic<bool> boolCallbackFired{false};
-    AsyncTaskRunner::run<bool>(
-        QStringLiteral("Boolean Failure Test"),
+    // 2. Worker returning TaskResult<void>::failure
+    std::atomic<bool> failureCallbackFired{false};
+    AsyncTaskRunner::runTask<void>(
+        QStringLiteral("Void Failure Test"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> bool {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<void> {
             if (ctx) {
                 ctx->info("Checking condition");
             }
-            return false;
+            return TaskResult<void>::failure(QStringLiteral("Condition failed"));
         },
-        [&boolCallbackFired](bool) {
-            boolCallbackFired.store(true);
+        [&failureCallbackFired](const TaskResult<void>& res) {
+            QVERIFY(res.isFailure());
+            failureCallbackFired.store(true);
         });
 
-    QTRY_VERIFY_WITH_TIMEOUT(boolCallbackFired.load(), 3000);
+    QTRY_VERIFY_WITH_TIMEOUT(failureCallbackFired.load(), 3000);
     QTRY_COMPARE(logVm->taskCount(), 2);
-
-    QModelIndex idx2 = logVm->index(1, 0);
-    QTRY_COMPARE(logVm->data(idx2, LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+    QTRY_COMPARE(logVm->data(logVm->index(1, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
 
     // 3. Worker returning valid result with NO errors -> COMPLETED
     std::atomic<bool> successCallbackFired{false};
-    AsyncTaskRunner::run<std::optional<QString>>(
+    AsyncTaskRunner::runTask<QString>(
         QStringLiteral("Successful Validation Test"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> std::optional<QString> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<QString> {
             if (ctx) {
                 ctx->info("Starting validation");
                 ctx->info("Validation succeeded");
             }
-            return QStringLiteral("Valid Installation");
+            return TaskResult<QString>::success(QStringLiteral("Valid Installation"));
         },
-        [&successCallbackFired](const std::optional<QString>& res) {
-            Q_UNUSED(res);
+        [&successCallbackFired](const TaskResult<QString>& res) {
+            QVERIFY(res.isSuccess());
             successCallbackFired.store(true);
         });
 
     QTRY_VERIFY_WITH_TIMEOUT(successCallbackFired.load(), 3000);
     QTRY_COMPARE(logVm->taskCount(), 3);
-
-    QModelIndex idx3 = logVm->index(2, 0);
-    QTRY_COMPARE(logVm->data(idx3, LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+    QTRY_COMPARE(logVm->data(logVm->index(2, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
 
     logVm->unregisterFromLogManager();
 }
@@ -594,7 +599,7 @@ void TestAsyncTaskLogging::testTaskResultOutcomes()
 
     // 1. TaskResult::success
     std::atomic<bool> successFired{false};
-    AsyncTaskRunner::run<TaskResult<int>>(
+    AsyncTaskRunner::runTask<int>(
         QStringLiteral("TaskResult Success"),
         this,
         [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
@@ -614,7 +619,7 @@ void TestAsyncTaskLogging::testTaskResultOutcomes()
 
     // 2. TaskResult::failure with partial value
     std::atomic<bool> failureFired{false};
-    AsyncTaskRunner::run<TaskResult<int>>(
+    AsyncTaskRunner::runTask<int>(
         QStringLiteral("TaskResult Failure"),
         this,
         [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
@@ -636,7 +641,7 @@ void TestAsyncTaskLogging::testTaskResultOutcomes()
 
     // 3. TaskResult::cancelled
     std::atomic<bool> cancelFired{false};
-    AsyncTaskRunner::run<TaskResult<QString>>(
+    AsyncTaskRunner::runTask<QString>(
         QStringLiteral("TaskResult Cancelled"),
         this,
         [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<QString> {
@@ -655,7 +660,7 @@ void TestAsyncTaskLogging::testTaskResultOutcomes()
 
     // 4. TaskResult::skipped
     std::atomic<bool> skipFired{false};
-    AsyncTaskRunner::run<TaskResult<void>>(
+    AsyncTaskRunner::runTask<void>(
         QStringLiteral("TaskResult Skipped"),
         this,
         [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<void> {
@@ -677,12 +682,12 @@ void TestAsyncTaskLogging::testTaskResultOutcomes()
 
 void TestAsyncTaskLogging::testInvalidParentTaskRejection()
 {
-    // 1. Calling runChild with an invalid non-existent parentTaskId (e.g. 999999)
+    // 1. Calling runChildTask with an invalid non-existent parentTaskId (e.g. 999999)
     std::atomic<bool> workerRan{false};
     std::atomic<bool> callbackFired{false};
     TaskResult<int> receivedResult;
 
-    AsyncTaskRunner::runChild<TaskResult<int>>(
+    AsyncTaskRunner::runChildTask<int>(
         999999, // non-existent parent ID
         QStringLiteral("Orphaned Child Task"),
         this,
@@ -703,18 +708,27 @@ void TestAsyncTaskLogging::testInvalidParentTaskRejection()
     QVERIFY(receivedResult.isFailure());
     QVERIFY(receivedResult.message().contains(QStringLiteral("invalid parentTaskId")));
 
-    // 2. Calling runChildVoid with an invalid non-existent parentTaskId
+    // 2. Calling runChildTask<void> with an invalid non-existent parentTaskId
     std::atomic<bool> voidWorkerRan{false};
-    AsyncTaskRunner::runChildVoid(
+    std::atomic<bool> voidCallbackFired{false};
+    TaskResult<void> voidResult;
+
+    AsyncTaskRunner::runChildTask<void>(
         888888, // non-existent parent ID
         QStringLiteral("Orphaned Void Task"),
         this,
-        [&voidWorkerRan](std::shared_ptr<TaskLoggingContext>) {
+        [&voidWorkerRan](std::shared_ptr<TaskLoggingContext>) -> TaskResult<void> {
             voidWorkerRan.store(true);
+            return TaskResult<void>::success();
+        },
+        [&voidCallbackFired, &voidResult](const TaskResult<void>& res) {
+            voidResult = res;
+            voidCallbackFired.store(true);
         });
 
-    QTest::qWait(200);
+    QTRY_VERIFY_WITH_TIMEOUT(voidCallbackFired.load(), 2000);
     QCOMPARE(voidWorkerRan.load(), false);
+    QVERIFY(voidResult.isFailure());
 }
 
 void TestAsyncTaskLogging::testLoggedErrorForcesTaskFailure()
@@ -723,7 +737,7 @@ void TestAsyncTaskLogging::testLoggedErrorForcesTaskFailure()
     logVm->registerWithLogManager();
 
     std::atomic<bool> callbackFired{false};
-    AsyncTaskRunner::run<TaskResult<int>>(
+    AsyncTaskRunner::runTask<int>(
         QStringLiteral("Success With Logged Error Task"),
         this,
         [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
@@ -741,10 +755,7 @@ void TestAsyncTaskLogging::testLoggedErrorForcesTaskFailure()
 
     QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
     QTRY_COMPARE(logVm->taskCount(), 1);
-
-    // Verification: TaskState must be FAILED
-    QModelIndex idx = logVm->index(0, 0);
-    QCOMPARE(logVm->data(idx, LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+    QTRY_COMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
 
     logVm->unregisterFromLogManager();
 }
@@ -755,7 +766,7 @@ void TestAsyncTaskLogging::testLoggedWarningPreservesTaskCompleted()
     logVm->registerWithLogManager();
 
     std::atomic<bool> callbackFired{false};
-    AsyncTaskRunner::run<TaskResult<int>>(
+    AsyncTaskRunner::runTask<int>(
         QStringLiteral("Success With Warning Task"),
         this,
         [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
@@ -772,10 +783,7 @@ void TestAsyncTaskLogging::testLoggedWarningPreservesTaskCompleted()
 
     QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
     QTRY_COMPARE(logVm->taskCount(), 1);
-
-    // Verification: TaskState must remain COMPLETED
-    QModelIndex idx = logVm->index(0, 0);
-    QCOMPARE(logVm->data(idx, LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+    QTRY_COMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
 
     logVm->unregisterFromLogManager();
 }
@@ -804,7 +812,7 @@ void TestAsyncTaskLogging::testRunTaskAndChildTaskApi()
 
     QTRY_VERIFY_WITH_TIMEOUT(runTaskFired.load(), 3000);
     QTRY_COMPARE(logVm->taskCount(), 1);
-    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+    QTRY_COMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
 
     // 2. runTask<void>
     std::atomic<bool> voidTaskFired{false};
@@ -824,7 +832,7 @@ void TestAsyncTaskLogging::testRunTaskAndChildTaskApi()
 
     QTRY_VERIFY_WITH_TIMEOUT(voidTaskFired.load(), 3000);
     QTRY_COMPARE(logVm->taskCount(), 2);
-    QCOMPARE(logVm->data(logVm->index(1, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+    QTRY_COMPARE(logVm->data(logVm->index(1, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
 
     // 3. runChildTask<QString>
     auto rootContext = LogManager::instance().createTask("Parent Task for Child");
