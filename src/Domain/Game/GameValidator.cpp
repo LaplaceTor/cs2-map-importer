@@ -1,6 +1,7 @@
 #include "Domain/Game/GameValidator.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Domain/Game/GameInfoParser.h"
+#include "Domain/Game/GameError.h"
 #include <algorithm>
 #include <QDir>
 #include <QFileInfo>
@@ -19,15 +20,15 @@ Core::Async::TaskResult<void> GameValidator::validateGameInfo(const GameInfo& in
             return Core::Async::TaskResult<void>::success();
         }
         return Core::Async::TaskResult<void>::failure(
-            Core::Error::ErrorCode::TypeMismatch,
-            QStringLiteral("Custom GameInfo is empty and has no valid gameinfo file path"));
+            GameError::emptyCustomGameInfo(
+                QStringLiteral("Custom GameInfo is empty and has no valid gameinfo file path")));
     }
 
     const auto* def = GameRegistry::findByType(expectedType);
     if (!def) {
         return Core::Async::TaskResult<void>::failure(
-            Core::Error::ErrorCode::NotSupported,
-            QStringLiteral("Game definition not found for type: %1").arg(GameRegistry::gameTypeToString(expectedType)));
+            GameError::unsupportedGame(
+                QStringLiteral("Game definition not found for type: %1").arg(GameRegistry::gameTypeToString(expectedType))));
     }
 
     const QString actualGame = info.game().trimmed();
@@ -72,11 +73,11 @@ Core::Async::TaskResult<void> GameValidator::validateGameInfo(const GameInfo& in
         const auto* otherDef = GameRegistry::findByAppId(info.steamAppId());
         if (otherDef && otherDef->type != expectedType && !(otherDef->primaryAppId == 730 && def->primaryAppId == 730)) {
             return Core::Async::TaskResult<void>::failure(
-                Core::Error::ErrorCode::TypeMismatch,
-                QStringLiteral("GameInfo AppID %1 belongs to '%2', not expected '%3'")
-                    .arg(QString::number(info.steamAppId()),
-                         GameRegistry::gameTypeToString(otherDef->type),
-                         GameRegistry::gameTypeToString(expectedType)));
+                GameError::steamAppMismatch(
+                    QStringLiteral("GameInfo AppID %1 belongs to '%2', not expected '%3'")
+                        .arg(QString::number(info.steamAppId()),
+                             GameRegistry::gameTypeToString(otherDef->type),
+                             GameRegistry::gameTypeToString(expectedType))));
         }
     }
 
@@ -124,12 +125,12 @@ Core::Async::TaskResult<void> GameValidator::validateGameInfo(const GameInfo& in
     }
 
     return Core::Async::TaskResult<void>::failure(
-        Core::Error::ErrorCode::TypeMismatch,
-        QStringLiteral("GameInfo (game: '%1', title: '%2', appid: %3) does not match expected game type '%4'")
-            .arg(actualGame, actualTitle, QString::number(info.steamAppId()), GameRegistry::gameTypeToString(expectedType)));
+        GameError::gameTypeMismatch(
+            QStringLiteral("GameInfo (game: '%1', title: '%2', appid: %3) does not match expected game type '%4'")
+                .arg(actualGame, actualTitle, QString::number(info.steamAppId()), GameRegistry::gameTypeToString(expectedType))));
 }
 
-std::optional<GameType> GameValidator::identifyGameType(const GameInfo& info) {
+std::optional<GameType> GameValidator::tryIdentifyGameType(const GameInfo& info) {
     const auto& defs = GameRegistry::allDefinitions();
     const QString actualGame = info.game().trimmed();
     const QString actualTitle = info.title().trimmed();

@@ -12,7 +12,14 @@ namespace Core::Error {
 
 /**
  * @brief Structured exception class carrying diagnostic Error information.
- * Inherits from QException for safe asynchronous and cross-thread transport in Qt.
+ *
+ * Core::Error::Exception inherits from QException for safe asynchronous and cross-thread
+ * exception marshaling via QFuture / AsyncTaskRunner in Qt.
+ *
+ * Note on Exception Architecture:
+ * - This type is a Qt exception transport carrier, NOT a general-purpose C++ business exception hierarchy.
+ * - Workflow and Domain layers must strictly return Core::Async::TaskResult<T> for business outcomes
+ *   rather than throwing or catching exceptions for control flow.
  */
 class Exception : public QException {
 public:

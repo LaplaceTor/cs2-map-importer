@@ -5,6 +5,7 @@ qt_add_library(cs2importer_domain STATIC
     Asset/AssetTypeDetector.h
     Asset/AssetTypeDetector.cpp
     Game/GameType.h
+    Game/GameError.h
     Game/GameDefinition.h
     Game/GameRegistry.h
     Game/GameRegistry.cpp

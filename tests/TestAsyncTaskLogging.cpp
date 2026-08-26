@@ -67,6 +67,14 @@ private slots:
     void testExplicitCancelWithTaskResultSuccessContradiction();
     void testExplicitSkipWithTaskResultSuccessContradiction();
     void testExplicitCompleteWithTaskResultFailureContradiction();
+    void testExplicitCancelWithTaskResultSkippedContradiction();
+    void testExplicitSkipWithTaskResultCancelledContradiction();
+    void testExplicitFailWithTaskResultCancelledContradiction();
+    void testExplicitFailWithTaskResultSkippedContradiction();
+    void testExplicitCancelWithTaskResultFailureContradiction();
+    void testExplicitSkipWithTaskResultFailureContradiction();
+    void testExplicitCompleteWithTaskResultCancelledContradiction();
+    void testExplicitCompleteWithTaskResultSkippedContradiction();
 };
 
 void TestAsyncTaskLogging::initTestCase()
@@ -1143,6 +1151,286 @@ void TestAsyncTaskLogging::testExplicitCompleteWithTaskResultFailureContradictio
     // UI Log plane MUST be forced to FAILED
     QCOMPARE(logVm->taskCount(), 1);
     QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testExplicitCancelWithTaskResultSkippedContradiction()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    std::atomic<bool> callbackFired{false};
+    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+
+    AsyncTaskRunner::runTask<int>(
+        QStringLiteral("Contradiction Cancel + Skipped"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->cancel("Worker explicit cancel");
+            }
+            return TaskResult<int>::skipped(QStringLiteral("Worker returned skipped"), 42);
+        },
+        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+            receivedResult = res;
+            callbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
+
+    // Cancelled dominates over Skipped; Result converted to Cancelled with partial value preserved
+    QVERIFY(receivedResult.isCancelled());
+    QCOMPARE(receivedResult.value(), 42);
+
+    // UI Log plane MUST show CANCELLED
+    QCOMPARE(logVm->taskCount(), 1);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("CANCELLED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testExplicitSkipWithTaskResultCancelledContradiction()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    std::atomic<bool> callbackFired{false};
+    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+
+    AsyncTaskRunner::runTask<int>(
+        QStringLiteral("Contradiction Skip + Cancelled"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->skip("Worker explicit skip");
+            }
+            return TaskResult<int>::cancelled(QStringLiteral("Worker cancelled"), 42);
+        },
+        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+            receivedResult = res;
+            callbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
+
+    // Worker explicit return of Cancelled dominates over earlier Skip; Result stays Cancelled
+    QVERIFY(receivedResult.isCancelled());
+    QCOMPARE(receivedResult.value(), 42);
+
+    // UI Log plane MUST show CANCELLED
+    QCOMPARE(logVm->taskCount(), 1);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("CANCELLED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testExplicitFailWithTaskResultCancelledContradiction()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    std::atomic<bool> callbackFired{false};
+    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+
+    AsyncTaskRunner::runTask<int>(
+        QStringLiteral("Contradiction Fail + Cancelled"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->fail("Worker explicit failure");
+            }
+            return TaskResult<int>::cancelled(QStringLiteral("Worker cancelled"), 42);
+        },
+        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+            receivedResult = res;
+            callbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
+
+    // Failure dominates over Cancelled; Result converted to Failure with partial value preserved
+    QVERIFY(receivedResult.isFailure());
+    QCOMPARE(receivedResult.value(), 42);
+
+    // UI Log plane MUST show FAILED
+    QCOMPARE(logVm->taskCount(), 1);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testExplicitFailWithTaskResultSkippedContradiction()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    std::atomic<bool> callbackFired{false};
+    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+
+    AsyncTaskRunner::runTask<int>(
+        QStringLiteral("Contradiction Fail + Skipped"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->fail("Worker explicit failure");
+            }
+            return TaskResult<int>::skipped(QStringLiteral("Worker skipped"), 42);
+        },
+        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+            receivedResult = res;
+            callbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
+
+    // Failure dominates over Skipped; Result converted to Failure with partial value preserved
+    QVERIFY(receivedResult.isFailure());
+    QCOMPARE(receivedResult.value(), 42);
+
+    // UI Log plane MUST show FAILED
+    QCOMPARE(logVm->taskCount(), 1);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testExplicitCancelWithTaskResultFailureContradiction()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    std::atomic<bool> callbackFired{false};
+    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+
+    AsyncTaskRunner::runTask<int>(
+        QStringLiteral("Contradiction Cancel + Failure"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->cancel("Worker explicit cancel");
+            }
+            return TaskResult<int>::failure(ErrorCode::OperationFailed, QStringLiteral("Fatal error during cancel cleanup"), QString(), 42);
+        },
+        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+            receivedResult = res;
+            callbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
+
+    // Failure dominates over Cancelled; Result remains Failure
+    QVERIFY(receivedResult.isFailure());
+    QCOMPARE(receivedResult.value(), 42);
+
+    // UI Log plane MUST show FAILED
+    QCOMPARE(logVm->taskCount(), 1);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testExplicitSkipWithTaskResultFailureContradiction()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    std::atomic<bool> callbackFired{false};
+    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+
+    AsyncTaskRunner::runTask<int>(
+        QStringLiteral("Contradiction Skip + Failure"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->skip("Worker explicit skip");
+            }
+            return TaskResult<int>::failure(ErrorCode::OperationFailed, QStringLiteral("Fatal error during skip check"), QString(), 42);
+        },
+        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+            receivedResult = res;
+            callbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
+
+    // Failure dominates over Skipped; Result remains Failure
+    QVERIFY(receivedResult.isFailure());
+    QCOMPARE(receivedResult.value(), 42);
+
+    // UI Log plane MUST show FAILED
+    QCOMPARE(logVm->taskCount(), 1);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testExplicitCompleteWithTaskResultCancelledContradiction()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    std::atomic<bool> callbackFired{false};
+    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+
+    AsyncTaskRunner::runTask<int>(
+        QStringLiteral("Contradiction Complete + Cancelled"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->complete("Worker completed early");
+            }
+            return TaskResult<int>::cancelled(QStringLiteral("Worker cancelled"), 42);
+        },
+        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+            receivedResult = res;
+            callbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
+
+    // Business outcome Cancelled overrides Complete
+    QVERIFY(receivedResult.isCancelled());
+    QCOMPARE(receivedResult.value(), 42);
+
+    // UI Log plane MUST show CANCELLED
+    QCOMPARE(logVm->taskCount(), 1);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("CANCELLED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testExplicitCompleteWithTaskResultSkippedContradiction()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    std::atomic<bool> callbackFired{false};
+    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+
+    AsyncTaskRunner::runTask<int>(
+        QStringLiteral("Contradiction Complete + Skipped"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->complete("Worker completed early");
+            }
+            return TaskResult<int>::skipped(QStringLiteral("Worker skipped"), 42);
+        },
+        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+            receivedResult = res;
+            callbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
+
+    // Business outcome Skipped overrides Complete
+    QVERIFY(receivedResult.isSkipped());
+    QCOMPARE(receivedResult.value(), 42);
+
+    // UI Log plane MUST show SKIPPED
+    QCOMPARE(logVm->taskCount(), 1);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("SKIPPED"));
 
     logVm->unregisterFromLogManager();
 }

@@ -13,8 +13,8 @@ public:
     // Checks if parsed GameInfo matches the expected GameType
     static Core::Async::TaskResult<void> validateGameInfo(const GameInfo& info, GameType expectedType);
 
-    // Determines GameType from a parsed GameInfo object
-    static std::optional<GameType> identifyGameType(const GameInfo& info);
+    // Determines GameType from a parsed GameInfo object if recognized, or std::nullopt if no known pattern matches
+    static std::optional<GameType> tryIdentifyGameType(const GameInfo& info);
 
     // Computes the expected path to gameinfo.txt / gameinfo.gi for a game directory and GameType
     static Core::Path::FilesystemPath getExpectedGameInfoPath(

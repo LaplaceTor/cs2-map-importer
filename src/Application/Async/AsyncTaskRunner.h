@@ -211,72 +211,122 @@ private:
                         const auto currentState = taskContext->state();
                         const bool hasErrors = taskContext->hasErrors();
 
-                        if (result.isSuccess()) {
-                            if (currentState == Core::Logging::TaskState::Failed || hasErrors) {
+                        auto makeContractFailure = [&](const QString& msg) {
+                            if constexpr (std::is_void_v<T>) {
+                                return TaskResult<T>::failure(Core::Error::ErrorCode::OperationFailed, msg);
+                            } else {
+                                return TaskResult<T>::failure(
+                                    Core::Error::ErrorCode::OperationFailed,
+                                    msg,
+                                    QString(),
+                                    result.hasValue() ? std::make_optional(result.value()) : std::nullopt);
+                            }
+                        };
+
+                        auto makeContractCancelled = [&](const QString& msg) {
+                            if constexpr (std::is_void_v<T>) {
+                                return TaskResult<T>::cancelled(msg);
+                            } else {
+                                return TaskResult<T>::cancelled(
+                                    msg,
+                                    result.hasValue() ? std::make_optional(result.value()) : std::nullopt);
+                            }
+                        };
+
+                        auto makeContractSkipped = [&](const QString& msg) {
+                            if constexpr (std::is_void_v<T>) {
+                                return TaskResult<T>::skipped(msg);
+                            } else {
+                                return TaskResult<T>::skipped(
+                                    msg,
+                                    result.hasValue() ? std::make_optional(result.value()) : std::nullopt);
+                            }
+                        };
+
+                        // Cross-terminal state conflict arbitration matrix
+                        if (currentState == Core::Logging::TaskState::Failed || hasErrors) {
+                            // Priority 1: Failed / Logged errors dominate
+                            if (result.isSuccess()) {
                                 if (!hasErrors) {
                                     taskContext->error(QStringLiteral("Contract violation: worker returned TaskResult::success after task failed"));
                                 }
-                                Core::Logging::LogManager::instance().forceTaskState(
-                                    taskId, Core::Logging::TaskState::Failed, QStringLiteral("Task completed with logged errors or explicit failure"));
+                                result = makeContractFailure(QStringLiteral("Contract violation: Task completed with logged errors or explicit failure"));
+                            } else if (result.isCancelled()) {
+                                taskContext->error(QStringLiteral("Contract violation: worker returned TaskResult::cancelled after task failed with errors"));
+                                result = makeContractFailure(QStringLiteral("Contract violation: Task failed with errors before cancellation"));
+                            } else if (result.isSkipped()) {
+                                taskContext->error(QStringLiteral("Contract violation: worker returned TaskResult::skipped after task failed with errors"));
+                                result = makeContractFailure(QStringLiteral("Contract violation: Task failed with errors before skipping"));
+                            }
+                            Core::Logging::LogManager::instance().forceTaskState(
+                                taskId, Core::Logging::TaskState::Failed,
+                                result.message().isEmpty() ? QStringLiteral("Task failed") : result.message());
 
-                                if constexpr (std::is_void_v<T>) {
-                                    result = TaskResult<T>::failure(
-                                        Core::Error::ErrorCode::OperationFailed,
-                                        QStringLiteral("Contract violation: Task completed with logged errors or explicit failure"));
-                                } else {
-                                    result = TaskResult<T>::failure(
-                                        Core::Error::ErrorCode::OperationFailed,
-                                        QStringLiteral("Contract violation: Task completed with logged errors or explicit failure"),
-                                        QString(),
-                                        result.hasValue() ? std::make_optional(result.value()) : std::nullopt);
-                                }
-                            } else if (currentState == Core::Logging::TaskState::Cancelled) {
+                        } else if (currentState == Core::Logging::TaskState::Cancelled) {
+                            // Priority 2: Cancelled (without errors)
+                            if (result.isSuccess()) {
                                 taskContext->warning(QStringLiteral("Contract violation: worker returned TaskResult::success after task was cancelled"));
+                                result = makeContractCancelled(QStringLiteral("Contract violation: Task was cancelled"));
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Cancelled, QStringLiteral("Cancelled"));
+                            } else if (result.isFailure()) {
+                                taskContext->warning(QStringLiteral("Contract violation: worker returned TaskResult::failure after task was cancelled"));
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Failed,
+                                    result.message().isEmpty() ? QStringLiteral("Task failed") : result.message());
+                            } else if (result.isSkipped()) {
+                                taskContext->warning(QStringLiteral("Contract violation: worker returned TaskResult::skipped after task was cancelled"));
+                                result = makeContractCancelled(QStringLiteral("Contract violation: Task was cancelled"));
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Cancelled, QStringLiteral("Cancelled"));
+                            } else { // result.isCancelled() -> Agreement
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Cancelled,
+                                    result.message().isEmpty() ? QStringLiteral("Cancelled") : result.message());
+                            }
 
-                                if constexpr (std::is_void_v<T>) {
-                                    result = TaskResult<T>::cancelled(QStringLiteral("Contract violation: Task was cancelled"));
-                                } else {
-                                    result = TaskResult<T>::cancelled(
-                                        QStringLiteral("Contract violation: Task was cancelled"),
-                                        result.hasValue() ? std::make_optional(result.value()) : std::nullopt);
-                                }
-                            } else if (currentState == Core::Logging::TaskState::Skipped) {
-                                taskContext->info(QStringLiteral("Contract violation: worker returned TaskResult::success after task was skipped"));
+                        } else if (currentState == Core::Logging::TaskState::Skipped) {
+                            // Priority 3: Skipped (without errors)
+                            if (result.isSuccess()) {
+                                taskContext->warning(QStringLiteral("Contract violation: worker returned TaskResult::success after task was skipped"));
+                                result = makeContractSkipped(QStringLiteral("Contract violation: Task was skipped"));
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Skipped, QStringLiteral("Skipped"));
+                            } else if (result.isFailure()) {
+                                taskContext->warning(QStringLiteral("Contract violation: worker returned TaskResult::failure after task was skipped"));
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Failed,
+                                    result.message().isEmpty() ? QStringLiteral("Task failed") : result.message());
+                            } else if (result.isCancelled()) {
+                                taskContext->warning(QStringLiteral("Contract violation: worker returned TaskResult::cancelled after task was skipped"));
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Cancelled,
+                                    result.message().isEmpty() ? QStringLiteral("Cancelled") : result.message());
+                            } else { // result.isSkipped() -> Agreement
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Skipped,
+                                    result.message().isEmpty() ? QStringLiteral("Skipped") : result.message());
+                            }
 
-                                if constexpr (std::is_void_v<T>) {
-                                    result = TaskResult<T>::skipped(QStringLiteral("Contract violation: Task was skipped"));
-                                } else {
-                                    result = TaskResult<T>::skipped(
-                                        QStringLiteral("Contract violation: Task was skipped"),
-                                        result.hasValue() ? std::make_optional(result.value()) : std::nullopt);
-                                }
-                            } else {
-                                Core::Logging::LogManager::instance().forceTaskState(
-                                    taskId, Core::Logging::TaskState::Completed, QStringLiteral("Completed"));
-                            }
-                        } else if (result.isCancelled()) {
-                            if (hasErrors || currentState == Core::Logging::TaskState::Failed) {
-                                Core::Logging::LogManager::instance().forceTaskState(
-                                    taskId, Core::Logging::TaskState::Failed, QStringLiteral("Task cancelled with logged errors"));
-                            } else {
-                                Core::Logging::LogManager::instance().forceTaskState(
-                                    taskId, Core::Logging::TaskState::Cancelled, result.message().isEmpty() ? QStringLiteral("Cancelled") : result.message());
-                            }
-                        } else if (result.isSkipped()) {
-                            if (hasErrors || currentState == Core::Logging::TaskState::Failed) {
-                                Core::Logging::LogManager::instance().forceTaskState(
-                                    taskId, Core::Logging::TaskState::Failed, QStringLiteral("Task skipped with logged errors"));
-                            } else {
-                                Core::Logging::LogManager::instance().forceTaskState(
-                                    taskId, Core::Logging::TaskState::Skipped, result.message().isEmpty() ? QStringLiteral("Skipped") : result.message());
-                            }
                         } else {
-                            Core::Logging::LogManager::instance().forceTaskState(
-                                taskId, Core::Logging::TaskState::Failed, result.message().isEmpty() ? QStringLiteral("Task failed") : result.message());
+                            // Normal / Completed / Running state -> outcome determined by TaskResult
+                            if (result.isSuccess()) {
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Completed,
+                                    result.message().isEmpty() ? QStringLiteral("Completed") : result.message());
+                            } else if (result.isCancelled()) {
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Cancelled,
+                                    result.message().isEmpty() ? QStringLiteral("Cancelled") : result.message());
+                            } else if (result.isSkipped()) {
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Skipped,
+                                    result.message().isEmpty() ? QStringLiteral("Skipped") : result.message());
+                            } else { // Failure
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Failed,
+                                    result.message().isEmpty() ? QStringLiteral("Task failed") : result.message());
+                            }
                         }
                     }
                 }

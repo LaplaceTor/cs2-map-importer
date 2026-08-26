@@ -7,6 +7,7 @@
 #include "Core/Async/TaskResult.h"
 #include "Core/Process/ProcessResult.h"
 #include "Domain/Game/GameInfoParser.h"
+#include "Domain/Game/GameError.h"
 
 using namespace Core::Error;
 using namespace Core::Async;
@@ -19,6 +20,7 @@ class TestError : public QObject {
 private slots:
     void testErrorCodeBasics();
     void testErrorValueObject();
+    void testDomainErrorExtension();
     void testExceptionLifecycleAndStdExceptionCompatibility();
     void testProcessResultMapping();
     void testTaskResultStructuredError();
@@ -55,6 +57,34 @@ void TestError::testErrorValueObject()
     Error staticErr = Error::invalidArgument(QStringLiteral("Invalid game type"));
     QCOMPARE(staticErr.code(), ErrorCode::InvalidArgument);
     QCOMPARE(staticErr.message(), QStringLiteral("Invalid game type"));
+}
+
+void TestError::testDomainErrorExtension()
+{
+    // Generic domain error creation
+    auto domainErr = Error::domain(QStringLiteral("Domain::Game"), GameErrorCode::SteamAppMismatch, QStringLiteral("AppID mismatch"), QStringLiteral("Expected 730, found 240"), ErrorCode::TypeMismatch);
+    QVERIFY(domainErr.isFailure());
+    QVERIFY(domainErr.hasDomain());
+    QCOMPARE(domainErr.domain(), QStringLiteral("Domain::Game"));
+    QVERIFY(domainErr.isDomain(QStringLiteral("Domain::Game")));
+    QCOMPARE(domainErr.domainCode(), static_cast<int>(GameErrorCode::SteamAppMismatch));
+    QVERIFY(domainErr.is(GameErrorCode::SteamAppMismatch));
+    QVERIFY(!domainErr.is(GameErrorCode::UnsupportedGame));
+    QCOMPARE(domainErr.domainCodeAs<GameErrorCode>(), GameErrorCode::SteamAppMismatch);
+    QCOMPARE(domainErr.code(), ErrorCode::TypeMismatch);
+    QCOMPARE(domainErr.message(), QStringLiteral("AppID mismatch"));
+    QCOMPARE(domainErr.details(), QStringLiteral("Expected 730, found 240"));
+    QCOMPARE(domainErr.toString(), QStringLiteral("[Domain::Game:4] AppID mismatch (Expected 730, found 240)"));
+
+    // Via GameError factory helper
+    auto factoryErr = GameError::steamAppMismatch(QStringLiteral("AppID mismatch"), QStringLiteral("Expected 730, found 240"));
+    QVERIFY(factoryErr.is(GameErrorCode::SteamAppMismatch));
+    QCOMPARE(factoryErr.code(), ErrorCode::TypeMismatch);
+    QCOMPARE(factoryErr, domainErr);
+
+    // Equality check with different domain codes
+    auto otherDomainErr = GameError::gameTypeMismatch(QStringLiteral("GameType mismatch"));
+    QVERIFY(otherDomainErr != factoryErr);
 }
 
 void TestError::testExceptionLifecycleAndStdExceptionCompatibility()

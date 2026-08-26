@@ -341,6 +341,49 @@ To maintain strict conceptual clarity across async tasks and workflow operations
 * **`message()`**: High-level operation summary for presentation / UI (e.g. `"Validation failed for CS2"`). If no custom operation summary is set, it falls back to `error().message()`. For `Skipped`, `message()` carries the specific skip explanation (e.g. `"Already up to date"`).
 * **`details()`**: Direct proxy to `error().details()` for technical diagnosis.
 
+#### Cross-Terminal State Conflict Arbitration Matrix (跨终态冲突仲裁矩阵)
+
+When a background worker finishes, the task may possess a lifecycle `TaskState` set on `TaskLoggingContext` (e.g. via `fail()`, `cancel()`, `skip()`, `complete()`, or logged errors) while simultaneously returning a business `TaskResult<T>`. `AsyncTaskRunner` strictly resolves all 16 state combinations using a deterministic severity hierarchy (`Failed` > `Cancelled` > `Skipped` > `Completed`):
+
+| Context `TaskState` | Worker `TaskResult` | Contract Violation Logged? | Final `TaskState` in `LogManager` | Final `TaskResult<T>` delivered to Callback |
+| :--- | :--- | :--- | :--- | :--- |
+| **Failed** (or errors) | **Success** | `error()` ("... returned success after task failed") | `Failed` | Converted to `Failure` (`OperationFailed`) |
+| **Failed** (or errors) | **Failure** | No (Agreement) | `Failed` | `Failure` (original) |
+| **Failed** (or errors) | **Cancelled** | `error()` ("... returned cancelled after task failed") | `Failed` | Converted to `Failure` (`OperationFailed`) |
+| **Failed** (or errors) | **Skipped** | `error()` ("... returned skipped after task failed") | `Failed` | Converted to `Failure` (`OperationFailed`) |
+| **Cancelled** (no errors) | **Success** | `warning()` ("... returned success after task was cancelled") | `Cancelled` | Converted to `Cancelled` |
+| **Cancelled** (no errors) | **Failure** | `warning()` ("... returned failure after task was cancelled") | `Failed` | `Failure` (original) |
+| **Cancelled** (no errors) | **Cancelled** | No (Agreement) | `Cancelled` | `Cancelled` (original) |
+| **Cancelled** (no errors) | **Skipped** | `warning()` ("... returned skipped after task was cancelled") | `Cancelled` | Converted to `Cancelled` |
+| **Skipped** (no errors) | **Success** | `warning()` ("... returned success after task was skipped") | `Skipped` | Converted to `Skipped` |
+| **Skipped** (no errors) | **Failure** | `warning()` ("... returned failure after task was skipped") | `Failed` | `Failure` (original) |
+| **Skipped** (no errors) | **Cancelled** | `warning()` ("... returned cancelled after task was skipped") | `Cancelled` | `Cancelled` (original) |
+| **Skipped** (no errors) | **Skipped** | No (Agreement) | `Skipped` | `Skipped` (original) |
+| **Completed / Running** | **Success** | No (Agreement) | `Completed` | `Success` (original) |
+| **Completed / Running** | **Failure** | No (Outcome transition) | `Failed` | `Failure` (original) |
+| **Completed / Running** | **Cancelled** | No (Outcome transition) | `Cancelled` | `Cancelled` (original) |
+| **Completed / Running** | **Skipped** | No (Outcome transition) | `Skipped` | `Skipped` (original) |
+
+*Value Preservation Rule*: When `TaskResult<T>` is converted due to a contract violation or conflict, any existing partial payload (`result.value()`) is strictly preserved across the conversion.
+
+#### Exception Transport Contract vs. Business Control Flow
+
+* **`Core::Error::Exception` is a Qt cross-thread exception transport carrier (`QException`), NOT a business exception hierarchy.**
+  * Qt's concurrent infrastructure relies on `QException` (`clone()` / `raise()`) to marshal background panics back to the invoking thread.
+  * `AsyncTaskRunner` catches `Core::Error::Exception` (and `std::exception`) purely to convert background crashes into structured `TaskResult<T>::failure(...)`.
+  * **Rule:** Do **NOT** use `throw / catch` for normal business outcomes or domain logic control flow. Workflow and Domain layers must strictly return `Core::Async::TaskResult<T>`.
+
+#### Error Code Stratification: Core vs. Domain Error Domains
+
+* **`Core::Error::ErrorCode`**: General-purpose infrastructure, system, and I/O error categories (`InvalidArgument`, `FileNotFound`, `ProcessFailed`, `DomainError`, etc.). Must remain clean and free of Valve/game-specific concepts.
+* **Domain Error Codes (e.g. `Domain::Game::GameErrorCode`)**: Fine-grained business error codes owned by specific domain namespaces (e.g. `UnsupportedGame`, `GameInfoNotFound`, `GameTypeMismatch`, `SteamAppMismatch`).
+* **Integration**: Domain layers attach domain error codes to structured `Core::Error::Error` via `Error::domain(DomainName, code, msg, details)` or dedicated domain error factories (`Domain::Game::GameError`). Callers can inspect domain codes via `err.is(GameErrorCode::...)` or `err.domainCodeAs<GameErrorCode>()`.
+
+#### Heuristic Matching (`try*` -> `std::optional<T>`) vs. Validation (`TaskResult<T>`)
+
+* **Deterministic Validation (`validate*` -> `TaskResult<T>`)**: Use when asserting preconditions or contract validity against an expected target. If validation fails, it is an operation failure that must communicate *why* it failed via `TaskResult<T>::failure(Error)`.
+* **Heuristic Identification (`tryIdentify*` -> `std::optional<T>`)**: Use for best-effort pattern recognition / deduction (e.g. `tryIdentifyGameType`). Returning `std::nullopt` signifies a normal non-match branch (e.g. falling back to manual selection or Custom game), rather than an operational failure.
+
 ---
 
 ## 6. Logging Rules

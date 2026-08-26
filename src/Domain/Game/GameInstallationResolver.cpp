@@ -205,7 +205,7 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
     }
 
     const auto& optInfo = parseResult.value();
-    auto identifiedType = GameValidator::identifyGameType(optInfo);
+    auto identifiedType = GameValidator::tryIdentifyGameType(optInfo);
     GameType resolvedType = identifiedType.value_or(GameType::Custom);
 
     if (type != GameType::Unknown && type != GameType::Custom) {
@@ -293,7 +293,7 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::insp
     }
 
     const auto& optInfo = parseResult.value();
-    auto identifiedType = GameValidator::identifyGameType(optInfo);
+    auto identifiedType = GameValidator::tryIdentifyGameType(optInfo);
     GameType type = identifiedType.value_or(GameType::Custom);
 
     Core::Path::FilesystemPath baseDir = optInfo.baseDirectory();

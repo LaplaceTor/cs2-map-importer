@@ -9,6 +9,7 @@
 #include "Domain/Game/GameDefinition.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Domain/Game/GameValidator.h"
+#include "Domain/Game/GameError.h"
 #include "Core/Path/FilesystemPath.h"
 
 using namespace Domain::Game;
@@ -341,29 +342,29 @@ private slots:
         QVERIFY(!GameValidator::validateGameInfo(*l4d2Validation, GameType::L4D).isSuccess());
 
         // Test auto-identification across all fixtures
-        auto identifiedCss = GameValidator::identifyGameType(*cssValidation);
+        auto identifiedCss = GameValidator::tryIdentifyGameType(*cssValidation);
         QVERIFY(identifiedCss.has_value());
         QCOMPARE(*identifiedCss, GameType::CSS);
 
-        auto identifiedHl2 = GameValidator::identifyGameType(*hl2Validation);
+        auto identifiedHl2 = GameValidator::tryIdentifyGameType(*hl2Validation);
         QVERIFY(identifiedHl2.has_value());
         QCOMPARE(*identifiedHl2, GameType::HL2);
 
-        auto identifiedPortal2 = GameValidator::identifyGameType(*portal2Validation);
+        auto identifiedPortal2 = GameValidator::tryIdentifyGameType(*portal2Validation);
         QVERIFY(identifiedPortal2.has_value());
         QCOMPARE(*identifiedPortal2, GameType::Portal2);
         QVERIFY(*identifiedPortal2 != GameType::Portal);
 
-        auto identifiedL4d2 = GameValidator::identifyGameType(*l4d2Validation);
+        auto identifiedL4d2 = GameValidator::tryIdentifyGameType(*l4d2Validation);
         QVERIFY(identifiedL4d2.has_value());
         QCOMPARE(*identifiedL4d2, GameType::L4D2);
         QVERIFY(*identifiedL4d2 != GameType::L4D);
 
-        auto identifiedTf2 = GameValidator::identifyGameType(*tf2Validation);
+        auto identifiedTf2 = GameValidator::tryIdentifyGameType(*tf2Validation);
         QVERIFY(identifiedTf2.has_value());
         QCOMPARE(*identifiedTf2, GameType::TF2);
 
-        auto identifiedCsgo = GameValidator::identifyGameType(*csgoValidation);
+        auto identifiedCsgo = GameValidator::tryIdentifyGameType(*csgoValidation);
         QVERIFY(identifiedCsgo.has_value());
         QCOMPARE(*identifiedCsgo, GameType::CSGO);
     }
@@ -374,7 +375,7 @@ private slots:
             QString content = QStringLiteral("\"GameInfo\" { game \"PORTAL 2\" }\n");
             auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
             QVERIFY(parsed.has_value());
-            auto type = GameValidator::identifyGameType(*parsed);
+            auto type = GameValidator::tryIdentifyGameType(*parsed);
             QVERIFY(type.has_value());
             QCOMPARE(*type, GameType::Portal2);
             QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::Portal).isSuccess());
@@ -383,7 +384,7 @@ private slots:
             QString content = QStringLiteral("\"GameInfo\" { game \"Portal\" }\n");
             auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
             QVERIFY(parsed.has_value());
-            auto type = GameValidator::identifyGameType(*parsed);
+            auto type = GameValidator::tryIdentifyGameType(*parsed);
             QVERIFY(type.has_value());
             QCOMPARE(*type, GameType::Portal);
             QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::Portal2).isSuccess());
@@ -392,7 +393,7 @@ private slots:
             QString content = QStringLiteral("\"GameInfo\" { game \"Left 4 Dead 2\" }\n");
             auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
             QVERIFY(parsed.has_value());
-            auto type = GameValidator::identifyGameType(*parsed);
+            auto type = GameValidator::tryIdentifyGameType(*parsed);
             QVERIFY(type.has_value());
             QCOMPARE(*type, GameType::L4D2);
             QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::L4D).isSuccess());
@@ -401,7 +402,7 @@ private slots:
             QString content = QStringLiteral("\"GameInfo\" { game \"Left 4 Dead\" }\n");
             auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
             QVERIFY(parsed.has_value());
-            auto type = GameValidator::identifyGameType(*parsed);
+            auto type = GameValidator::tryIdentifyGameType(*parsed);
             QVERIFY(type.has_value());
             QCOMPARE(*type, GameType::L4D);
             QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::L4D2).isSuccess());
@@ -412,7 +413,7 @@ private slots:
             QString content = QStringLiteral("\"GameInfo\" { game \"Counter-Strike: Source\" }\n");
             auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
             QVERIFY(parsed.has_value());
-            auto type = GameValidator::identifyGameType(*parsed);
+            auto type = GameValidator::tryIdentifyGameType(*parsed);
             QVERIFY(type.has_value());
             QCOMPARE(*type, GameType::CSS);
         }
@@ -422,7 +423,7 @@ private slots:
             QString content = QStringLiteral("\"GameInfo\" { game \"Unknown Mod\" FileSystem { SteamAppId 620 } }\n");
             auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
             QVERIFY(parsed.has_value());
-            auto type = GameValidator::identifyGameType(*parsed);
+            auto type = GameValidator::tryIdentifyGameType(*parsed);
             QVERIFY(type.has_value());
             QCOMPARE(*type, GameType::Portal2);
         }
@@ -430,7 +431,7 @@ private slots:
             QString content = QStringLiteral("\"GameInfo\" { game \"Unknown Mod\" FileSystem { SteamAppId 550 } }\n");
             auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
             QVERIFY(parsed.has_value());
-            auto type = GameValidator::identifyGameType(*parsed);
+            auto type = GameValidator::tryIdentifyGameType(*parsed);
             QVERIFY(type.has_value());
             QCOMPARE(*type, GameType::L4D2);
         }
@@ -440,7 +441,7 @@ private slots:
             QString content = QStringLiteral("\"GameInfo\" { game \"Portal 2 Thinking With Time Travel\" }\n");
             auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
             QVERIFY(parsed.has_value());
-            auto type = GameValidator::identifyGameType(*parsed);
+            auto type = GameValidator::tryIdentifyGameType(*parsed);
             QVERIFY(type.has_value());
             QCOMPARE(*type, GameType::Portal2);
             QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::Portal).isSuccess());
@@ -449,7 +450,7 @@ private slots:
             QString content = QStringLiteral("\"GameInfo\" { game \"Left 4 Dead 2 Custom Campaign\" }\n");
             auto parsed = GameInfoParser::parseFromString(content, Core::Path::FilesystemPath(QStringLiteral("C:/mock/gameinfo.txt")));
             QVERIFY(parsed.has_value());
-            auto type = GameValidator::identifyGameType(*parsed);
+            auto type = GameValidator::tryIdentifyGameType(*parsed);
             QVERIFY(type.has_value());
             QCOMPARE(*type, GameType::L4D2);
             QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::L4D).isSuccess());
@@ -495,8 +496,9 @@ private slots:
         auto cssRes = GameValidator::validateGameInfo(info, GameType::CSS);
         QVERIFY(!cssRes.isSuccess());
         QCOMPARE(cssRes.errorCode(), Core::Error::ErrorCode::TypeMismatch);
+        QVERIFY(cssRes.error().is(GameErrorCode::GameTypeMismatch));
 
-        auto identified = GameValidator::identifyGameType(info);
+        auto identified = GameValidator::tryIdentifyGameType(info);
         QVERIFY(identified.has_value());
         QCOMPARE(*identified, GameType::CS2);
     }

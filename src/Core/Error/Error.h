@@ -71,6 +71,15 @@ public:
         return Error(ErrorCode::OperationFailed, msg, details);
     }
 
+    template <typename EnumT>
+    static Error domain(const QString& domainName, EnumT domainCode, const QString& message = QString(), const QString& details = QString(), ErrorCode highLevelCode = ErrorCode::DomainError)
+    {
+        Error err(highLevelCode, message, details);
+        err.m_domain = domainName;
+        err.m_domainCode = static_cast<int>(domainCode);
+        return err;
+    }
+
     bool isSuccess() const noexcept { return m_code == ErrorCode::Success; }
     bool isFailure() const noexcept { return m_code != ErrorCode::Success; }
 
@@ -78,23 +87,49 @@ public:
     const QString& message() const noexcept { return m_message; }
     const QString& details() const noexcept { return m_details; }
 
+    bool hasDomain() const noexcept { return !m_domain.isEmpty(); }
+    const QString& domain() const noexcept { return m_domain; }
+    int domainCode() const noexcept { return m_domainCode; }
+
+    bool isDomain(const QString& domainName) const noexcept { return m_domain == domainName; }
+
+    template <typename EnumT>
+    bool is(EnumT code) const noexcept
+    {
+        return m_domainCode == static_cast<int>(code);
+    }
+
+    template <typename EnumT>
+    EnumT domainCodeAs() const noexcept
+    {
+        return static_cast<EnumT>(m_domainCode);
+    }
+
     QString toString() const
     {
         if (m_code == ErrorCode::Success) {
             return QStringLiteral("Success");
         }
+        QString prefix;
+        if (!m_domain.isEmpty()) {
+            prefix = QStringLiteral("[%1:%2] ").arg(m_domain, QString::number(m_domainCode));
+        }
         if (m_details.isEmpty()) {
-            return m_message.isEmpty() ? QStringLiteral("Error code %1").arg(static_cast<int>(m_code)) : m_message;
+            return prefix + (m_message.isEmpty() ? QStringLiteral("Error code %1").arg(static_cast<int>(m_code)) : m_message);
         }
         if (m_message.isEmpty()) {
-            return m_details;
+            return prefix + m_details;
         }
-        return QStringLiteral("%1 (%2)").arg(m_message, m_details);
+        return QStringLiteral("%1%2 (%3)").arg(prefix, m_message, m_details);
     }
 
     bool operator==(const Error& other) const noexcept
     {
-        return m_code == other.m_code && m_message == other.m_message && m_details == other.m_details;
+        return m_code == other.m_code &&
+               m_domain == other.m_domain &&
+               m_domainCode == other.m_domainCode &&
+               m_message == other.m_message &&
+               m_details == other.m_details;
     }
 
     bool operator!=(const Error& other) const noexcept
@@ -104,6 +139,8 @@ public:
 
 private:
     ErrorCode m_code = ErrorCode::Success;
+    QString m_domain;
+    int m_domainCode = 0;
     QString m_message;
     QString m_details;
 };
