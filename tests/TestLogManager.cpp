@@ -78,6 +78,7 @@ private slots:
     void testFinishTaskReturnValueOnFlushFailure();
     void testFileSinkAtomicWriteBlock();
     void testSinkIdPointerReuseSafety();
+    void testParentTaskValidationAndConsistency();
 };
 
 void TestLogManager::init()
@@ -1216,6 +1217,35 @@ void TestLogManager::testSinkIdPointerReuseSafety()
     LogManager::instance().flushTask(task->taskId());
 
     QCOMPARE(sink2->writtenBlocks, 1);
+}
+
+void TestLogManager::testParentTaskValidationAndConsistency()
+{
+    // 1. Non-existent parent should be rejected
+    auto orphanChild = LogManager::instance().createTask("Orphan Child", 99999);
+    QVERIFY(orphanChild == nullptr);
+
+    auto orphanChild2 = LogManager::instance().createChildTask(99999, "Orphan Child 2");
+    QVERIFY(orphanChild2 == nullptr);
+
+    auto invalidZeroParentChild = LogManager::instance().createChildTask(0, "Zero Parent Child");
+    QVERIFY(invalidZeroParentChild == nullptr);
+
+    // 2. Self-parenting loop should be rejected
+    auto selfParent = LogManager::instance().createTask(100, "Self Parent", 100);
+    QVERIFY(selfParent == nullptr);
+
+    // 3. Valid parent task creation should succeed
+    auto parentTask = LogManager::instance().createTask("Valid Parent");
+    QVERIFY(parentTask != nullptr);
+    QCOMPARE(parentTask->parentTaskId(), static_cast<quint64>(0));
+
+    auto childTask = LogManager::instance().createChildTask(parentTask->taskId(), "Valid Child");
+    QVERIFY(childTask != nullptr);
+    QCOMPARE(childTask->parentTaskId(), parentTask->taskId());
+
+    auto snapshot = childTask->snapshot();
+    QCOMPARE(snapshot.parentTaskId, parentTask->taskId());
 }
 
 QTEST_MAIN(TestLogManager)

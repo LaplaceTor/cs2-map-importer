@@ -54,6 +54,10 @@ bool LogManager::terminateAfterFault()
 std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskName, quint64 parentTaskId)
 {
     QMutexLocker locker(&m_mutex);
+    if (parentTaskId != 0 && !m_tasks.contains(parentTaskId)) {
+        return nullptr;
+    }
+
     while (m_tasks.contains(m_nextTaskId) || m_nextTaskId == 0) {
         m_nextTaskId++;
     }
@@ -66,12 +70,15 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskNa
 
 std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const QString& taskName, quint64 parentTaskId)
 {
-    if (taskId == 0) {
+    if (taskId == 0 || taskId == parentTaskId) {
         return nullptr;
     }
 
     QMutexLocker locker(&m_mutex);
     if (m_tasks.contains(taskId)) {
+        return nullptr;
+    }
+    if (parentTaskId != 0 && !m_tasks.contains(parentTaskId)) {
         return nullptr;
     }
 
@@ -88,6 +95,9 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const
 
 std::shared_ptr<TaskLoggingContext> LogManager::createChildTask(quint64 parentTaskId, const QString& taskName)
 {
+    if (parentTaskId == 0) {
+        return nullptr;
+    }
     return createTask(taskName, parentTaskId);
 }
 

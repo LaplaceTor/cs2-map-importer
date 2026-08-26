@@ -1,5 +1,7 @@
 #include "UI/ViewModels/LogTaskModel.h"
+#include <QMetaObject>
 #include <QMutexLocker>
+#include <QThread>
 
 namespace UI::ViewModels {
 
@@ -88,6 +90,42 @@ QVariant LogTaskModel::data(const QModelIndex& index, int role) const
     }
 }
 
+bool LogTaskModel::setData(const QModelIndex& index, const QVariant& value, int role)
+{
+    if (!index.isValid()) {
+        return false;
+    }
+
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, [this, index, value, role]() {
+            setData(index, value, role);
+        }, Qt::QueuedConnection);
+        return true;
+    }
+
+    int row = index.row();
+    bool changed = false;
+
+    if (role == ExpandedRole || role == Qt::EditRole) {
+        bool newExpanded = value.toBool();
+        {
+            QMutexLocker locker(&m_mutex);
+            if (row >= 0 && row < m_tasks.size()) {
+                if (m_tasks[row].expanded != newExpanded) {
+                    m_tasks[row].expanded = newExpanded;
+                    changed = true;
+                }
+            }
+        }
+        if (changed) {
+            emit dataChanged(index, index, {ExpandedRole});
+            return true;
+        }
+    }
+
+    return false;
+}
+
 QHash<int, QByteArray> LogTaskModel::roleNames() const
 {
     QHash<int, QByteArray> roles;
@@ -117,11 +155,14 @@ int LogTaskModel::taskCount() const
 
 int LogTaskModel::appendTask(const LogTaskItem& task)
 {
-    int newRow = 0;
-    {
-        QMutexLocker locker(&m_mutex);
-        newRow = m_tasks.size();
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, [this, task]() {
+            appendTask(task);
+        }, Qt::QueuedConnection);
+        return -1;
     }
+
+    int newRow = m_tasks.size();
 
     beginInsertRows(QModelIndex(), newRow, newRow);
     {
@@ -137,6 +178,13 @@ int LogTaskModel::appendTask(const LogTaskItem& task)
 
 bool LogTaskModel::updateTaskMetadata(int row, Core::Logging::TaskState state, double progress, const QString& currentMessage, const QString& taskName)
 {
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, [this, row, state, progress, currentMessage, taskName]() {
+            updateTaskMetadata(row, state, progress, currentMessage, taskName);
+        }, Qt::QueuedConnection);
+        return true;
+    }
+
     {
         QMutexLocker locker(&m_mutex);
         if (row < 0 || row >= m_tasks.size()) {
@@ -209,6 +257,13 @@ LogTaskModel* LogTaskModel::getTaskSubTasksModel(int row) const
 
 void LogTaskModel::clear()
 {
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, [this]() {
+            clear();
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     QVector<std::shared_ptr<LogMessageListModel>> msgModels;
     QVector<std::shared_ptr<LogTaskModel>> subModels;
 
@@ -240,6 +295,13 @@ void LogTaskModel::clear()
 
 void LogTaskModel::expandAll()
 {
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, [this]() {
+            expandAll();
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     QVector<std::shared_ptr<LogTaskModel>> childModels;
     int count = 0;
     {
@@ -264,6 +326,13 @@ void LogTaskModel::expandAll()
 
 void LogTaskModel::collapseAll()
 {
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, [this]() {
+            collapseAll();
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     QVector<std::shared_ptr<LogTaskModel>> childModels;
     int count = 0;
     {
@@ -288,6 +357,13 @@ void LogTaskModel::collapseAll()
 
 void LogTaskModel::toggleTaskExpanded(int index)
 {
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, [this, index]() {
+            toggleTaskExpanded(index);
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     bool changed = false;
     {
         QMutexLocker locker(&m_mutex);
@@ -304,6 +380,13 @@ void LogTaskModel::toggleTaskExpanded(int index)
 
 void LogTaskModel::setTaskExpanded(int index, bool expanded)
 {
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, [this, index, expanded]() {
+            setTaskExpanded(index, expanded);
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     bool changed = false;
     {
         QMutexLocker locker(&m_mutex);
@@ -320,7 +403,7 @@ void LogTaskModel::setTaskExpanded(int index, bool expanded)
     }
 }
 
-QString LogTaskModel::formatLogText(int indentLevel) const
+QString LogTaskModel::exportToPlainText(int indentLevel) const
 {
     QMutexLocker locker(&m_mutex);
     QString indent(indentLevel * 2, QLatin1Char(' '));
@@ -354,7 +437,7 @@ QString LogTaskModel::formatLogText(int indentLevel) const
 
         if (task.subTasksModel && task.subTasksModel->taskCount() > 0) {
             result.append(QString());
-            result.append(task.subTasksModel->formatLogText(indentLevel + 1));
+            result.append(task.subTasksModel->exportToPlainText(indentLevel + 1));
         }
         result.append(QString());
     }

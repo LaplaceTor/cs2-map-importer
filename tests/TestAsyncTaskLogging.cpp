@@ -37,6 +37,7 @@ private slots:
     void testExpandCollapseState();
     void testHierarchicalSubModelGranularity();
     void testMultiLevelNestedTasksAndParallelChildExecution();
+    void testNullContextAndEmptyCallbackExecution();
 };
 
 void TestAsyncTaskLogging::init()
@@ -463,6 +464,41 @@ void TestAsyncTaskLogging::testMultiLevelNestedTasksAndParallelChildExecution()
     QVERIFY(fullText.contains(QStringLiteral("--- Parallel Child Task 3 ---")));
 
     logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testNullContextAndEmptyCallbackExecution()
+{
+    std::atomic<bool> workerRan{false};
+
+    // 1. Run without context or callback (fire-and-forget background task)
+    AsyncTaskRunner::runBackground(
+        QStringLiteral("Headless Background Task"),
+        [&workerRan](std::shared_ptr<TaskLoggingContext> ctx) {
+            if (ctx) {
+                ctx->info("Headless task working in background");
+            }
+            workerRan.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(workerRan.load(), 3000);
+
+    // Verify task completed cleanly in LogManager
+    QTRY_VERIFY_WITH_TIMEOUT(LogManager::instance().taskCount() >= 1, 3000);
+
+    // 2. Run with context but empty/omitted callback
+    std::atomic<int> computeResult{0};
+    AsyncTaskRunner::run<int>(
+        QStringLiteral("Void Callback Task"),
+        this,
+        [&computeResult](std::shared_ptr<TaskLoggingContext> ctx) -> int {
+            if (ctx) {
+                ctx->info("Calculating value");
+            }
+            computeResult.store(42);
+            return 42;
+        });
+
+    QTRY_COMPARE_WITH_TIMEOUT(computeResult.load(), 42, 3000);
 }
 
 QTEST_MAIN(TestAsyncTaskLogging)

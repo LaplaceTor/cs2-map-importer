@@ -101,10 +101,18 @@ TaskRegistryEntry LogViewModel::ensureTaskRegistered(quint64 taskId, const QStri
     int taskDepth = 0;
 
     if (parentId != 0) {
-        TaskRegistryEntry parentEntry = ensureTaskRegistered(parentId, QString());
-        if (parentEntry.subTasksModel) {
-            targetModel = parentEntry.subTasksModel.get();
-            taskDepth = parentEntry.depth + 1;
+        auto parentCtx = Core::Logging::LogManager::instance().findTask(parentId);
+        if (parentCtx) {
+            TaskRegistryEntry parentEntry = ensureTaskRegistered(parentId, parentCtx->taskName());
+            if (parentEntry.subTasksModel) {
+                targetModel = parentEntry.subTasksModel.get();
+                taskDepth = parentEntry.depth + 1;
+            }
+        } else {
+            // Parent task does not exist in LogManager; fallback cleanly to root without phantom node creation
+            parentId = 0;
+            taskDepth = 0;
+            targetModel = this;
         }
     }
 
@@ -193,7 +201,7 @@ void LogViewModel::clear()
 
 QString LogViewModel::getFullLogText() const
 {
-    return formatLogText(0);
+    return exportToPlainText(0);
 }
 
 void LogViewModel::copyToClipboard()

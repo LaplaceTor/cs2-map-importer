@@ -3,6 +3,8 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QFile>
+#include <QQmlEngine>
+#include <QQmlComponent>
 
 #include "UI/ViewModels/GameViewModel.h"
 #include "UI/ViewModels/LogViewModel.h"
@@ -238,6 +240,72 @@ private slots:
         vm.setSelectedS2Type(QStringLiteral("other"));
         QVERIFY(!vm.isVpkLeaseHeld());
         QVERIFY(!leaseService.isLeaseHeld());
+    }
+
+    void testLogTaskModelSetDataContract() {
+        LogViewModel logVm;
+        logVm.appendLog(QStringLiteral("Item 1"), 1);
+
+        QModelIndex idx = logVm.index(0, 0);
+        QCOMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), true);
+
+        QSignalSpy spyData(&logVm, &QAbstractItemModel::dataChanged);
+
+        // 1. Direct role write via setData
+        bool ok = logVm.setData(idx, false, LogTaskModel::ExpandedRole);
+        QVERIFY(ok);
+        QCOMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), false);
+        QCOMPARE(spyData.size(), 1);
+
+        // 2. Direct edit role write via setData
+        ok = logVm.setData(idx, true, Qt::EditRole);
+        QVERIFY(ok);
+        QCOMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), true);
+        QCOMPARE(spyData.size(), 2);
+
+        // 3. Invokable method
+        logVm.toggleTaskExpanded(0);
+        QCOMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), false);
+        QCOMPARE(spyData.size(), 3);
+    }
+
+    void testQmlTaskCardExpansionInteraction() {
+        QQmlEngine engine;
+
+        LogViewModel logVm;
+        logVm.appendLog(QStringLiteral("Task log message"), 1);
+
+        QModelIndex idx = logVm.index(0, 0);
+        QCOMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), true);
+
+        QQmlComponent component(&engine);
+        component.setData(
+            "import QtQuick\n"
+            "Item {\n"
+            "    property var owningModel\n"
+            "    property int taskIndex: 0\n"
+            "    function clickHeader() {\n"
+            "        owningModel.toggleTaskExpanded(taskIndex)\n"
+            "    }\n"
+            "}\n",
+            QUrl()
+        );
+
+        auto* obj = component.create();
+        QVERIFY2(obj != nullptr, qPrintable(component.errorString()));
+        obj->setProperty("owningModel", QVariant::fromValue(&logVm));
+
+        // Click header via QML function -> calls toggleTaskExpanded
+        QMetaObject::invokeMethod(obj, "clickHeader");
+        QCoreApplication::processEvents();
+        QCOMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), false);
+
+        // Click header again -> toggles back
+        QMetaObject::invokeMethod(obj, "clickHeader");
+        QCoreApplication::processEvents();
+        QCOMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), true);
+
+        delete obj;
     }
 };
 

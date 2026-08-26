@@ -143,6 +143,8 @@ target_link_libraries(test_uiviewmodels PRIVATE
     cs2importer_core
     Qt6::Core
     Qt6::Gui
+    Qt6::Qml
+    Qt6::Quick
     Qt6::Test
 )
 

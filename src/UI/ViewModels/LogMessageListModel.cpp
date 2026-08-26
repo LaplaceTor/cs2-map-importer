@@ -1,5 +1,7 @@
 #include "UI/ViewModels/LogMessageListModel.h"
+#include <QMetaObject>
 #include <QMutexLocker>
+#include <QThread>
 
 namespace UI::ViewModels {
 
@@ -76,13 +78,15 @@ void LogMessageListModel::appendEntries(const QVector<LogMessageItem>& items)
         return;
     }
 
-    int start = 0;
-    int end = 0;
-    {
-        QMutexLocker locker(&m_mutex);
-        start = m_entries.size();
-        end = start + items.size() - 1;
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, [this, items]() {
+            appendEntries(items);
+        }, Qt::QueuedConnection);
+        return;
     }
+
+    int start = m_entries.size();
+    int end = start + items.size() - 1;
 
     beginInsertRows(QModelIndex(), start, end);
     {
@@ -96,6 +100,13 @@ void LogMessageListModel::appendEntries(const QVector<LogMessageItem>& items)
 
 void LogMessageListModel::clear()
 {
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, [this]() {
+            clear();
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     beginResetModel();
     {
         QMutexLocker locker(&m_mutex);
