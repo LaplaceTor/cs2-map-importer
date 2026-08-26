@@ -92,10 +92,20 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
     GameType type,
     const Core::Path::FilesystemPath& directory)
 {
-    if (!directory.isValid() || !directory.exists()) {
+    if (!directory.isValid() || directory.isEmpty()) {
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QStringLiteral("Source 1 directory path is empty or invalid: %1").arg(directory.toString()));
+    }
+    if (!directory.exists()) {
         return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
             Core::Error::ErrorCode::DirectoryNotFound,
-            QStringLiteral("Source 1 directory does not exist or is invalid: %1").arg(directory.toString()));
+            QStringLiteral("Source 1 directory does not exist: %1").arg(directory.toString()));
+    }
+    if (!directory.isDirectory()) {
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QStringLiteral("Source 1 path is not a directory: %1").arg(directory.toString()));
     }
 
     auto infoResult = GameValidator::validateDirectory(directory, type);
@@ -110,10 +120,15 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
     const Core::Path::FilesystemPath& directory,
     GameType type)
 {
-    if (!directory.isValid() || !directory.exists()) {
+    if (!directory.isValid() || directory.isEmpty()) {
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QStringLiteral("Source 2 directory path is empty or invalid: %1").arg(directory.toString()));
+    }
+    if (!directory.exists()) {
         return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
             Core::Error::ErrorCode::DirectoryNotFound,
-            QStringLiteral("Source 2 directory does not exist or is invalid: %1").arg(directory.toString()));
+            QStringLiteral("Source 2 directory does not exist: %1").arg(directory.toString()));
     }
 
     const auto* def = GameRegistry::findByType(type);
@@ -194,9 +209,10 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
     GameType resolvedType = identifiedType.value_or(GameType::Custom);
 
     if (type != GameType::Unknown && type != GameType::Custom) {
-        if (!GameValidator::validateGameInfo(optInfo, type)) {
+        auto valRes = GameValidator::validateGameInfo(optInfo, type);
+        if (!valRes.isSuccess()) {
             return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-                Core::Error::ErrorCode::InvalidArgument,
+                valRes.error(),
                 QStringLiteral("Source 2 gameinfo at '%1' does not match expected game type '%2'")
                     .arg(giPath.toString(), GameRegistry::gameTypeToString(type)));
         }
@@ -209,10 +225,15 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
 Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::inspectGameInfo(
     const Core::Path::FilesystemPath& path)
 {
-    if (!path.isValid() || !path.exists()) {
+    if (!path.isValid() || path.isEmpty()) {
         return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
             Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("GameInfo path does not exist or is invalid: %1").arg(path.toString()));
+            QStringLiteral("GameInfo path is empty or invalid: %1").arg(path.toString()));
+    }
+    if (!path.exists()) {
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+            Core::Error::ErrorCode::FileNotFound,
+            QStringLiteral("GameInfo path does not exist: %1").arg(path.toString()));
     }
 
     Core::Path::FilesystemPath actualPath = path;
@@ -283,10 +304,15 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
     GameType type,
     const Core::Path::FilesystemPath& directory)
 {
-    if (!directory.isValid() || !directory.exists()) {
+    if (!directory.isValid() || directory.isEmpty()) {
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QStringLiteral("Directory path is empty or invalid: %1").arg(directory.toString()));
+    }
+    if (!directory.exists()) {
         return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
             Core::Error::ErrorCode::DirectoryNotFound,
-            QStringLiteral("Directory does not exist or is invalid: %1").arg(directory.toString()));
+            QStringLiteral("Directory does not exist: %1").arg(directory.toString()));
     }
 
     const auto* def = GameRegistry::findByType(type);

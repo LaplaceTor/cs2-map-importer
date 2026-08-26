@@ -7,18 +7,27 @@
 
 namespace Domain::Game {
 
-bool GameValidator::validateGameInfo(const GameInfo& info, GameType expectedType) {
+Core::Async::TaskResult<void> GameValidator::validateGameInfo(const GameInfo& info, GameType expectedType) {
     if (expectedType == GameType::Unknown) {
-        return false;
+        return Core::Async::TaskResult<void>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QStringLiteral("Cannot validate against GameType::Unknown"));
     }
 
     if (expectedType == GameType::Custom) {
-        return !info.game().isEmpty() || !info.title().isEmpty() || info.gameInfoPath().exists();
+        if (!info.game().isEmpty() || !info.title().isEmpty() || info.gameInfoPath().exists()) {
+            return Core::Async::TaskResult<void>::success();
+        }
+        return Core::Async::TaskResult<void>::failure(
+            Core::Error::ErrorCode::TypeMismatch,
+            QStringLiteral("Custom GameInfo is empty and has no valid gameinfo file path"));
     }
 
     const auto* def = GameRegistry::findByType(expectedType);
     if (!def) {
-        return false;
+        return Core::Async::TaskResult<void>::failure(
+            Core::Error::ErrorCode::NotSupported,
+            QStringLiteral("Game definition not found for type: %1").arg(GameRegistry::gameTypeToString(expectedType)));
     }
 
     const QString actualGame = info.game().trimmed();
@@ -29,7 +38,7 @@ bool GameValidator::validateGameInfo(const GameInfo& info, GameType expectedType
     if (!expectedTitle.isEmpty()) {
         if (actualGame.compare(expectedTitle, Qt::CaseInsensitive) == 0 ||
             actualTitle.compare(expectedTitle, Qt::CaseInsensitive) == 0) {
-            return true;
+            return Core::Async::TaskResult<void>::success();
         }
     }
 
@@ -38,7 +47,7 @@ bool GameValidator::validateGameInfo(const GameInfo& info, GameType expectedType
         if (!alias.isEmpty()) {
             if (actualGame.compare(alias, Qt::CaseInsensitive) == 0 ||
                 actualTitle.compare(alias, Qt::CaseInsensitive) == 0) {
-                return true;
+                return Core::Async::TaskResult<void>::success();
             }
         }
     }
@@ -50,10 +59,10 @@ bool GameValidator::validateGameInfo(const GameInfo& info, GameType expectedType
             if (def->primaryAppId == 730) {
                 bool isGi = (info.gameInfoPath().extension().compare(QStringLiteral("gi"), Qt::CaseInsensitive) == 0);
                 if (def->isSource2() == isGi) {
-                    return true;
+                    return Core::Async::TaskResult<void>::success();
                 }
             } else {
-                return true;
+                return Core::Async::TaskResult<void>::success();
             }
         }
     }
@@ -62,7 +71,12 @@ bool GameValidator::validateGameInfo(const GameInfo& info, GameType expectedType
     if (info.steamAppId() > 0) {
         const auto* otherDef = GameRegistry::findByAppId(info.steamAppId());
         if (otherDef && otherDef->type != expectedType && !(otherDef->primaryAppId == 730 && def->primaryAppId == 730)) {
-            return false;
+            return Core::Async::TaskResult<void>::failure(
+                Core::Error::ErrorCode::TypeMismatch,
+                QStringLiteral("GameInfo AppID %1 belongs to '%2', not expected '%3'")
+                    .arg(QString::number(info.steamAppId()),
+                         GameRegistry::gameTypeToString(otherDef->type),
+                         GameRegistry::gameTypeToString(expectedType)));
         }
     }
 
@@ -101,15 +115,18 @@ bool GameValidator::validateGameInfo(const GameInfo& info, GameType expectedType
     };
 
     if (matchesLooseString(expectedTitle)) {
-        return true;
+        return Core::Async::TaskResult<void>::success();
     }
     for (const auto& alias : def->titleAliases) {
         if (matchesLooseString(alias)) {
-            return true;
+            return Core::Async::TaskResult<void>::success();
         }
     }
 
-    return false;
+    return Core::Async::TaskResult<void>::failure(
+        Core::Error::ErrorCode::TypeMismatch,
+        QStringLiteral("GameInfo (game: '%1', title: '%2', appid: %3) does not match expected game type '%4'")
+            .arg(actualGame, actualTitle, QString::number(info.steamAppId()), GameRegistry::gameTypeToString(expectedType)));
 }
 
 std::optional<GameType> GameValidator::identifyGameType(const GameInfo& info) {
@@ -239,10 +256,15 @@ Core::Async::TaskResult<GameInfo> GameValidator::validateDirectory(
     const Core::Path::FilesystemPath& gameDir,
     GameType type)
 {
-    if (!gameDir.isValid() || !gameDir.exists()) {
+    if (!gameDir.isValid() || gameDir.isEmpty()) {
+        return Core::Async::TaskResult<GameInfo>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QStringLiteral("Game directory path is empty or invalid: %1").arg(gameDir.toString()));
+    }
+    if (!gameDir.exists()) {
         return Core::Async::TaskResult<GameInfo>::failure(
             Core::Error::ErrorCode::DirectoryNotFound,
-            QStringLiteral("Game directory does not exist or is invalid: %1").arg(gameDir.toString()));
+            QStringLiteral("Game directory does not exist: %1").arg(gameDir.toString()));
     }
 
     Core::Path::FilesystemPath targetGameInfoPath;
@@ -274,14 +296,15 @@ Core::Async::TaskResult<GameInfo> GameValidator::validateDirectory(
         return parseResult;
     }
 
-    if (validateGameInfo(parseResult.value(), type)) {
-        return parseResult;
+    auto validationResult = validateGameInfo(parseResult.value(), type);
+    if (!validationResult.isSuccess()) {
+        return Core::Async::TaskResult<GameInfo>::failure(
+            validationResult.error(),
+            QStringLiteral("GameInfo at '%1' does not match expected game type '%2'")
+                .arg(targetGameInfoPath.toString(), GameRegistry::gameTypeToString(type)));
     }
 
-    return Core::Async::TaskResult<GameInfo>::failure(
-        Core::Error::ErrorCode::InvalidArgument,
-        QStringLiteral("GameInfo at '%1' does not match expected game type '%2'")
-            .arg(targetGameInfoPath.toString(), GameRegistry::gameTypeToString(type)));
+    return parseResult;
 }
 
 } // namespace Domain::Game

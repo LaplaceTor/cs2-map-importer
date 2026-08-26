@@ -44,9 +44,4 @@ private:
     QByteArray m_what;
 };
 
-/**
- * @brief Backward compatibility alias for legacy code.
- */
-using ImportException = Exception;
-
 } // namespace Core::Error

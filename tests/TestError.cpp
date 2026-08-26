@@ -25,7 +25,6 @@ private slots:
     void testTaskResultSeparationOfStatusAndMessage();
     void testTaskResultValueOr();
     void testGameInfoParserStructuredError();
-    void testBackwardCompatibilityAliases();
 };
 
 void TestError::testErrorCodeBasics()
@@ -142,6 +141,15 @@ void TestError::testTaskResultSeparationOfStatusAndMessage()
     QVERIFY(skipResult.hasValue());
     QCOMPARE(skipResult.value(), 42);
 
+    // Failure with operation summary and underlying Error semantics
+    Error domainErr(ErrorCode::FileNotFound, QStringLiteral("gameinfo.gi not found"), QStringLiteral("C:/games/csgo/gameinfo.gi"));
+    auto failWithSummary = TaskResult<void>::failure(domainErr, QStringLiteral("Validation failed for Counter-Strike 2"));
+    QVERIFY(failWithSummary.isFailure());
+    QCOMPARE(failWithSummary.errorCode(), ErrorCode::FileNotFound);
+    QCOMPARE(failWithSummary.message(), QStringLiteral("Validation failed for Counter-Strike 2"));
+    QCOMPARE(failWithSummary.error().message(), QStringLiteral("gameinfo.gi not found"));
+    QCOMPARE(failWithSummary.details(), QStringLiteral("C:/games/csgo/gameinfo.gi"));
+
     // Cancelled: distinct status, carries reason
     auto cancelResult = TaskResult<void>::cancelled(QStringLiteral("User aborted import"));
     QVERIFY(cancelResult.isCancelled());
@@ -182,19 +190,6 @@ void TestError::testGameInfoParserStructuredError()
     auto goodParse = GameInfoParser::parseFromString(valid);
     QVERIFY(goodParse.isSuccess());
     QCOMPARE(goodParse->game(), QStringLiteral("TestGame"));
-}
-
-void TestError::testBackwardCompatibilityAliases()
-{
-    ImportErrorCode oldCode = ImportErrorCode::InvalidFile;
-    QCOMPARE(oldCode, ErrorCode::InvalidFile);
-
-    try {
-        throw ImportException(ImportErrorCode::DirectoryNotFound, QStringLiteral("Missing dir"));
-    } catch (const ImportException& ex) {
-        QCOMPARE(ex.errorCode(), ErrorCode::DirectoryNotFound);
-        QCOMPARE(ex.message(), QStringLiteral("Missing dir"));
-    }
 }
 
 QTEST_MAIN(TestError)

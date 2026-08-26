@@ -13,6 +13,7 @@ enum class ErrorCode {
     InvalidArgument,
     InvalidPath,
     NotSupported,
+    TypeMismatch,
 
     // Filesystem and I/O
     FileNotFound,
@@ -40,11 +41,6 @@ enum class ErrorCode {
     // Domain Specific Fallback
     DomainError
 };
-
-/**
- * @brief Backward compatibility alias for legacy code.
- */
-using ImportErrorCode = ErrorCode;
 
 } // namespace Core::Error
 

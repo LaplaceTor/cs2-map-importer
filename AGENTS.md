@@ -331,6 +331,16 @@ To maintain strict conceptual clarity across async tasks and workflow operations
   * `AsyncTaskRunner` inspects the business outcome (and logged errors / exceptions) to transition the underlying `TaskState` in `LogManager`.
   * The callback receives `const TaskResult<T>&` delivered thread-safely to the caller's context thread.
 
+#### TaskResult Semantic Contract
+
+* **`status()` / `isSuccess()` / `isFailure()` / `isCancelled()` / `isSkipped()`**: Authoritative source for business outcome branching. Always check `status()` or `isSuccess()` / `isFailure()` rather than relying solely on `errorCode()`.
+* **`error()`**: Machine-interpretable structured failure object (`Core::Error::Error`), carrying:
+  * `error().code()`: Standardized `ErrorCode` enum for branching/routing logic (carries error semantics on `Failure` / `Cancelled`; returns `ErrorCode::Success` on `Success` and `Skipped`);
+  * `error().message()`: Semantic domain/system error reason (e.g. `"gameinfo.gi not found"`);
+  * `error().details()`: Technical diagnostic payload (e.g. file paths, stderr, syntax line info).
+* **`message()`**: High-level operation summary for presentation / UI (e.g. `"Validation failed for CS2"`). If no custom operation summary is set, it falls back to `error().message()`. For `Skipped`, `message()` carries the specific skip explanation (e.g. `"Already up to date"`).
+* **`details()`**: Direct proxy to `error().details()` for technical diagnosis.
+
 ---
 
 ## 6. Logging Rules

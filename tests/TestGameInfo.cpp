@@ -337,8 +337,8 @@ private slots:
         QVERIFY(!wrongValidation.has_value());
 
         // Negative tests: Portal 2 should NOT validate as Portal, Left 4 Dead 2 should NOT validate as L4D
-        QVERIFY(!GameValidator::validateGameInfo(*portal2Validation, GameType::Portal));
-        QVERIFY(!GameValidator::validateGameInfo(*l4d2Validation, GameType::L4D));
+        QVERIFY(!GameValidator::validateGameInfo(*portal2Validation, GameType::Portal).isSuccess());
+        QVERIFY(!GameValidator::validateGameInfo(*l4d2Validation, GameType::L4D).isSuccess());
 
         // Test auto-identification across all fixtures
         auto identifiedCss = GameValidator::identifyGameType(*cssValidation);
@@ -377,7 +377,7 @@ private slots:
             auto type = GameValidator::identifyGameType(*parsed);
             QVERIFY(type.has_value());
             QCOMPARE(*type, GameType::Portal2);
-            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::Portal));
+            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::Portal).isSuccess());
         }
         {
             QString content = QStringLiteral("\"GameInfo\" { game \"Portal\" }\n");
@@ -386,7 +386,7 @@ private slots:
             auto type = GameValidator::identifyGameType(*parsed);
             QVERIFY(type.has_value());
             QCOMPARE(*type, GameType::Portal);
-            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::Portal2));
+            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::Portal2).isSuccess());
         }
         {
             QString content = QStringLiteral("\"GameInfo\" { game \"Left 4 Dead 2\" }\n");
@@ -395,7 +395,7 @@ private slots:
             auto type = GameValidator::identifyGameType(*parsed);
             QVERIFY(type.has_value());
             QCOMPARE(*type, GameType::L4D2);
-            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::L4D));
+            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::L4D).isSuccess());
         }
         {
             QString content = QStringLiteral("\"GameInfo\" { game \"Left 4 Dead\" }\n");
@@ -404,7 +404,7 @@ private slots:
             auto type = GameValidator::identifyGameType(*parsed);
             QVERIFY(type.has_value());
             QCOMPARE(*type, GameType::L4D);
-            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::L4D2));
+            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::L4D2).isSuccess());
         }
 
         // 2. Exact alias matching
@@ -443,7 +443,7 @@ private slots:
             auto type = GameValidator::identifyGameType(*parsed);
             QVERIFY(type.has_value());
             QCOMPARE(*type, GameType::Portal2);
-            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::Portal));
+            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::Portal).isSuccess());
         }
         {
             QString content = QStringLiteral("\"GameInfo\" { game \"Left 4 Dead 2 Custom Campaign\" }\n");
@@ -452,7 +452,7 @@ private slots:
             auto type = GameValidator::identifyGameType(*parsed);
             QVERIFY(type.has_value());
             QCOMPARE(*type, GameType::L4D2);
-            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::L4D));
+            QVERIFY(!GameValidator::validateGameInfo(*parsed, GameType::L4D).isSuccess());
         }
     }
 
@@ -491,8 +491,10 @@ private slots:
         QCOMPARE(info.modDirectory().toString(), QStringLiteral("C:/Games/SteamLibrary/steamapps/common/Counter-Strike Global Offensive/game/csgo"));
         QCOMPARE(info.baseDirectory().toString(), QStringLiteral("C:/Games/SteamLibrary/steamapps/common/Counter-Strike Global Offensive"));
 
-        QVERIFY(GameValidator::validateGameInfo(info, GameType::CS2));
-        QVERIFY(!GameValidator::validateGameInfo(info, GameType::CSS));
+        QVERIFY(GameValidator::validateGameInfo(info, GameType::CS2).isSuccess());
+        auto cssRes = GameValidator::validateGameInfo(info, GameType::CSS);
+        QVERIFY(!cssRes.isSuccess());
+        QCOMPARE(cssRes.errorCode(), Core::Error::ErrorCode::TypeMismatch);
 
         auto identified = GameValidator::identifyGameType(info);
         QVERIFY(identified.has_value());

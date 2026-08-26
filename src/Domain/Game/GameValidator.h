@@ -11,7 +11,7 @@ namespace Domain::Game {
 class GameValidator {
 public:
     // Checks if parsed GameInfo matches the expected GameType
-    static bool validateGameInfo(const GameInfo& info, GameType expectedType);
+    static Core::Async::TaskResult<void> validateGameInfo(const GameInfo& info, GameType expectedType);
 
     // Determines GameType from a parsed GameInfo object
     static std::optional<GameType> identifyGameType(const GameInfo& info);

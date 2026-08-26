@@ -3,8 +3,6 @@ qt_add_library(cs2importer_core STATIC
     Error/ErrorCode.h
     Error/Error.h
     Error/Exception.h
-    Error/ImportError.h
-    Error/ImportException.h
     FileSystem/AtomicFile.h
     FileSystem/AtomicFile.cpp
     FileSystem/DirectorySnapshot.h

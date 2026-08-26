@@ -27,7 +27,7 @@ public:
      * For directories: performs a recursive merge copy (creates target subdirectories if missing
      * and overwrites individual files within destination if overwrite is true).
      *
-     * Throws Core::Error::ImportException on failure.
+     * Throws Core::Error::Exception on failure.
      */
     static void copy(const QString& source, const QString& destination, bool overwrite = true);
 
