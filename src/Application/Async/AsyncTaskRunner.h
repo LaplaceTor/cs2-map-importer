@@ -73,13 +73,11 @@ Core::Async::TaskExecutionStatus inspectResultStatus(const ResultType& result) {
  * 2. **Business Outcome Plane (`TaskResult<T>`)**:
  *    - Produced by the worker and returned to the caller callback (`Success`, `Failure`, `Cancelled`, `Skipped` + payload `T`).
  *
- * `AsyncTaskRunner` directly consumes `TaskResult<T>` from the worker and translates its business outcome
- * into the appropriate terminal `TaskState`, without wrapping `TaskResult` in another layer.
- *
- * Standard API Usage:
- * - Use `runTask<T>(...)` where `T` is the business payload (e.g. `GameInstallationInfo`, `void`).
- * - Use `run<ResultType>(...)` for custom result types.
- * - Use `runVoid(...)` for fire-and-forget or non-returning operations.
+ * Contract & Guarantees:
+ * - Workflow and Application code must use `TaskResult<T>` via `runTask<T>()` or `runChildTask<T>()`.
+ * - If task creation is rejected (e.g. invalid parentTaskId), workers are strictly NOT dispatched.
+ * - An explicit `TaskResult<T>::failure` is safely delivered to the callback.
+ * - AsyncTaskRunner NEVER guesses or synthesizes fake default values for arbitrary non-TaskResult types.
  */
 class AsyncTaskRunner {
 public:
@@ -136,14 +134,13 @@ public:
         auto taskContext = Core::Logging::LogManager::instance().createTask(taskName, parentTaskId);
         if (!taskContext) {
             // Task creation rejected (e.g. invalid parentTaskId). Do NOT dispatch worker.
-            if constexpr (std::is_invocable_v<CallbackFn, ResultType>) {
+            // Explicitly deliver failure if ResultType is a TaskResult<T>.
+            // Never guess or deliver fake default-constructed values for arbitrary types.
+            if constexpr (Detail::is_task_result_type<std::decay_t<ResultType>>::value) {
                 if (Detail::isCallableValid(callback)) {
-                    ResultType failureResult{};
-                    if constexpr (Detail::is_task_result_type<std::decay_t<ResultType>>::value) {
-                        failureResult = ResultType::failure(
-                            QStringLiteral("Failed to create task context for '%1' (invalid parentTaskId: %2)")
-                                .arg(taskName).arg(parentTaskId));
-                    }
+                    ResultType failureResult = ResultType::failure(
+                        QStringLiteral("Failed to create task context for '%1' (invalid parentTaskId: %2)")
+                            .arg(taskName).arg(parentTaskId));
                     if (context) {
                         QPointer<QObject> guard(context);
                         QMetaObject::invokeMethod(guard.data(), [guard, cb = std::forward<CallbackFn>(callback), res = std::move(failureResult)]() {
@@ -236,7 +233,7 @@ public:
                     }
                 }
             } catch (...) {
-                // Guaranteed no unhandled exception ever leaks to QtConcurrent/QThreadPool
+                // Guaranteed no unhandled exception ever leaks to QThreadPool
             }
         };
 
@@ -325,7 +322,7 @@ public:
                     }
                 }
             } catch (...) {
-                // Guaranteed no unhandled exception ever leaks to QtConcurrent/QThreadPool
+                // Guaranteed no unhandled exception ever leaks to QThreadPool
             }
         };
 

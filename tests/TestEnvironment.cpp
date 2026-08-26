@@ -63,12 +63,12 @@ private slots:
     }
 
     void testHostCs2Detection() {
-        auto optCs2 = GameDetectService::detectGame(GameType::CS2);
-        if (!optCs2.has_value()) {
+        auto cs2Res = GameDetectService::detectGame(GameType::CS2);
+        if (!cs2Res.isSuccess()) {
             QSKIP("Counter-Strike 2 is not installed on this host, skipping live CS2 test.");
         }
 
-        const auto& cs2 = *optCs2;
+        const auto& cs2 = cs2Res.value();
         QCOMPARE(cs2.type(), GameType::CS2);
         QCOMPARE(cs2.gameId(), QStringLiteral("cs2"));
         QCOMPARE(cs2.gameTitle(), QStringLiteral("Counter-Strike 2"));
@@ -80,112 +80,92 @@ private slots:
     }
 
     void testHostSource1GamesDetection() {
-        auto allGames = GameDetectService::detectAllGames();
+        auto envRes = GameDetectService::detectEnvironment();
+        QVERIFY(envRes.isSuccess());
+        const auto& allGames = envRes.value().installations;
         if (allGames.empty()) {
             QSKIP("No Steam games detected on this host, skipping live games test.");
         }
 
         for (const auto& game : allGames) {
-            QVERIFY(game.isValid());
-            QVERIFY(!game.gameTitle().isEmpty());
-            QVERIFY(game.baseDirectory().exists());
-            QVERIFY(game.gameInfoPath().exists());
-
-            if (game.type() == GameType::CS2) {
-                QCOMPARE(game.gameTitle(), QStringLiteral("Counter-Strike 2"));
-                QVERIFY(game.isSource2());
-            } else if (game.type() == GameType::CSS) {
-                QCOMPARE(game.gameTitle(), QStringLiteral("Counter-Strike Source"));
-                QVERIFY(!game.isSource2());
-            } else if (game.type() == GameType::HL2) {
-                QCOMPARE(game.gameTitle(), QStringLiteral("HALF-LIFE 2"));
-                QVERIFY(!game.isSource2());
-            } else if (game.type() == GameType::L4D2) {
-                QCOMPARE(game.gameTitle(), QStringLiteral("Left 4 Dead 2"));
-                QVERIFY(!game.isSource2());
-            } else if (game.type() == GameType::Portal2) {
-                QCOMPARE(game.gameTitle(), QStringLiteral("PORTAL 2"));
-                QVERIFY(!game.isSource2());
-            } else if (game.type() == GameType::TF2) {
-                QCOMPARE(game.gameTitle(), QStringLiteral("Team Fortress 2"));
-                QVERIFY(!game.isSource2());
-            } else if (game.type() == GameType::CSGO) {
-                QCOMPARE(game.gameTitle(), QStringLiteral("Counter-Strike: Global Offensive"));
-                QVERIFY(!game.isSource2());
-            }
+            QVERIFY(game.isValid);
+            QVERIFY(!game.displayName.isEmpty());
+            QVERIFY(!game.gameId.isEmpty());
+            QVERIFY(QDir(game.basePath).exists());
+            QVERIFY(QFile::exists(game.gameInfoPath));
         }
     }
 
     void testHostCssDetection() {
-        auto optCss = GameDetectService::detectGame(GameType::CSS);
-        if (!optCss.has_value()) {
+        auto cssRes = GameDetectService::detectGame(GameType::CSS);
+        if (!cssRes.isSuccess()) {
             QSKIP("Counter-Strike: Source is not installed on this host, skipping.");
         }
-        QCOMPARE(optCss->type(), GameType::CSS);
-        QCOMPARE(optCss->gameTitle(), QStringLiteral("Counter-Strike Source"));
-        QVERIFY(!optCss->isSource2());
-        QVERIFY(optCss->baseDirectory().exists());
-        QVERIFY(optCss->gameInfoPath().exists());
+        QCOMPARE(cssRes.value().type(), GameType::CSS);
+        QCOMPARE(cssRes.value().gameTitle(), QStringLiteral("Counter-Strike Source"));
+        QVERIFY(!cssRes.value().isSource2());
+        QVERIFY(cssRes.value().baseDirectory().exists());
+        QVERIFY(cssRes.value().gameInfoPath().exists());
     }
 
     void testHostHl2Detection() {
-        auto optHl2 = GameDetectService::detectGame(GameType::HL2);
-        if (!optHl2.has_value()) {
+        auto hl2Res = GameDetectService::detectGame(GameType::HL2);
+        if (!hl2Res.isSuccess()) {
             QSKIP("Half-Life 2 is not installed on this host, skipping.");
         }
-        QCOMPARE(optHl2->type(), GameType::HL2);
-        QCOMPARE(optHl2->gameTitle(), QStringLiteral("HALF-LIFE 2"));
-        QVERIFY(!optHl2->isSource2());
-        QVERIFY(optHl2->baseDirectory().exists());
-        QVERIFY(optHl2->gameInfoPath().exists());
+        QCOMPARE(hl2Res.value().type(), GameType::HL2);
+        QCOMPARE(hl2Res.value().gameTitle(), QStringLiteral("HALF-LIFE 2"));
+        QVERIFY(!hl2Res.value().isSource2());
+        QVERIFY(hl2Res.value().baseDirectory().exists());
+        QVERIFY(hl2Res.value().gameInfoPath().exists());
     }
 
     void testHostL4d2Detection() {
-        auto optL4d2 = GameDetectService::detectGame(GameType::L4D2);
-        if (!optL4d2.has_value()) {
+        auto l4d2Res = GameDetectService::detectGame(GameType::L4D2);
+        if (!l4d2Res.isSuccess()) {
             QSKIP("Left 4 Dead 2 is not installed on this host, skipping.");
         }
-        QCOMPARE(optL4d2->type(), GameType::L4D2);
-        QCOMPARE(optL4d2->gameTitle(), QStringLiteral("Left 4 Dead 2"));
-        QVERIFY(!optL4d2->isSource2());
-        QVERIFY(optL4d2->baseDirectory().exists());
-        QVERIFY(optL4d2->gameInfoPath().exists());
+        QCOMPARE(l4d2Res.value().type(), GameType::L4D2);
+        QCOMPARE(l4d2Res.value().gameTitle(), QStringLiteral("Left 4 Dead 2"));
+        QVERIFY(!l4d2Res.value().isSource2());
+        QVERIFY(l4d2Res.value().baseDirectory().exists());
+        QVERIFY(l4d2Res.value().gameInfoPath().exists());
     }
 
     void testHostPortal2Detection() {
-        auto optPortal2 = GameDetectService::detectGame(GameType::Portal2);
-        if (!optPortal2.has_value()) {
+        auto portal2Res = GameDetectService::detectGame(GameType::Portal2);
+        if (!portal2Res.isSuccess()) {
             QSKIP("Portal 2 is not installed on this host, skipping.");
         }
-        QCOMPARE(optPortal2->type(), GameType::Portal2);
-        QCOMPARE(optPortal2->gameTitle(), QStringLiteral("PORTAL 2"));
-        QVERIFY(!optPortal2->isSource2());
-        QVERIFY(optPortal2->baseDirectory().exists());
-        QVERIFY(optPortal2->gameInfoPath().exists());
+        QCOMPARE(portal2Res.value().type(), GameType::Portal2);
+        QCOMPARE(portal2Res.value().gameTitle(), QStringLiteral("PORTAL 2"));
+        QVERIFY(!portal2Res.value().isSource2());
+        QVERIFY(portal2Res.value().baseDirectory().exists());
+        QVERIFY(portal2Res.value().gameInfoPath().exists());
     }
 
     void testHostTf2Detection() {
-        auto optTf2 = GameDetectService::detectGame(GameType::TF2);
-        if (!optTf2.has_value()) {
+        auto tf2Res = GameDetectService::detectGame(GameType::TF2);
+        if (!tf2Res.isSuccess()) {
             QSKIP("Team Fortress 2 is not installed on this host, skipping.");
         }
-        QCOMPARE(optTf2->type(), GameType::TF2);
-        QCOMPARE(optTf2->gameTitle(), QStringLiteral("Team Fortress 2"));
-        QVERIFY(!optTf2->isSource2());
-        QVERIFY(optTf2->baseDirectory().exists());
-        QVERIFY(optTf2->gameInfoPath().exists());
+        QCOMPARE(tf2Res.value().type(), GameType::TF2);
+        QCOMPARE(tf2Res.value().gameTitle(), QStringLiteral("Team Fortress 2"));
+        QVERIFY(!tf2Res.value().isSource2());
+        QVERIFY(tf2Res.value().baseDirectory().exists());
+        QVERIFY(tf2Res.value().gameInfoPath().exists());
     }
 
     void testHostCsgoLegacyDetection() {
-        auto optCsgo = GameDetectService::detectGame(GameType::CSGO);
-        if (!optCsgo.has_value()) {
+        auto csgoRes = GameDetectService::detectGame(GameType::CSGO);
+        if (!csgoRes.isSuccess()) {
             QSKIP("CS:GO / CS:GO Legacy is not installed on this host, skipping.");
         }
-        QCOMPARE(optCsgo->type(), GameType::CSGO);
-        QCOMPARE(optCsgo->gameTitle(), QStringLiteral("Counter-Strike: Global Offensive"));
-        QVERIFY(!optCsgo->isSource2());
-        QVERIFY(optCsgo->baseDirectory().exists());
-        QVERIFY(optCsgo->gameInfoPath().exists());
+        QCOMPARE(csgoRes.value().type(), GameType::CSGO);
+        QCOMPARE(csgoRes.value().gameTitle(), QStringLiteral("Counter-Strike: Global Offensive"));
+        QVERIFY(!csgoRes.value().isSource2());
+        QVERIFY(csgoRes.value().baseDirectory().exists());
+        QVERIFY(csgoRes.value().gameInfoPath().exists());
     }
 
     void testValidateDirectoryWithFixtures() {
@@ -375,9 +355,6 @@ private slots:
         QVERIFY(result.isSuccess());
         // Result must be valid, installations can be empty or populated depending on host
         QVERIFY(result.value().installations.size() >= 0);
-        // detectAllGames should return matching count
-        auto allGames = GameDetectService::detectAllGames();
-        QCOMPARE(allGames.size(), result.value().installations.size());
     }
 
     void testDetectEnvironmentAsync() {

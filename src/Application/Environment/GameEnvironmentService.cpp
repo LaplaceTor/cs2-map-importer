@@ -323,29 +323,29 @@ QStringList GameEnvironmentService::listSource2Addons(const GameInstallationInfo
 
 Core::Async::TaskResult<VpkSignatureLeaseResult> GameEnvironmentService::updateVpkLease(const QString& s2BasePath)
 {
-    if (m_leaseService) {
-        return m_leaseService->acquireLease(cleanPath(s2BasePath));
+    if (!m_leaseService) {
+        VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("VPK signature lease service is unavailable"), QString()};
+        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(res.systemMessage, res);
     }
-    VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QString(), QString()};
-    return Core::Async::TaskResult<VpkSignatureLeaseResult>::success(res);
+    return m_leaseService->acquireLease(cleanPath(s2BasePath));
 }
 
 Core::Async::TaskResult<VpkSignatureLeaseResult> GameEnvironmentService::updateVpkLease(const GameInstallationInfo& s2Installation)
 {
-    if (m_leaseService) {
-        return m_leaseService->updateInstallation(s2Installation);
+    if (!m_leaseService) {
+        VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("VPK signature lease service is unavailable"), QString()};
+        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(res.systemMessage, res);
     }
-    VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QString(), QString()};
-    return Core::Async::TaskResult<VpkSignatureLeaseResult>::success(res);
+    return m_leaseService->updateInstallation(s2Installation);
 }
 
 Core::Async::TaskResult<VpkSignatureLeaseResult> GameEnvironmentService::retryVpkLease()
 {
-    if (m_leaseService) {
-        return m_leaseService->retryLease();
+    if (!m_leaseService) {
+        VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("VPK signature lease service is unavailable"), QString()};
+        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(res.systemMessage, res);
     }
-    VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QString(), QString()};
-    return Core::Async::TaskResult<VpkSignatureLeaseResult>::success(res);
+    return m_leaseService->retryLease();
 }
 
 } // namespace Application::Environment

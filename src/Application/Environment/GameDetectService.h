@@ -9,7 +9,6 @@
 #include "Core/Async/TaskResult.h"
 #include <functional>
 #include <memory>
-#include <optional>
 #include <vector>
 #include <QObject>
 #include <QString>
@@ -42,13 +41,8 @@ public:
         const QString& customSteamPath,
         std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
 
-    // Detect all supported Source and Source 2 games across all detected Steam libraries (Application internal model)
-    static std::vector<GameInstallation> detectAllGames(
-        const Core::Path::FilesystemPath& customSteamPath = {},
-        std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
-
-    // Detect a specific game in Steam libraries (Application internal model)
-    static std::optional<GameInstallation> detectGame(
+    // Synchronous single game detection in Steam libraries (Application internal model)
+    static Core::Async::TaskResult<GameInstallation> detectGame(
         Domain::Game::GameType type,
         const Core::Path::FilesystemPath& customSteamPath = {},
         std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);

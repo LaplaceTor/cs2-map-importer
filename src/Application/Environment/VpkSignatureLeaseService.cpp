@@ -73,8 +73,8 @@ Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::retry
     if (m_activeInstallation.isValid() && m_activeInstallation.type() == Domain::Game::GameType::CS2) {
         return acquireLeaseInternal(m_activeInstallation.baseDirectory());
     }
-    VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QString(), QString()};
-    return Core::Async::TaskResult<VpkSignatureLeaseResult>::success(res);
+    VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("No active CS2 installation to retry leasing"), QString()};
+    return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(res.systemMessage, res);
 }
 
 Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLeaseInternal(const Core::Path::FilesystemPath& cs2BasePath)

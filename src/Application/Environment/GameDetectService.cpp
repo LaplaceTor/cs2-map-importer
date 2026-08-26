@@ -115,60 +115,20 @@ Core::Async::TaskResult<DetectionResult> GameDetectService::detectEnvironment(
     return detectEnvironment(fsPath, logCtx);
 }
 
-std::vector<GameInstallation> GameDetectService::detectAllGames(
-    const Core::Path::FilesystemPath& customSteamPath,
-    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
-{
-    std::vector<GameInstallation> result;
-    auto libraries = SteamService::detectLibraries(customSteamPath, logCtx);
-    if (libraries.empty()) {
-        return result;
-    }
-
-    auto isAlreadyAdded = [&](Domain::Game::GameType type) {
-        return std::any_of(result.begin(), result.end(), [type](const GameInstallation& inst) {
-            return inst.type() == type;
-        });
-    };
-
-    for (const auto& lib : libraries) {
-        if (!lib.path.isValid() || !lib.path.isDirectory()) {
-            continue;
-        }
-
-        auto resolvedList = Domain::Game::SteamGameLocator::resolveGamesInLibrary(
-            lib.path,
-            lib.installedAppIds,
-            [](const Core::Path::FilesystemPath& lPath, int appId) {
-                return SteamService::readAppInstallDir(lPath, appId);
-            });
-
-        for (const auto& resolved : resolvedList) {
-            if (isAlreadyAdded(resolved.type)) {
-                continue;
-            }
-            auto optInst = GameInstallationValidator::createInstallationFromResolved(resolved);
-            if (optInst.has_value()) {
-                result.push_back(std::move(*optInst));
-            }
-        }
-    }
-
-    return result;
-}
-
-std::optional<GameInstallation> GameDetectService::detectGame(
+Core::Async::TaskResult<GameInstallation> GameDetectService::detectGame(
     Domain::Game::GameType type,
     const Core::Path::FilesystemPath& customSteamPath,
     std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {
     if (type == Domain::Game::GameType::Unknown || type == Domain::Game::GameType::Custom) {
-        return std::nullopt;
+        return Core::Async::TaskResult<GameInstallation>::failure(
+            QStringLiteral("Cannot detect games with Unknown or Custom type in Steam libraries"));
     }
 
     auto libraries = SteamService::detectLibraries(customSteamPath, logCtx);
     if (libraries.empty()) {
-        return std::nullopt;
+        return Core::Async::TaskResult<GameInstallation>::failure(
+            QStringLiteral("No Steam libraries detected on this host"));
     }
 
     for (const auto& lib : libraries) {
@@ -184,11 +144,16 @@ std::optional<GameInstallation> GameDetectService::detectGame(
             });
 
         if (optResolved.has_value()) {
-            return GameInstallationValidator::createInstallationFromResolved(*optResolved);
+            auto optInst = GameInstallationValidator::createInstallationFromResolved(*optResolved);
+            if (optInst.has_value()) {
+                return Core::Async::TaskResult<GameInstallation>::success(std::move(*optInst));
+            }
         }
     }
 
-    return std::nullopt;
+    return Core::Async::TaskResult<GameInstallation>::failure(
+        QStringLiteral("Game %1 not found in detected Steam libraries")
+            .arg(Domain::Game::GameRegistry::gameTypeToString(type)));
 }
 
 } // namespace Application::Environment
