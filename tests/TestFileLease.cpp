@@ -6,6 +6,7 @@
 #include "Core/FileSystem/FileLease.h"
 #include "Application/Environment/VpkSignatureLeaseService.h"
 #include "Core/Path/FilesystemPath.h"
+#include "Core/Async/TaskResult.h"
 
 #ifdef Q_OS_WIN
 #ifndef WIN32_LEAN_AND_MEAN
@@ -20,6 +21,7 @@
 using namespace Core::FileSystem;
 using namespace Application::Environment;
 using namespace Core::Path;
+using namespace Core::Async;
 
 class TestFileLease : public QObject {
     Q_OBJECT
@@ -254,9 +256,9 @@ void TestFileLease::testVpkSignatureLeaseServiceIntegration() {
     QVERIFY(service.leasedFilePath().isEmpty());
 
     // Acquire lease through service
-    VpkSignatureLeaseResult res = service.acquireLease(FilesystemPath(tempDir.path()));
+    auto res = service.acquireLease(FilesystemPath(tempDir.path()));
     QVERIFY(res.isSuccess());
-    QCOMPARE(res.status, VpkSignatureLeaseStatus::Acquired);
+    QCOMPARE(res.value().status, VpkSignatureLeaseStatus::Acquired);
     QVERIFY(service.isLeaseHeld());
     QCOMPARE(service.leasedFilePath(), QDir::toNativeSeparators(QFileInfo(sigPath).absoluteFilePath()));
 
@@ -326,11 +328,12 @@ void TestFileLease::testVpkSignatureConflictAndRetry() {
 
     // 2. Service tries to acquire exclusive lease while CS2 is holding it -> must FAIL with AlreadyInUse
     VpkSignatureLeaseService service;
-    VpkSignatureLeaseResult res = service.acquireLease(FilesystemPath(tempDir.path()));
-    QVERIFY(!res.isSuccess());
-    QCOMPARE(res.status, VpkSignatureLeaseStatus::AlreadyInUse);
+    auto res = service.acquireLease(FilesystemPath(tempDir.path()));
+    QVERIFY(res.isFailure());
+    QVERIFY(res.hasValue());
+    QCOMPARE(res.value().status, VpkSignatureLeaseStatus::AlreadyInUse);
     QVERIFY(!service.isLeaseHeld());
-    QVERIFY(!res.systemMessage.isEmpty());
+    QVERIFY(!res.message().isEmpty());
 
     // 3. User closes CS2 (simulate closing handle)
     CloseHandle(hExternalCs2);
@@ -338,7 +341,7 @@ void TestFileLease::testVpkSignatureConflictAndRetry() {
     // 4. Retry acquiring lease -> must SUCCEED
     res = service.acquireLease(FilesystemPath(tempDir.path()));
     QVERIFY(res.isSuccess());
-    QCOMPARE(res.status, VpkSignatureLeaseStatus::Acquired);
+    QCOMPARE(res.value().status, VpkSignatureLeaseStatus::Acquired);
     QVERIFY(service.isLeaseHeld());
 
     service.releaseLease();
@@ -366,7 +369,8 @@ void TestFileLease::testVpkSignatureServiceInstallationLifecycle() {
     cssInst.setValid(true);
 
     auto res = service.updateInstallation(cssInst);
-    QCOMPARE(res.status, VpkSignatureLeaseStatus::Inactive);
+    QVERIFY(res.isSuccess());
+    QCOMPARE(res.value().status, VpkSignatureLeaseStatus::Inactive);
     QVERIFY(!service.isLeaseHeld());
 
     // 2. Valid CS2 installation -> should automatically acquire lease
@@ -376,13 +380,15 @@ void TestFileLease::testVpkSignatureServiceInstallationLifecycle() {
     cs2Inst.setValid(true);
 
     res = service.updateInstallation(cs2Inst);
-    QCOMPARE(res.status, VpkSignatureLeaseStatus::Acquired);
+    QVERIFY(res.isSuccess());
+    QCOMPARE(res.value().status, VpkSignatureLeaseStatus::Acquired);
     QVERIFY(service.isLeaseHeld());
 
     // 3. Reset / invalid installation -> should automatically release lease
     GameInstallation invalidInst;
     res = service.updateInstallation(invalidInst);
-    QCOMPARE(res.status, VpkSignatureLeaseStatus::Inactive);
+    QVERIFY(res.isSuccess());
+    QCOMPARE(res.value().status, VpkSignatureLeaseStatus::Inactive);
     QVERIFY(!service.isLeaseHeld());
 }
 

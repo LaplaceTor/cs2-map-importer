@@ -5,9 +5,9 @@
 #include <QStringList>
 #include <functional>
 #include <memory>
-#include <optional>
 #include "Application/Environment/GameInstallationInfo.h"
 #include "Application/Environment/VpkSignatureLeaseService.h"
+#include "Core/Async/TaskResult.h"
 
 namespace Application::Environment {
 
@@ -29,20 +29,20 @@ public:
     GameEnvironmentService(const GameEnvironmentService&) = delete;
     GameEnvironmentService& operator=(const GameEnvironmentService&) = delete;
 
-    // Supported Source 1 game presentation names
+    // Supported Source 1 game presentation names (Query)
     QStringList s1GameTypes() const;
 
-    // Supported Source 2 game presentation names
+    // Supported Source 2 game presentation names (Query)
     QStringList s2GameTypes() const;
 
     // Asynchronously detect all games across Steam libraries (off-UI-thread worker)
     void detectEnvironmentAsync(
         QObject* context,
-        std::function<void(const DetectionResult&)> callback,
+        std::function<void(const Core::Async::TaskResult<DetectionResult>&)> callback,
         const QString& customSteamPath = QString());
 
     // Synchronous environment detection
-    DetectionResult detectEnvironment(
+    Core::Async::TaskResult<DetectionResult> detectEnvironment(
         const QString& customSteamPath = QString());
 
     // Asynchronously validate a Source 1 game directory or gameinfo.txt
@@ -50,10 +50,10 @@ public:
         const QString& typeName,
         const QString& pathOrUrl,
         QObject* context,
-        std::function<void(const std::optional<GameInstallationInfo>&)> callback);
+        std::function<void(const Core::Async::TaskResult<GameInstallationInfo>&)> callback);
 
     // Synchronous Source 1 validation
-    std::optional<GameInstallationInfo> validateSource1Folder(
+    Core::Async::TaskResult<GameInstallationInfo> validateSource1Folder(
         const QString& typeName,
         const QString& pathOrUrl);
 
@@ -61,16 +61,16 @@ public:
     void validateSource2FolderAsync(
         const QString& pathOrUrl,
         QObject* context,
-        std::function<void(const std::optional<GameInstallationInfo>&)> callback);
+        std::function<void(const Core::Async::TaskResult<GameInstallationInfo>&)> callback);
 
     // Synchronous Source 2 validation
-    std::optional<GameInstallationInfo> validateSource2Folder(
+    Core::Async::TaskResult<GameInstallationInfo> validateSource2Folder(
         const QString& pathOrUrl);
 
     // Validates game files via Steam client
-    bool validateGameInSteam(const QString& typeName);
+    Core::Async::TaskResult<void> validateGameInSteam(const QString& typeName);
 
-    // Lists addons found in Source 2 installation
+    // Lists addons found in Source 2 installation (Query)
     QStringList listSource2Addons(const QString& s2BasePath) const;
     QStringList listSource2Addons(const GameInstallationInfo& s2Installation) const;
 
@@ -79,9 +79,9 @@ public:
     bool isVpkLeaseHeld() const noexcept;
     VpkSignatureLeaseStatus vpkLeaseStatus() const noexcept;
     QString leasedVpkFilePath() const;
-    VpkSignatureLeaseResult updateVpkLease(const QString& s2BasePath);
-    VpkSignatureLeaseResult updateVpkLease(const GameInstallationInfo& s2Installation);
-    VpkSignatureLeaseResult retryVpkLease();
+    Core::Async::TaskResult<VpkSignatureLeaseResult> updateVpkLease(const QString& s2BasePath);
+    Core::Async::TaskResult<VpkSignatureLeaseResult> updateVpkLease(const GameInstallationInfo& s2Installation);
+    Core::Async::TaskResult<VpkSignatureLeaseResult> retryVpkLease();
 
 signals:
     void vpkLeaseStateChanged(bool isHeld, const QString& filePath);

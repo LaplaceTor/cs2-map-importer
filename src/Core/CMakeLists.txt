@@ -1,4 +1,5 @@
 qt_add_library(cs2importer_core STATIC
+    Async/TaskResult.h
     Error/ImportError.h
     Error/ImportException.h
     FileSystem/AtomicFile.h

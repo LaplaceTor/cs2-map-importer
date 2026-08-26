@@ -276,39 +276,44 @@ QString SteamService::readAppName(const Core::Path::FilesystemPath& libraryPath,
     return node->property(QStringLiteral("name"));
 }
 
-bool SteamService::validateGameFiles(
+Core::Async::TaskResult<void> SteamService::validateGameFiles(
     int appId,
     std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) {
     if (appId <= 0) {
+        QString errMsg = QStringLiteral("Invalid Steam AppID: %1").arg(appId);
         if (logCtx) {
-            logCtx->error(QStringLiteral("Invalid Steam AppID: %1").arg(appId));
+            logCtx->error(errMsg);
         }
-        return false;
+        return Core::Async::TaskResult<void>::failure(errMsg);
     }
     if (logCtx) {
         logCtx->info(QStringLiteral("Requesting Steam game files validation for AppID: %1").arg(appId));
     }
     QUrl validateUrl(QStringLiteral("steam://validate/") + QString::number(appId));
     bool ok = QDesktopServices::openUrl(validateUrl);
-    if (!ok && logCtx) {
-        logCtx->error(QStringLiteral("Failed to open Steam validation URL for AppID: %1").arg(appId));
+    if (!ok) {
+        QString errMsg = QStringLiteral("Failed to open Steam validation URL for AppID: %1").arg(appId);
+        if (logCtx) {
+            logCtx->error(errMsg);
+        }
+        return Core::Async::TaskResult<void>::failure(errMsg);
     }
-    return ok;
+    return Core::Async::TaskResult<void>::success();
 }
 
-bool SteamService::validateGameFiles(
+Core::Async::TaskResult<void> SteamService::validateGameFiles(
     Domain::Game::GameType type,
     std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) {
     const auto* def = Domain::Game::GameRegistry::findByType(type);
     if (!def || def->primaryAppId <= 0) {
+        QString errMsg = QStringLiteral("No primary AppID registered for game type: %1")
+            .arg(Domain::Game::GameRegistry::gameTypeToString(type));
         if (logCtx) {
-            logCtx->error(QStringLiteral("No primary AppID registered for game type: %1")
-                .arg(Domain::Game::GameRegistry::gameTypeToString(type)));
+            logCtx->error(errMsg);
         }
-        return false;
+        return Core::Async::TaskResult<void>::failure(errMsg);
     }
     return validateGameFiles(def->primaryAppId, logCtx);
 }
 
 } // namespace Application::Environment
-

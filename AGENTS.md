@@ -168,15 +168,17 @@ Workflow may:
 * sequence Domain processors/tools;
 * own use-case-specific step ordering and error handling;
 * receive `TaskLoggingContext` and cancellation primitives from Application;
-* use Core infrastructure when required.
+* use Core infrastructure when required;
+* return `Application::Async::TaskResult<T>` or `TaskResult<void>` to explicitly communicate `Success`, `Failure`, `Cancelled`, and `Skipped` execution outcomes.
 
 Workflow must not:
 
 * include or call UI classes/QML;
-* depend on Application classes;
+* depend on Application policy or configuration classes;
 * show dialogs or directly request user interaction through QML;
 * own global application configuration;
-* discover Steam installations or perform application-wide environment selection unless the behavior is explicitly part of an importer use-case and passed in as data/services.
+* discover Steam installations or perform application-wide environment selection unless the behavior is explicitly part of an importer use-case and passed in as data/services;
+* use `std::optional<T>` or `bool` to implicitly encode business outcomes. All new Workflow APIs must strictly use `TaskResult<T>`.
 
 ### 3.4 Domain rules
 
@@ -334,6 +336,18 @@ Workflow / Domain
 ```
 
 Code should use the context for task messages, progress and faults.
+
+### Log Level & Task Lifecycle Contract
+
+The logging system is semantically coupled with task lifecycle arbitration:
+
+* **`error()` / `reportFault()`**: **Unrecoverable business failure for the current task**.
+  * Any task that emits an `error()` is automatically transitioned to `TaskState::Failed` by `AsyncTaskRunner`, even if the worker returns normally or yields `TaskResult::success`.
+  * **Rule:** Only call `error()` if the current task has actually failed. If a step failed but was recovered, handled, or retried, do not emit `error()`.
+* **`warning()`**: **Recoverable issue, fallback, degradation, or skip**.
+  * Emitting a `warning()` does **not** fail the task. Use `warning()` when an unexpected condition occurred but execution continued safely or fell back.
+* **`info()`**: **High-level user-facing milestones only** (e.g. task starting, task completed, major asset/game discovered). Do not spam technical details at `info` level.
+* **`debug()`**: **Technical diagnostics and internal step tracing** (e.g. filesystem search paths, parser details, tool CLI arguments).
 
 ### UI logging
 

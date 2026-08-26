@@ -14,9 +14,12 @@
 
 #include "Core/Logging/LogManager.h"
 #include "Core/Logging/TaskLoggingContext.h"
-#include "Application/Async/TaskResult.h"
+#include "Core/Async/TaskResult.h"
 
 namespace Application::Async {
+
+using Core::Async::TaskResult;
+using Core::Async::TaskExecutionStatus;
 
 namespace Detail {
 
@@ -53,19 +56,19 @@ template <typename T>
 struct is_task_result_type : std::false_type {};
 
 template <typename T>
-struct is_task_result_type<TaskResult<T>> : std::true_type {};
+struct is_task_result_type<Core::Async::TaskResult<T>> : std::true_type {};
 
 template <typename ResultType>
-TaskExecutionStatus inspectResultStatus(const ResultType& result)
+Core::Async::TaskExecutionStatus inspectResultStatus(const ResultType& result)
 {
     if constexpr (is_task_result_type<std::decay_t<ResultType>>::value) {
         return result.status();
     } else if constexpr (std::is_same_v<std::decay_t<ResultType>, bool>) {
-        return result ? TaskExecutionStatus::Success : TaskExecutionStatus::Failure;
+        return result ? Core::Async::TaskExecutionStatus::Success : Core::Async::TaskExecutionStatus::Failure;
     } else if constexpr (is_optional_type<std::decay_t<ResultType>>::value) {
-        return result.has_value() ? TaskExecutionStatus::Success : TaskExecutionStatus::Failure;
+        return result.has_value() ? Core::Async::TaskExecutionStatus::Success : Core::Async::TaskExecutionStatus::Failure;
     } else {
-        return TaskExecutionStatus::Success;
+        return Core::Async::TaskExecutionStatus::Success;
     }
 }
 
@@ -76,18 +79,21 @@ TaskExecutionStatus inspectResultStatus(const ResultType& result)
  * multi-level hierarchical sub-tasks, exception safety, semantic failure detection, and Qt thread-safe callback delivery.
  *
  * Contract & Guarantees:
- * - Worker Execution: Always executed in a worker thread (via QThreadPool).
+ * - Task Creation Enforcement: If LogManager rejects task creation (e.g. invalid parentTaskId),
+ *   the worker is strictly NOT dispatched to QThreadPool.
+ * - Worker Execution: Always executed in a worker thread (via QThreadPool) with guaranteed non-null TaskLoggingContext.
  * - Lifecycle Management: TaskLoggingContext is automatically created and started.
  * - Semantic Outcome Handling (TaskResult<T> / optional / bool):
  *   1. An unhandled exception -> TaskState::Failed.
  *   2. TaskResult::success(...) (or valid optional / true) with 0 logged errors -> TaskState::Completed.
  *   3. TaskResult::failure(...) (or nullopt / false / logged errors) -> TaskState::Failed.
  *   4. TaskResult::cancelled(...) -> TaskState::Cancelled.
- *   5. TaskResult::skipped(...) -> TaskState::Completed.
- *   6. Explicit worker context call (taskContext->fail/complete/cancel) -> Explicit terminal state preserved.
+ *   5. TaskResult::skipped(...) -> TaskState::Skipped.
+ *   6. Explicit worker context call (taskContext->fail/complete/cancel/skip) -> Explicit terminal state preserved.
  * - Context Affinity: @p context is optional (nullptr allowed for pure background/headless tasks).
  * - Callback Delivery: If @p context != nullptr and @p callback is valid/callable, results are
- *   delivered to @p context's thread via Qt::QueuedConnection.
+ *   delivered to @p context's thread via Qt::QueuedConnection. If @p context == nullptr and @p callback is valid,
+ *   callback is executed directly.
  * - Lifetime Guarding: If @p context is destroyed before worker finishes, callback is safely dropped.
  * - Fire-and-Forget: If @p callback is omitted, null, or empty, worker runs and logs normally in the background.
  */
@@ -106,14 +112,36 @@ public:
         quint64 parentTaskId = 0)
     {
         auto taskContext = Core::Logging::LogManager::instance().createTask(taskName, parentTaskId);
-        if (taskContext) {
-            taskContext->start();
+        if (!taskContext) {
+            // Task creation rejected (e.g. invalid parentTaskId). Do NOT dispatch worker.
+            if constexpr (std::is_invocable_v<CallbackFn, ResultType>) {
+                if (Detail::isCallableValid(callback)) {
+                    ResultType failureResult{};
+                    if constexpr (Detail::is_task_result_type<std::decay_t<ResultType>>::value) {
+                        failureResult = ResultType::failure(
+                            QStringLiteral("Failed to create task context for '%1' (invalid parentTaskId: %2)")
+                                .arg(taskName).arg(parentTaskId));
+                    }
+                    if (context) {
+                        QPointer<QObject> guard(context);
+                        QMetaObject::invokeMethod(guard.data(), [guard, cb = std::forward<CallbackFn>(callback), res = std::move(failureResult)]() {
+                            if (guard) {
+                                cb(res);
+                            }
+                        }, Qt::QueuedConnection);
+                    } else {
+                        callback(failureResult);
+                    }
+                }
+            }
+            return;
         }
 
+        taskContext->start();
         QPointer<QObject> contextGuard(context);
-        quint64 taskId = taskContext ? taskContext->taskId() : 0;
+        quint64 taskId = taskContext->taskId();
 
-        auto workerLambda = [taskContext, taskId, contextGuard,
+        auto workerLambda = [taskContext, taskId, contextGuard, context,
                              worker = std::forward<WorkerFn>(worker),
                              callback = std::forward<CallbackFn>(callback)]() mutable {
             ResultType result{};
@@ -139,17 +167,17 @@ public:
                     if (threwException) {
                         Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task failed with exception"));
                     } else {
-                        TaskExecutionStatus execStatus = Detail::inspectResultStatus(result);
-                        if (execStatus == TaskExecutionStatus::Success) {
+                        Core::Async::TaskExecutionStatus execStatus = Detail::inspectResultStatus(result);
+                        if (execStatus == Core::Async::TaskExecutionStatus::Success) {
                             if (taskContext->hasErrors()) {
                                 Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task completed with logged errors"));
                             } else {
                                 Core::Logging::LogManager::instance().finishTask(taskId, QStringLiteral("Completed"));
                             }
-                        } else if (execStatus == TaskExecutionStatus::Cancelled) {
+                        } else if (execStatus == Core::Async::TaskExecutionStatus::Cancelled) {
                             Core::Logging::LogManager::instance().cancelTask(taskId, QStringLiteral("Cancelled"));
-                        } else if (execStatus == TaskExecutionStatus::Skipped) {
-                            Core::Logging::LogManager::instance().finishTask(taskId, QStringLiteral("Skipped"));
+                        } else if (execStatus == Core::Async::TaskExecutionStatus::Skipped) {
+                            Core::Logging::LogManager::instance().skipTask(taskId, QStringLiteral("Skipped"));
                         } else {
                             Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task failed"));
                         }
@@ -160,12 +188,16 @@ public:
             }
 
             if constexpr (std::is_invocable_v<CallbackFn, ResultType>) {
-                if (Detail::isCallableValid(callback) && contextGuard) {
-                    QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, callback = std::move(callback), res = std::move(result)]() {
-                        if (contextGuard) {
-                            callback(res);
-                        }
-                    }, Qt::QueuedConnection);
+                if (Detail::isCallableValid(callback)) {
+                    if (contextGuard) {
+                        QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, callback = std::move(callback), res = std::move(result)]() {
+                            if (contextGuard) {
+                                callback(res);
+                            }
+                        }, Qt::QueuedConnection);
+                    } else if (!context) {
+                        callback(result);
+                    }
                 }
             }
         };
@@ -190,14 +222,16 @@ public:
         quint64 parentTaskId = 0)
     {
         auto taskContext = Core::Logging::LogManager::instance().createTask(taskName, parentTaskId);
-        if (taskContext) {
-            taskContext->start();
+        if (!taskContext) {
+            // Task creation rejected (e.g. invalid parentTaskId). Do NOT dispatch worker.
+            return;
         }
 
+        taskContext->start();
         QPointer<QObject> contextGuard(context);
-        quint64 taskId = taskContext ? taskContext->taskId() : 0;
+        quint64 taskId = taskContext->taskId();
 
-        auto workerLambda = [taskContext, taskId, contextGuard,
+        auto workerLambda = [taskContext, taskId, contextGuard, context,
                              worker = std::forward<WorkerFn>(worker),
                              callback = std::forward<CallbackFn>(callback)]() mutable {
             bool threwException = false;
@@ -230,12 +264,16 @@ public:
             }
 
             if constexpr (std::is_invocable_v<CallbackFn>) {
-                if (Detail::isCallableValid(callback) && contextGuard) {
-                    QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, callback = std::move(callback)]() {
-                        if (contextGuard) {
-                            callback();
-                        }
-                    }, Qt::QueuedConnection);
+                if (Detail::isCallableValid(callback)) {
+                    if (contextGuard) {
+                        QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, callback = std::move(callback)]() {
+                            if (contextGuard) {
+                                callback();
+                            }
+                        }, Qt::QueuedConnection);
+                    } else if (!context) {
+                        callback();
+                    }
                 }
             }
         };

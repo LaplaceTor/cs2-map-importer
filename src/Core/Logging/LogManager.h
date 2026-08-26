@@ -56,6 +56,7 @@ public:
     bool finishTask(quint64 taskId, const QString& message = QString());
     bool failTask(quint64 taskId, const QString& message = QString());
     bool cancelTask(quint64 taskId, const QString& message = QString());
+    bool skipTask(quint64 taskId, const QString& message = QString());
 
     /**
      * @brief Sink Management APIs

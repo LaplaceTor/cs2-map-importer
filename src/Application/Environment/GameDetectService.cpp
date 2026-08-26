@@ -12,21 +12,21 @@ namespace Application::Environment {
 
 void GameDetectService::detectEnvironmentAsync(
     QObject* context,
-    std::function<void(const DetectionResult&)> callback,
+    std::function<void(const Core::Async::TaskResult<DetectionResult>&)> callback,
     const Core::Path::FilesystemPath& customSteamPath)
 {
-    Application::Async::AsyncTaskRunner::run<DetectionResult>(
+    Application::Async::AsyncTaskRunner::run<Core::Async::TaskResult<DetectionResult>>(
         QStringLiteral("Detect Environment"),
         context,
-        [customSteamPath](std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) -> DetectionResult {
+        [customSteamPath](std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) -> Core::Async::TaskResult<DetectionResult> {
             if (logCtx) {
                 logCtx->info(QStringLiteral("Starting environment detection across Steam libraries..."));
             }
-            DetectionResult result = detectEnvironment(customSteamPath, logCtx);
-            if (logCtx) {
+            auto result = detectEnvironment(customSteamPath, logCtx);
+            if (logCtx && result.isSuccess()) {
                 logCtx->info(QStringLiteral("Environment detection completed: %1 installation(s) found, %2 warning(s)")
-                    .arg(result.installations.size())
-                    .arg(result.warnings.size()));
+                    .arg(result.value().installations.size())
+                    .arg(result.value().warnings.size()));
             }
             return result;
         },
@@ -35,14 +35,14 @@ void GameDetectService::detectEnvironmentAsync(
 
 void GameDetectService::detectEnvironmentAsync(
     QObject* context,
-    std::function<void(const DetectionResult&)> callback,
+    std::function<void(const Core::Async::TaskResult<DetectionResult>&)> callback,
     const QString& customSteamPath)
 {
     Core::Path::FilesystemPath fsPath(customSteamPath.isEmpty() ? QString() : Core::Path::PathUtils::normalize(customSteamPath));
     detectEnvironmentAsync(context, std::move(callback), fsPath);
 }
 
-DetectionResult GameDetectService::detectEnvironment(
+Core::Async::TaskResult<DetectionResult> GameDetectService::detectEnvironment(
     const Core::Path::FilesystemPath& customSteamPath,
     std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {
@@ -54,7 +54,7 @@ DetectionResult GameDetectService::detectEnvironment(
             logCtx->warning(warnMsg);
         }
         result.warnings.append(warnMsg);
-        return result;
+        return Core::Async::TaskResult<DetectionResult>::success(std::move(result));
     }
 
     auto isAlreadyAdded = [&](const QString& gameId) {
@@ -104,10 +104,10 @@ DetectionResult GameDetectService::detectEnvironment(
         }
     }
 
-    return result;
+    return Core::Async::TaskResult<DetectionResult>::success(std::move(result));
 }
 
-DetectionResult GameDetectService::detectEnvironment(
+Core::Async::TaskResult<DetectionResult> GameDetectService::detectEnvironment(
     const QString& customSteamPath,
     std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {

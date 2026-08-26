@@ -75,6 +75,7 @@ Rectangle {
                         if (s === "COMPLETED") return "#2E7D32"
                         if (s === "FAILED") return "#C62828"
                         if (s === "CANCELLED") return "#E65100"
+                        if (s === "SKIPPED") return "#546E7A"
                         return "#424242"
                     }
 

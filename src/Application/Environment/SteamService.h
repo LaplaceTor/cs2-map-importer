@@ -2,6 +2,7 @@
 
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Logging/TaskLoggingContext.h"
+#include "Core/Async/TaskResult.h"
 #include "Domain/Game/GameType.h"
 #include <QString>
 #include <memory>
@@ -37,15 +38,14 @@ public:
     static QString readAppName(const Core::Path::FilesystemPath& libraryPath, int appId);
 
     // Launch Steam game files validation for a specific Steam AppID
-    static bool validateGameFiles(
+    static Core::Async::TaskResult<void> validateGameFiles(
         int appId,
         std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
 
     // Launch Steam game files validation for a registered GameType
-    static bool validateGameFiles(
+    static Core::Async::TaskResult<void> validateGameFiles(
         Domain::Game::GameType type,
         std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
 };
 
 } // namespace Application::Environment
-

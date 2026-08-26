@@ -152,6 +152,21 @@ bool LogManager::cancelTask(quint64 taskId, const QString& message)
     return result && flushOk;
 }
 
+bool LogManager::skipTask(quint64 taskId, const QString& message)
+{
+    std::shared_ptr<TaskLoggingContext> task;
+    {
+        QMutexLocker locker(&m_mutex);
+        task = m_tasks.value(taskId, nullptr);
+    }
+    if (!task) {
+        return false;
+    }
+    bool result = task->skip(message);
+    bool flushOk = flushTask(taskId);
+    return result && flushOk;
+}
+
 void LogManager::addSink(std::shared_ptr<ILogSink> sink)
 {
     if (!sink) {

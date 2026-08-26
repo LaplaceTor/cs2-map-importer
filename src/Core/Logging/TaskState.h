@@ -9,7 +9,8 @@ enum class TaskState {
     Running,
     Completed,
     Failed,
-    Cancelled
+    Cancelled,
+    Skipped
 };
 
 inline QString taskStateToString(TaskState state)
@@ -25,6 +26,8 @@ inline QString taskStateToString(TaskState state)
         return QStringLiteral("FAILED");
     case TaskState::Cancelled:
         return QStringLiteral("CANCELLED");
+    case TaskState::Skipped:
+        return QStringLiteral("SKIPPED");
     }
     return QStringLiteral("UNKNOWN");
 }

@@ -123,8 +123,14 @@ void GameViewModel::autoDetect() {
 
     m_envService->detectEnvironmentAsync(
         this,
-        [this](const Application::Environment::DetectionResult& result) {
-            applyDetectionResult(result);
+        [this](const Core::Async::TaskResult<Application::Environment::DetectionResult>& result) {
+            if (result.isSuccess()) {
+                applyDetectionResult(result.value());
+            } else {
+                m_isDetecting = false;
+                emit isDetectingChanged();
+                emit detectionFinished();
+            }
         }
     );
 }
@@ -198,10 +204,10 @@ void GameViewModel::setSelectedS1Type(const QString& typeId) {
             requestedType,
             currentPath,
             this,
-            [this, requestedType, key](const std::optional<Application::Environment::GameInstallationInfo>& validated) {
-                if (m_selectedS1Type == requestedType && validated.has_value() && validated->isValid) {
-                    m_detectedGames.insert(key, *validated);
-                    applyS1Installation(*validated);
+            [this, requestedType, key](const Core::Async::TaskResult<Application::Environment::GameInstallationInfo>& validated) {
+                if (m_selectedS1Type == requestedType && validated.isSuccess() && validated.value().isValid) {
+                    m_detectedGames.insert(key, validated.value());
+                    applyS1Installation(validated.value());
                 } else if (m_selectedS1Type == requestedType) {
                     m_s1Installation = Application::Environment::GameInstallationInfo();
                     m_s1GamePath.clear();
@@ -270,21 +276,25 @@ void GameViewModel::selectS1Folder(const QString& pathOrUrl) {
         capturedType,
         pathOrUrl,
         this,
-        [this, capturedType](const std::optional<Application::Environment::GameInstallationInfo>& validated) {
-            if (validated.has_value() && validated->isValid) {
+        [this, capturedType](const Core::Async::TaskResult<Application::Environment::GameInstallationInfo>& validated) {
+            if (validated.isSuccess() && validated.value().isValid) {
                 const QString key = capturedType.trimmed().toLower();
-                m_detectedGames.insert(key, *validated);
-                if (!validated->gameId.isEmpty()) {
-                    m_detectedGames.insert(validated->gameId.toLower(), *validated);
+                m_detectedGames.insert(key, validated.value());
+                if (!validated.value().gameId.isEmpty()) {
+                    m_detectedGames.insert(validated.value().gameId.toLower(), validated.value());
                 }
-                applyS1Installation(*validated);
+                applyS1Installation(validated.value());
             } else {
                 m_isS1Valid = false;
                 emit s1ValidityChanged();
 
+                QString errorDetail = validated.message().isEmpty()
+                    ? QStringLiteral("The selected directory is not a valid installation for the selected game.\nPlease verify that it contains the expected game files and gameinfo.txt.")
+                    : validated.message();
+
                 emit alertRequested(
                     QStringLiteral("Invalid Source 1 Installation"),
-                    QStringLiteral("The selected directory is not a valid installation for the selected game.\nPlease verify that it contains the expected game files and gameinfo.txt.")
+                    errorDetail
                 );
             }
         }
@@ -299,12 +309,12 @@ void GameViewModel::selectS2Folder(const QString& pathOrUrl) {
     m_envService->validateSource2FolderAsync(
         pathOrUrl,
         this,
-        [this](const std::optional<Application::Environment::GameInstallationInfo>& validated) {
-            if (validated.has_value() && validated->isValid) {
-                if (!validated->gameId.isEmpty()) {
-                    m_detectedGames.insert(validated->gameId.toLower(), *validated);
+        [this](const Core::Async::TaskResult<Application::Environment::GameInstallationInfo>& validated) {
+            if (validated.isSuccess() && validated.value().isValid) {
+                if (!validated.value().gameId.isEmpty()) {
+                    m_detectedGames.insert(validated.value().gameId.toLower(), validated.value());
                 }
-                applyS2Installation(*validated);
+                applyS2Installation(validated.value());
             } else {
                 m_s2Installation = Application::Environment::GameInstallationInfo();
                 if (m_envService) {
@@ -313,9 +323,13 @@ void GameViewModel::selectS2Folder(const QString& pathOrUrl) {
                 m_isS2Valid = false;
                 emit s2ValidityChanged();
 
+                QString errorDetail = validated.message().isEmpty()
+                    ? QStringLiteral("The selected folder is not a valid Source 2 installation.\nPlease ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.")
+                    : validated.message();
+
                 emit alertRequested(
                     QStringLiteral("Invalid Source 2 Installation"),
-                    QStringLiteral("The selected folder is not a valid Source 2 installation.\nPlease ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.")
+                    errorDetail
                 );
             }
         }
@@ -327,11 +341,13 @@ void GameViewModel::validateS1InSteam() {
         return;
     }
     const QString target = m_s1Installation.isValid ? m_s1Installation.gameId : m_selectedS1Type;
-    bool ok = m_envService->validateGameInSteam(target);
-    if (!ok) {
+    auto res = m_envService->validateGameInSteam(target);
+    if (!res.isSuccess()) {
         emit alertRequested(
             QStringLiteral("Steam Validation Unavailable"),
-            QStringLiteral("Could not initiate Steam validation. Make sure Steam is running and the game is installed.")
+            res.message().isEmpty()
+                ? QStringLiteral("Could not initiate Steam validation. Make sure Steam is running and the game is installed.")
+                : res.message()
         );
     }
 }
@@ -341,11 +357,13 @@ void GameViewModel::validateS2InSteam() {
         return;
     }
     const QString target = m_s2Installation.isValid ? m_s2Installation.gameId : m_selectedS2Type;
-    bool ok = m_envService->validateGameInSteam(target);
-    if (!ok) {
+    auto res = m_envService->validateGameInSteam(target);
+    if (!res.isSuccess()) {
         emit alertRequested(
             QStringLiteral("Steam Validation Unavailable"),
-            QStringLiteral("Could not initiate Steam validation for Source 2. Make sure Steam is running and Counter-Strike 2 is installed.")
+            res.message().isEmpty()
+                ? QStringLiteral("Could not initiate Steam validation for Source 2. Make sure Steam is running and Counter-Strike 2 is installed.")
+                : res.message()
         );
     }
 }

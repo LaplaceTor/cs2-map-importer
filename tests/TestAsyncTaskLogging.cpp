@@ -11,10 +11,12 @@
 #include "Core/Logging/TaskLoggingContext.h"
 #include "Core/Logging/LogLevel.h"
 #include "Core/Logging/TaskState.h"
+#include "Core/Async/TaskResult.h"
 #include "Application/Async/AsyncTaskRunner.h"
 #include "UI/ViewModels/LogViewModel.h"
 
 using namespace Core::Logging;
+using namespace Core::Async;
 using namespace Application::Async;
 using namespace UI::ViewModels;
 
@@ -40,6 +42,9 @@ private slots:
     void testNullContextAndEmptyCallbackExecution();
     void testSemanticBusinessFailureDetection();
     void testTaskResultOutcomes();
+    void testInvalidParentTaskRejection();
+    void testLoggedErrorForcesTaskFailure();
+    void testLoggedWarningPreservesTaskCompleted();
 };
 
 void TestAsyncTaskLogging::init()
@@ -604,7 +609,7 @@ void TestAsyncTaskLogging::testTaskResultOutcomes()
     QTRY_COMPARE(logVm->taskCount(), 1);
     QTRY_COMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
 
-    // 2. TaskResult::failure
+    // 2. TaskResult::failure with partial value
     std::atomic<bool> failureFired{false};
     AsyncTaskRunner::run<TaskResult<int>>(
         QStringLiteral("TaskResult Failure"),
@@ -613,11 +618,13 @@ void TestAsyncTaskLogging::testTaskResultOutcomes()
             if (ctx) {
                 ctx->info("Step failed");
             }
-            return TaskResult<int>::failure(QStringLiteral("Asset not found"));
+            return TaskResult<int>::failure(QStringLiteral("Asset not found"), 50);
         },
         [&failureFired](const TaskResult<int>& res) {
             QVERIFY(res.isFailure());
             QCOMPARE(res.message(), QStringLiteral("Asset not found"));
+            QVERIFY(res.hasValue());
+            QCOMPARE(res.value(), 50);
             failureFired.store(true);
         });
     QTRY_VERIFY_WITH_TIMEOUT(failureFired.load(), 3000);
@@ -660,7 +667,112 @@ void TestAsyncTaskLogging::testTaskResultOutcomes()
         });
     QTRY_VERIFY_WITH_TIMEOUT(skipFired.load(), 3000);
     QTRY_COMPARE(logVm->taskCount(), 4);
-    QTRY_COMPARE(logVm->data(logVm->index(3, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+    QTRY_COMPARE(logVm->data(logVm->index(3, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("SKIPPED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testInvalidParentTaskRejection()
+{
+    // 1. Calling runChild with an invalid non-existent parentTaskId (e.g. 999999)
+    std::atomic<bool> workerRan{false};
+    std::atomic<bool> callbackFired{false};
+    TaskResult<int> receivedResult;
+
+    AsyncTaskRunner::runChild<TaskResult<int>>(
+        999999, // non-existent parent ID
+        QStringLiteral("Orphaned Child Task"),
+        this,
+        [&workerRan](std::shared_ptr<TaskLoggingContext>) -> TaskResult<int> {
+            workerRan.store(true);
+            return TaskResult<int>::success(42);
+        },
+        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+            receivedResult = res;
+            callbackFired.store(true);
+        });
+
+    // Wait a brief period and process events
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 2000);
+
+    // Assert that worker was STRICTLY NEVER executed!
+    QCOMPARE(workerRan.load(), false);
+    QVERIFY(receivedResult.isFailure());
+    QVERIFY(receivedResult.message().contains(QStringLiteral("invalid parentTaskId")));
+
+    // 2. Calling runChildVoid with an invalid non-existent parentTaskId
+    std::atomic<bool> voidWorkerRan{false};
+    AsyncTaskRunner::runChildVoid(
+        888888, // non-existent parent ID
+        QStringLiteral("Orphaned Void Task"),
+        this,
+        [&voidWorkerRan](std::shared_ptr<TaskLoggingContext>) {
+            voidWorkerRan.store(true);
+        });
+
+    QTest::qWait(200);
+    QCOMPARE(voidWorkerRan.load(), false);
+}
+
+void TestAsyncTaskLogging::testLoggedErrorForcesTaskFailure()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    std::atomic<bool> callbackFired{false};
+    AsyncTaskRunner::run<TaskResult<int>>(
+        QStringLiteral("Success With Logged Error Task"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->info("Beginning work...");
+                ctx->error("Unrecoverable sub-step failed!");
+            }
+            // Even though worker returns success, logged error must force task state to FAILED
+            return TaskResult<int>::success(42);
+        },
+        [&callbackFired](const TaskResult<int>& res) {
+            QVERIFY(res.isSuccess());
+            callbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
+    QTRY_COMPARE(logVm->taskCount(), 1);
+
+    // Verification: TaskState must be FAILED
+    QModelIndex idx = logVm->index(0, 0);
+    QCOMPARE(logVm->data(idx, LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testLoggedWarningPreservesTaskCompleted()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    std::atomic<bool> callbackFired{false};
+    AsyncTaskRunner::run<TaskResult<int>>(
+        QStringLiteral("Success With Warning Task"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->info("Beginning work...");
+                ctx->warning("Recoverable warning occurred, continuing with fallback.");
+            }
+            return TaskResult<int>::success(42);
+        },
+        [&callbackFired](const TaskResult<int>& res) {
+            QVERIFY(res.isSuccess());
+            callbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
+    QTRY_COMPARE(logVm->taskCount(), 1);
+
+    // Verification: TaskState must remain COMPLETED
+    QModelIndex idx = logVm->index(0, 0);
+    QCOMPARE(logVm->data(idx, LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
 
     logVm->unregisterFromLogManager();
 }

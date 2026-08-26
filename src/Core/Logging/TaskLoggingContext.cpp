@@ -353,6 +353,23 @@ bool TaskLoggingContext::cancel(const QString& message)
     return true;
 }
 
+bool TaskLoggingContext::skip(const QString& message)
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    if (!m_sessionValid || m_state != TaskState::Running) {
+        return false;
+    }
+    if (!message.isEmpty()) {
+        m_currentMessage = message;
+        if (!appendLifecycleEntryLocked(LogLevel::Info, message)) {
+            return false;
+        }
+    }
+    flushActiveBlockLocked();
+    m_state = TaskState::Skipped;
+    return true;
+}
+
 LogSubmissionResult TaskLoggingContext::submitNormalLocked()
 {
     if (!m_faultBarrier) {

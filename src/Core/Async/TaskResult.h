@@ -5,7 +5,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace Application::Async {
+namespace Core::Async {
 
 /**
  * @brief Standard execution status outcome for Workflow and Application tasks.
@@ -18,7 +18,7 @@ enum class TaskExecutionStatus {
 };
 
 /**
- * @brief Standardized result wrapper for asynchronous and workflow operations.
+ * @brief Standardized result wrapper for asynchronous, workflow, and application operations.
  * Explicitly distinguishes between Success, Failure, Cancelled, and Skipped states.
  */
 template <typename T = void>
@@ -136,5 +136,5 @@ private:
     QString m_message;
 };
 
-} // namespace Application::Async
+} // namespace Core::Async
 

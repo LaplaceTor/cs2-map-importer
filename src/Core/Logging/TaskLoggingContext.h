@@ -127,6 +127,7 @@ public:
     bool complete(const QString& message = QString());
     bool fail(const QString& message = QString());
     bool cancel(const QString& message = QString());
+    bool skip(const QString& message = QString());
 
     /**
      * @brief Disables this context when its owning LogManager session is reset.
@@ -140,7 +141,8 @@ public:
 
     static bool isTerminalState(TaskState state) noexcept
     {
-        return state == TaskState::Completed || state == TaskState::Failed || state == TaskState::Cancelled;
+        return state == TaskState::Completed || state == TaskState::Failed ||
+               state == TaskState::Cancelled || state == TaskState::Skipped;
     }
 
 private:
