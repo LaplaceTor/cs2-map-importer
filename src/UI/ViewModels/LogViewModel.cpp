@@ -4,7 +4,6 @@
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QMetaObject>
-#include <QMutexLocker>
 #include <QPointer>
 
 namespace UI::ViewModels {
@@ -72,7 +71,6 @@ void LogViewModel::unregisterFromLogManager()
 
 int LogViewModel::totalMessageCount() const
 {
-    QMutexLocker locker(&m_vmMutex);
     return m_totalMessages;
 }
 
@@ -86,11 +84,8 @@ void LogViewModel::setAutoScroll(bool enabled)
 
 TaskRegistryEntry LogViewModel::ensureTaskRegistered(quint64 taskId, const QString& taskName)
 {
-    {
-        QMutexLocker locker(&m_vmMutex);
-        if (m_taskRegistry.contains(taskId)) {
-            return m_taskRegistry.value(taskId);
-        }
+    if (m_taskRegistry.contains(taskId)) {
+        return m_taskRegistry.value(taskId);
     }
 
     // Look up context in LogManager
@@ -138,10 +133,7 @@ TaskRegistryEntry LogViewModel::ensureTaskRegistered(quint64 taskId, const QStri
     entry.messagesModel = newTask.messagesModel;
     entry.subTasksModel = newTask.subTasksModel;
 
-    {
-        QMutexLocker locker(&m_vmMutex);
-        m_taskRegistry.insert(taskId, entry);
-    }
+    m_taskRegistry.insert(taskId, entry);
 
     return entry;
 }
@@ -169,10 +161,7 @@ void LogViewModel::processIncomingBlock(const Core::Logging::LogBlock& block, co
         }
         entry.messagesModel->appendEntries(newItems);
 
-        {
-            QMutexLocker locker(&m_vmMutex);
-            m_totalMessages += entries.size();
-        }
+        m_totalMessages += entries.size();
     }
 
     // Refresh state from context
@@ -190,11 +179,8 @@ void LogViewModel::processIncomingBlock(const Core::Logging::LogBlock& block, co
 void LogViewModel::clear()
 {
     LogTaskModel::clear();
-    {
-        QMutexLocker locker(&m_vmMutex);
-        m_taskRegistry.clear();
-        m_totalMessages = 0;
-    }
+    m_taskRegistry.clear();
+    m_totalMessages = 0;
 
     emit totalMessageCountChanged();
 }

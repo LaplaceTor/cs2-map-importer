@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QHash>
-#include <QMutex>
 #include <QObject>
 #include <QString>
 #include <memory>
@@ -24,6 +23,10 @@ struct TaskRegistryEntry {
     std::shared_ptr<LogTaskModel> subTasksModel;
 };
 
+/**
+ * @brief Top-level ViewModel for logs, acting as the root LogTaskModel.
+ * Note: Model mutations execute strictly on the owning UI thread (guaranteed by LogViewModelSinkAdapter).
+ */
 class LogViewModel : public LogTaskModel {
     Q_OBJECT
 
@@ -56,7 +59,6 @@ signals:
 private:
     TaskRegistryEntry ensureTaskRegistered(quint64 taskId, const QString& taskName);
 
-    mutable QMutex m_vmMutex;
     QHash<quint64, TaskRegistryEntry> m_taskRegistry;
     int m_totalMessages = 0;
     bool m_autoScroll = true;

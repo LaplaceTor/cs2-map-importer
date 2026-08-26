@@ -58,7 +58,7 @@ std::optional<GameInstallation> GameInstallationValidator::validateSource1(
 
     if (!directory.isValid() || !directory.exists()) {
         if (logCtx) {
-            logCtx->error(QStringLiteral("Target directory does not exist or is invalid: %1").arg(directory.toString()));
+            logCtx->debug(QStringLiteral("Target directory does not exist or is invalid: %1").arg(directory.toString()));
         }
         return std::nullopt;
     }
@@ -90,7 +90,7 @@ std::optional<GameInstallation> GameInstallationValidator::validateSource2(
 
     if (!directory.isValid() || !directory.exists()) {
         if (logCtx) {
-            logCtx->error(QStringLiteral("Target directory does not exist or is invalid: %1").arg(directory.toString()));
+            logCtx->debug(QStringLiteral("Target directory does not exist or is invalid: %1").arg(directory.toString()));
         }
         return std::nullopt;
     }
@@ -120,7 +120,7 @@ std::optional<GameInstallation> GameInstallationValidator::inspectGameInfo(
 
     if (!gameInfoPath.isValid() || !gameInfoPath.exists()) {
         if (logCtx) {
-            logCtx->error(QStringLiteral("GameInfo path does not exist: %1").arg(gameInfoPath.toString()));
+            logCtx->debug(QStringLiteral("GameInfo path does not exist: %1").arg(gameInfoPath.toString()));
         }
         return std::nullopt;
     }

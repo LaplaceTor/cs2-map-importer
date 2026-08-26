@@ -3,13 +3,13 @@
 #include <QAbstractListModel>
 #include <QDateTime>
 #include <QHash>
-#include <QMutex>
 #include <QObject>
 #include <QString>
 #include <QStringList>
 #include <QVariantList>
 #include <QVector>
 #include <memory>
+#include <optional>
 
 #include "Core/Logging/LogLevel.h"
 #include "Core/Logging/TaskState.h"
@@ -32,6 +32,10 @@ struct LogTaskItem {
     std::shared_ptr<LogTaskModel> subTasksModel;
 };
 
+/**
+ * @brief Standard Qt ListModel for hierarchical Task items.
+ * Note: Model mutations execute strictly on the owning UI thread (guaranteed by LogViewModelSinkAdapter).
+ */
 class LogTaskModel : public QAbstractListModel {
     Q_OBJECT
 
@@ -71,8 +75,9 @@ public:
     int appendTask(const LogTaskItem& task);
     bool updateTaskMetadata(int row, Core::Logging::TaskState state, double progress, const QString& currentMessage, const QString& taskName = QString());
 
-    LogTaskItem* getTaskItem(int row);
-    const LogTaskItem* getTaskItem(int row) const;
+    std::optional<LogTaskItem> taskSnapshot(int row) const;
+    std::shared_ptr<LogMessageListModel> taskMessagesModel(int row) const;
+    std::shared_ptr<LogTaskModel> taskSubTasksModel(int row) const;
     int findRowByTaskId(quint64 taskId) const;
 
     Q_INVOKABLE UI::ViewModels::LogMessageListModel* getTaskMessagesModel(int row) const;
@@ -93,7 +98,6 @@ signals:
     void taskCountChanged();
 
 protected:
-    mutable QMutex m_mutex;
     int m_depth = 0;
     QVector<LogTaskItem> m_tasks;
     QHash<quint64, int> m_taskIdToRow;

@@ -8,11 +8,13 @@
 #include <exception>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
 #include "Core/Logging/LogManager.h"
 #include "Core/Logging/TaskLoggingContext.h"
+#include "Application/Async/TaskResult.h"
 
 namespace Application::Async {
 
@@ -41,16 +43,48 @@ bool isCallableValid(const F& f)
     }
 }
 
+template <typename T>
+struct is_optional_type : std::false_type {};
+
+template <typename T>
+struct is_optional_type<std::optional<T>> : std::true_type {};
+
+template <typename T>
+struct is_task_result_type : std::false_type {};
+
+template <typename T>
+struct is_task_result_type<TaskResult<T>> : std::true_type {};
+
+template <typename ResultType>
+TaskExecutionStatus inspectResultStatus(const ResultType& result)
+{
+    if constexpr (is_task_result_type<std::decay_t<ResultType>>::value) {
+        return result.status();
+    } else if constexpr (std::is_same_v<std::decay_t<ResultType>, bool>) {
+        return result ? TaskExecutionStatus::Success : TaskExecutionStatus::Failure;
+    } else if constexpr (is_optional_type<std::decay_t<ResultType>>::value) {
+        return result.has_value() ? TaskExecutionStatus::Success : TaskExecutionStatus::Failure;
+    } else {
+        return TaskExecutionStatus::Success;
+    }
+}
+
 } // namespace Detail
 
 /**
  * @brief Helper for standardized asynchronous task execution with TaskLoggingContext,
- * multi-level hierarchical sub-tasks, exception safety, and Qt thread-safe callback delivery.
+ * multi-level hierarchical sub-tasks, exception safety, semantic failure detection, and Qt thread-safe callback delivery.
  *
  * Contract & Guarantees:
  * - Worker Execution: Always executed in a worker thread (via QThreadPool).
- * - Lifecycle Management: TaskLoggingContext is automatically created, started, and cleanly
- *   finished/failed in LogManager upon worker completion or uncaught exception.
+ * - Lifecycle Management: TaskLoggingContext is automatically created and started.
+ * - Semantic Outcome Handling (TaskResult<T> / optional / bool):
+ *   1. An unhandled exception -> TaskState::Failed.
+ *   2. TaskResult::success(...) (or valid optional / true) with 0 logged errors -> TaskState::Completed.
+ *   3. TaskResult::failure(...) (or nullopt / false / logged errors) -> TaskState::Failed.
+ *   4. TaskResult::cancelled(...) -> TaskState::Cancelled.
+ *   5. TaskResult::skipped(...) -> TaskState::Completed.
+ *   6. Explicit worker context call (taskContext->fail/complete/cancel) -> Explicit terminal state preserved.
  * - Context Affinity: @p context is optional (nullptr allowed for pure background/headless tasks).
  * - Callback Delivery: If @p context != nullptr and @p callback is valid/callable, results are
  *   delivered to @p context's thread via Qt::QueuedConnection.
@@ -83,34 +117,45 @@ public:
                              worker = std::forward<WorkerFn>(worker),
                              callback = std::forward<CallbackFn>(callback)]() mutable {
             ResultType result{};
-            bool succeeded = false;
+            bool threwException = false;
 
             try {
                 result = worker(taskContext);
-                succeeded = true;
             } catch (const std::exception& ex) {
+                threwException = true;
                 if (taskContext) {
                     taskContext->error(QStringLiteral("Unhandled exception in task: %1").arg(QString::fromUtf8(ex.what())));
                 }
             } catch (...) {
+                threwException = true;
                 if (taskContext) {
                     taskContext->error(QStringLiteral("Unhandled unknown exception in task"));
                 }
             }
 
             if (taskContext) {
-                if (succeeded) {
-                    if (!Core::Logging::TaskLoggingContext::isTerminalState(taskContext->state())) {
-                        Core::Logging::LogManager::instance().finishTask(taskId, QStringLiteral("Completed"));
-                    } else {
-                        Core::Logging::LogManager::instance().flushTask(taskId);
-                    }
-                } else {
-                    if (!Core::Logging::TaskLoggingContext::isTerminalState(taskContext->state())) {
+                bool isTerminal = Core::Logging::TaskLoggingContext::isTerminalState(taskContext->state());
+                if (!isTerminal) {
+                    if (threwException) {
                         Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task failed with exception"));
                     } else {
-                        Core::Logging::LogManager::instance().flushTask(taskId);
+                        TaskExecutionStatus execStatus = Detail::inspectResultStatus(result);
+                        if (execStatus == TaskExecutionStatus::Success) {
+                            if (taskContext->hasErrors()) {
+                                Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task completed with logged errors"));
+                            } else {
+                                Core::Logging::LogManager::instance().finishTask(taskId, QStringLiteral("Completed"));
+                            }
+                        } else if (execStatus == TaskExecutionStatus::Cancelled) {
+                            Core::Logging::LogManager::instance().cancelTask(taskId, QStringLiteral("Cancelled"));
+                        } else if (execStatus == TaskExecutionStatus::Skipped) {
+                            Core::Logging::LogManager::instance().finishTask(taskId, QStringLiteral("Skipped"));
+                        } else {
+                            Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task failed"));
+                        }
                     }
+                } else {
+                    Core::Logging::LogManager::instance().flushTask(taskId);
                 }
             }
 
@@ -155,34 +200,32 @@ public:
         auto workerLambda = [taskContext, taskId, contextGuard,
                              worker = std::forward<WorkerFn>(worker),
                              callback = std::forward<CallbackFn>(callback)]() mutable {
-            bool succeeded = false;
+            bool threwException = false;
 
             try {
                 worker(taskContext);
-                succeeded = true;
             } catch (const std::exception& ex) {
+                threwException = true;
                 if (taskContext) {
                     taskContext->error(QStringLiteral("Unhandled exception in task: %1").arg(QString::fromUtf8(ex.what())));
                 }
             } catch (...) {
+                threwException = true;
                 if (taskContext) {
                     taskContext->error(QStringLiteral("Unhandled unknown exception in task"));
                 }
             }
 
             if (taskContext) {
-                if (succeeded) {
-                    if (!Core::Logging::TaskLoggingContext::isTerminalState(taskContext->state())) {
-                        Core::Logging::LogManager::instance().finishTask(taskId, QStringLiteral("Completed"));
+                bool isTerminal = Core::Logging::TaskLoggingContext::isTerminalState(taskContext->state());
+                if (!isTerminal) {
+                    if (threwException || taskContext->hasErrors()) {
+                        Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task failed"));
                     } else {
-                        Core::Logging::LogManager::instance().flushTask(taskId);
+                        Core::Logging::LogManager::instance().finishTask(taskId, QStringLiteral("Completed"));
                     }
                 } else {
-                    if (!Core::Logging::TaskLoggingContext::isTerminalState(taskContext->state())) {
-                        Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task failed with exception"));
-                    } else {
-                        Core::Logging::LogManager::instance().flushTask(taskId);
-                    }
+                    Core::Logging::LogManager::instance().flushTask(taskId);
                 }
             }
 

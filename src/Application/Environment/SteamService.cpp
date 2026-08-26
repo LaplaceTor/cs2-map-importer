@@ -28,7 +28,7 @@ Core::Path::FilesystemPath SteamService::detectSteamInstallPath(
             Core::Path::FilesystemPath path(steamPath);
             if (path.exists() && path.isDirectory()) {
                 if (logCtx) {
-                    logCtx->info(QStringLiteral("Found Steam installation in HKCU registry: %1").arg(path.toString()));
+                    logCtx->debug(QStringLiteral("Found Steam installation in HKCU registry: %1").arg(path.toString()));
                 }
                 return path;
             }
@@ -42,7 +42,7 @@ Core::Path::FilesystemPath SteamService::detectSteamInstallPath(
             Core::Path::FilesystemPath path(installPath);
             if (path.exists() && path.isDirectory()) {
                 if (logCtx) {
-                    logCtx->info(QStringLiteral("Found Steam installation in HKLM registry: %1").arg(path.toString()));
+                    logCtx->debug(QStringLiteral("Found Steam installation in HKLM registry: %1").arg(path.toString()));
                 }
                 return path;
             }
@@ -56,7 +56,7 @@ Core::Path::FilesystemPath SteamService::detectSteamInstallPath(
             Core::Path::FilesystemPath path(installPath);
             if (path.exists() && path.isDirectory()) {
                 if (logCtx) {
-                    logCtx->info(QStringLiteral("Found Steam installation in WOW6432Node registry: %1").arg(path.toString()));
+                    logCtx->debug(QStringLiteral("Found Steam installation in WOW6432Node registry: %1").arg(path.toString()));
                 }
                 return path;
             }
@@ -76,7 +76,7 @@ Core::Path::FilesystemPath SteamService::detectSteamInstallPath(
         Core::Path::FilesystemPath path(candidate);
         if (path.exists() && path.isDirectory()) {
             if (logCtx) {
-                logCtx->info(QStringLiteral("Found Steam installation in standard fallback path: %1").arg(path.toString()));
+                logCtx->debug(QStringLiteral("Found Steam installation in standard fallback path: %1").arg(path.toString()));
             }
             return path;
         }
@@ -107,7 +107,7 @@ std::vector<SteamLibrary> SteamService::detectLibraries(
         auto libs = parseLibraryFolders(vdfPath, logCtx);
         if (!libs.empty()) {
             if (logCtx) {
-                logCtx->info(QStringLiteral("Discovered %1 Steam library folder(s)").arg(libs.size()));
+                logCtx->debug(QStringLiteral("Discovered %1 Steam library folder(s)").arg(libs.size()));
             }
             return libs;
         }
@@ -115,7 +115,7 @@ std::vector<SteamLibrary> SteamService::detectLibraries(
 
     // Fallback: If libraryfolders.vdf is not found or empty, treat the Steam install directory as the single library
     if (logCtx) {
-        logCtx->info(QStringLiteral("libraryfolders.vdf not found or empty, falling back to Steam root: %1").arg(resolvedSteamPath.toString()));
+        logCtx->debug(QStringLiteral("libraryfolders.vdf not found or empty, falling back to Steam root: %1").arg(resolvedSteamPath.toString()));
     }
     SteamLibrary defaultLib;
     defaultLib.path = resolvedSteamPath;

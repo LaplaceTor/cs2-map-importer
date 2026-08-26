@@ -135,6 +135,9 @@ public:
      */
     void invalidateSession();
 
+    quint64 errorCount() const noexcept;
+    bool hasErrors() const noexcept;
+
     static bool isTerminalState(TaskState state) noexcept
     {
         return state == TaskState::Completed || state == TaskState::Failed || state == TaskState::Cancelled;
@@ -163,6 +166,7 @@ private:
     qsizetype m_blockSizeThreshold = 0; // 0 means unlimited
     quint64 m_nextSequence = 1; // Task-local log entry sequence number
     quint64 m_logCount = 0;
+    quint64 m_errorCount = 0;
 };
 
 } // namespace Core::Logging

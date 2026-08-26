@@ -252,6 +252,9 @@ bool TaskLoggingContext::log(LogLevel level, const QString& message)
         return false;
     }
     ++m_logCount;
+    if (level == LogLevel::Error || level == LogLevel::Critical) {
+        ++m_errorCount;
+    }
     checkAndFlushActiveBlockLocked();
     return true;
 }
@@ -283,6 +286,7 @@ LogSubmissionResult TaskLoggingContext::reportFault(const QString& message)
         return {LogSubmissionStatus::RejectedAfterFault, result.submissionSequence};
     }
     ++m_logCount;
+    ++m_errorCount;
     flushActiveBlockLocked();
     return result;
 }
@@ -399,6 +403,18 @@ void TaskLoggingContext::flushActiveBlockLocked()
     m_activeBlock.seal();
     m_sealedBlocks.append(std::move(m_activeBlock));
     m_activeBlock = LogBlock(m_taskId, m_nextBlockIndex++);
+}
+
+quint64 TaskLoggingContext::errorCount() const noexcept
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    return m_errorCount;
+}
+
+bool TaskLoggingContext::hasErrors() const noexcept
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    return m_errorCount > 0;
 }
 
 } // namespace Core::Logging

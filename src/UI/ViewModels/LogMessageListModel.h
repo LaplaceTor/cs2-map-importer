@@ -2,7 +2,6 @@
 
 #include <QAbstractListModel>
 #include <QDateTime>
-#include <QMutex>
 #include <QObject>
 #include <QString>
 #include <QVector>
@@ -18,6 +17,10 @@ struct LogMessageItem {
     QString message;
 };
 
+/**
+ * @brief Standard Qt ListModel for a single task's log messages.
+ * Note: Model mutations execute strictly on the owning UI thread (guaranteed by LogViewModelSinkAdapter).
+ */
 class LogMessageListModel : public QAbstractListModel {
     Q_OBJECT
 
@@ -51,9 +54,7 @@ signals:
     void countChanged();
 
 private:
-    mutable QMutex m_mutex;
     QVector<LogMessageItem> m_entries;
 };
 
 } // namespace UI::ViewModels
-

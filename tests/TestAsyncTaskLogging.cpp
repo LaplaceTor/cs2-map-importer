@@ -38,6 +38,8 @@ private slots:
     void testHierarchicalSubModelGranularity();
     void testMultiLevelNestedTasksAndParallelChildExecution();
     void testNullContextAndEmptyCallbackExecution();
+    void testSemanticBusinessFailureDetection();
+    void testTaskResultOutcomes();
 };
 
 void TestAsyncTaskLogging::init()
@@ -499,6 +501,168 @@ void TestAsyncTaskLogging::testNullContextAndEmptyCallbackExecution()
         });
 
     QTRY_COMPARE_WITH_TIMEOUT(computeResult.load(), 42, 3000);
+}
+
+void TestAsyncTaskLogging::testSemanticBusinessFailureDetection()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    // 1. Worker returning std::nullopt and logging error (no exception thrown)
+    std::atomic<bool> callbackFired{false};
+    AsyncTaskRunner::run<std::optional<QString>>(
+        QStringLiteral("Validate Source 1 Failure Test"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> std::optional<QString> {
+            if (ctx) {
+                ctx->info("Starting validation");
+                ctx->error("gameinfo.txt not found");
+            }
+            return std::nullopt;
+        },
+        [&callbackFired](const std::optional<QString>& res) {
+            Q_UNUSED(res);
+            callbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
+    QTRY_COMPARE(logVm->taskCount(), 1);
+
+    // Verify task state in ViewModel is FAILED (not Completed!)
+    QModelIndex idx1 = logVm->index(0, 0);
+    QTRY_COMPARE(logVm->data(idx1, LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+
+    // 2. Worker returning bool(false)
+    std::atomic<bool> boolCallbackFired{false};
+    AsyncTaskRunner::run<bool>(
+        QStringLiteral("Boolean Failure Test"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> bool {
+            if (ctx) {
+                ctx->info("Checking condition");
+            }
+            return false;
+        },
+        [&boolCallbackFired](bool) {
+            boolCallbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(boolCallbackFired.load(), 3000);
+    QTRY_COMPARE(logVm->taskCount(), 2);
+
+    QModelIndex idx2 = logVm->index(1, 0);
+    QTRY_COMPARE(logVm->data(idx2, LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+
+    // 3. Worker returning valid result with NO errors -> COMPLETED
+    std::atomic<bool> successCallbackFired{false};
+    AsyncTaskRunner::run<std::optional<QString>>(
+        QStringLiteral("Successful Validation Test"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> std::optional<QString> {
+            if (ctx) {
+                ctx->info("Starting validation");
+                ctx->info("Validation succeeded");
+            }
+            return QStringLiteral("Valid Installation");
+        },
+        [&successCallbackFired](const std::optional<QString>& res) {
+            Q_UNUSED(res);
+            successCallbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(successCallbackFired.load(), 3000);
+    QTRY_COMPARE(logVm->taskCount(), 3);
+
+    QModelIndex idx3 = logVm->index(2, 0);
+    QTRY_COMPARE(logVm->data(idx3, LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testTaskResultOutcomes()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    // 1. TaskResult::success
+    std::atomic<bool> successFired{false};
+    AsyncTaskRunner::run<TaskResult<int>>(
+        QStringLiteral("TaskResult Success"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->info("Step 1 done");
+            }
+            return TaskResult<int>::success(100);
+        },
+        [&successFired](const TaskResult<int>& res) {
+            QVERIFY(res.isSuccess());
+            QCOMPARE(res.value(), 100);
+            successFired.store(true);
+        });
+    QTRY_VERIFY_WITH_TIMEOUT(successFired.load(), 3000);
+    QTRY_COMPARE(logVm->taskCount(), 1);
+    QTRY_COMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+
+    // 2. TaskResult::failure
+    std::atomic<bool> failureFired{false};
+    AsyncTaskRunner::run<TaskResult<int>>(
+        QStringLiteral("TaskResult Failure"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->info("Step failed");
+            }
+            return TaskResult<int>::failure(QStringLiteral("Asset not found"));
+        },
+        [&failureFired](const TaskResult<int>& res) {
+            QVERIFY(res.isFailure());
+            QCOMPARE(res.message(), QStringLiteral("Asset not found"));
+            failureFired.store(true);
+        });
+    QTRY_VERIFY_WITH_TIMEOUT(failureFired.load(), 3000);
+    QTRY_COMPARE(logVm->taskCount(), 2);
+    QTRY_COMPARE(logVm->data(logVm->index(1, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+
+    // 3. TaskResult::cancelled
+    std::atomic<bool> cancelFired{false};
+    AsyncTaskRunner::run<TaskResult<QString>>(
+        QStringLiteral("TaskResult Cancelled"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<QString> {
+            if (ctx) {
+                ctx->info("User requested cancellation");
+            }
+            return TaskResult<QString>::cancelled(QStringLiteral("User aborted import"));
+        },
+        [&cancelFired](const TaskResult<QString>& res) {
+            QVERIFY(res.isCancelled());
+            cancelFired.store(true);
+        });
+    QTRY_VERIFY_WITH_TIMEOUT(cancelFired.load(), 3000);
+    QTRY_COMPARE(logVm->taskCount(), 3);
+    QTRY_COMPARE(logVm->data(logVm->index(2, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("CANCELLED"));
+
+    // 4. TaskResult::skipped
+    std::atomic<bool> skipFired{false};
+    AsyncTaskRunner::run<TaskResult<void>>(
+        QStringLiteral("TaskResult Skipped"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<void> {
+            if (ctx) {
+                ctx->info("Asset already up to date, skipping");
+            }
+            return TaskResult<void>::skipped(QStringLiteral("Already compiled"));
+        },
+        [&skipFired](const TaskResult<void>& res) {
+            QVERIFY(res.isSkipped());
+            skipFired.store(true);
+        });
+    QTRY_VERIFY_WITH_TIMEOUT(skipFired.load(), 3000);
+    QTRY_COMPARE(logVm->taskCount(), 4);
+    QTRY_COMPARE(logVm->data(logVm->index(3, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+
+    logVm->unregisterFromLogManager();
 }
 
 QTEST_MAIN(TestAsyncTaskLogging)

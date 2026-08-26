@@ -1,7 +1,4 @@
 #include "UI/ViewModels/LogMessageListModel.h"
-#include <QMetaObject>
-#include <QMutexLocker>
-#include <QThread>
 
 namespace UI::ViewModels {
 
@@ -15,7 +12,6 @@ int LogMessageListModel::rowCount(const QModelIndex& parent) const
     if (parent.isValid()) {
         return 0;
     }
-    QMutexLocker locker(&m_mutex);
     return m_entries.size();
 }
 
@@ -25,7 +21,6 @@ QVariant LogMessageListModel::data(const QModelIndex& index, int role) const
         return QVariant();
     }
 
-    QMutexLocker locker(&m_mutex);
     int row = index.row();
     if (row < 0 || row >= m_entries.size()) {
         return QVariant();
@@ -68,7 +63,6 @@ QHash<int, QByteArray> LogMessageListModel::roleNames() const
 
 int LogMessageListModel::count() const
 {
-    QMutexLocker locker(&m_mutex);
     return m_entries.size();
 }
 
@@ -78,21 +72,11 @@ void LogMessageListModel::appendEntries(const QVector<LogMessageItem>& items)
         return;
     }
 
-    if (QThread::currentThread() != this->thread()) {
-        QMetaObject::invokeMethod(this, [this, items]() {
-            appendEntries(items);
-        }, Qt::QueuedConnection);
-        return;
-    }
-
     int start = m_entries.size();
     int end = start + items.size() - 1;
 
     beginInsertRows(QModelIndex(), start, end);
-    {
-        QMutexLocker locker(&m_mutex);
-        m_entries.append(items);
-    }
+    m_entries.append(items);
     endInsertRows();
 
     emit countChanged();
@@ -100,18 +84,8 @@ void LogMessageListModel::appendEntries(const QVector<LogMessageItem>& items)
 
 void LogMessageListModel::clear()
 {
-    if (QThread::currentThread() != this->thread()) {
-        QMetaObject::invokeMethod(this, [this]() {
-            clear();
-        }, Qt::QueuedConnection);
-        return;
-    }
-
     beginResetModel();
-    {
-        QMutexLocker locker(&m_mutex);
-        m_entries.clear();
-    }
+    m_entries.clear();
     endResetModel();
 
     emit countChanged();
@@ -119,7 +93,6 @@ void LogMessageListModel::clear()
 
 QVector<LogMessageItem> LogMessageListModel::entries() const
 {
-    QMutexLocker locker(&m_mutex);
     return m_entries;
 }
 
