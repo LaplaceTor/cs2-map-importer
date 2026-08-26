@@ -34,7 +34,6 @@ struct ProcessResult {
             case ProcessStatus::Crashed:
                 return Core::Error::ErrorCode::ProcessCrashed;
             case ProcessStatus::FailedToStart:
-                return Core::Error::ErrorCode::ProcessNotFound;
             case ProcessStatus::NonZeroExit:
             default:
                 return Core::Error::ErrorCode::ProcessFailed;

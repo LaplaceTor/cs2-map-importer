@@ -201,6 +201,7 @@ qt_add_executable(test_error
 )
 
 target_link_libraries(test_error PRIVATE
+    cs2importer_domain
     cs2importer_core
     Qt6::Core
     Qt6::Test

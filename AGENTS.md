@@ -169,7 +169,7 @@ Workflow may:
 * own use-case-specific step ordering and error handling;
 * receive `TaskLoggingContext` and cancellation primitives from Application;
 * use Core infrastructure when required;
-* return `Application::Async::TaskResult<T>` or `TaskResult<void>` to explicitly communicate `Success`, `Failure`, `Cancelled`, and `Skipped` execution outcomes.
+* return `Core::Async::TaskResult<T>` or `TaskResult<void>` to explicitly communicate `Success`, `Failure`, `Cancelled`, and `Skipped` execution outcomes.
 
 Workflow must not:
 

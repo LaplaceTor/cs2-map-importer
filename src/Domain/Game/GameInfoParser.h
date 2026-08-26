@@ -4,29 +4,29 @@
 #include "Domain/Game/GameType.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/KeyValues/KeyValuesDocument.h"
-#include <optional>
+#include "Core/Async/TaskResult.h"
 #include <QString>
 
 namespace Domain::Game {
 
 class GameInfoParser {
 public:
-    static std::optional<GameInfo> parse(
+    static Core::Async::TaskResult<GameInfo> parse(
         const Core::Path::FilesystemPath& gameInfoPath,
         EngineType engine = EngineType::Source1,
         QString* errorMessage = nullptr);
 
-    static std::optional<GameInfo> parse(
+    static Core::Async::TaskResult<GameInfo> parse(
         const Core::Path::FilesystemPath& gameInfoPath,
         QString* errorMessage);
 
-    static std::optional<GameInfo> parseFromString(
+    static Core::Async::TaskResult<GameInfo> parseFromString(
         const QString& content,
         const Core::Path::FilesystemPath& gameInfoPath,
         EngineType engine,
         QString* errorMessage = nullptr);
 
-    static std::optional<GameInfo> parseFromString(
+    static Core::Async::TaskResult<GameInfo> parseFromString(
         const QString& content,
         const Core::Path::FilesystemPath& gameInfoPath = Core::Path::FilesystemPath(),
         QString* errorMessage = nullptr);
@@ -49,4 +49,3 @@ private:
 };
 
 } // namespace Domain::Game
-

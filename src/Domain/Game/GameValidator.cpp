@@ -269,17 +269,13 @@ Core::Async::TaskResult<GameInfo> GameValidator::validateDirectory(
                                    ? EngineType::Source2
                                    : EngineType::Source1);
 
-    QString error;
-    auto optInfo = GameInfoParser::parse(targetGameInfoPath, engine, &error);
-    if (!optInfo.has_value()) {
-        return Core::Async::TaskResult<GameInfo>::failure(
-            Core::Error::ErrorCode::InvalidFile,
-            QStringLiteral("Failed to parse GameInfo at '%1': %2")
-                .arg(targetGameInfoPath.toString(), error.isEmpty() ? QStringLiteral("syntax error") : error));
+    auto parseResult = GameInfoParser::parse(targetGameInfoPath, engine);
+    if (!parseResult.isSuccess()) {
+        return parseResult;
     }
 
-    if (validateGameInfo(*optInfo, type)) {
-        return Core::Async::TaskResult<GameInfo>::success(std::move(*optInfo));
+    if (validateGameInfo(parseResult.value(), type)) {
+        return parseResult;
     }
 
     return Core::Async::TaskResult<GameInfo>::failure(

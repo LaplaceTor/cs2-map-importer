@@ -1,5 +1,6 @@
 #include "Domain/Game/GameInfoParser.h"
 #include "Domain/Game/SearchPathResolver.h"
+#include "Core/KeyValues/KeyValuesDocument.h"
 #include <QDir>
 #include <QFileInfo>
 #include <utility>
@@ -16,25 +17,25 @@ const Core::KeyValues::KeyValuesNode* GameInfoParser::findSearchPathsNode(
             return sp;
         }
     }
+
     if (gameInfoNode) {
-        if (const auto* sp = gameInfoNode->findChild(QStringLiteral("SearchPaths"))) {
-            return sp;
-        }
         if (const auto* fs = gameInfoNode->findChild(QStringLiteral("FileSystem"))) {
             if (const auto* sp = fs->findChild(QStringLiteral("SearchPaths"))) {
                 return sp;
             }
         }
+        if (const auto* sp = gameInfoNode->findChild(QStringLiteral("SearchPaths"))) {
+            return sp;
+        }
     }
-    if (const auto* sp = rootNode.findChild(QStringLiteral("SearchPaths"))) {
-        return sp;
-    }
+
     if (const auto* fs = rootNode.findChild(QStringLiteral("FileSystem"))) {
         if (const auto* sp = fs->findChild(QStringLiteral("SearchPaths"))) {
             return sp;
         }
     }
-    return nullptr;
+
+    return rootNode.findChild(QStringLiteral("SearchPaths"));
 }
 
 Core::Path::FilesystemPath GameInfoParser::resolveBaseDirectory(
@@ -42,26 +43,27 @@ Core::Path::FilesystemPath GameInfoParser::resolveBaseDirectory(
     const Core::KeyValues::KeyValuesNode& rootNode,
     EngineType engine)
 {
-    const QString modDirPath = modDirectory.toString();
-    if (modDirPath.isEmpty()) {
+    if (!modDirectory.isValid() || modDirectory.isEmpty()) {
         return Core::Path::FilesystemPath();
     }
 
     if (engine == EngineType::Source2) {
-        // Source 2 layout: mod is in <gameRoot>/game/<modName>
-        if (modDirectory.parentPath().fileName().compare(QStringLiteral("game"), Qt::CaseInsensitive) == 0) {
-            return modDirectory.parentPath().parentPath();
+        const QString modDirPath = QDir::fromNativeSeparators(modDirectory.toString());
+        const QString suffix = QStringLiteral("/game/");
+        const int index = modDirPath.lastIndexOf(suffix, -1, Qt::CaseInsensitive);
+        if (index != -1) {
+            return Core::Path::FilesystemPath(modDirPath.left(index));
         }
         return modDirectory.parentPath();
     }
 
-    // Source 1 layout
     const auto* gameInfoNode = rootNode.findChild(QStringLiteral("GameInfo"));
     const auto* fileSystemNode = gameInfoNode ? gameInfoNode->findChild(QStringLiteral("FileSystem"))
                                               : rootNode.findChild(QStringLiteral("FileSystem"));
     const auto* searchPathsNode = findSearchPathsNode(rootNode, gameInfoNode, fileSystemNode);
 
     if (searchPathsNode) {
+        const QString modDirPath = QDir::fromNativeSeparators(modDirectory.toString());
         for (const auto& child : searchPathsNode->children()) {
             if (child.name().compare(QStringLiteral("game+game_write"), Qt::CaseInsensitive) == 0) {
                 const QString val = child.value().trimmed();
@@ -125,48 +127,59 @@ GameInfo GameInfoParser::createFromDocument(
     return info;
 }
 
-std::optional<GameInfo> GameInfoParser::parse(
+Core::Async::TaskResult<GameInfo> GameInfoParser::parse(
     const Core::Path::FilesystemPath& gameInfoPath,
     EngineType engine,
     QString* errorMessage)
 {
-    if (!gameInfoPath.isValid()) {
+    if (!gameInfoPath.isValid() || !gameInfoPath.exists()) {
+        QString msg = QStringLiteral("GameInfo file does not exist or is invalid: %1").arg(gameInfoPath.toString());
         if (errorMessage) {
-            *errorMessage = QStringLiteral("Invalid gameinfo path provided.");
+            *errorMessage = msg;
         }
-        return std::nullopt;
+        return Core::Async::TaskResult<GameInfo>::failure(Core::Error::ErrorCode::FileNotFound, msg);
     }
 
     Core::KeyValues::KeyValuesDocument doc;
-    if (!doc.loadFromFile(gameInfoPath, errorMessage)) {
-        return std::nullopt;
+    QString kvError;
+    if (!doc.loadFromFile(gameInfoPath, &kvError)) {
+        QString msg = QStringLiteral("Failed to load GameInfo from '%1': %2").arg(gameInfoPath.toString(), kvError);
+        if (errorMessage) {
+            *errorMessage = msg;
+        }
+        return Core::Async::TaskResult<GameInfo>::failure(Core::Error::ErrorCode::InvalidFile, msg);
     }
 
-    return createFromDocument(std::move(doc), gameInfoPath, engine);
+    return Core::Async::TaskResult<GameInfo>::success(createFromDocument(std::move(doc), gameInfoPath, engine));
 }
 
-std::optional<GameInfo> GameInfoParser::parse(
+Core::Async::TaskResult<GameInfo> GameInfoParser::parse(
     const Core::Path::FilesystemPath& gameInfoPath,
     QString* errorMessage)
 {
     return parse(gameInfoPath, EngineType::Source1, errorMessage);
 }
 
-std::optional<GameInfo> GameInfoParser::parseFromString(
+Core::Async::TaskResult<GameInfo> GameInfoParser::parseFromString(
     const QString& content,
     const Core::Path::FilesystemPath& gameInfoPath,
     EngineType engine,
     QString* errorMessage)
 {
     Core::KeyValues::KeyValuesDocument doc;
-    if (!doc.loadFromString(content, errorMessage)) {
-        return std::nullopt;
+    QString kvError;
+    if (!doc.loadFromString(content, &kvError)) {
+        QString msg = QStringLiteral("Failed to parse GameInfo content: %1").arg(kvError);
+        if (errorMessage) {
+            *errorMessage = msg;
+        }
+        return Core::Async::TaskResult<GameInfo>::failure(Core::Error::ErrorCode::InvalidFile, msg);
     }
 
-    return createFromDocument(std::move(doc), gameInfoPath, engine);
+    return Core::Async::TaskResult<GameInfo>::success(createFromDocument(std::move(doc), gameInfoPath, engine));
 }
 
-std::optional<GameInfo> GameInfoParser::parseFromString(
+Core::Async::TaskResult<GameInfo> GameInfoParser::parseFromString(
     const QString& content,
     const Core::Path::FilesystemPath& gameInfoPath,
     QString* errorMessage)
@@ -175,4 +188,3 @@ std::optional<GameInfo> GameInfoParser::parseFromString(
 }
 
 } // namespace Domain::Game
-

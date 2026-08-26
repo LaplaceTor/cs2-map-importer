@@ -775,9 +775,9 @@ void TestAsyncTaskLogging::testProcessResultToErrorMapping()
     QCOMPARE(rCrash.toErrorCode(), ErrorCode::ProcessCrashed);
     QCOMPARE(rCrash.toError().code(), ErrorCode::ProcessCrashed);
 
-    ProcessResult rNotFound;
-    rNotFound.status = ProcessStatus::FailedToStart;
-    QCOMPARE(rNotFound.toErrorCode(), ErrorCode::ProcessNotFound);
+    ProcessResult rFailedStart;
+    rFailedStart.status = ProcessStatus::FailedToStart;
+    QCOMPARE(rFailedStart.toErrorCode(), ErrorCode::ProcessFailed);
 
     ProcessResult rExitCode;
     rExitCode.status = ProcessStatus::NonZeroExit;

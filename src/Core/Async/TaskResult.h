@@ -107,7 +107,7 @@ public:
     T* operator->() { return &m_value.value(); }
     const T& operator*() const { return m_value.value(); }
     T& operator*() { return m_value.value(); }
-    T valueOr(T&& defaultValue) const { return m_value.value_or(std::forward<T>(defaultValue)); }
+    T valueOr(T defaultValue) const { return m_value.value_or(std::move(defaultValue)); }
 
 private:
     TaskExecutionStatus m_status = TaskExecutionStatus::Failure;

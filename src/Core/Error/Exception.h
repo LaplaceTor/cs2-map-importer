@@ -1,5 +1,6 @@
 #pragma once
 
+#include <exception>
 #include <QException>
 #include <QString>
 #include <QByteArray>
@@ -11,7 +12,7 @@ namespace Core::Error {
 
 /**
  * @brief Standardized exception class carrying structured Error information.
- * Inherits from QException (and std::exception) for safe propagation and thread cloning.
+ * Inherits from QException (which inherits std::exception) for safe thread transport and std::exception compatibility.
  */
 class Exception : public QException {
 public:
@@ -49,4 +50,3 @@ private:
 using ImportException = Exception;
 
 } // namespace Core::Error
-

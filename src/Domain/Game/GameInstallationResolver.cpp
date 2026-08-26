@@ -184,20 +184,17 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
             QStringLiteral("Could not locate gameinfo.gi in Source 2 structure at: %1").arg(directory.toString()));
     }
 
-    QString error;
-    auto optInfo = GameInfoParser::parse(giPath, EngineType::Source2, &error);
-    if (!optInfo.has_value()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-            Core::Error::ErrorCode::InvalidFile,
-            QStringLiteral("Failed to parse Source 2 gameinfo.gi at '%1': %2")
-                .arg(giPath.toString(), error.isEmpty() ? QStringLiteral("syntax error") : error));
+    auto parseResult = GameInfoParser::parse(giPath, EngineType::Source2);
+    if (!parseResult.isSuccess()) {
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(parseResult.error());
     }
 
-    auto identifiedType = GameValidator::identifyGameType(*optInfo);
+    const auto& optInfo = parseResult.value();
+    auto identifiedType = GameValidator::identifyGameType(optInfo);
     GameType resolvedType = identifiedType.value_or(GameType::Custom);
 
     if (type != GameType::Unknown && type != GameType::Custom) {
-        if (!GameValidator::validateGameInfo(*optInfo, type)) {
+        if (!GameValidator::validateGameInfo(optInfo, type)) {
             return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
                 Core::Error::ErrorCode::InvalidArgument,
                 QStringLiteral("Source 2 gameinfo at '%1' does not match expected game type '%2'")
@@ -206,7 +203,7 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
         resolvedType = type;
     }
 
-    return createResolved(resolvedType, candidateBaseDir, *optInfo);
+    return createResolved(resolvedType, candidateBaseDir, optInfo);
 }
 
 Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::inspectGameInfo(
@@ -269,20 +266,17 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::insp
     bool isGi = (actualPath.extension().compare(QStringLiteral("gi"), Qt::CaseInsensitive) == 0);
     EngineType engine = isGi ? EngineType::Source2 : EngineType::Source1;
 
-    QString error;
-    auto optInfo = GameInfoParser::parse(actualPath, engine, &error);
-    if (!optInfo.has_value()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-            Core::Error::ErrorCode::InvalidFile,
-            QStringLiteral("Failed to parse GameInfo at '%1': %2")
-                .arg(actualPath.toString(), error.isEmpty() ? QStringLiteral("syntax error") : error));
+    auto parseResult = GameInfoParser::parse(actualPath, engine);
+    if (!parseResult.isSuccess()) {
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(parseResult.error());
     }
 
-    auto identifiedType = GameValidator::identifyGameType(*optInfo);
+    const auto& optInfo = parseResult.value();
+    auto identifiedType = GameValidator::identifyGameType(optInfo);
     GameType type = identifiedType.value_or(GameType::Custom);
 
-    Core::Path::FilesystemPath baseDir = optInfo->baseDirectory();
-    return createResolved(type, baseDir, *optInfo);
+    Core::Path::FilesystemPath baseDir = optInfo.baseDirectory();
+    return createResolved(type, baseDir, optInfo);
 }
 
 Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::resolveGameDirectory(

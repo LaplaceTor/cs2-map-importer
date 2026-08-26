@@ -1,13 +1,17 @@
 #include <QTest>
+#include <memory>
+#include <exception>
 #include "Core/Error/Error.h"
 #include "Core/Error/ErrorCode.h"
 #include "Core/Error/Exception.h"
 #include "Core/Async/TaskResult.h"
 #include "Core/Process/ProcessResult.h"
+#include "Domain/Game/GameInfoParser.h"
 
 using namespace Core::Error;
 using namespace Core::Async;
 using namespace Core::Process;
+using namespace Domain::Game;
 
 class TestError : public QObject {
     Q_OBJECT
@@ -15,9 +19,11 @@ class TestError : public QObject {
 private slots:
     void testErrorCodeBasics();
     void testErrorValueObject();
-    void testExceptionLifecycle();
+    void testExceptionLifecycleAndStdExceptionCompatibility();
     void testProcessResultMapping();
     void testTaskResultStructuredError();
+    void testTaskResultValueOr();
+    void testGameInfoParserStructuredError();
     void testBackwardCompatibilityAliases();
 };
 
@@ -50,8 +56,19 @@ void TestError::testErrorValueObject()
     QCOMPARE(staticErr.message(), QStringLiteral("Invalid game type"));
 }
 
-void TestError::testExceptionLifecycle()
+void TestError::testExceptionLifecycleAndStdExceptionCompatibility()
 {
+    // Test throwing and catching by std::exception
+    bool caughtAsStdException = false;
+    try {
+        throw Exception(ErrorCode::PermissionDenied, QStringLiteral("Access denied to pak01_dir.vpk"), QStringLiteral("Read lock held"));
+    } catch (const std::exception& ex) {
+        caughtAsStdException = true;
+        QVERIFY(QString::fromUtf8(ex.what()).contains("Access denied"));
+    }
+    QVERIFY(caughtAsStdException);
+
+    // Test catching by Core::Error::Exception and inspecting structured fields
     try {
         throw Exception(ErrorCode::PermissionDenied, QStringLiteral("Access denied to pak01_dir.vpk"), QStringLiteral("Read lock held"));
     } catch (const Exception& ex) {
@@ -81,6 +98,13 @@ void TestError::testProcessResultMapping()
     QCOMPARE(rCrashed.toErrorCode(), ErrorCode::ProcessCrashed);
     QCOMPARE(rCrashed.toError().code(), ErrorCode::ProcessCrashed);
     QCOMPARE(rCrashed.toError().details(), QStringLiteral("Segmentation fault"));
+
+    ProcessResult rFailedStart{ProcessStatus::FailedToStart, -1, QString(), QString(), QStringLiteral("Failed to execute")};
+    QCOMPARE(rFailedStart.toErrorCode(), ErrorCode::ProcessFailed);
+    QCOMPARE(rFailedStart.toError().code(), ErrorCode::ProcessFailed);
+
+    ProcessResult rNonZero{ProcessStatus::NonZeroExit, 2, QString(), QStringLiteral("error"), QString()};
+    QCOMPARE(rNonZero.toErrorCode(), ErrorCode::ProcessFailed);
 }
 
 void TestError::testTaskResultStructuredError()
@@ -100,6 +124,41 @@ void TestError::testTaskResultStructuredError()
     QCOMPARE(failVoid.message(), QStringLiteral("Steam network offline"));
 }
 
+void TestError::testTaskResultValueOr()
+{
+    TaskResult<int> successRes = TaskResult<int>::success(42);
+    int fallbackVal = 100;
+    QCOMPARE(successRes.valueOr(fallbackVal), 42);
+
+    TaskResult<int> failRes = TaskResult<int>::failure(ErrorCode::Unknown, QStringLiteral("error"));
+    QCOMPARE(failRes.valueOr(fallbackVal), 100);
+}
+
+void TestError::testGameInfoParserStructuredError()
+{
+    // Non-existent file
+    auto nonExistent = GameInfoParser::parse(Core::Path::FilesystemPath(QStringLiteral("C:/non_existent_folder/gameinfo.txt")));
+    QVERIFY(nonExistent.isFailure());
+    QCOMPARE(nonExistent.errorCode(), ErrorCode::FileNotFound);
+
+    // Malformed string (unclosed brace)
+    QString malformed = QStringLiteral("GameInfo { key value");
+    auto badParse = GameInfoParser::parseFromString(malformed);
+    QVERIFY(badParse.isFailure());
+    QCOMPARE(badParse.errorCode(), ErrorCode::InvalidFile);
+
+    // Valid string
+    QString valid = QStringLiteral(
+        "\"GameInfo\"\n"
+        "{\n"
+        "    \"game\" \"TestGame\"\n"
+        "}\n"
+    );
+    auto goodParse = GameInfoParser::parseFromString(valid);
+    QVERIFY(goodParse.isSuccess());
+    QCOMPARE(goodParse->game(), QStringLiteral("TestGame"));
+}
+
 void TestError::testBackwardCompatibilityAliases()
 {
     ImportErrorCode oldCode = ImportErrorCode::InvalidFile;
@@ -115,4 +174,3 @@ void TestError::testBackwardCompatibilityAliases()
 
 QTEST_MAIN(TestError)
 #include "TestError.moc"
-
