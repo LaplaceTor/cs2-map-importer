@@ -13,7 +13,12 @@
 
 namespace Application::Environment {
 
-Core::Path::FilesystemPath SteamService::detectSteamInstallPath() {
+Core::Path::FilesystemPath SteamService::detectSteamInstallPath(
+    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) {
+    if (logCtx) {
+        logCtx->debug(QStringLiteral("Detecting Steam installation path..."));
+    }
+
 #ifdef Q_OS_WIN
     // 1. HKEY_CURRENT_USER\Software\Valve\Steam (SteamPath)
     {
@@ -22,6 +27,9 @@ Core::Path::FilesystemPath SteamService::detectSteamInstallPath() {
         if (!steamPath.isEmpty()) {
             Core::Path::FilesystemPath path(steamPath);
             if (path.exists() && path.isDirectory()) {
+                if (logCtx) {
+                    logCtx->info(QStringLiteral("Found Steam installation in HKCU registry: %1").arg(path.toString()));
+                }
                 return path;
             }
         }
@@ -33,6 +41,9 @@ Core::Path::FilesystemPath SteamService::detectSteamInstallPath() {
         if (!installPath.isEmpty()) {
             Core::Path::FilesystemPath path(installPath);
             if (path.exists() && path.isDirectory()) {
+                if (logCtx) {
+                    logCtx->info(QStringLiteral("Found Steam installation in HKLM registry: %1").arg(path.toString()));
+                }
                 return path;
             }
         }
@@ -44,6 +55,9 @@ Core::Path::FilesystemPath SteamService::detectSteamInstallPath() {
         if (!installPath.isEmpty()) {
             Core::Path::FilesystemPath path(installPath);
             if (path.exists() && path.isDirectory()) {
+                if (logCtx) {
+                    logCtx->info(QStringLiteral("Found Steam installation in WOW6432Node registry: %1").arg(path.toString()));
+                }
                 return path;
             }
         }
@@ -61,28 +75,48 @@ Core::Path::FilesystemPath SteamService::detectSteamInstallPath() {
     for (const auto& candidate : fallbacks) {
         Core::Path::FilesystemPath path(candidate);
         if (path.exists() && path.isDirectory()) {
+            if (logCtx) {
+                logCtx->info(QStringLiteral("Found Steam installation in standard fallback path: %1").arg(path.toString()));
+            }
             return path;
         }
     }
 
+    if (logCtx) {
+        logCtx->warning(QStringLiteral("No Steam installation path found on system"));
+    }
     return Core::Path::FilesystemPath();
 }
 
-std::vector<SteamLibrary> SteamService::detectLibraries(const Core::Path::FilesystemPath& steamPath) {
-    Core::Path::FilesystemPath resolvedSteamPath = steamPath.isValid() ? steamPath : detectSteamInstallPath();
+std::vector<SteamLibrary> SteamService::detectLibraries(
+    const Core::Path::FilesystemPath& steamPath,
+    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) {
+    Core::Path::FilesystemPath resolvedSteamPath = steamPath.isValid() ? steamPath : detectSteamInstallPath(logCtx);
     if (!resolvedSteamPath.isValid() || !resolvedSteamPath.isDirectory()) {
+        if (logCtx) {
+            logCtx->warning(QStringLiteral("Invalid or non-existent Steam directory: %1").arg(resolvedSteamPath.toString()));
+        }
         return {};
     }
 
     Core::Path::FilesystemPath vdfPath(QDir(resolvedSteamPath.toString()).filePath(QStringLiteral("steamapps/libraryfolders.vdf")));
     if (vdfPath.exists() && vdfPath.isFile()) {
-        auto libs = parseLibraryFolders(vdfPath);
+        if (logCtx) {
+            logCtx->debug(QStringLiteral("Loading Steam library folders configuration from: %1").arg(vdfPath.toString()));
+        }
+        auto libs = parseLibraryFolders(vdfPath, logCtx);
         if (!libs.empty()) {
+            if (logCtx) {
+                logCtx->info(QStringLiteral("Discovered %1 Steam library folder(s)").arg(libs.size()));
+            }
             return libs;
         }
     }
 
     // Fallback: If libraryfolders.vdf is not found or empty, treat the Steam install directory as the single library
+    if (logCtx) {
+        logCtx->info(QStringLiteral("libraryfolders.vdf not found or empty, falling back to Steam root: %1").arg(resolvedSteamPath.toString()));
+    }
     SteamLibrary defaultLib;
     defaultLib.path = resolvedSteamPath;
 
@@ -106,14 +140,22 @@ std::vector<SteamLibrary> SteamService::detectLibraries(const Core::Path::Filesy
     return {defaultLib};
 }
 
-std::vector<SteamLibrary> SteamService::parseLibraryFolders(const Core::Path::FilesystemPath& libraryFoldersVdfPath) {
+std::vector<SteamLibrary> SteamService::parseLibraryFolders(
+    const Core::Path::FilesystemPath& libraryFoldersVdfPath,
+    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) {
     if (!libraryFoldersVdfPath.isValid() || !libraryFoldersVdfPath.isFile()) {
+        if (logCtx) {
+            logCtx->warning(QStringLiteral("Invalid libraryfolders.vdf path: %1").arg(libraryFoldersVdfPath.toString()));
+        }
         return {};
     }
 
     Core::KeyValues::KeyValuesDocument doc;
     QString error;
     if (!doc.loadFromFile(libraryFoldersVdfPath, &error)) {
+        if (logCtx) {
+            logCtx->warning(QStringLiteral("Failed to parse libraryfolders.vdf: %1").arg(error));
+        }
         return {};
     }
 
@@ -234,20 +276,38 @@ QString SteamService::readAppName(const Core::Path::FilesystemPath& libraryPath,
     return node->property(QStringLiteral("name"));
 }
 
-bool SteamService::validateGameFiles(int appId) {
+bool SteamService::validateGameFiles(
+    int appId,
+    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) {
     if (appId <= 0) {
+        if (logCtx) {
+            logCtx->error(QStringLiteral("Invalid Steam AppID: %1").arg(appId));
+        }
         return false;
+    }
+    if (logCtx) {
+        logCtx->info(QStringLiteral("Requesting Steam game files validation for AppID: %1").arg(appId));
     }
     QUrl validateUrl(QStringLiteral("steam://validate/") + QString::number(appId));
-    return QDesktopServices::openUrl(validateUrl);
+    bool ok = QDesktopServices::openUrl(validateUrl);
+    if (!ok && logCtx) {
+        logCtx->error(QStringLiteral("Failed to open Steam validation URL for AppID: %1").arg(appId));
+    }
+    return ok;
 }
 
-bool SteamService::validateGameFiles(Domain::Game::GameType type) {
+bool SteamService::validateGameFiles(
+    Domain::Game::GameType type,
+    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) {
     const auto* def = Domain::Game::GameRegistry::findByType(type);
     if (!def || def->primaryAppId <= 0) {
+        if (logCtx) {
+            logCtx->error(QStringLiteral("No primary AppID registered for game type: %1")
+                .arg(Domain::Game::GameRegistry::gameTypeToString(type)));
+        }
         return false;
     }
-    return validateGameFiles(def->primaryAppId);
+    return validateGameFiles(def->primaryAppId, logCtx);
 }
 
 } // namespace Application::Environment

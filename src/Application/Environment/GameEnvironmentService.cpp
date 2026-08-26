@@ -3,6 +3,7 @@
 #include "Application/Environment/GameInstallation.h"
 #include "Application/Environment/GameInstallationValidator.h"
 #include "Application/Environment/SteamService.h"
+#include "Application/Async/AsyncTaskRunner.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Domain/Game/GameType.h"
 #include "Domain/Game/GameInstallationResolver.h"
@@ -178,35 +179,46 @@ void GameEnvironmentService::validateSource1FolderAsync(
     QObject* context,
     std::function<void(const std::optional<GameInstallationInfo>&)> callback)
 {
-    QPointer<QObject> contextGuard(context);
     QString normalizedPath = cleanPath(pathOrUrl);
     Domain::Game::GameType type = resolveGameTypeFromName(typeName);
+    QString effectiveName = typeName.trimmed().isEmpty() ? QStringLiteral("Source 1") : typeName.trimmed();
+    QString taskName = QStringLiteral("Validate %1").arg(effectiveName);
 
-    QThreadPool::globalInstance()->start([contextGuard, callback = std::move(callback), type, normalizedPath]() {
-        std::optional<GameInstallationInfo> result;
-        if (!normalizedPath.isEmpty()) {
+    Application::Async::AsyncTaskRunner::run<std::optional<GameInstallationInfo>>(
+        taskName,
+        context,
+        [type, normalizedPath, effectiveName](std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) -> std::optional<GameInstallationInfo> {
+            if (logCtx) {
+                logCtx->info(QStringLiteral("Starting validation for %1 at: %2").arg(effectiveName, normalizedPath));
+            }
+            if (normalizedPath.isEmpty()) {
+                if (logCtx) {
+                    logCtx->warning(QStringLiteral("Target path is empty, validation skipped"));
+                }
+                return std::nullopt;
+            }
+
             Core::Path::FilesystemPath fsPath(normalizedPath);
             std::optional<GameInstallation> inst;
             if (type == Domain::Game::GameType::Custom) {
-                inst = GameInstallationValidator::inspectGameInfo(fsPath);
+                inst = GameInstallationValidator::inspectGameInfo(fsPath, logCtx);
             } else {
-                inst = GameInstallationValidator::validateSource1(type, fsPath);
+                inst = GameInstallationValidator::validateSource1(type, fsPath, logCtx);
             }
+
             if (inst.has_value()) {
-                result = inst->toInfo();
+                if (logCtx) {
+                    logCtx->info(QStringLiteral("Validation successful: %1").arg(inst->displayName()));
+                }
+                return inst->toInfo();
             }
-        }
 
-        if (!contextGuard) {
-            return;
-        }
-
-        QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, callback = std::move(callback), res = std::move(result)]() {
-            if (contextGuard && callback) {
-                callback(res);
+            if (logCtx) {
+                logCtx->error(QStringLiteral("Validation failed for %1 at: %2").arg(effectiveName, normalizedPath));
             }
-        }, Qt::QueuedConnection);
-    });
+            return std::nullopt;
+        },
+        std::move(callback));
 }
 
 std::optional<GameInstallationInfo> GameEnvironmentService::validateSource1Folder(
@@ -238,29 +250,37 @@ void GameEnvironmentService::validateSource2FolderAsync(
     QObject* context,
     std::function<void(const std::optional<GameInstallationInfo>&)> callback)
 {
-    QPointer<QObject> contextGuard(context);
     QString normalizedPath = cleanPath(pathOrUrl);
 
-    QThreadPool::globalInstance()->start([contextGuard, callback = std::move(callback), normalizedPath]() {
-        std::optional<GameInstallationInfo> result;
-        if (!normalizedPath.isEmpty()) {
+    Application::Async::AsyncTaskRunner::run<std::optional<GameInstallationInfo>>(
+        QStringLiteral("Validate Source 2"),
+        context,
+        [normalizedPath](std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) -> std::optional<GameInstallationInfo> {
+            if (logCtx) {
+                logCtx->info(QStringLiteral("Starting Source 2 validation at: %1").arg(normalizedPath));
+            }
+            if (normalizedPath.isEmpty()) {
+                if (logCtx) {
+                    logCtx->warning(QStringLiteral("Target path is empty, validation skipped"));
+                }
+                return std::nullopt;
+            }
+
             Core::Path::FilesystemPath fsPath(normalizedPath);
-            auto inst = GameInstallationValidator::validateSource2(fsPath);
+            auto inst = GameInstallationValidator::validateSource2(fsPath, Domain::Game::GameType::Unknown, logCtx);
             if (inst.has_value()) {
-                result = inst->toInfo();
+                if (logCtx) {
+                    logCtx->info(QStringLiteral("Source 2 validation successful: %1").arg(inst->displayName()));
+                }
+                return inst->toInfo();
             }
-        }
 
-        if (!contextGuard) {
-            return;
-        }
-
-        QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, callback = std::move(callback), res = std::move(result)]() {
-            if (contextGuard && callback) {
-                callback(res);
+            if (logCtx) {
+                logCtx->error(QStringLiteral("Source 2 validation failed at: %1").arg(normalizedPath));
             }
-        }, Qt::QueuedConnection);
-    });
+            return std::nullopt;
+        },
+        std::move(callback));
 }
 
 std::optional<GameInstallationInfo> GameEnvironmentService::validateSource2Folder(

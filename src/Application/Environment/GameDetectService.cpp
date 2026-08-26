@@ -1,12 +1,10 @@
 #include "Application/Environment/GameDetectService.h"
 #include "Application/Environment/GameInstallationValidator.h"
+#include "Application/Async/AsyncTaskRunner.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Core/Path/PathUtils.h"
 #include <QDir>
 #include <QFileInfo>
-#include <QPointer>
-#include <QThreadPool>
-#include <QMetaObject>
 #include <algorithm>
 #include <functional>
 #include <utility>
@@ -18,21 +16,22 @@ void GameDetectService::detectEnvironmentAsync(
     std::function<void(const DetectionResult&)> callback,
     const Core::Path::FilesystemPath& customSteamPath)
 {
-    QPointer<QObject> contextGuard(context);
-
-    QThreadPool::globalInstance()->start([contextGuard, callback = std::move(callback), customSteamPath]() {
-        DetectionResult result = detectEnvironment(customSteamPath);
-
-        if (!contextGuard) {
-            return;
-        }
-
-        QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, callback = std::move(callback), res = std::move(result)]() {
-            if (contextGuard && callback) {
-                callback(res);
+    Application::Async::AsyncTaskRunner::run<DetectionResult>(
+        QStringLiteral("Detect Environment"),
+        context,
+        [customSteamPath](std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) -> DetectionResult {
+            if (logCtx) {
+                logCtx->info(QStringLiteral("Starting environment detection across Steam libraries..."));
             }
-        }, Qt::QueuedConnection);
-    });
+            DetectionResult result = detectEnvironment(customSteamPath, logCtx);
+            if (logCtx) {
+                logCtx->info(QStringLiteral("Environment detection completed: %1 installation(s) found, %2 warning(s)")
+                    .arg(result.installations.size())
+                    .arg(result.warnings.size()));
+            }
+            return result;
+        },
+        std::move(callback));
 }
 
 void GameDetectService::detectEnvironmentAsync(
@@ -45,12 +44,17 @@ void GameDetectService::detectEnvironmentAsync(
 }
 
 DetectionResult GameDetectService::detectEnvironment(
-    const Core::Path::FilesystemPath& customSteamPath)
+    const Core::Path::FilesystemPath& customSteamPath,
+    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {
     DetectionResult result;
-    auto libraries = SteamService::detectLibraries(customSteamPath);
+    auto libraries = SteamService::detectLibraries(customSteamPath, logCtx);
     if (libraries.empty()) {
-        result.warnings.append(QStringLiteral("No Steam libraries or installations detected."));
+        QString warnMsg = QStringLiteral("No Steam libraries or installations detected.");
+        if (logCtx) {
+            logCtx->warning(warnMsg);
+        }
+        result.warnings.append(warnMsg);
         return result;
     }
 
@@ -63,8 +67,17 @@ DetectionResult GameDetectService::detectEnvironment(
 
     for (const auto& lib : libraries) {
         if (!lib.path.isValid() || !lib.path.isDirectory()) {
-            result.warnings.append(QStringLiteral("Invalid Steam library path: %1").arg(lib.path.toString()));
+            QString warnMsg = QStringLiteral("Invalid Steam library path: %1").arg(lib.path.toString());
+            if (logCtx) {
+                logCtx->warning(warnMsg);
+            }
+            result.warnings.append(warnMsg);
             continue;
+        }
+
+        if (logCtx) {
+            logCtx->debug(QStringLiteral("Scanning Steam library at: %1 (%2 apps registered)")
+                .arg(lib.path.toString()).arg(lib.installedAppIds.size()));
         }
 
         const QString commonDir = QDir(lib.path.toString()).filePath(QStringLiteral("steamapps/common"));
@@ -85,9 +98,13 @@ DetectionResult GameDetectService::detectEnvironment(
                 // Try directory from appmanifest
                 if (!installDirName.isEmpty()) {
                     Core::Path::FilesystemPath candidateDir(QDir(commonDir).filePath(installDirName));
-                    auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, def->type)
-                                                      : GameInstallationValidator::validateSource1(def->type, candidateDir);
+                    auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, def->type, logCtx)
+                                                      : GameInstallationValidator::validateSource1(def->type, candidateDir, logCtx);
                     if (validated.has_value()) {
+                        if (logCtx) {
+                            logCtx->info(QStringLiteral("Discovered %1 at: %2")
+                                .arg(validated->displayName(), validated->baseDirectory().toString()));
+                        }
                         result.installations.push_back(validated->toInfo());
                         continue;
                     }
@@ -96,9 +113,13 @@ DetectionResult GameDetectService::detectEnvironment(
                 // Try default folder name if different
                 if (!def->defaultFolderName.isEmpty() && def->defaultFolderName != installDirName) {
                     Core::Path::FilesystemPath candidateDir(QDir(commonDir).filePath(def->defaultFolderName));
-                    auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, def->type)
-                                                      : GameInstallationValidator::validateSource1(def->type, candidateDir);
+                    auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, def->type, logCtx)
+                                                      : GameInstallationValidator::validateSource1(def->type, candidateDir, logCtx);
                     if (validated.has_value()) {
+                        if (logCtx) {
+                            logCtx->info(QStringLiteral("Discovered %1 at default folder: %2")
+                                .arg(validated->displayName(), validated->baseDirectory().toString()));
+                        }
                         result.installations.push_back(validated->toInfo());
                     }
                 }
@@ -110,17 +131,19 @@ DetectionResult GameDetectService::detectEnvironment(
 }
 
 DetectionResult GameDetectService::detectEnvironment(
-    const QString& customSteamPath)
+    const QString& customSteamPath,
+    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {
     Core::Path::FilesystemPath fsPath(customSteamPath.isEmpty() ? QString() : Core::Path::PathUtils::normalize(customSteamPath));
-    return detectEnvironment(fsPath);
+    return detectEnvironment(fsPath, logCtx);
 }
 
 std::vector<GameInstallation> GameDetectService::detectAllGames(
-    const Core::Path::FilesystemPath& customSteamPath)
+    const Core::Path::FilesystemPath& customSteamPath,
+    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {
     std::vector<GameInstallation> result;
-    auto libraries = SteamService::detectLibraries(customSteamPath);
+    auto libraries = SteamService::detectLibraries(customSteamPath, logCtx);
     if (libraries.empty()) {
         return result;
     }
@@ -153,8 +176,8 @@ std::vector<GameInstallation> GameDetectService::detectAllGames(
 
                 if (!installDirName.isEmpty()) {
                     Core::Path::FilesystemPath candidateDir(QDir(commonDir).filePath(installDirName));
-                    auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, def->type)
-                                                      : GameInstallationValidator::validateSource1(def->type, candidateDir);
+                    auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, def->type, logCtx)
+                                                      : GameInstallationValidator::validateSource1(def->type, candidateDir, logCtx);
                     if (validated.has_value()) {
                         result.push_back(std::move(*validated));
                         continue;
@@ -163,8 +186,8 @@ std::vector<GameInstallation> GameDetectService::detectAllGames(
 
                 if (!def->defaultFolderName.isEmpty() && def->defaultFolderName != installDirName) {
                     Core::Path::FilesystemPath candidateDir(QDir(commonDir).filePath(def->defaultFolderName));
-                    auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, def->type)
-                                                      : GameInstallationValidator::validateSource1(def->type, candidateDir);
+                    auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, def->type, logCtx)
+                                                      : GameInstallationValidator::validateSource1(def->type, candidateDir, logCtx);
                     if (validated.has_value()) {
                         result.push_back(std::move(*validated));
                     }
@@ -178,7 +201,8 @@ std::vector<GameInstallation> GameDetectService::detectAllGames(
 
 std::optional<GameInstallation> GameDetectService::detectGame(
     Domain::Game::GameType type,
-    const Core::Path::FilesystemPath& customSteamPath)
+    const Core::Path::FilesystemPath& customSteamPath,
+    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {
     if (type == Domain::Game::GameType::Unknown || type == Domain::Game::GameType::Custom) {
         return std::nullopt;
@@ -189,7 +213,7 @@ std::optional<GameInstallation> GameDetectService::detectGame(
         return std::nullopt;
     }
 
-    auto libraries = SteamService::detectLibraries(customSteamPath);
+    auto libraries = SteamService::detectLibraries(customSteamPath, logCtx);
     if (libraries.empty()) {
         return std::nullopt;
     }
@@ -205,8 +229,8 @@ std::optional<GameInstallation> GameDetectService::detectGame(
             QString installDirName = SteamService::readAppInstallDir(lib.path, appId);
             if (!installDirName.isEmpty()) {
                 Core::Path::FilesystemPath candidateDir(QDir(commonDir).filePath(installDirName));
-                auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, type)
-                                                  : GameInstallationValidator::validateSource1(type, candidateDir);
+                auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, type, logCtx)
+                                                  : GameInstallationValidator::validateSource1(type, candidateDir, logCtx);
                 if (validated.has_value()) {
                     return validated;
                 }
@@ -215,8 +239,8 @@ std::optional<GameInstallation> GameDetectService::detectGame(
 
         if (!def->defaultFolderName.isEmpty()) {
             Core::Path::FilesystemPath candidateDir(QDir(commonDir).filePath(def->defaultFolderName));
-            auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, type)
-                                              : GameInstallationValidator::validateSource1(type, candidateDir);
+            auto validated = def->isSource2() ? GameInstallationValidator::validateSource2(candidateDir, type, logCtx)
+                                              : GameInstallationValidator::validateSource1(type, candidateDir, logCtx);
             if (validated.has_value()) {
                 return validated;
             }

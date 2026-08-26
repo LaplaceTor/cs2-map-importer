@@ -5,7 +5,9 @@
 #include "Application/Environment/SteamService.h"
 #include "Domain/Game/GameType.h"
 #include "Core/Path/FilesystemPath.h"
+#include "Core/Logging/TaskLoggingContext.h"
 #include <functional>
+#include <memory>
 #include <optional>
 #include <vector>
 #include <QObject>
@@ -32,19 +34,23 @@ public:
 
     // Synchronous environment detection returning both installations (as UI DTOs) and any non-fatal scan warnings
     static DetectionResult detectEnvironment(
-        const Core::Path::FilesystemPath& customSteamPath = {});
+        const Core::Path::FilesystemPath& customSteamPath = {},
+        std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
 
     static DetectionResult detectEnvironment(
-        const QString& customSteamPath);
+        const QString& customSteamPath,
+        std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
 
     // Detect all supported Source and Source 2 games across all detected Steam libraries (Application internal model)
     static std::vector<GameInstallation> detectAllGames(
-        const Core::Path::FilesystemPath& customSteamPath = {});
+        const Core::Path::FilesystemPath& customSteamPath = {},
+        std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
 
     // Detect a specific game in Steam libraries (Application internal model)
     static std::optional<GameInstallation> detectGame(
         Domain::Game::GameType type,
-        const Core::Path::FilesystemPath& customSteamPath = {});
+        const Core::Path::FilesystemPath& customSteamPath = {},
+        std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
 };
 
 } // namespace Application::Environment

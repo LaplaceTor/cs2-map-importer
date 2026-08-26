@@ -174,6 +174,26 @@ target_include_directories(test_filelease PRIVATE
 
 add_test(NAME test_filelease COMMAND test_filelease)
 
+qt_add_executable(test_async_task_logging
+    TestAsyncTaskLogging.cpp
+)
+
+target_link_libraries(test_async_task_logging PRIVATE
+    cs2importer_ui
+    cs2importer_application
+    cs2importer_domain
+    cs2importer_core
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Test
+)
+
+target_include_directories(test_async_task_logging PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+add_test(NAME test_async_task_logging COMMAND test_async_task_logging)
+
 
 
 

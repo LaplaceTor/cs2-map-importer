@@ -47,42 +47,118 @@ std::optional<GameInstallation> GameInstallationValidator::createInstallationFro
 
 std::optional<GameInstallation> GameInstallationValidator::validateSource1(
     Domain::Game::GameType type,
-    const Core::Path::FilesystemPath& directory)
+    const Core::Path::FilesystemPath& directory,
+    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {
-    auto optResolved = Domain::Game::GameInstallationResolver::resolveSource1(type, directory);
-    if (!optResolved.has_value()) {
+    QString typeStr = Domain::Game::GameRegistry::gameTypeToString(type);
+    if (logCtx) {
+        logCtx->info(QStringLiteral("Validating Source 1 installation (%1) at: %2")
+            .arg(typeStr, directory.toString()));
+    }
+
+    if (!directory.isValid() || !directory.exists()) {
+        if (logCtx) {
+            logCtx->error(QStringLiteral("Target directory does not exist or is invalid: %1").arg(directory.toString()));
+        }
         return std::nullopt;
     }
-    return createInstallationFromResolved(*optResolved);
+
+    auto optResolved = Domain::Game::GameInstallationResolver::resolveSource1(type, directory);
+    if (!optResolved.has_value()) {
+        if (logCtx) {
+            logCtx->error(QStringLiteral("Source 1 gameinfo resolution failed for '%1' in: %2")
+                .arg(typeStr, directory.toString()));
+        }
+        return std::nullopt;
+    }
+
+    auto inst = createInstallationFromResolved(*optResolved);
+    if (inst.has_value() && logCtx) {
+        logCtx->info(QStringLiteral("Successfully verified Source 1 installation: %1 (%2)")
+            .arg(inst->displayName(), inst->baseDirectory().toString()));
+    }
+    return inst;
 }
 
 std::optional<GameInstallation> GameInstallationValidator::validateSource2(
     const Core::Path::FilesystemPath& directory,
-    Domain::Game::GameType type)
+    Domain::Game::GameType type,
+    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {
-    auto optResolved = Domain::Game::GameInstallationResolver::resolveSource2(directory, type);
-    if (!optResolved.has_value()) {
+    if (logCtx) {
+        logCtx->info(QStringLiteral("Validating Source 2 installation at: %1").arg(directory.toString()));
+    }
+
+    if (!directory.isValid() || !directory.exists()) {
+        if (logCtx) {
+            logCtx->error(QStringLiteral("Target directory does not exist or is invalid: %1").arg(directory.toString()));
+        }
         return std::nullopt;
     }
-    return createInstallationFromResolved(*optResolved);
+
+    auto optResolved = Domain::Game::GameInstallationResolver::resolveSource2(directory, type);
+    if (!optResolved.has_value()) {
+        if (logCtx) {
+            logCtx->error(QStringLiteral("Source 2 gameinfo.gi resolution failed in: %1").arg(directory.toString()));
+        }
+        return std::nullopt;
+    }
+
+    auto inst = createInstallationFromResolved(*optResolved);
+    if (inst.has_value() && logCtx) {
+        logCtx->info(QStringLiteral("Successfully verified Source 2 installation: %1 (%2)")
+            .arg(inst->displayName(), inst->baseDirectory().toString()));
+    }
+    return inst;
 }
 
 std::optional<GameInstallation> GameInstallationValidator::inspectGameInfo(
-    const Core::Path::FilesystemPath& gameInfoPath)
+    const Core::Path::FilesystemPath& gameInfoPath,
+    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {
-    auto optResolved = Domain::Game::GameInstallationResolver::inspectGameInfo(gameInfoPath);
-    if (!optResolved.has_value()) {
+    if (logCtx) {
+        logCtx->info(QStringLiteral("Inspecting custom GameInfo at: %1").arg(gameInfoPath.toString()));
+    }
+
+    if (!gameInfoPath.isValid() || !gameInfoPath.exists()) {
+        if (logCtx) {
+            logCtx->error(QStringLiteral("GameInfo path does not exist: %1").arg(gameInfoPath.toString()));
+        }
         return std::nullopt;
     }
-    return createInstallationFromResolved(*optResolved);
+
+    auto optResolved = Domain::Game::GameInstallationResolver::inspectGameInfo(gameInfoPath);
+    if (!optResolved.has_value()) {
+        if (logCtx) {
+            logCtx->error(QStringLiteral("Failed to parse or resolve GameInfo at: %1").arg(gameInfoPath.toString()));
+        }
+        return std::nullopt;
+    }
+
+    auto inst = createInstallationFromResolved(*optResolved);
+    if (inst.has_value() && logCtx) {
+        logCtx->info(QStringLiteral("Successfully inspected GameInfo: %1 (%2)")
+            .arg(inst->displayName(), inst->baseDirectory().toString()));
+    }
+    return inst;
 }
 
 std::optional<GameInstallation> GameInstallationValidator::validateGameDirectory(
     Domain::Game::GameType type,
-    const Core::Path::FilesystemPath& directory)
+    const Core::Path::FilesystemPath& directory,
+    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {
+    if (logCtx) {
+        logCtx->info(QStringLiteral("Validating game directory for type '%1' at: %2")
+            .arg(Domain::Game::GameRegistry::gameTypeToString(type), directory.toString()));
+    }
+
     auto optResolved = Domain::Game::GameInstallationResolver::resolveGameDirectory(type, directory);
     if (!optResolved.has_value()) {
+        if (logCtx) {
+            logCtx->error(QStringLiteral("Validation failed for '%1' at: %2")
+                .arg(Domain::Game::GameRegistry::gameTypeToString(type), directory.toString()));
+        }
         return std::nullopt;
     }
     return createInstallationFromResolved(*optResolved);
