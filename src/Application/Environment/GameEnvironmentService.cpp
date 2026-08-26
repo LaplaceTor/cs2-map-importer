@@ -217,7 +217,7 @@ void GameEnvironmentService::validateSource1FolderAsync(
             if (logCtx) {
                 logCtx->error(QStringLiteral("Validation failed for %1 at: %2: %3").arg(effectiveName, normalizedPath, instResult.message()));
             }
-            return Core::Async::TaskResult<GameInstallationInfo>::failure(instResult.message());
+            return Core::Async::TaskResult<GameInstallationInfo>::failure(instResult.error());
         },
         std::move(callback));
 }
@@ -228,7 +228,7 @@ Core::Async::TaskResult<GameInstallationInfo> GameEnvironmentService::validateSo
 {
     QString normalizedPath = cleanPath(pathOrUrl);
     if (normalizedPath.isEmpty()) {
-        return Core::Async::TaskResult<GameInstallationInfo>::failure(QStringLiteral("Target path is empty"));
+        return Core::Async::TaskResult<GameInstallationInfo>::failure(Core::Error::ErrorCode::InvalidArgument, QStringLiteral("Target path is empty"));
     }
 
     Core::Path::FilesystemPath fsPath(normalizedPath);
@@ -241,7 +241,7 @@ Core::Async::TaskResult<GameInstallationInfo> GameEnvironmentService::validateSo
     }
 
     if (!instResult.isSuccess()) {
-        return Core::Async::TaskResult<GameInstallationInfo>::failure(instResult.message());
+        return Core::Async::TaskResult<GameInstallationInfo>::failure(instResult.error());
     }
     return Core::Async::TaskResult<GameInstallationInfo>::success(instResult.value().toInfo());
 }
@@ -280,7 +280,7 @@ void GameEnvironmentService::validateSource2FolderAsync(
             if (logCtx) {
                 logCtx->error(QStringLiteral("Validation failed for Source 2 at: %1: %2").arg(normalizedPath, instResult.message()));
             }
-            return Core::Async::TaskResult<GameInstallationInfo>::failure(instResult.message());
+            return Core::Async::TaskResult<GameInstallationInfo>::failure(instResult.error());
         },
         std::move(callback));
 }
@@ -290,13 +290,13 @@ Core::Async::TaskResult<GameInstallationInfo> GameEnvironmentService::validateSo
 {
     QString normalizedPath = cleanPath(pathOrUrl);
     if (normalizedPath.isEmpty()) {
-        return Core::Async::TaskResult<GameInstallationInfo>::failure(QStringLiteral("Target path is empty"));
+        return Core::Async::TaskResult<GameInstallationInfo>::failure(Core::Error::ErrorCode::InvalidArgument, QStringLiteral("Target path is empty"));
     }
 
     Core::Path::FilesystemPath fsPath(normalizedPath);
     auto instResult = GameInstallationValidator::validateSource2(fsPath);
     if (!instResult.isSuccess()) {
-        return Core::Async::TaskResult<GameInstallationInfo>::failure(instResult.message());
+        return Core::Async::TaskResult<GameInstallationInfo>::failure(instResult.error());
     }
     return Core::Async::TaskResult<GameInstallationInfo>::success(instResult.value().toInfo());
 }

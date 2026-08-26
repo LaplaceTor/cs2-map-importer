@@ -12,10 +12,15 @@
 #include "Core/Async/TaskResult.h"
 #include "UI/ViewModels/LogViewModel.h"
 #include "UI/ViewModels/LogTaskModel.h"
+#include "Core/Error/Error.h"
+#include "Core/Error/ErrorCode.h"
+#include "Core/Error/Exception.h"
+#include "Core/Process/ProcessResult.h"
 #include "Application/Async/AsyncTaskRunner.h"
 
 using namespace Core::Logging;
 using namespace Core::Async;
+using namespace Core::Error;
 using namespace UI::ViewModels;
 using namespace Application::Async;
 
@@ -39,6 +44,7 @@ private slots:
     // AsyncTaskRunner async lifecycle & UI context delivery tests
     void testAsyncTaskRunnerNormal();
     void testAsyncTaskRunnerExceptionSafety();
+    void testStructuredExceptionHandling();
     void testContextDestroyedSafety();
     void testCopyAllFormat();
     void testExpandCollapseState();
@@ -49,6 +55,8 @@ private slots:
 
     // TaskResult outcome mapping tests
     void testTaskResultOutcomes();
+    void testStructuredTaskResultPayload();
+    void testProcessResultToErrorMapping();
     void testInvalidParentTaskRejection();
     void testLoggedErrorForcesTaskFailure();
     void testLoggedWarningPreservesTaskCompleted();
@@ -282,6 +290,45 @@ void TestAsyncTaskLogging::testAsyncTaskRunnerExceptionSafety()
 
     QTRY_VERIFY(callbackInvoked);
     QVERIFY(resultFailed);
+
+    QTRY_COMPARE(logVm->taskCount(), 1);
+    QModelIndex idx = logVm->index(0, 0);
+    QCOMPARE(logVm->data(idx, LogViewModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testStructuredExceptionHandling()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    bool callbackInvoked = false;
+    TaskResult<int> capturedResult;
+
+    AsyncTaskRunner::runTask<int>(
+        QStringLiteral("Structured Faulty Task"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->info("About to throw structured Exception");
+            }
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::ProcessTimeout,
+                QStringLiteral("Compiler execution timed out"),
+                QStringLiteral("resourcecompiler.exe --compile map.vmap"));
+        },
+        [&](const TaskResult<int>& res) {
+            callbackInvoked = true;
+            capturedResult = res;
+        });
+
+    QTRY_VERIFY(callbackInvoked);
+    QVERIFY(capturedResult.isFailure());
+    QCOMPARE(capturedResult.errorCode(), Core::Error::ErrorCode::ProcessTimeout);
+    QCOMPARE(capturedResult.error().code(), Core::Error::ErrorCode::ProcessTimeout);
+    QCOMPARE(capturedResult.message(), QStringLiteral("Compiler execution timed out"));
+    QCOMPARE(capturedResult.details(), QStringLiteral("resourcecompiler.exe --compile map.vmap"));
 
     QTRY_COMPARE(logVm->taskCount(), 1);
     QModelIndex idx = logVm->index(0, 0);
@@ -684,6 +731,61 @@ void TestAsyncTaskLogging::testTaskResultOutcomes()
     QTRY_COMPARE(logVm->data(logVm->index(3, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("SKIPPED"));
 
     logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testStructuredTaskResultPayload()
+{
+    // 1. TaskResult<T> with structured Error
+    Error err(ErrorCode::FileNotFound, QStringLiteral("materials/models/player/custom.vmt"), QStringLiteral("File lease missing"));
+    auto res = TaskResult<int>::failure(err, 12);
+    QVERIFY(res.isFailure());
+    QCOMPARE(res.errorCode(), ErrorCode::FileNotFound);
+    QCOMPARE(res.error().code(), ErrorCode::FileNotFound);
+    QCOMPARE(res.message(), QStringLiteral("materials/models/player/custom.vmt"));
+    QCOMPARE(res.details(), QStringLiteral("File lease missing"));
+    QVERIFY(res.hasValue());
+    QCOMPARE(res.value(), 12);
+
+    // 2. TaskResult<void> with ErrorCode and string
+    auto voidRes = TaskResult<void>::failure(ErrorCode::DirectoryNotFound, QStringLiteral("csgo/maps directory missing"));
+    QVERIFY(voidRes.isFailure());
+    QCOMPARE(voidRes.errorCode(), ErrorCode::DirectoryNotFound);
+    QCOMPARE(voidRes.message(), QStringLiteral("csgo/maps directory missing"));
+}
+
+void TestAsyncTaskLogging::testProcessResultToErrorMapping()
+{
+    using namespace Core::Process;
+
+    ProcessResult rSuccess;
+    rSuccess.status = ProcessStatus::Success;
+    QCOMPARE(rSuccess.toErrorCode(), ErrorCode::Success);
+    QVERIFY(rSuccess.toError().isSuccess());
+
+    ProcessResult rTimeout;
+    rTimeout.status = ProcessStatus::TimedOut;
+    rTimeout.errorMessage = QStringLiteral("Timed out after 30s");
+    QCOMPARE(rTimeout.toErrorCode(), ErrorCode::ProcessTimeout);
+    QCOMPARE(rTimeout.toError().code(), ErrorCode::ProcessTimeout);
+    QCOMPARE(rTimeout.toError().message(), QStringLiteral("Timed out after 30s"));
+
+    ProcessResult rCrash;
+    rCrash.status = ProcessStatus::Crashed;
+    rCrash.exitCode = -1073741819; // 0xC0000005
+    QCOMPARE(rCrash.toErrorCode(), ErrorCode::ProcessCrashed);
+    QCOMPARE(rCrash.toError().code(), ErrorCode::ProcessCrashed);
+
+    ProcessResult rNotFound;
+    rNotFound.status = ProcessStatus::FailedToStart;
+    QCOMPARE(rNotFound.toErrorCode(), ErrorCode::ProcessNotFound);
+
+    ProcessResult rExitCode;
+    rExitCode.status = ProcessStatus::NonZeroExit;
+    rExitCode.exitCode = 1;
+    rExitCode.stdErr = QStringLiteral("VMF parsing error at line 42");
+    auto exitErr = rExitCode.toError();
+    QCOMPARE(exitErr.code(), ErrorCode::ProcessFailed);
+    QCOMPARE(exitErr.details(), QStringLiteral("VMF parsing error at line 42"));
 }
 
 void TestAsyncTaskLogging::testInvalidParentTaskRejection()

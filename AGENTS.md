@@ -709,7 +709,7 @@ const auto result =
 
 ### `Core::Error`
 
-`ImportErrorCode` and `ImportException` are generic import/infrastructure error primitives. Prefer them over legacy application exceptions in migrated code.
+`Core::Error::ErrorCode`, `Core::Error::Error`, and `Core::Error::Exception` are generic infrastructure and application error primitives. `ProcessResult` converts cleanly to `Core::Error::Error` via `.toError()`. `TaskResult<T>` natively carries `Core::Error::Error`. `ImportErrorCode` and `ImportException` are retained as backward compatibility aliases. Prefer structured error codes and `TaskResult<T>` over throwing exceptions or dropping error reasons via `std::optional` in migrated code.
 
 ---
 

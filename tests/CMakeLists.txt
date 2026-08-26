@@ -196,6 +196,22 @@ target_include_directories(test_async_task_logging PRIVATE
 
 add_test(NAME test_async_task_logging COMMAND test_async_task_logging)
 
+qt_add_executable(test_error
+    TestError.cpp
+)
+
+target_link_libraries(test_error PRIVATE
+    cs2importer_core
+    Qt6::Core
+    Qt6::Test
+)
+
+target_include_directories(test_error PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+add_test(NAME test_error COMMAND test_error)
+
 
 
 

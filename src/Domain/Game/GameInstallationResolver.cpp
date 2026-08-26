@@ -67,7 +67,7 @@ Core::Path::FilesystemPath ResolvedGameInstallation::addonContentDirectory(const
     return Core::Path::FilesystemPath(QDir(baseDirectory.toString()).filePath(rel));
 }
 
-std::optional<ResolvedGameInstallation> GameInstallationResolver::createResolved(
+Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::createResolved(
     GameType type,
     const Core::Path::FilesystemPath& baseDir,
     const GameInfo& info)
@@ -85,31 +85,35 @@ std::optional<ResolvedGameInstallation> GameInstallationResolver::createResolved
     res.gameInfo = info;
     res.isValid = true;
 
-    return res;
+    return Core::Async::TaskResult<ResolvedGameInstallation>::success(std::move(res));
 }
 
-std::optional<ResolvedGameInstallation> GameInstallationResolver::resolveSource1(
+Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::resolveSource1(
     GameType type,
     const Core::Path::FilesystemPath& directory)
 {
-    if (!directory.isValid()) {
-        return std::nullopt;
+    if (!directory.isValid() || !directory.exists()) {
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+            Core::Error::ErrorCode::DirectoryNotFound,
+            QStringLiteral("Source 1 directory does not exist or is invalid: %1").arg(directory.toString()));
     }
 
-    auto optInfo = GameValidator::validateDirectory(directory, type);
-    if (!optInfo.has_value()) {
-        return std::nullopt;
+    auto infoResult = GameValidator::validateDirectory(directory, type);
+    if (!infoResult.isSuccess()) {
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(infoResult.error());
     }
 
-    return createResolved(type, directory, *optInfo);
+    return createResolved(type, directory, infoResult.value());
 }
 
-std::optional<ResolvedGameInstallation> GameInstallationResolver::resolveSource2(
+Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::resolveSource2(
     const Core::Path::FilesystemPath& directory,
     GameType type)
 {
-    if (!directory.isValid()) {
-        return std::nullopt;
+    if (!directory.isValid() || !directory.exists()) {
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+            Core::Error::ErrorCode::DirectoryNotFound,
+            QStringLiteral("Source 2 directory does not exist or is invalid: %1").arg(directory.toString()));
     }
 
     const auto* def = GameRegistry::findByType(type);
@@ -126,7 +130,9 @@ std::optional<ResolvedGameInstallation> GameInstallationResolver::resolveSource2
                 candidateBaseDir = directory.parentPath();
             }
         } else {
-            return std::nullopt;
+            return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+                Core::Error::ErrorCode::InvalidFile,
+                QStringLiteral("Target file is not a Source 2 gameinfo.gi: %1").arg(directory.toString()));
         }
     } else if (directory.isDirectory()) {
         // 1. If a specific Source 2 definition was given, check its expected modSubdirectory and gameInfoFileName
@@ -173,13 +179,18 @@ std::optional<ResolvedGameInstallation> GameInstallationResolver::resolveSource2
     }
 
     if (!giPath.exists() || !giPath.isFile()) {
-        return std::nullopt;
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+            Core::Error::ErrorCode::FileNotFound,
+            QStringLiteral("Could not locate gameinfo.gi in Source 2 structure at: %1").arg(directory.toString()));
     }
 
     QString error;
     auto optInfo = GameInfoParser::parse(giPath, EngineType::Source2, &error);
     if (!optInfo.has_value()) {
-        return std::nullopt;
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+            Core::Error::ErrorCode::InvalidFile,
+            QStringLiteral("Failed to parse Source 2 gameinfo.gi at '%1': %2")
+                .arg(giPath.toString(), error.isEmpty() ? QStringLiteral("syntax error") : error));
     }
 
     auto identifiedType = GameValidator::identifyGameType(*optInfo);
@@ -187,7 +198,10 @@ std::optional<ResolvedGameInstallation> GameInstallationResolver::resolveSource2
 
     if (type != GameType::Unknown && type != GameType::Custom) {
         if (!GameValidator::validateGameInfo(*optInfo, type)) {
-            return std::nullopt;
+            return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+                Core::Error::ErrorCode::InvalidArgument,
+                QStringLiteral("Source 2 gameinfo at '%1' does not match expected game type '%2'")
+                    .arg(giPath.toString(), GameRegistry::gameTypeToString(type)));
         }
         resolvedType = type;
     }
@@ -195,11 +209,13 @@ std::optional<ResolvedGameInstallation> GameInstallationResolver::resolveSource2
     return createResolved(resolvedType, candidateBaseDir, *optInfo);
 }
 
-std::optional<ResolvedGameInstallation> GameInstallationResolver::inspectGameInfo(
+Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::inspectGameInfo(
     const Core::Path::FilesystemPath& path)
 {
-    if (!path.isValid()) {
-        return std::nullopt;
+    if (!path.isValid() || !path.exists()) {
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QStringLiteral("GameInfo path does not exist or is invalid: %1").arg(path.toString()));
     }
 
     Core::Path::FilesystemPath actualPath = path;
@@ -237,13 +253,17 @@ std::optional<ResolvedGameInstallation> GameInstallationResolver::inspectGameInf
                 }
             }
             if (!actualPath.isFile()) {
-                return std::nullopt;
+                return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+                    Core::Error::ErrorCode::FileNotFound,
+                    QStringLiteral("No gameinfo.txt or gameinfo.gi found in directory: %1").arg(path.toString()));
             }
         }
     }
 
     if (!actualPath.exists() || !actualPath.isFile()) {
-        return std::nullopt;
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+            Core::Error::ErrorCode::FileNotFound,
+            QStringLiteral("GameInfo file not found at: %1").arg(actualPath.toString()));
     }
 
     bool isGi = (actualPath.extension().compare(QStringLiteral("gi"), Qt::CaseInsensitive) == 0);
@@ -252,7 +272,10 @@ std::optional<ResolvedGameInstallation> GameInstallationResolver::inspectGameInf
     QString error;
     auto optInfo = GameInfoParser::parse(actualPath, engine, &error);
     if (!optInfo.has_value()) {
-        return std::nullopt;
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+            Core::Error::ErrorCode::InvalidFile,
+            QStringLiteral("Failed to parse GameInfo at '%1': %2")
+                .arg(actualPath.toString(), error.isEmpty() ? QStringLiteral("syntax error") : error));
     }
 
     auto identifiedType = GameValidator::identifyGameType(*optInfo);
@@ -262,12 +285,14 @@ std::optional<ResolvedGameInstallation> GameInstallationResolver::inspectGameInf
     return createResolved(type, baseDir, *optInfo);
 }
 
-std::optional<ResolvedGameInstallation> GameInstallationResolver::resolveGameDirectory(
+Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::resolveGameDirectory(
     GameType type,
     const Core::Path::FilesystemPath& directory)
 {
-    if (!directory.isValid()) {
-        return std::nullopt;
+    if (!directory.isValid() || !directory.exists()) {
+        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+            Core::Error::ErrorCode::DirectoryNotFound,
+            QStringLiteral("Directory does not exist or is invalid: %1").arg(directory.toString()));
     }
 
     const auto* def = GameRegistry::findByType(type);
@@ -284,27 +309,30 @@ std::optional<ResolvedGameInstallation> GameInstallationResolver::resolveGameDir
 
 QStringList GameInstallationResolver::listSource2Addons(const Core::Path::FilesystemPath& s2BasePath)
 {
+    if (!s2BasePath.isValid() || !s2BasePath.exists()) {
+        return QStringList();
+    }
+
     QStringList addons;
-    if (!s2BasePath.isValid() || !s2BasePath.exists() || !s2BasePath.isDirectory()) {
+    QDir gameDir(QDir(s2BasePath.toString()).filePath(QStringLiteral("game")));
+    if (!gameDir.exists()) {
         return addons;
     }
 
-    QDir gameDir(QDir(s2BasePath.toString()).filePath(QStringLiteral("game")));
-    if (gameDir.exists()) {
-        const QStringList subdirs = gameDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-        for (const auto& sub : subdirs) {
-            if (sub.endsWith(QStringLiteral("_addons"), Qt::CaseInsensitive)) {
-                QDir addonsDir(gameDir.filePath(sub));
-                const QStringList addonEntries = addonsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-                for (const auto& entry : addonEntries) {
-                    if (!addons.contains(entry)) {
-                        addons.append(entry);
-                    }
+    const auto subdirs = gameDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const auto& subdir : subdirs) {
+        if (subdir.endsWith(QStringLiteral("_addons"), Qt::CaseInsensitive)) {
+            QDir addonDir(gameDir.filePath(subdir));
+            const auto specificAddons = addonDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+            for (const auto& addon : specificAddons) {
+                if (!addons.contains(addon)) {
+                    addons.append(addon);
                 }
             }
         }
     }
 
+    std::sort(addons.begin(), addons.end());
     return addons;
 }
 

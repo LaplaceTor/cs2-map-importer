@@ -61,20 +61,18 @@ Core::Async::TaskResult<GameInstallation> GameInstallationValidator::validateSou
         if (logCtx) {
             logCtx->debug(errMsg);
         }
-        return Core::Async::TaskResult<GameInstallation>::failure(errMsg);
+        return Core::Async::TaskResult<GameInstallation>::failure(Core::Error::ErrorCode::DirectoryNotFound, errMsg);
     }
 
-    auto optResolved = Domain::Game::GameInstallationResolver::resolveSource1(type, directory);
-    if (!optResolved.has_value()) {
-        QString errMsg = QStringLiteral("Source 1 gameinfo resolution failed for '%1' in: %2")
-            .arg(typeStr, directory.toString());
+    auto res = Domain::Game::GameInstallationResolver::resolveSource1(type, directory);
+    if (!res.isSuccess()) {
         if (logCtx) {
-            logCtx->debug(errMsg);
+            logCtx->debug(res.message());
         }
-        return Core::Async::TaskResult<GameInstallation>::failure(errMsg);
+        return Core::Async::TaskResult<GameInstallation>::failure(res.error());
     }
 
-    auto inst = createInstallationFromResolved(*optResolved);
+    auto inst = createInstallationFromResolved(res.value());
     if (inst.has_value()) {
         if (logCtx) {
             logCtx->debug(QStringLiteral("Verified Source 1 gameinfo at: %1").arg(inst->gameInfoPath().toString()));
@@ -86,7 +84,7 @@ Core::Async::TaskResult<GameInstallation> GameInstallationValidator::validateSou
     if (logCtx) {
         logCtx->debug(errMsg);
     }
-    return Core::Async::TaskResult<GameInstallation>::failure(errMsg);
+    return Core::Async::TaskResult<GameInstallation>::failure(Core::Error::ErrorCode::OperationFailed, errMsg);
 }
 
 Core::Async::TaskResult<GameInstallation> GameInstallationValidator::validateSource2(
@@ -103,19 +101,18 @@ Core::Async::TaskResult<GameInstallation> GameInstallationValidator::validateSou
         if (logCtx) {
             logCtx->debug(errMsg);
         }
-        return Core::Async::TaskResult<GameInstallation>::failure(errMsg);
+        return Core::Async::TaskResult<GameInstallation>::failure(Core::Error::ErrorCode::DirectoryNotFound, errMsg);
     }
 
-    auto optResolved = Domain::Game::GameInstallationResolver::resolveSource2(directory, type);
-    if (!optResolved.has_value()) {
-        QString errMsg = QStringLiteral("Source 2 gameinfo.gi resolution failed in: %1").arg(directory.toString());
+    auto res = Domain::Game::GameInstallationResolver::resolveSource2(directory, type);
+    if (!res.isSuccess()) {
         if (logCtx) {
-            logCtx->debug(errMsg);
+            logCtx->debug(res.message());
         }
-        return Core::Async::TaskResult<GameInstallation>::failure(errMsg);
+        return Core::Async::TaskResult<GameInstallation>::failure(res.error());
     }
 
-    auto inst = createInstallationFromResolved(*optResolved);
+    auto inst = createInstallationFromResolved(res.value());
     if (inst.has_value()) {
         if (logCtx) {
             logCtx->debug(QStringLiteral("Verified Source 2 gameinfo.gi at: %1").arg(inst->gameInfoPath().toString()));
@@ -127,7 +124,7 @@ Core::Async::TaskResult<GameInstallation> GameInstallationValidator::validateSou
     if (logCtx) {
         logCtx->debug(errMsg);
     }
-    return Core::Async::TaskResult<GameInstallation>::failure(errMsg);
+    return Core::Async::TaskResult<GameInstallation>::failure(Core::Error::ErrorCode::OperationFailed, errMsg);
 }
 
 Core::Async::TaskResult<GameInstallation> GameInstallationValidator::inspectGameInfo(
@@ -143,19 +140,18 @@ Core::Async::TaskResult<GameInstallation> GameInstallationValidator::inspectGame
         if (logCtx) {
             logCtx->debug(errMsg);
         }
-        return Core::Async::TaskResult<GameInstallation>::failure(errMsg);
+        return Core::Async::TaskResult<GameInstallation>::failure(Core::Error::ErrorCode::FileNotFound, errMsg);
     }
 
-    auto optResolved = Domain::Game::GameInstallationResolver::inspectGameInfo(gameInfoPath);
-    if (!optResolved.has_value()) {
-        QString errMsg = QStringLiteral("Failed to parse or resolve GameInfo at: %1").arg(gameInfoPath.toString());
+    auto res = Domain::Game::GameInstallationResolver::inspectGameInfo(gameInfoPath);
+    if (!res.isSuccess()) {
         if (logCtx) {
-            logCtx->debug(errMsg);
+            logCtx->debug(res.message());
         }
-        return Core::Async::TaskResult<GameInstallation>::failure(errMsg);
+        return Core::Async::TaskResult<GameInstallation>::failure(res.error());
     }
 
-    auto inst = createInstallationFromResolved(*optResolved);
+    auto inst = createInstallationFromResolved(res.value());
     if (inst.has_value()) {
         if (logCtx) {
             logCtx->debug(QStringLiteral("Parsed custom GameInfo title: %1").arg(inst->displayName()));
@@ -167,7 +163,7 @@ Core::Async::TaskResult<GameInstallation> GameInstallationValidator::inspectGame
     if (logCtx) {
         logCtx->debug(errMsg);
     }
-    return Core::Async::TaskResult<GameInstallation>::failure(errMsg);
+    return Core::Async::TaskResult<GameInstallation>::failure(Core::Error::ErrorCode::OperationFailed, errMsg);
 }
 
 Core::Async::TaskResult<GameInstallation> GameInstallationValidator::validateGameDirectory(
@@ -180,23 +176,21 @@ Core::Async::TaskResult<GameInstallation> GameInstallationValidator::validateGam
             .arg(Domain::Game::GameRegistry::gameTypeToString(type), directory.toString()));
     }
 
-    auto optResolved = Domain::Game::GameInstallationResolver::resolveGameDirectory(type, directory);
-    if (!optResolved.has_value()) {
-        QString errMsg = QStringLiteral("Resolution failed for '%1' at: %2")
-            .arg(Domain::Game::GameRegistry::gameTypeToString(type), directory.toString());
+    auto res = Domain::Game::GameInstallationResolver::resolveGameDirectory(type, directory);
+    if (!res.isSuccess()) {
         if (logCtx) {
-            logCtx->debug(errMsg);
+            logCtx->debug(res.message());
         }
-        return Core::Async::TaskResult<GameInstallation>::failure(errMsg);
+        return Core::Async::TaskResult<GameInstallation>::failure(res.error());
     }
 
-    auto inst = createInstallationFromResolved(*optResolved);
+    auto inst = createInstallationFromResolved(res.value());
     if (inst.has_value()) {
         return Core::Async::TaskResult<GameInstallation>::success(std::move(*inst));
     }
 
     QString errMsg = QStringLiteral("Failed to create installation from resolved game directory: %1").arg(directory.toString());
-    return Core::Async::TaskResult<GameInstallation>::failure(errMsg);
+    return Core::Async::TaskResult<GameInstallation>::failure(Core::Error::ErrorCode::OperationFailed, errMsg);
 }
 
 } // namespace Application::Environment

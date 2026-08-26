@@ -15,6 +15,9 @@
 #include "Core/Logging/TaskLoggingContext.h"
 #include "Core/Logging/TaskState.h"
 #include "Core/Async/TaskResult.h"
+#include "Core/Error/Error.h"
+#include "Core/Error/ErrorCode.h"
+#include "Core/Error/Exception.h"
 
 namespace Application::Async {
 
@@ -174,25 +177,32 @@ private:
 
                 try {
                     result = worker(taskContext);
+                } catch (const Core::Error::Exception& ex) {
+                    threwException = true;
+                    if (taskContext) {
+                        taskContext->error(QStringLiteral("Task exception [%1]: %2")
+                            .arg(static_cast<int>(ex.errorCode()))
+                            .arg(ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message()));
+                    }
+                    result = TaskResult<T>::failure(ex.error());
                 } catch (const std::exception& ex) {
                     threwException = true;
                     if (taskContext) {
                         taskContext->error(QStringLiteral("Unhandled exception in task: %1").arg(QString::fromUtf8(ex.what())));
                     }
-                    result = TaskResult<T>::failure(QStringLiteral("Unhandled exception: %1").arg(QString::fromUtf8(ex.what())));
+                    result = TaskResult<T>::failure(Core::Error::ErrorCode::Unknown, QString::fromUtf8(ex.what()));
                 } catch (...) {
                     threwException = true;
                     if (taskContext) {
                         taskContext->error(QStringLiteral("Unhandled unknown exception in task"));
                     }
-                    result = TaskResult<T>::failure(QStringLiteral("Unhandled unknown exception"));
+                    result = TaskResult<T>::failure(Core::Error::ErrorCode::Unknown, QStringLiteral("Unhandled unknown exception"));
                 }
 
                 if (taskContext) {
                     if (threwException) {
                         Core::Logging::LogManager::instance().forceTaskState(
-                            taskId, Core::Logging::TaskState::Failed, QStringLiteral("Task failed with uncaught exception"));
-                        result = TaskResult<T>::failure(QStringLiteral("Task failed with uncaught exception"));
+                            taskId, Core::Logging::TaskState::Failed, result.message().isEmpty() ? QStringLiteral("Task failed with uncaught exception") : result.message());
                     } else {
                         const auto currentState = taskContext->state();
                         const bool hasErrors = taskContext->hasErrors();
@@ -317,6 +327,13 @@ private:
 
                 try {
                     worker(taskContext);
+                } catch (const Core::Error::Exception& ex) {
+                    threwException = true;
+                    if (taskContext) {
+                        taskContext->error(QStringLiteral("Task exception [%1]: %2")
+                            .arg(static_cast<int>(ex.errorCode()))
+                            .arg(ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message()));
+                    }
                 } catch (const std::exception& ex) {
                     threwException = true;
                     if (taskContext) {

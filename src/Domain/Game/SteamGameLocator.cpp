@@ -65,16 +65,16 @@ std::vector<ResolvedGameInstallation> SteamGameLocator::resolveGamesInLibrary(
                     continue;
                 }
 
-                std::optional<ResolvedGameInstallation> resolved;
+                Core::Async::TaskResult<ResolvedGameInstallation> resolved;
                 if (def->isSource2()) {
                     resolved = GameInstallationResolver::resolveSource2(candidateDir, def->type);
                 } else {
                     resolved = GameInstallationResolver::resolveSource1(def->type, candidateDir);
                 }
 
-                if (resolved.has_value() && resolved->isValid) {
+                if (resolved.isSuccess() && resolved->isValid) {
                     resolvedTypes.insert(def->type);
-                    results.push_back(std::move(*resolved));
+                    results.push_back(std::move(resolved.value()));
                     break;
                 }
             }
@@ -107,15 +107,15 @@ std::optional<ResolvedGameInstallation> SteamGameLocator::resolveGameInLibrary(
                 continue;
             }
 
-            std::optional<ResolvedGameInstallation> resolved;
+            Core::Async::TaskResult<ResolvedGameInstallation> resolved;
             if (def->isSource2()) {
                 resolved = GameInstallationResolver::resolveSource2(candidateDir, type);
             } else {
                 resolved = GameInstallationResolver::resolveSource1(type, candidateDir);
             }
 
-            if (resolved.has_value() && resolved->isValid) {
-                return resolved;
+            if (resolved.isSuccess() && resolved->isValid) {
+                return resolved.value();
             }
         }
     }

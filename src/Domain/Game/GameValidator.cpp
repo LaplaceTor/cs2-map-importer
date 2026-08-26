@@ -235,12 +235,14 @@ Core::Path::FilesystemPath GameValidator::getExpectedGameInfoPath(
     return Core::Path::FilesystemPath(QDir(baseStr).filePath(relativePath));
 }
 
-std::optional<GameInfo> GameValidator::validateDirectory(
+Core::Async::TaskResult<GameInfo> GameValidator::validateDirectory(
     const Core::Path::FilesystemPath& gameDir,
     GameType type)
 {
-    if (!gameDir.isValid()) {
-        return std::nullopt;
+    if (!gameDir.isValid() || !gameDir.exists()) {
+        return Core::Async::TaskResult<GameInfo>::failure(
+            Core::Error::ErrorCode::DirectoryNotFound,
+            QStringLiteral("Game directory does not exist or is invalid: %1").arg(gameDir.toString()));
     }
 
     Core::Path::FilesystemPath targetGameInfoPath;
@@ -250,11 +252,15 @@ std::optional<GameInfo> GameValidator::validateDirectory(
     } else if (gameDir.isDirectory()) {
         targetGameInfoPath = getExpectedGameInfoPath(gameDir, type);
     } else {
-        return std::nullopt;
+        return Core::Async::TaskResult<GameInfo>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QStringLiteral("Path is neither a directory nor a valid custom gameinfo file: %1").arg(gameDir.toString()));
     }
 
     if (!targetGameInfoPath.exists() || !targetGameInfoPath.isFile()) {
-        return std::nullopt;
+        return Core::Async::TaskResult<GameInfo>::failure(
+            Core::Error::ErrorCode::FileNotFound,
+            QStringLiteral("GameInfo file was not found at: %1").arg(targetGameInfoPath.toString()));
     }
 
     const auto* def = GameRegistry::findByType(type);
@@ -266,14 +272,20 @@ std::optional<GameInfo> GameValidator::validateDirectory(
     QString error;
     auto optInfo = GameInfoParser::parse(targetGameInfoPath, engine, &error);
     if (!optInfo.has_value()) {
-        return std::nullopt;
+        return Core::Async::TaskResult<GameInfo>::failure(
+            Core::Error::ErrorCode::InvalidFile,
+            QStringLiteral("Failed to parse GameInfo at '%1': %2")
+                .arg(targetGameInfoPath.toString(), error.isEmpty() ? QStringLiteral("syntax error") : error));
     }
 
     if (validateGameInfo(*optInfo, type)) {
-        return optInfo;
+        return Core::Async::TaskResult<GameInfo>::success(std::move(*optInfo));
     }
 
-    return std::nullopt;
+    return Core::Async::TaskResult<GameInfo>::failure(
+        Core::Error::ErrorCode::InvalidArgument,
+        QStringLiteral("GameInfo at '%1' does not match expected game type '%2'")
+            .arg(targetGameInfoPath.toString(), GameRegistry::gameTypeToString(type)));
 }
 
 } // namespace Domain::Game
