@@ -131,16 +131,23 @@ Core::Async::TaskResult<GameInfo> GameInfoParser::parse(
     const Core::Path::FilesystemPath& gameInfoPath,
     EngineType engine)
 {
-    if (!gameInfoPath.isValid() || !gameInfoPath.exists()) {
-        QString msg = QStringLiteral("GameInfo file does not exist or is invalid: %1").arg(gameInfoPath.toString());
-        return Core::Async::TaskResult<GameInfo>::failure(Core::Error::ErrorCode::FileNotFound, msg);
+    if (!gameInfoPath.isValid() || gameInfoPath.isEmpty()) {
+        return Core::Async::TaskResult<GameInfo>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QStringLiteral("GameInfo file path is invalid or empty: %1").arg(gameInfoPath.toString()));
+    }
+    if (!gameInfoPath.exists()) {
+        return Core::Async::TaskResult<GameInfo>::failure(
+            Core::Error::ErrorCode::FileNotFound,
+            QStringLiteral("GameInfo file does not exist: %1").arg(gameInfoPath.toString()));
     }
 
     Core::KeyValues::KeyValuesDocument doc;
-    QString kvError;
-    if (!doc.loadFromFile(gameInfoPath, &kvError)) {
-        QString msg = QStringLiteral("Failed to load GameInfo from '%1': %2").arg(gameInfoPath.toString(), kvError);
-        return Core::Async::TaskResult<GameInfo>::failure(Core::Error::ErrorCode::InvalidFile, msg);
+    auto loadResult = doc.loadFromFile(gameInfoPath);
+    if (!loadResult.isSuccess()) {
+        return Core::Async::TaskResult<GameInfo>::failure(
+            loadResult.error(),
+            QStringLiteral("Failed to load GameInfo from '%1'").arg(gameInfoPath.toString()));
     }
 
     return Core::Async::TaskResult<GameInfo>::success(createFromDocument(std::move(doc), gameInfoPath, engine));
@@ -152,10 +159,11 @@ Core::Async::TaskResult<GameInfo> GameInfoParser::parseFromString(
     EngineType engine)
 {
     Core::KeyValues::KeyValuesDocument doc;
-    QString kvError;
-    if (!doc.loadFromString(content, &kvError)) {
-        QString msg = QStringLiteral("Failed to parse GameInfo content: %1").arg(kvError);
-        return Core::Async::TaskResult<GameInfo>::failure(Core::Error::ErrorCode::InvalidFile, msg);
+    auto loadResult = doc.loadFromString(content);
+    if (!loadResult.isSuccess()) {
+        return Core::Async::TaskResult<GameInfo>::failure(
+            loadResult.error(),
+            QStringLiteral("Failed to parse GameInfo content"));
     }
 
     return Core::Async::TaskResult<GameInfo>::success(createFromDocument(std::move(doc), gameInfoPath, engine));

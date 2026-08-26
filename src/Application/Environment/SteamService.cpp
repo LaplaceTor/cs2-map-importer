@@ -151,10 +151,10 @@ std::vector<SteamLibrary> SteamService::parseLibraryFolders(
     }
 
     Core::KeyValues::KeyValuesDocument doc;
-    QString error;
-    if (!doc.loadFromFile(libraryFoldersVdfPath, &error)) {
+    auto loadRes = doc.loadFromFile(libraryFoldersVdfPath);
+    if (!loadRes.isSuccess()) {
         if (logCtx) {
-            logCtx->warning(QStringLiteral("Failed to parse libraryfolders.vdf: %1").arg(error));
+            logCtx->warning(QStringLiteral("Failed to parse libraryfolders.vdf: %1").arg(loadRes.message()));
         }
         return {};
     }
@@ -244,7 +244,7 @@ QString SteamService::readAppInstallDir(const Core::Path::FilesystemPath& librar
     }
 
     Core::KeyValues::KeyValuesDocument doc;
-    if (!doc.loadFromFile(manifestPath)) {
+    if (!doc.loadFromFile(manifestPath).isSuccess()) {
         return QString();
     }
 
@@ -266,7 +266,7 @@ QString SteamService::readAppName(const Core::Path::FilesystemPath& libraryPath,
     }
 
     Core::KeyValues::KeyValuesDocument doc;
-    if (!doc.loadFromFile(manifestPath)) {
+    if (!doc.loadFromFile(manifestPath).isSuccess()) {
         return QString();
     }
 

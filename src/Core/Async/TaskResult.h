@@ -97,14 +97,6 @@ public:
     }
 
     /**
-     * @brief Compatibility overload constructing a failure result with default ErrorCode::OperationFailed.
-     */
-    static TaskResult<T> failure(QString errorMessage, std::optional<T> partialValue = std::nullopt)
-    {
-        return failure(Core::Error::ErrorCode::OperationFailed, std::move(errorMessage), QString(), std::move(partialValue));
-    }
-
-    /**
      * @brief Constructs a cancelled result carrying cancellation reason.
      */
     static TaskResult<T> cancelled(QString reason = QStringLiteral("Task cancelled"), std::optional<T> value = std::nullopt)
@@ -195,11 +187,6 @@ public:
     static TaskResult<void> failure(Core::Error::ErrorCode code, QString errorMessage = QString(), QString details = QString())
     {
         return failure(Core::Error::Error(code, std::move(errorMessage), std::move(details)));
-    }
-
-    static TaskResult<void> failure(QString errorMessage)
-    {
-        return failure(Core::Error::ErrorCode::OperationFailed, std::move(errorMessage));
     }
 
     static TaskResult<void> cancelled(QString reason = QStringLiteral("Task cancelled"))

@@ -212,7 +212,7 @@ void TestKeyValues::testFileAtomicIO() {
     root.addProperty(QStringLiteral("TargetGame"), QStringLiteral("csgo"));
     root.addProperty(QStringLiteral("Enabled"), QStringLiteral("1"));
 
-    QVERIFY(doc.saveToFile(filePath));
+    QVERIFY(doc.saveToFile(filePath).isSuccess());
     QVERIFY(filePath.exists());
 
     KeyValuesDocument loadedDoc = KeyValuesDocument::fromFile(filePath);
@@ -227,16 +227,19 @@ void TestKeyValues::testErrorHandling() {
     const QString broken1 = QStringLiteral("Root { key value");
     KeyValuesParser parser;
     KeyValuesNode root;
-    QString errorMsg;
-    QVERIFY(!parser.parse(broken1, root, &errorMsg));
-    QVERIFY(!errorMsg.isEmpty());
+    auto parseRes1 = parser.parse(broken1, root);
+    QVERIFY(!parseRes1.isSuccess());
+    QCOMPARE(parseRes1.errorCode(), Core::Error::ErrorCode::InvalidFile);
+    QVERIFY(!parseRes1.message().isEmpty());
 
     // Throws exception
     QVERIFY_EXCEPTION_THROWN(parser.parseOrThrow(broken1), Core::Error::Exception);
 
     // Unexpected closing brace
     const QString broken2 = QStringLiteral("Root { } }");
-    QVERIFY(!parser.parse(broken2, root, &errorMsg));
+    auto parseRes2 = parser.parse(broken2, root);
+    QVERIFY(!parseRes2.isSuccess());
+    QCOMPARE(parseRes2.errorCode(), Core::Error::ErrorCode::InvalidFile);
 }
 
 void TestKeyValues::testSpecialAndIllegalCharacters() {
@@ -253,13 +256,12 @@ void TestKeyValues::testSpecialAndIllegalCharacters() {
         "}\n"
     );
 
-    QString errorMsg;
     KeyValuesDocument doc;
-    bool parsed = doc.loadFromString(kvText, &errorMsg);
-    if (!parsed) {
-        qWarning() << "Parse error in testSpecialAndIllegalCharacters:" << errorMsg;
+    auto parseRes = doc.loadFromString(kvText);
+    if (!parseRes.isSuccess()) {
+        qWarning() << "Parse error in testSpecialAndIllegalCharacters:" << parseRes.message();
     }
-    QVERIFY2(parsed, qPrintable(errorMsg));
+    QVERIFY2(parseRes.isSuccess(), qPrintable(parseRes.message()));
     const KeyValuesNode* world = doc.findChild(QStringLiteral("world"));
     QVERIFY(world != nullptr);
 

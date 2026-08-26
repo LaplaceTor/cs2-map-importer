@@ -18,24 +18,25 @@ KeyValuesDocument::KeyValuesDocument(KeyValuesNode rootNode)
 
 KeyValuesDocument KeyValuesDocument::fromFile(const Path::FilesystemPath& path) {
     KeyValuesDocument doc;
-    QString errorMessage;
-    if (!doc.loadFromFile(path, &errorMessage)) {
+    auto res = doc.loadFromFile(path);
+    if (!res.isSuccess()) {
         throw Error::Exception(
-            Error::ErrorCode::InvalidFile,
+            res.error().code(),
             QStringLiteral("Failed to load KeyValues document from %1: %2")
-                .arg(path.toString())
-                .arg(errorMessage));
+                .arg(path.toString(), res.message()),
+            res.details());
     }
     return doc;
 }
 
 KeyValuesDocument KeyValuesDocument::fromString(const QString& content) {
     KeyValuesDocument doc;
-    QString errorMessage;
-    if (!doc.loadFromString(content, &errorMessage)) {
+    auto res = doc.loadFromString(content);
+    if (!res.isSuccess()) {
         throw Error::Exception(
-            Error::ErrorCode::InvalidFile,
-            QStringLiteral("Failed to parse KeyValues string: %1").arg(errorMessage));
+            res.error().code(),
+            QStringLiteral("Failed to parse KeyValues string: %1").arg(res.message()),
+            res.details());
     }
     return doc;
 }
@@ -44,55 +45,51 @@ KeyValuesDocument KeyValuesDocument::fromData(const QByteArray& data) {
     return fromString(QString::fromUtf8(data));
 }
 
-bool KeyValuesDocument::loadFromFile(const Path::FilesystemPath& path, QString* errorMessage) {
+Core::Async::TaskResult<void> KeyValuesDocument::loadFromFile(const Path::FilesystemPath& path) {
+    if (!path.isValid() || path.isEmpty()) {
+        return Core::Async::TaskResult<void>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QStringLiteral("Path is empty or invalid: %1").arg(path.toString()));
+    }
     if (!path.exists()) {
-        if (errorMessage) {
-            *errorMessage = QStringLiteral("File does not exist: %1").arg(path.toString());
-        }
-        return false;
+        return Core::Async::TaskResult<void>::failure(
+            Core::Error::ErrorCode::FileNotFound,
+            QStringLiteral("File does not exist: %1").arg(path.toString()));
     }
 
     try {
         const QByteArray data = FileSystem::FileSystem::readAll(path.toString());
-        return loadFromData(data, errorMessage);
+        return loadFromData(data);
     } catch (const Error::Exception& e) {
-        if (errorMessage) {
-            *errorMessage = e.message();
-        }
-        return false;
+        return Core::Async::TaskResult<void>::failure(e.error());
     } catch (const std::exception& e) {
-        if (errorMessage) {
-            *errorMessage = QString::fromUtf8(e.what());
-        }
-        return false;
+        return Core::Async::TaskResult<void>::failure(
+            Core::Error::ErrorCode::ReadFailed,
+            QString::fromUtf8(e.what()));
     }
 }
 
-bool KeyValuesDocument::loadFromString(const QString& content, QString* errorMessage) {
+Core::Async::TaskResult<void> KeyValuesDocument::loadFromString(const QString& content) {
     KeyValuesParser parser;
-    return parser.parse(content, m_root, errorMessage);
+    return parser.parse(content, m_root);
 }
 
-bool KeyValuesDocument::loadFromData(const QByteArray& data, QString* errorMessage) {
-    return loadFromString(QString::fromUtf8(data), errorMessage);
+Core::Async::TaskResult<void> KeyValuesDocument::loadFromData(const QByteArray& data) {
+    return loadFromString(QString::fromUtf8(data));
 }
 
-bool KeyValuesDocument::saveToFile(const Path::FilesystemPath& path, const KeyValuesWriter::Options& options, QString* errorMessage) const {
+Core::Async::TaskResult<void> KeyValuesDocument::saveToFile(const Path::FilesystemPath& path, const KeyValuesWriter::Options& options) const {
     const QString text = saveToString(options);
     const QByteArray data = text.toUtf8();
     try {
         FileSystem::AtomicFile::writeAtomic(path.toString(), data);
-        return true;
+        return Core::Async::TaskResult<void>::success();
     } catch (const Error::Exception& e) {
-        if (errorMessage) {
-            *errorMessage = e.message();
-        }
-        return false;
+        return Core::Async::TaskResult<void>::failure(e.error());
     } catch (const std::exception& e) {
-        if (errorMessage) {
-            *errorMessage = QString::fromUtf8(e.what());
-        }
-        return false;
+        return Core::Async::TaskResult<void>::failure(
+            Core::Error::ErrorCode::WriteFailed,
+            QString::fromUtf8(e.what()));
     }
 }
 
@@ -105,4 +102,3 @@ QByteArray KeyValuesDocument::saveToData(const KeyValuesWriter::Options& options
 }
 
 } // namespace Core::KeyValues
-

@@ -33,6 +33,7 @@ enum class ErrorCode {
 
     // Operations and Execution
     OperationFailed,
+    InvalidState,
     Cancelled,
     Timeout,
     ResourceBusy,

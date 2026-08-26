@@ -325,7 +325,7 @@ Core::Async::TaskResult<VpkSignatureLeaseResult> GameEnvironmentService::updateV
 {
     if (!m_leaseService) {
         VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("VPK signature lease service is unavailable"), QString()};
-        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(res.systemMessage, res);
+        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidState, res.systemMessage, QString(), res);
     }
     return m_leaseService->acquireLease(cleanPath(s2BasePath));
 }
@@ -334,7 +334,7 @@ Core::Async::TaskResult<VpkSignatureLeaseResult> GameEnvironmentService::updateV
 {
     if (!m_leaseService) {
         VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("VPK signature lease service is unavailable"), QString()};
-        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(res.systemMessage, res);
+        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidState, res.systemMessage, QString(), res);
     }
     return m_leaseService->updateInstallation(s2Installation);
 }
@@ -343,7 +343,7 @@ Core::Async::TaskResult<VpkSignatureLeaseResult> GameEnvironmentService::retryVp
 {
     if (!m_leaseService) {
         VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("VPK signature lease service is unavailable"), QString()};
-        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(res.systemMessage, res);
+        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidState, res.systemMessage, QString(), res);
     }
     return m_leaseService->retryLease();
 }

@@ -139,6 +139,7 @@ private:
             if constexpr (std::is_invocable_v<DecayedCallback, TaskResult<T>>) {
                 if (Detail::isCallableValid(callback)) {
                     TaskResult<T> failureResult = TaskResult<T>::failure(
+                        Core::Error::ErrorCode::OperationFailed,
                         QStringLiteral("Failed to create task context for '%1' (invalid parentTaskId: %2)")
                             .arg(taskName).arg(parentTaskId));
                     if (context) {
@@ -190,7 +191,10 @@ private:
                     if (taskContext) {
                         taskContext->error(QStringLiteral("Unhandled exception in task: %1").arg(QString::fromUtf8(ex.what())));
                     }
-                    result = TaskResult<T>::failure(Core::Error::ErrorCode::Unknown, QString::fromUtf8(ex.what()));
+                    result = TaskResult<T>::failure(
+                        Core::Error::ErrorCode::Unknown,
+                        QStringLiteral("Unhandled standard exception"),
+                        QString::fromUtf8(ex.what()));
                 } catch (...) {
                     threwException = true;
                     if (taskContext) {
@@ -216,10 +220,15 @@ private:
                                     taskId, Core::Logging::TaskState::Failed, QStringLiteral("Task completed with logged errors or explicit failure"));
 
                                 if constexpr (std::is_void_v<T>) {
-                                    result = TaskResult<T>::failure(QStringLiteral("Contract violation: Task completed with logged errors or explicit failure"));
+                                    result = TaskResult<T>::failure(
+                                        Core::Error::ErrorCode::OperationFailed,
+                                        QStringLiteral("Contract violation: Task completed with logged errors or explicit failure"));
                                 } else {
-                                    result = TaskResult<T>::failure(QStringLiteral("Contract violation: Task completed with logged errors or explicit failure"),
-                                                                   result.hasValue() ? result.value() : T{});
+                                    result = TaskResult<T>::failure(
+                                        Core::Error::ErrorCode::OperationFailed,
+                                        QStringLiteral("Contract violation: Task completed with logged errors or explicit failure"),
+                                        QString(),
+                                        result.hasValue() ? std::make_optional(result.value()) : std::nullopt);
                                 }
                             } else if (currentState == Core::Logging::TaskState::Cancelled) {
                                 taskContext->warning(QStringLiteral("Contract violation: worker returned TaskResult::success after task was cancelled"));

@@ -41,10 +41,10 @@ private slots:
     void testConcurrentTasksIsolation();
     void testMultiBlockTask();
 
-    // AsyncTaskRunner async lifecycle & UI context delivery tests
     void testAsyncTaskRunnerNormal();
     void testAsyncTaskRunnerExceptionSafety();
     void testStructuredExceptionHandling();
+    void testStandardExceptionDiagnostics();
     void testContextDestroyedSafety();
     void testCopyAllFormat();
     void testExpandCollapseState();
@@ -337,6 +337,43 @@ void TestAsyncTaskLogging::testStructuredExceptionHandling()
     logVm->unregisterFromLogManager();
 }
 
+void TestAsyncTaskLogging::testStandardExceptionDiagnostics()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    std::atomic<bool> callbackInvoked{false};
+    TaskResult<int> capturedResult = TaskResult<int>::success(0);
+
+    AsyncTaskRunner::runTask<int>(
+        QStringLiteral("Std Exception Task"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->info("About to throw std::runtime_error");
+            }
+            throw std::runtime_error("Corrupted block in filesystem sector 4096");
+        },
+        [&](const TaskResult<int>& res) {
+            callbackInvoked = true;
+            capturedResult = res;
+        });
+
+    QTRY_VERIFY(callbackInvoked.load());
+    QVERIFY(capturedResult.isFailure());
+    QCOMPARE(capturedResult.errorCode(), Core::Error::ErrorCode::Unknown);
+    // UI presentation message is a high-level summary
+    QCOMPARE(capturedResult.message(), QStringLiteral("Unhandled standard exception"));
+    // Technical diagnostic details carries ex.what()
+    QCOMPARE(capturedResult.details(), QStringLiteral("Corrupted block in filesystem sector 4096"));
+
+    QTRY_COMPARE(logVm->taskCount(), 1);
+    QModelIndex idx = logVm->index(0, 0);
+    QCOMPARE(logVm->data(idx, LogViewModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+
+    logVm->unregisterFromLogManager();
+}
+
 void TestAsyncTaskLogging::testContextDestroyedSafety()
 {
     auto logVm = std::make_shared<LogViewModel>();
@@ -590,7 +627,7 @@ void TestAsyncTaskLogging::testSemanticBusinessFailureDetection()
                 ctx->info("Starting validation");
                 ctx->error("gameinfo.txt not found");
             }
-            return TaskResult<QString>::failure(QStringLiteral("gameinfo.txt not found"));
+            return TaskResult<QString>::failure(ErrorCode::FileNotFound, QStringLiteral("gameinfo.txt not found"));
         },
         [&callbackFired](const TaskResult<QString>& res) {
             QVERIFY(res.isFailure());
@@ -610,7 +647,7 @@ void TestAsyncTaskLogging::testSemanticBusinessFailureDetection()
             if (ctx) {
                 ctx->info("Checking condition");
             }
-            return TaskResult<void>::failure(QStringLiteral("Condition failed"));
+            return TaskResult<void>::failure(ErrorCode::OperationFailed, QStringLiteral("Condition failed"));
         },
         [&failureCallbackFired](const TaskResult<void>& res) {
             QVERIFY(res.isFailure());
@@ -679,7 +716,7 @@ void TestAsyncTaskLogging::testTaskResultOutcomes()
             if (ctx) {
                 ctx->info("Step failed");
             }
-            return TaskResult<int>::failure(QStringLiteral("Asset not found"), 50);
+            return TaskResult<int>::failure(ErrorCode::FileNotFound, QStringLiteral("Asset not found"), QString(), 50);
         },
         [&failureFired](const TaskResult<int>& res) {
             QVERIFY(res.isFailure());
@@ -1090,7 +1127,7 @@ void TestAsyncTaskLogging::testExplicitCompleteWithTaskResultFailureContradictio
             if (ctx) {
                 ctx->complete("Worker completed early");
             }
-            return TaskResult<int>::failure("Fatal backend error", 10);
+            return TaskResult<int>::failure(ErrorCode::OperationFailed, QStringLiteral("Fatal backend error"), QString(), 10);
         },
         [&callbackFired, &receivedResult](const TaskResult<int>& res) {
             receivedResult = res;

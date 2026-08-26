@@ -23,6 +23,7 @@ private slots:
     void testProcessResultMapping();
     void testTaskResultStructuredError();
     void testTaskResultSeparationOfStatusAndMessage();
+    void testTaskResultStatusErrorCodeInvariants();
     void testTaskResultValueOr();
     void testGameInfoParserStructuredError();
 };
@@ -155,6 +156,100 @@ void TestError::testTaskResultSeparationOfStatusAndMessage()
     QVERIFY(cancelResult.isCancelled());
     QCOMPARE(cancelResult.message(), QStringLiteral("User aborted import"));
     QCOMPARE(cancelResult.errorCode(), ErrorCode::Cancelled);
+}
+
+void TestError::testTaskResultStatusErrorCodeInvariants()
+{
+    // Invariant for TaskResult<int>
+    {
+        // 1. Success -> ErrorCode::Success
+        auto s = TaskResult<int>::success(100, QStringLiteral("All good"));
+        QVERIFY(s.isSuccess());
+        QVERIFY(!s.isFailure());
+        QVERIFY(!s.isCancelled());
+        QVERIFY(!s.isSkipped());
+        QCOMPARE(s.status(), TaskExecutionStatus::Success);
+        QCOMPARE(s.errorCode(), ErrorCode::Success);
+        QVERIFY(s.error().isSuccess());
+
+        // 2. Skipped -> ErrorCode::Success (benign non-fault path)
+        auto sk = TaskResult<int>::skipped(QStringLiteral("Cache hit"), 100);
+        QVERIFY(sk.isSkipped());
+        QVERIFY(!sk.isSuccess());
+        QVERIFY(!sk.isFailure());
+        QVERIFY(!sk.isCancelled());
+        QCOMPARE(sk.status(), TaskExecutionStatus::Skipped);
+        QCOMPARE(sk.errorCode(), ErrorCode::Success);
+        QVERIFY(sk.error().isSuccess());
+        QCOMPARE(sk.message(), QStringLiteral("Cache hit"));
+
+        // 3. Cancelled -> ErrorCode::Cancelled
+        auto c = TaskResult<int>::cancelled(QStringLiteral("Aborted by user"));
+        QVERIFY(c.isCancelled());
+        QVERIFY(!c.isSuccess());
+        QVERIFY(!c.isFailure());
+        QVERIFY(!c.isSkipped());
+        QCOMPARE(c.status(), TaskExecutionStatus::Cancelled);
+        QCOMPARE(c.errorCode(), ErrorCode::Cancelled);
+        QVERIFY(c.error().isFailure());
+        QCOMPARE(c.message(), QStringLiteral("Aborted by user"));
+
+        // 4. Failure -> Non-Success ErrorCode
+        auto f = TaskResult<int>::failure(ErrorCode::PermissionDenied, QStringLiteral("Access denied"));
+        QVERIFY(f.isFailure());
+        QVERIFY(!f.isSuccess());
+        QVERIFY(!f.isCancelled());
+        QVERIFY(!f.isSkipped());
+        QCOMPARE(f.status(), TaskExecutionStatus::Failure);
+        QVERIFY(f.errorCode() != ErrorCode::Success);
+        QCOMPARE(f.errorCode(), ErrorCode::PermissionDenied);
+        QVERIFY(f.error().isFailure());
+    }
+
+    // Invariant for TaskResult<void>
+    {
+        // 1. Success -> ErrorCode::Success
+        auto s = TaskResult<void>::success(QStringLiteral("Completed"));
+        QVERIFY(s.isSuccess());
+        QVERIFY(!s.isFailure());
+        QVERIFY(!s.isCancelled());
+        QVERIFY(!s.isSkipped());
+        QCOMPARE(s.status(), TaskExecutionStatus::Success);
+        QCOMPARE(s.errorCode(), ErrorCode::Success);
+        QVERIFY(s.error().isSuccess());
+
+        // 2. Skipped -> ErrorCode::Success (benign non-fault path)
+        auto sk = TaskResult<void>::skipped(QStringLiteral("Up to date"));
+        QVERIFY(sk.isSkipped());
+        QVERIFY(!sk.isSuccess());
+        QVERIFY(!sk.isFailure());
+        QVERIFY(!sk.isCancelled());
+        QCOMPARE(sk.status(), TaskExecutionStatus::Skipped);
+        QCOMPARE(sk.errorCode(), ErrorCode::Success);
+        QVERIFY(sk.error().isSuccess());
+        QCOMPARE(sk.message(), QStringLiteral("Up to date"));
+
+        // 3. Cancelled -> ErrorCode::Cancelled
+        auto c = TaskResult<void>::cancelled(QStringLiteral("User cancel"));
+        QVERIFY(c.isCancelled());
+        QVERIFY(!c.isSuccess());
+        QVERIFY(!c.isFailure());
+        QVERIFY(!c.isSkipped());
+        QCOMPARE(c.status(), TaskExecutionStatus::Cancelled);
+        QCOMPARE(c.errorCode(), ErrorCode::Cancelled);
+        QVERIFY(c.error().isFailure());
+
+        // 4. Failure -> Non-Success ErrorCode
+        auto f = TaskResult<void>::failure(ErrorCode::CorruptedData, QStringLiteral("Corrupted VPK"));
+        QVERIFY(f.isFailure());
+        QVERIFY(!f.isSuccess());
+        QVERIFY(!f.isCancelled());
+        QVERIFY(!f.isSkipped());
+        QCOMPARE(f.status(), TaskExecutionStatus::Failure);
+        QVERIFY(f.errorCode() != ErrorCode::Success);
+        QCOMPARE(f.errorCode(), ErrorCode::CorruptedData);
+        QVERIFY(f.error().isFailure());
+    }
 }
 
 void TestError::testTaskResultValueOr()
