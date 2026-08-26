@@ -189,27 +189,74 @@ private:
                 }
 
                 if (taskContext) {
-                    bool isTerminal = Core::Logging::TaskLoggingContext::isTerminalState(taskContext->state());
-                    if (!isTerminal) {
-                        if (threwException) {
-                            Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task failed with exception"));
-                        } else {
-                            if (result.isSuccess()) {
-                                if (taskContext->hasErrors()) {
-                                    Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task completed with logged errors"));
-                                } else {
-                                    Core::Logging::LogManager::instance().finishTask(taskId, QStringLiteral("Completed"));
-                                }
-                            } else if (result.isCancelled()) {
-                                Core::Logging::LogManager::instance().cancelTask(taskId, QStringLiteral("Cancelled"));
-                            } else if (result.isSkipped()) {
-                                Core::Logging::LogManager::instance().skipTask(taskId, QStringLiteral("Skipped"));
-                            } else {
-                                Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task failed"));
-                            }
-                        }
+                    if (threwException) {
+                        Core::Logging::LogManager::instance().forceTaskState(
+                            taskId, Core::Logging::TaskState::Failed, QStringLiteral("Task failed with uncaught exception"));
+                        result = TaskResult<T>::failure(QStringLiteral("Task failed with uncaught exception"));
                     } else {
-                        Core::Logging::LogManager::instance().flushTask(taskId);
+                        const auto currentState = taskContext->state();
+                        const bool hasErrors = taskContext->hasErrors();
+
+                        if (result.isSuccess()) {
+                            if (currentState == Core::Logging::TaskState::Failed || hasErrors) {
+                                if (!hasErrors) {
+                                    taskContext->error(QStringLiteral("Contract violation: worker returned TaskResult::success after task failed"));
+                                }
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Failed, QStringLiteral("Task completed with logged errors or explicit failure"));
+
+                                if constexpr (std::is_void_v<T>) {
+                                    result = TaskResult<T>::failure(QStringLiteral("Contract violation: Task completed with logged errors or explicit failure"));
+                                } else {
+                                    result = TaskResult<T>::failure(QStringLiteral("Contract violation: Task completed with logged errors or explicit failure"),
+                                                                   result.hasValue() ? result.value() : T{});
+                                }
+                            } else if (currentState == Core::Logging::TaskState::Cancelled) {
+                                taskContext->warning(QStringLiteral("Contract violation: worker returned TaskResult::success after task was cancelled"));
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Cancelled, QStringLiteral("Cancelled"));
+
+                                if constexpr (std::is_void_v<T>) {
+                                    result = TaskResult<T>::cancelled(QStringLiteral("Contract violation: Task was cancelled"));
+                                } else {
+                                    result = TaskResult<T>::cancelled(QStringLiteral("Contract violation: Task was cancelled"),
+                                                                      result.hasValue() ? result.value() : T{});
+                                }
+                            } else if (currentState == Core::Logging::TaskState::Skipped) {
+                                taskContext->info(QStringLiteral("Contract violation: worker returned TaskResult::success after task was skipped"));
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Skipped, QStringLiteral("Skipped"));
+
+                                if constexpr (std::is_void_v<T>) {
+                                    result = TaskResult<T>::skipped(QStringLiteral("Contract violation: Task was skipped"));
+                                } else {
+                                    result = TaskResult<T>::skipped(QStringLiteral("Contract violation: Task was skipped"),
+                                                                    result.hasValue() ? result.value() : T{});
+                                }
+                            } else {
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Completed, QStringLiteral("Completed"));
+                            }
+                        } else if (result.isCancelled()) {
+                            if (hasErrors || currentState == Core::Logging::TaskState::Failed) {
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Failed, QStringLiteral("Task cancelled with logged errors"));
+                            } else {
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Cancelled, result.message().isEmpty() ? QStringLiteral("Cancelled") : result.message());
+                            }
+                        } else if (result.isSkipped()) {
+                            if (hasErrors || currentState == Core::Logging::TaskState::Failed) {
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Failed, QStringLiteral("Task skipped with logged errors"));
+                            } else {
+                                Core::Logging::LogManager::instance().forceTaskState(
+                                    taskId, Core::Logging::TaskState::Skipped, result.message().isEmpty() ? QStringLiteral("Skipped") : result.message());
+                            }
+                        } else {
+                            Core::Logging::LogManager::instance().forceTaskState(
+                                taskId, Core::Logging::TaskState::Failed, result.message().isEmpty() ? QStringLiteral("Task failed") : result.message());
+                        }
                     }
                 }
 
@@ -283,15 +330,24 @@ private:
                 }
 
                 if (taskContext) {
-                    bool isTerminal = Core::Logging::TaskLoggingContext::isTerminalState(taskContext->state());
-                    if (!isTerminal) {
-                        if (threwException || taskContext->hasErrors()) {
-                            Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task failed"));
-                        } else {
-                            Core::Logging::LogManager::instance().finishTask(taskId, QStringLiteral("Completed"));
-                        }
+                    if (threwException) {
+                        Core::Logging::LogManager::instance().forceTaskState(
+                            taskId, Core::Logging::TaskState::Failed, QStringLiteral("Task failed with uncaught exception"));
                     } else {
-                        Core::Logging::LogManager::instance().flushTask(taskId);
+                        const auto currentState = taskContext->state();
+                        if (taskContext->hasErrors() || currentState == Core::Logging::TaskState::Failed) {
+                            Core::Logging::LogManager::instance().forceTaskState(
+                                taskId, Core::Logging::TaskState::Failed, QStringLiteral("Task failed"));
+                        } else if (currentState == Core::Logging::TaskState::Cancelled) {
+                            Core::Logging::LogManager::instance().forceTaskState(
+                                taskId, Core::Logging::TaskState::Cancelled, QStringLiteral("Cancelled"));
+                        } else if (currentState == Core::Logging::TaskState::Skipped) {
+                            Core::Logging::LogManager::instance().forceTaskState(
+                                taskId, Core::Logging::TaskState::Skipped, QStringLiteral("Skipped"));
+                        } else {
+                            Core::Logging::LogManager::instance().forceTaskState(
+                                taskId, Core::Logging::TaskState::Completed, QStringLiteral("Completed"));
+                        }
                     }
                 }
             } catch (...) {

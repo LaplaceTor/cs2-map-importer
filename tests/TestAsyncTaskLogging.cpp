@@ -53,6 +53,12 @@ private slots:
     void testLoggedErrorForcesTaskFailure();
     void testLoggedWarningPreservesTaskCompleted();
     void testRunTaskAndChildTaskApi();
+
+    // State contradiction and contract violation reconciliation tests
+    void testExplicitFailWithTaskResultSuccessContradiction();
+    void testExplicitCancelWithTaskResultSuccessContradiction();
+    void testExplicitSkipWithTaskResultSuccessContradiction();
+    void testExplicitCompleteWithTaskResultFailureContradiction();
 };
 
 void TestAsyncTaskLogging::initTestCase()
@@ -749,7 +755,8 @@ void TestAsyncTaskLogging::testLoggedErrorForcesTaskFailure()
             return TaskResult<int>::success(42);
         },
         [&callbackFired](const TaskResult<int>& res) {
-            QVERIFY(res.isSuccess());
+            QVERIFY(res.isFailure());
+            QCOMPARE(res.value(), 42); // Partial value preserved
             callbackFired.store(true);
         });
 
@@ -857,6 +864,146 @@ void TestAsyncTaskLogging::testRunTaskAndChildTaskApi()
 
     QTRY_VERIFY_WITH_TIMEOUT(childTaskFired.load(), 3000);
     LogManager::instance().finishTask(rootContext->taskId(), "Parent done");
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testExplicitFailWithTaskResultSuccessContradiction()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    std::atomic<bool> callbackFired{false};
+    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+
+    AsyncTaskRunner::runTask<int>(
+        QStringLiteral("Contradiction Fail + Success"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->fail("Worker explicit failure");
+            }
+            return TaskResult<int>::success(42);
+        },
+        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+            receivedResult = res;
+            callbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
+
+    // Business outcome MUST be converted to failure
+    QVERIFY(receivedResult.isFailure());
+    QCOMPARE(receivedResult.value(), 42); // Partial value preserved
+
+    // UI Log plane MUST show FAILED
+    QCOMPARE(logVm->taskCount(), 1);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testExplicitCancelWithTaskResultSuccessContradiction()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    std::atomic<bool> callbackFired{false};
+    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+
+    AsyncTaskRunner::runTask<int>(
+        QStringLiteral("Contradiction Cancel + Success"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->cancel("Worker explicit cancel");
+            }
+            return TaskResult<int>::success(42);
+        },
+        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+            receivedResult = res;
+            callbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
+
+    // Business outcome MUST be converted to cancelled
+    QVERIFY(receivedResult.isCancelled());
+    QCOMPARE(receivedResult.value(), 42);
+
+    // UI Log plane MUST show CANCELLED
+    QCOMPARE(logVm->taskCount(), 1);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("CANCELLED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testExplicitSkipWithTaskResultSuccessContradiction()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    std::atomic<bool> callbackFired{false};
+    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+
+    AsyncTaskRunner::runTask<int>(
+        QStringLiteral("Contradiction Skip + Success"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->skip("Worker explicit skip");
+            }
+            return TaskResult<int>::success(42);
+        },
+        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+            receivedResult = res;
+            callbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
+
+    // Business outcome MUST be converted to skipped
+    QVERIFY(receivedResult.isSkipped());
+    QCOMPARE(receivedResult.value(), 42);
+
+    // UI Log plane MUST show SKIPPED
+    QCOMPARE(logVm->taskCount(), 1);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("SKIPPED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testExplicitCompleteWithTaskResultFailureContradiction()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    std::atomic<bool> callbackFired{false};
+    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+
+    AsyncTaskRunner::runTask<int>(
+        QStringLiteral("Contradiction Complete + Failure"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->complete("Worker completed early");
+            }
+            return TaskResult<int>::failure("Fatal backend error", 10);
+        },
+        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+            receivedResult = res;
+            callbackFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(callbackFired.load(), 3000);
+
+    // Business outcome remains failure
+    QVERIFY(receivedResult.isFailure());
+    QCOMPARE(receivedResult.value(), 10);
+
+    // UI Log plane MUST be forced to FAILED
+    QCOMPARE(logVm->taskCount(), 1);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
 
     logVm->unregisterFromLogManager();
 }

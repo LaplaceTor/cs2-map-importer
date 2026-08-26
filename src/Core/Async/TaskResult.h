@@ -57,11 +57,12 @@ public:
         return r;
     }
 
-    static TaskResult<T> cancelled(QString message = QStringLiteral("Task cancelled"))
+    static TaskResult<T> cancelled(QString message = QStringLiteral("Task cancelled"), std::optional<T> value = std::nullopt)
     {
         TaskResult<T> r;
         r.m_status = TaskExecutionStatus::Cancelled;
         r.m_message = std::move(message);
+        r.m_value = std::move(value);
         return r;
     }
 

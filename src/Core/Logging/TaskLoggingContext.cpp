@@ -370,6 +370,38 @@ bool TaskLoggingContext::skip(const QString& message)
     return true;
 }
 
+bool TaskLoggingContext::forceTerminalState(TaskState newState, const QString& message)
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    if (!m_sessionValid) {
+        return false;
+    }
+    if (!isTerminalState(newState)) {
+        return false;
+    }
+    if (m_state == newState) {
+        if (!message.isEmpty()) {
+            m_currentMessage = message;
+        }
+        return true;
+    }
+
+    LogLevel level = LogLevel::Info;
+    if (newState == TaskState::Failed) {
+        level = LogLevel::Error;
+    } else if (newState == TaskState::Cancelled) {
+        level = LogLevel::Warning;
+    }
+
+    if (!message.isEmpty()) {
+        m_currentMessage = message;
+        appendLifecycleEntryLocked(level, message);
+    }
+    flushActiveBlockLocked();
+    m_state = newState;
+    return true;
+}
+
 LogSubmissionResult TaskLoggingContext::submitNormalLocked()
 {
     if (!m_faultBarrier) {

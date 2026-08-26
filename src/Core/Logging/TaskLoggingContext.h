@@ -128,6 +128,7 @@ public:
     bool fail(const QString& message = QString());
     bool cancel(const QString& message = QString());
     bool skip(const QString& message = QString());
+    bool forceTerminalState(TaskState newState, const QString& message = QString());
 
     /**
      * @brief Disables this context when its owning LogManager session is reset.
