@@ -45,8 +45,8 @@ QString AtomicFile::tempFilePath() const {
 
 void AtomicFile::open() {
     if (m_committed) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::OperationFailed,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::OperationFailed,
             QStringLiteral("Cannot open AtomicFile: Already committed"));
     }
     if (m_isOpen) {
@@ -54,8 +54,8 @@ void AtomicFile::open() {
     }
 
     if (m_targetFilePath.isEmpty()) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::InvalidPath,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::InvalidPath,
             QStringLiteral("Cannot open AtomicFile: Target path is empty"));
     }
 
@@ -63,16 +63,16 @@ void AtomicFile::open() {
     QDir parentDir = dstInfo.dir();
     if (!parentDir.exists()) {
         if (!parentDir.mkpath(QStringLiteral("."))) {
-            throw Core::Error::ImportException(
-                Core::Error::ImportErrorCode::OperationFailed,
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::OperationFailed,
                 QStringLiteral("Failed to create parent directory for atomic write: %1").arg(parentDir.absolutePath()));
         }
     }
 
     m_saveFile = std::make_unique<QSaveFile>(m_targetFilePath);
     if (!m_saveFile->open(QIODevice::WriteOnly)) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::OperationFailed,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::OperationFailed,
             QStringLiteral("Failed to open QSaveFile for target '%1': %2")
                 .arg(m_targetFilePath, m_saveFile->errorString()));
     }
@@ -86,15 +86,15 @@ void AtomicFile::write(const QByteArray& data) {
     }
 
     if (!m_saveFile) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::OperationFailed,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::OperationFailed,
             QStringLiteral("AtomicFile QSaveFile is not open"));
     }
 
     qint64 written = m_saveFile->write(data);
     if (written != data.size()) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::OperationFailed,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::OperationFailed,
             QStringLiteral("Failed to write to QSaveFile for target '%1': %2")
                 .arg(m_targetFilePath, m_saveFile->errorString()));
     }
@@ -106,14 +106,14 @@ void AtomicFile::commit() {
     }
 
     if (!m_isOpen || !m_saveFile) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::OperationFailed,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::OperationFailed,
             QStringLiteral("Cannot commit AtomicFile: File was not opened or written"));
     }
 
     if (!m_saveFile->commit()) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::OperationFailed,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::OperationFailed,
             QStringLiteral("Failed to commit QSaveFile for target '%1': %2")
                 .arg(m_targetFilePath, m_saveFile->errorString()));
     }

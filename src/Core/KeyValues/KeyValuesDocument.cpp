@@ -2,8 +2,8 @@
 #include "Core/KeyValues/KeyValuesParser.h"
 #include "Core/FileSystem/FileSystem.h"
 #include "Core/FileSystem/AtomicFile.h"
-#include "Core/Error/ImportException.h"
-#include "Core/Error/ImportError.h"
+#include "Core/Error/Exception.h"
+#include "Core/Error/ErrorCode.h"
 #include <utility>
 
 namespace Core::KeyValues {
@@ -20,8 +20,8 @@ KeyValuesDocument KeyValuesDocument::fromFile(const Path::FilesystemPath& path) 
     KeyValuesDocument doc;
     QString errorMessage;
     if (!doc.loadFromFile(path, &errorMessage)) {
-        throw Error::ImportException(
-            Error::ImportErrorCode::InvalidFile,
+        throw Error::Exception(
+            Error::ErrorCode::InvalidFile,
             QStringLiteral("Failed to load KeyValues document from %1: %2")
                 .arg(path.toString())
                 .arg(errorMessage));
@@ -33,8 +33,8 @@ KeyValuesDocument KeyValuesDocument::fromString(const QString& content) {
     KeyValuesDocument doc;
     QString errorMessage;
     if (!doc.loadFromString(content, &errorMessage)) {
-        throw Error::ImportException(
-            Error::ImportErrorCode::InvalidFile,
+        throw Error::Exception(
+            Error::ErrorCode::InvalidFile,
             QStringLiteral("Failed to parse KeyValues string: %1").arg(errorMessage));
     }
     return doc;
@@ -55,7 +55,7 @@ bool KeyValuesDocument::loadFromFile(const Path::FilesystemPath& path, QString* 
     try {
         const QByteArray data = FileSystem::FileSystem::readAll(path.toString());
         return loadFromData(data, errorMessage);
-    } catch (const Error::ImportException& e) {
+    } catch (const Error::Exception& e) {
         if (errorMessage) {
             *errorMessage = e.message();
         }
@@ -83,7 +83,7 @@ bool KeyValuesDocument::saveToFile(const Path::FilesystemPath& path, const KeyVa
     try {
         FileSystem::AtomicFile::writeAtomic(path.toString(), data);
         return true;
-    } catch (const Error::ImportException& e) {
+    } catch (const Error::Exception& e) {
         if (errorMessage) {
             *errorMessage = e.message();
         }

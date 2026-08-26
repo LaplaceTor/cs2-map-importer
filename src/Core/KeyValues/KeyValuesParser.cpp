@@ -49,8 +49,8 @@ KeyValuesNode KeyValuesParser::parseOrThrow(const QString& source) {
     KeyValuesNode root;
     QString errorMessage;
     if (!parse(source, root, &errorMessage)) {
-        throw Error::ImportException(
-            Error::ImportErrorCode::InvalidFile,
+        throw Error::Exception(
+            Error::ErrorCode::InvalidFile,
             QStringLiteral("KeyValues parsing failed: %1").arg(errorMessage));
     }
     return root;

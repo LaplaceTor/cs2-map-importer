@@ -122,12 +122,14 @@ Core::Async::TaskResult<GameInstallation> GameDetectService::detectGame(
 {
     if (type == Domain::Game::GameType::Unknown || type == Domain::Game::GameType::Custom) {
         return Core::Async::TaskResult<GameInstallation>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
             QStringLiteral("Cannot detect games with Unknown or Custom type in Steam libraries"));
     }
 
     auto libraries = SteamService::detectLibraries(customSteamPath, logCtx);
     if (libraries.empty()) {
         return Core::Async::TaskResult<GameInstallation>::failure(
+            Core::Error::ErrorCode::DirectoryNotFound,
             QStringLiteral("No Steam libraries detected on this host"));
     }
 
@@ -152,6 +154,7 @@ Core::Async::TaskResult<GameInstallation> GameDetectService::detectGame(
     }
 
     return Core::Async::TaskResult<GameInstallation>::failure(
+        Core::Error::ErrorCode::FileNotFound,
         QStringLiteral("Game %1 not found in detected Steam libraries")
             .arg(Domain::Game::GameRegistry::gameTypeToString(type)));
 }

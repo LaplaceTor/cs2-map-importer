@@ -2,7 +2,7 @@
 
 #include "Core/KeyValues/KeyValuesNode.h"
 #include "Core/KeyValues/KeyValuesLexer.h"
-#include "Core/Error/ImportException.h"
+#include "Core/Error/Exception.h"
 #include <QString>
 
 namespace Core::KeyValues {
@@ -16,7 +16,7 @@ public:
     bool parse(const QString& source, KeyValuesNode& rootNode, QString* errorMessage = nullptr);
 
     // Parses the source string and returns the root container node.
-    // Throws Core::Error::ImportException if a fatal parsing error occurs.
+    // Throws Core::Error::Exception if a fatal parsing error occurs.
     KeyValuesNode parseOrThrow(const QString& source);
 
 private:

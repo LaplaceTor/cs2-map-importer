@@ -13,23 +13,12 @@ class GameInfoParser {
 public:
     static Core::Async::TaskResult<GameInfo> parse(
         const Core::Path::FilesystemPath& gameInfoPath,
-        EngineType engine = EngineType::Source1,
-        QString* errorMessage = nullptr);
-
-    static Core::Async::TaskResult<GameInfo> parse(
-        const Core::Path::FilesystemPath& gameInfoPath,
-        QString* errorMessage);
-
-    static Core::Async::TaskResult<GameInfo> parseFromString(
-        const QString& content,
-        const Core::Path::FilesystemPath& gameInfoPath,
-        EngineType engine,
-        QString* errorMessage = nullptr);
+        EngineType engine = EngineType::Source1);
 
     static Core::Async::TaskResult<GameInfo> parseFromString(
         const QString& content,
         const Core::Path::FilesystemPath& gameInfoPath = Core::Path::FilesystemPath(),
-        QString* errorMessage = nullptr);
+        EngineType engine = EngineType::Source1);
 
     static Core::Path::FilesystemPath resolveBaseDirectory(
         const Core::Path::FilesystemPath& modDirectory,

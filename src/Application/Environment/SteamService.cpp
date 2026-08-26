@@ -284,7 +284,7 @@ Core::Async::TaskResult<void> SteamService::validateGameFiles(
         if (logCtx) {
             logCtx->error(errMsg);
         }
-        return Core::Async::TaskResult<void>::failure(errMsg);
+        return Core::Async::TaskResult<void>::failure(Core::Error::ErrorCode::InvalidArgument, errMsg);
     }
     if (logCtx) {
         logCtx->info(QStringLiteral("Requesting Steam game files validation for AppID: %1").arg(appId));
@@ -296,7 +296,7 @@ Core::Async::TaskResult<void> SteamService::validateGameFiles(
         if (logCtx) {
             logCtx->error(errMsg);
         }
-        return Core::Async::TaskResult<void>::failure(errMsg);
+        return Core::Async::TaskResult<void>::failure(Core::Error::ErrorCode::OperationFailed, errMsg);
     }
     return Core::Async::TaskResult<void>::success();
 }
@@ -311,7 +311,7 @@ Core::Async::TaskResult<void> SteamService::validateGameFiles(
         if (logCtx) {
             logCtx->error(errMsg);
         }
-        return Core::Async::TaskResult<void>::failure(errMsg);
+        return Core::Async::TaskResult<void>::failure(Core::Error::ErrorCode::InvalidArgument, errMsg);
     }
     return validateGameFiles(def->primaryAppId, logCtx);
 }

@@ -129,14 +129,10 @@ GameInfo GameInfoParser::createFromDocument(
 
 Core::Async::TaskResult<GameInfo> GameInfoParser::parse(
     const Core::Path::FilesystemPath& gameInfoPath,
-    EngineType engine,
-    QString* errorMessage)
+    EngineType engine)
 {
     if (!gameInfoPath.isValid() || !gameInfoPath.exists()) {
         QString msg = QStringLiteral("GameInfo file does not exist or is invalid: %1").arg(gameInfoPath.toString());
-        if (errorMessage) {
-            *errorMessage = msg;
-        }
         return Core::Async::TaskResult<GameInfo>::failure(Core::Error::ErrorCode::FileNotFound, msg);
     }
 
@@ -144,47 +140,25 @@ Core::Async::TaskResult<GameInfo> GameInfoParser::parse(
     QString kvError;
     if (!doc.loadFromFile(gameInfoPath, &kvError)) {
         QString msg = QStringLiteral("Failed to load GameInfo from '%1': %2").arg(gameInfoPath.toString(), kvError);
-        if (errorMessage) {
-            *errorMessage = msg;
-        }
         return Core::Async::TaskResult<GameInfo>::failure(Core::Error::ErrorCode::InvalidFile, msg);
     }
 
     return Core::Async::TaskResult<GameInfo>::success(createFromDocument(std::move(doc), gameInfoPath, engine));
 }
 
-Core::Async::TaskResult<GameInfo> GameInfoParser::parse(
-    const Core::Path::FilesystemPath& gameInfoPath,
-    QString* errorMessage)
-{
-    return parse(gameInfoPath, EngineType::Source1, errorMessage);
-}
-
 Core::Async::TaskResult<GameInfo> GameInfoParser::parseFromString(
     const QString& content,
     const Core::Path::FilesystemPath& gameInfoPath,
-    EngineType engine,
-    QString* errorMessage)
+    EngineType engine)
 {
     Core::KeyValues::KeyValuesDocument doc;
     QString kvError;
     if (!doc.loadFromString(content, &kvError)) {
         QString msg = QStringLiteral("Failed to parse GameInfo content: %1").arg(kvError);
-        if (errorMessage) {
-            *errorMessage = msg;
-        }
         return Core::Async::TaskResult<GameInfo>::failure(Core::Error::ErrorCode::InvalidFile, msg);
     }
 
     return Core::Async::TaskResult<GameInfo>::success(createFromDocument(std::move(doc), gameInfoPath, engine));
-}
-
-Core::Async::TaskResult<GameInfo> GameInfoParser::parseFromString(
-    const QString& content,
-    const Core::Path::FilesystemPath& gameInfoPath,
-    QString* errorMessage)
-{
-    return parseFromString(content, gameInfoPath, EngineType::Source1, errorMessage);
 }
 
 } // namespace Domain::Game

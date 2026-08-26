@@ -5,8 +5,8 @@
 #include <QTemporaryFile>
 #include <memory>
 
-#include "Core/Error/ImportException.h"
-#include "Core/Error/ImportError.h"
+#include "Core/Error/Exception.h"
+#include "Core/Error/ErrorCode.h"
 
 namespace Core::Temp {
 
@@ -15,8 +15,8 @@ public:
     TempFile()
         : m_file(std::make_unique<QTemporaryFile>()) {
         if (!m_file->open()) {
-            throw Core::Error::ImportException(
-                Core::Error::ImportErrorCode::OperationFailed,
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::OperationFailed,
                 QStringLiteral("Failed to create temporary file: %1").arg(m_file->errorString()));
         }
         m_file->close();
@@ -25,8 +25,8 @@ public:
     explicit TempFile(const QString& templateName)
         : m_file(std::make_unique<QTemporaryFile>(templateName)) {
         if (!m_file->open()) {
-            throw Core::Error::ImportException(
-                Core::Error::ImportErrorCode::OperationFailed,
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::OperationFailed,
                 QStringLiteral("Failed to create temporary file with template '%1': %2")
                     .arg(templateName, m_file->errorString()));
         }

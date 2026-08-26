@@ -58,8 +58,8 @@ bool FileSystem::isDirectory(const QString& path) {
 
 void FileSystem::createDirectory(const QString& path) {
     if (path.isEmpty()) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::InvalidPath,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::InvalidPath,
             QStringLiteral("Cannot create directory: Path is empty"));
     }
 
@@ -69,16 +69,16 @@ void FileSystem::createDirectory(const QString& path) {
     }
 
     if (!QDir().mkpath(path)) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::OperationFailed,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::OperationFailed,
             QStringLiteral("Failed to create directory: %1").arg(path));
     }
 }
 
 void FileSystem::remove(const QString& path) {
     if (path.isEmpty()) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::InvalidPath,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::InvalidPath,
             QStringLiteral("Cannot remove: Path is empty"));
     }
 
@@ -90,15 +90,15 @@ void FileSystem::remove(const QString& path) {
     if (info.isDir()) {
         QDir dir(path);
         if (!dir.removeRecursively()) {
-            throw Core::Error::ImportException(
-                Core::Error::ImportErrorCode::OperationFailed,
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::OperationFailed,
                 QStringLiteral("Failed to remove directory recursively: %1").arg(path));
         }
     } else {
         QFile file(path);
         if (!file.remove()) {
-            throw Core::Error::ImportException(
-                Core::Error::ImportErrorCode::OperationFailed,
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::OperationFailed,
                 QStringLiteral("Failed to remove file: %1 (%2)").arg(path, file.errorString()));
         }
     }
@@ -106,15 +106,15 @@ void FileSystem::remove(const QString& path) {
 
 void FileSystem::copy(const QString& source, const QString& destination, bool overwrite) {
     if (source.isEmpty() || destination.isEmpty()) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::InvalidPath,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::InvalidPath,
             QStringLiteral("Cannot copy: Source or destination path is empty"));
     }
 
     QFileInfo srcInfo(source);
     if (!srcInfo.exists()) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::FileNotFound,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::FileNotFound,
             QStringLiteral("Cannot copy: Source path does not exist: %1").arg(source));
     }
 
@@ -125,13 +125,13 @@ void FileSystem::copy(const QString& source, const QString& destination, bool ov
 
     if (srcInfo.isDir()) {
         if (isSubdirectoryOrEqual(destination, source)) {
-            throw Core::Error::ImportException(
-                Core::Error::ImportErrorCode::InvalidPath,
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::InvalidPath,
                 QStringLiteral("Cannot copy directory: Destination is inside source directory (%1 -> %2)").arg(source, destination));
         }
         if (isSubdirectoryOrEqual(source, destination)) {
-            throw Core::Error::ImportException(
-                Core::Error::ImportErrorCode::InvalidPath,
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::InvalidPath,
                 QStringLiteral("Cannot copy directory: Source is inside destination directory (%1 -> %2)").arg(source, destination));
         }
 
@@ -142,14 +142,14 @@ void FileSystem::copy(const QString& source, const QString& destination, bool ov
     QFileInfo dstInfo(destination);
     if (dstInfo.exists()) {
         if (!overwrite) {
-            throw Core::Error::ImportException(
-                Core::Error::ImportErrorCode::OperationFailed,
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::OperationFailed,
                 QStringLiteral("Cannot copy: Destination file already exists: %1").arg(destination));
         }
         QFile dstFile(destination);
         if (!dstFile.remove()) {
-            throw Core::Error::ImportException(
-                Core::Error::ImportErrorCode::OperationFailed,
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::OperationFailed,
                 QStringLiteral("Cannot copy: Failed to overwrite existing destination file: %1").arg(destination));
         }
     } else {
@@ -160,8 +160,8 @@ void FileSystem::copy(const QString& source, const QString& destination, bool ov
     }
 
     if (!QFile::copy(source, destination)) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::OperationFailed,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::OperationFailed,
             QStringLiteral("Failed to copy file from %1 to %2").arg(source, destination));
     }
 }
@@ -187,15 +187,15 @@ void FileSystem::copyDirectoryHelper(const QString& source, const QString& desti
 
 void FileSystem::move(const QString& source, const QString& destination, bool overwrite) {
     if (source.isEmpty() || destination.isEmpty()) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::InvalidPath,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::InvalidPath,
             QStringLiteral("Cannot move: Source or destination path is empty"));
     }
 
     QFileInfo srcInfo(source);
     if (!srcInfo.exists()) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::FileNotFound,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::FileNotFound,
             QStringLiteral("Cannot move: Source path does not exist: %1").arg(source));
     }
 
@@ -206,13 +206,13 @@ void FileSystem::move(const QString& source, const QString& destination, bool ov
 
     if (srcInfo.isDir()) {
         if (isSubdirectoryOrEqual(destination, source)) {
-            throw Core::Error::ImportException(
-                Core::Error::ImportErrorCode::InvalidPath,
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::InvalidPath,
                 QStringLiteral("Cannot move directory: Destination is inside source directory (%1 -> %2)").arg(source, destination));
         }
         if (isSubdirectoryOrEqual(source, destination)) {
-            throw Core::Error::ImportException(
-                Core::Error::ImportErrorCode::InvalidPath,
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::InvalidPath,
                 QStringLiteral("Cannot move directory: Source is inside destination directory (%1 -> %2)").arg(source, destination));
         }
     }
@@ -221,8 +221,8 @@ void FileSystem::move(const QString& source, const QString& destination, bool ov
     QString backupPath;
     if (dstInfo.exists()) {
         if (!overwrite) {
-            throw Core::Error::ImportException(
-                Core::Error::ImportErrorCode::OperationFailed,
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::OperationFailed,
                 QStringLiteral("Cannot move: Destination path already exists: %1").arg(destination));
         }
 
@@ -233,8 +233,8 @@ void FileSystem::move(const QString& source, const QString& destination, bool ov
 
         QDir dir;
         if (!dir.rename(destination, backupPath)) {
-            throw Core::Error::ImportException(
-                Core::Error::ImportErrorCode::OperationFailed,
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::OperationFailed,
                 QStringLiteral("Cannot move: Failed to create temporary backup for existing destination: %1").arg(destination));
         }
     } else {
@@ -286,22 +286,22 @@ void FileSystem::move(const QString& source, const QString& destination, bool ov
 
 QByteArray FileSystem::readAll(const QString& filePath) {
     if (filePath.isEmpty()) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::InvalidPath,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::InvalidPath,
             QStringLiteral("Cannot read file: Path is empty"));
     }
 
     QFileInfo info(filePath);
     if (!info.exists() || !info.isFile()) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::FileNotFound,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::FileNotFound,
             QStringLiteral("Cannot read file: File does not exist: %1").arg(filePath));
     }
 
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::PermissionDenied,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::PermissionDenied,
             QStringLiteral("Cannot open file for reading: %1 (%2)").arg(filePath, file.errorString()));
     }
 
@@ -310,8 +310,8 @@ QByteArray FileSystem::readAll(const QString& filePath) {
 
 void FileSystem::writeAll(const QString& filePath, const QByteArray& data) {
     if (filePath.isEmpty()) {
-        throw Core::Error::ImportException(
-            Core::Error::ImportErrorCode::InvalidPath,
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::InvalidPath,
             QStringLiteral("Cannot write file: Path is empty"));
     }
 

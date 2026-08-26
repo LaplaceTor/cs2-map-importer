@@ -30,10 +30,11 @@ enum class TaskExecutionStatus {
 /**
  * @brief Standardized result wrapper for business operations in Workflow and Application services.
  *
- * Represents a single-layer business outcome containing:
+ * Distinctly separates:
  * - status: Success, Failure, Cancelled, Skipped
- * - error: Structured Core::Error::Error (carrying ErrorCode, message, details)
- * - value / partialValue: The primary business payload of type T
+ * - value: The primary business payload of type T (or partialValue)
+ * - error: Structured Core::Error::Error (carrying ErrorCode, message, details for Failure/Cancelled)
+ * - message: Informational status explanation (success note, skip reason, cancel reason, or failure summary)
  *
  * @tparam T The business payload type (or void).
  */
@@ -47,7 +48,8 @@ public:
         TaskResult<T> r;
         r.m_status = TaskExecutionStatus::Success;
         r.m_value = std::move(value);
-        r.m_error = Core::Error::Error(Core::Error::ErrorCode::Success, std::move(message));
+        r.m_message = std::move(message);
+        r.m_error = Core::Error::Error::success();
         return r;
     }
 
@@ -55,6 +57,7 @@ public:
     {
         TaskResult<T> r;
         r.m_status = TaskExecutionStatus::Failure;
+        r.m_message = error.message();
         r.m_error = std::move(error);
         r.m_value = std::move(partialValue);
         return r;
@@ -70,11 +73,12 @@ public:
         return failure(Core::Error::ErrorCode::OperationFailed, std::move(errorMessage), std::move(partialValue));
     }
 
-    static TaskResult<T> cancelled(QString message = QStringLiteral("Task cancelled"), std::optional<T> value = std::nullopt)
+    static TaskResult<T> cancelled(QString reason = QStringLiteral("Task cancelled"), std::optional<T> value = std::nullopt)
     {
         TaskResult<T> r;
         r.m_status = TaskExecutionStatus::Cancelled;
-        r.m_error = Core::Error::Error(Core::Error::ErrorCode::Cancelled, std::move(message));
+        r.m_message = reason;
+        r.m_error = Core::Error::Error(Core::Error::ErrorCode::Cancelled, std::move(reason));
         r.m_value = std::move(value);
         return r;
     }
@@ -83,7 +87,8 @@ public:
     {
         TaskResult<T> r;
         r.m_status = TaskExecutionStatus::Skipped;
-        r.m_error = Core::Error::Error(Core::Error::ErrorCode::Success, std::move(reason));
+        r.m_message = std::move(reason);
+        r.m_error = Core::Error::Error::success();
         r.m_value = std::move(value);
         return r;
     }
@@ -96,7 +101,7 @@ public:
     TaskExecutionStatus status() const noexcept { return m_status; }
     const Core::Error::Error& error() const noexcept { return m_error; }
     Core::Error::ErrorCode errorCode() const noexcept { return m_error.code(); }
-    const QString& message() const noexcept { return m_error.message(); }
+    const QString& message() const noexcept { return m_message.isEmpty() ? m_error.message() : m_message; }
     const QString& details() const noexcept { return m_error.details(); }
 
     bool hasValue() const noexcept { return m_value.has_value(); }
@@ -111,8 +116,9 @@ public:
 
 private:
     TaskExecutionStatus m_status = TaskExecutionStatus::Failure;
-    Core::Error::Error m_error = Core::Error::Error(Core::Error::ErrorCode::Unknown);
     std::optional<T> m_value = std::nullopt;
+    Core::Error::Error m_error = Core::Error::Error(Core::Error::ErrorCode::Unknown);
+    QString m_message;
 };
 
 /**
@@ -127,7 +133,8 @@ public:
     {
         TaskResult<void> r;
         r.m_status = TaskExecutionStatus::Success;
-        r.m_error = Core::Error::Error(Core::Error::ErrorCode::Success, std::move(message));
+        r.m_message = std::move(message);
+        r.m_error = Core::Error::Error::success();
         return r;
     }
 
@@ -135,6 +142,7 @@ public:
     {
         TaskResult<void> r;
         r.m_status = TaskExecutionStatus::Failure;
+        r.m_message = error.message();
         r.m_error = std::move(error);
         return r;
     }
@@ -149,11 +157,12 @@ public:
         return failure(Core::Error::ErrorCode::OperationFailed, std::move(errorMessage));
     }
 
-    static TaskResult<void> cancelled(QString message = QStringLiteral("Task cancelled"))
+    static TaskResult<void> cancelled(QString reason = QStringLiteral("Task cancelled"))
     {
         TaskResult<void> r;
         r.m_status = TaskExecutionStatus::Cancelled;
-        r.m_error = Core::Error::Error(Core::Error::ErrorCode::Cancelled, std::move(message));
+        r.m_message = reason;
+        r.m_error = Core::Error::Error(Core::Error::ErrorCode::Cancelled, std::move(reason));
         return r;
     }
 
@@ -161,7 +170,8 @@ public:
     {
         TaskResult<void> r;
         r.m_status = TaskExecutionStatus::Skipped;
-        r.m_error = Core::Error::Error(Core::Error::ErrorCode::Success, std::move(reason));
+        r.m_message = std::move(reason);
+        r.m_error = Core::Error::Error::success();
         return r;
     }
 
@@ -173,12 +183,13 @@ public:
     TaskExecutionStatus status() const noexcept { return m_status; }
     const Core::Error::Error& error() const noexcept { return m_error; }
     Core::Error::ErrorCode errorCode() const noexcept { return m_error.code(); }
-    const QString& message() const noexcept { return m_error.message(); }
+    const QString& message() const noexcept { return m_message.isEmpty() ? m_error.message() : m_message; }
     const QString& details() const noexcept { return m_error.details(); }
 
 private:
     TaskExecutionStatus m_status = TaskExecutionStatus::Failure;
     Core::Error::Error m_error = Core::Error::Error(Core::Error::ErrorCode::Unknown);
+    QString m_message;
 };
 
 } // namespace Core::Async

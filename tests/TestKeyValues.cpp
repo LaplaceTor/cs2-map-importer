@@ -6,7 +6,7 @@
 #include "Core/KeyValues/KeyValuesLexer.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Path/PathUtils.h"
-#include "Core/Error/ImportException.h"
+#include "Core/Error/Exception.h"
 
 using namespace Core::KeyValues;
 using namespace Core::Path;
@@ -232,7 +232,7 @@ void TestKeyValues::testErrorHandling() {
     QVERIFY(!errorMsg.isEmpty());
 
     // Throws exception
-    QVERIFY_EXCEPTION_THROWN(parser.parseOrThrow(broken1), Core::Error::ImportException);
+    QVERIFY_EXCEPTION_THROWN(parser.parseOrThrow(broken1), Core::Error::Exception);
 
     // Unexpected closing brace
     const QString broken2 = QStringLiteral("Root { } }");

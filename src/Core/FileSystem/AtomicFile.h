@@ -5,8 +5,8 @@
 #include <QSaveFile>
 #include <memory>
 
-#include "Core/Error/ImportException.h"
-#include "Core/Error/ImportError.h"
+#include "Core/Error/Exception.h"
+#include "Core/Error/ErrorCode.h"
 
 namespace Core::FileSystem {
 

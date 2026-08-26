@@ -5,8 +5,8 @@
 #include <QDir>
 #include <memory>
 
-#include "Core/Error/ImportException.h"
-#include "Core/Error/ImportError.h"
+#include "Core/Error/Exception.h"
+#include "Core/Error/ErrorCode.h"
 
 namespace Core::Temp {
 
@@ -15,8 +15,8 @@ public:
     TempDirectory()
         : m_dir(std::make_unique<QTemporaryDir>()) {
         if (!m_dir->isValid()) {
-            throw Core::Error::ImportException(
-                Core::Error::ImportErrorCode::OperationFailed,
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::OperationFailed,
                 QStringLiteral("Failed to create temporary directory"));
         }
     }
@@ -24,8 +24,8 @@ public:
     explicit TempDirectory(const QString& templatePath)
         : m_dir(std::make_unique<QTemporaryDir>(templatePath)) {
         if (!m_dir->isValid()) {
-            throw Core::Error::ImportException(
-                Core::Error::ImportErrorCode::OperationFailed,
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::OperationFailed,
                 QStringLiteral("Failed to create temporary directory with template '%1'").arg(templatePath));
         }
     }

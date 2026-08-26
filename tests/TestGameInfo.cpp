@@ -59,9 +59,8 @@ private slots:
         QString giPathStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source/cstrike/gameinfo.txt"));
         Core::Path::FilesystemPath giPath(giPathStr);
 
-        QString error;
-        auto result = GameInfoParser::parse(giPath, &error);
-        QVERIFY2(result.has_value(), qPrintable(error));
+        auto result = GameInfoParser::parse(giPath);
+        QVERIFY2(result.has_value(), qPrintable(result.message()));
 
         const auto& info = *result;
         QCOMPARE(info.game(), QStringLiteral("Counter-Strike Source"));
@@ -106,9 +105,8 @@ private slots:
         QString giPathStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Half-Life 2/hl2/gameinfo.txt"));
         Core::Path::FilesystemPath giPath(giPathStr);
 
-        QString error;
-        auto result = GameInfoParser::parse(giPath, &error);
-        QVERIFY2(result.has_value(), qPrintable(error));
+        auto result = GameInfoParser::parse(giPath);
+        QVERIFY2(result.has_value(), qPrintable(result.message()));
 
         const auto& info = *result;
         QCOMPARE(info.game(), QStringLiteral("HALF-LIFE 2"));
@@ -135,9 +133,8 @@ private slots:
         QString giPathStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Left 4 Dead 2/left4dead2/gameinfo.txt"));
         Core::Path::FilesystemPath giPath(giPathStr);
 
-        QString error;
-        auto result = GameInfoParser::parse(giPath, &error);
-        QVERIFY2(result.has_value(), qPrintable(error));
+        auto result = GameInfoParser::parse(giPath);
+        QVERIFY2(result.has_value(), qPrintable(result.message()));
 
         const auto& info = *result;
         QCOMPARE(info.game(), QStringLiteral("Left 4 Dead 2"));
@@ -164,9 +161,8 @@ private slots:
         QString giPathStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Portal 2/portal2/gameinfo.txt"));
         Core::Path::FilesystemPath giPath(giPathStr);
 
-        QString error;
-        auto result = GameInfoParser::parse(giPath, &error);
-        QVERIFY2(result.has_value(), qPrintable(error));
+        auto result = GameInfoParser::parse(giPath);
+        QVERIFY2(result.has_value(), qPrintable(result.message()));
 
         const auto& info = *result;
         QCOMPARE(info.game(), QStringLiteral("PORTAL 2"));
@@ -185,9 +181,8 @@ private slots:
         QString giPathStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Team Fortress 2/tf/gameinfo.txt"));
         Core::Path::FilesystemPath giPath(giPathStr);
 
-        QString error;
-        auto result = GameInfoParser::parse(giPath, &error);
-        QVERIFY2(result.has_value(), qPrintable(error));
+        auto result = GameInfoParser::parse(giPath);
+        QVERIFY2(result.has_value(), qPrintable(result.message()));
 
         const auto& info = *result;
         QCOMPARE(info.game(), QStringLiteral("Team Fortress 2"));
@@ -213,9 +208,8 @@ private slots:
         QString giPathStr = QDir(m_testFilesRoot).filePath(QStringLiteral("csgo legacy/csgo/gameinfo.txt"));
         Core::Path::FilesystemPath giPath(giPathStr);
 
-        QString error;
-        auto result = GameInfoParser::parse(giPath, &error);
-        QVERIFY2(result.has_value(), qPrintable(error));
+        auto result = GameInfoParser::parse(giPath);
+        QVERIFY2(result.has_value(), qPrintable(result.message()));
 
         const auto& info = *result;
         QCOMPARE(info.game(), QStringLiteral("Counter-Strike: Global Offensive"));
@@ -249,9 +243,8 @@ private slots:
         );
 
         Core::Path::FilesystemPath giPath(QStringLiteral("C:/MyGames/Engine/custom_mod/gameinfo.txt"));
-        QString error;
-        auto result = GameInfoParser::parseFromString(content, giPath, &error);
-        QVERIFY2(result.has_value(), qPrintable(error));
+        auto result = GameInfoParser::parseFromString(content, giPath);
+        QVERIFY2(result.has_value(), qPrintable(result.message()));
 
         const auto& info = *result;
         QCOMPARE(info.game(), QStringLiteral("Custom Game"));
@@ -271,10 +264,9 @@ private slots:
 
     void testInvalidGameInfo() {
         Core::Path::FilesystemPath nonExistent(QStringLiteral("C:/non/existent/path/gameinfo.txt"));
-        QString error;
-        auto result = GameInfoParser::parse(nonExistent, &error);
+        auto result = GameInfoParser::parse(nonExistent);
         QVERIFY(!result.has_value());
-        QVERIFY(!error.isEmpty());
+        QVERIFY(!result.message().isEmpty());
     }
 
     void testGameRegistry() {
@@ -490,9 +482,8 @@ private slots:
         );
 
         Core::Path::FilesystemPath mockGiPath(QStringLiteral("C:/Games/SteamLibrary/steamapps/common/Counter-Strike Global Offensive/game/csgo/gameinfo.gi"));
-        QString error;
-        auto result = GameInfoParser::parseFromString(cs2GiContent, mockGiPath, EngineType::Source2, &error);
-        QVERIFY2(result.has_value(), qPrintable(error));
+        auto result = GameInfoParser::parseFromString(cs2GiContent, mockGiPath, EngineType::Source2);
+        QVERIFY2(result.has_value(), qPrintable(result.message()));
 
         const auto& info = *result;
         QCOMPARE(info.game(), QStringLiteral("Counter-Strike 2"));

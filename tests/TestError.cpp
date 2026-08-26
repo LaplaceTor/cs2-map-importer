@@ -22,6 +22,7 @@ private slots:
     void testExceptionLifecycleAndStdExceptionCompatibility();
     void testProcessResultMapping();
     void testTaskResultStructuredError();
+    void testTaskResultSeparationOfStatusAndMessage();
     void testTaskResultValueOr();
     void testGameInfoParserStructuredError();
     void testBackwardCompatibilityAliases();
@@ -122,6 +123,30 @@ void TestError::testTaskResultStructuredError()
     QVERIFY(failVoid.isFailure());
     QCOMPARE(failVoid.errorCode(), ErrorCode::NetworkError);
     QCOMPARE(failVoid.message(), QStringLiteral("Steam network offline"));
+}
+
+void TestError::testTaskResultSeparationOfStatusAndMessage()
+{
+    // Success with message
+    auto okResult = TaskResult<int>::success(123, QStringLiteral("Loaded 123 items"));
+    QVERIFY(okResult.isSuccess());
+    QCOMPARE(okResult.value(), 123);
+    QCOMPARE(okResult.message(), QStringLiteral("Loaded 123 items"));
+    QVERIFY(okResult.error().isSuccess());
+
+    // Skipped: not an error, distinct status, carries reason as message
+    auto skipResult = TaskResult<int>::skipped(QStringLiteral("Already up to date"), 42);
+    QVERIFY(skipResult.isSkipped());
+    QVERIFY(!skipResult.isFailure());
+    QCOMPARE(skipResult.message(), QStringLiteral("Already up to date"));
+    QVERIFY(skipResult.hasValue());
+    QCOMPARE(skipResult.value(), 42);
+
+    // Cancelled: distinct status, carries reason
+    auto cancelResult = TaskResult<void>::cancelled(QStringLiteral("User aborted import"));
+    QVERIFY(cancelResult.isCancelled());
+    QCOMPARE(cancelResult.message(), QStringLiteral("User aborted import"));
+    QCOMPARE(cancelResult.errorCode(), ErrorCode::Cancelled);
 }
 
 void TestError::testTaskResultValueOr()

@@ -11,8 +11,8 @@
 namespace Core::Error {
 
 /**
- * @brief Standardized exception class carrying structured Error information.
- * Inherits from QException (which inherits std::exception) for safe thread transport and std::exception compatibility.
+ * @brief Structured exception class carrying diagnostic Error information.
+ * Inherits from QException for safe asynchronous and cross-thread transport in Qt.
  */
 class Exception : public QException {
 public:
