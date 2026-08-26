@@ -184,7 +184,7 @@ void GameEnvironmentService::validateSource1FolderAsync(
     QString effectiveName = typeName.trimmed().isEmpty() ? QStringLiteral("Source 1") : typeName.trimmed();
     QString taskName = QStringLiteral("Validate %1").arg(effectiveName);
 
-    Application::Async::AsyncTaskRunner::run<Core::Async::TaskResult<GameInstallationInfo>>(
+    Application::Async::AsyncTaskRunner::runTask<GameInstallationInfo>(
         taskName,
         context,
         [type, normalizedPath, effectiveName](std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) -> Core::Async::TaskResult<GameInstallationInfo> {
@@ -253,7 +253,7 @@ void GameEnvironmentService::validateSource2FolderAsync(
 {
     QString normalizedPath = cleanPath(pathOrUrl);
 
-    Application::Async::AsyncTaskRunner::run<Core::Async::TaskResult<GameInstallationInfo>>(
+    Application::Async::AsyncTaskRunner::runTask<GameInstallationInfo>(
         QStringLiteral("Validate Source 2"),
         context,
         [normalizedPath](std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) -> Core::Async::TaskResult<GameInstallationInfo> {

@@ -307,6 +307,30 @@ Rules:
 
 For services with both sync and async APIs, the sync primitive belongs below Application; the Application service may provide the async wrapper.
 
+### Dual-Plane Architecture: Task Execution Lifecycle vs. Business Outcome
+
+To maintain strict conceptual clarity across async tasks and workflow operations, the architecture defines two orthogonal planes:
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. Task Execution Lifecycle Plane (TaskState)                               │
+│    Managed by LogManager / TaskLoggingContext                               │
+│    States: Pending → Running → Completed | Failed | Cancelled | Skipped    │
+│    Tracked and displayed in UI log models (LogViewModel / LogTaskModel)     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 2. Business Outcome Plane (TaskResult<T>)                                   │
+│    Standard single-layer return contract for Workflow and Application APIs  │
+│    Statuses: Success | Failure | Cancelled | Skipped + payload T & message  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+`AsyncTaskRunner` acts as the bridge connecting both planes:
+* **Primary API**: `AsyncTaskRunner::runTask<T>(taskName, context, worker, callback)`
+  * `T` is the **Business Payload Type** (e.g. `GameInstallationInfo`, `DetectionResult`, `void`), never `TaskResult<TaskResult<T>>`.
+  * The worker returns a single-layer `TaskResult<T>`.
+  * `AsyncTaskRunner` inspects the business outcome (and logged errors / exceptions) to transition the underlying `TaskState` in `LogManager`.
+  * The callback receives `const TaskResult<T>&` delivered thread-safely to the caller's context thread.
+
 ---
 
 ## 6. Logging Rules

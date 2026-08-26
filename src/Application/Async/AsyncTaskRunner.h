@@ -1,19 +1,19 @@
 #pragma once
 
 #include <QObject>
-#include <QPointer>
-#include <QThreadPool>
-#include <QMetaObject>
 #include <QString>
-#include <exception>
-#include <functional>
+#include <QThreadPool>
+#include <QRunnable>
+#include <QPointer>
+#include <QMetaObject>
 #include <memory>
-#include <optional>
-#include <type_traits>
+#include <functional>
 #include <utility>
+#include <type_traits>
 
 #include "Core/Logging/LogManager.h"
 #include "Core/Logging/TaskLoggingContext.h"
+#include "Core/Logging/TaskState.h"
 #include "Core/Async/TaskResult.h"
 
 namespace Application::Async {
@@ -22,29 +22,6 @@ using Core::Async::TaskResult;
 using Core::Async::TaskExecutionStatus;
 
 namespace Detail {
-
-template <typename T>
-struct is_std_function : std::false_type {};
-
-template <typename Ret, typename... Args>
-struct is_std_function<std::function<Ret(Args...)>> : std::true_type {};
-
-template <typename T>
-inline constexpr bool is_std_function_v = is_std_function<std::decay_t<T>>::value;
-
-template <typename F>
-bool isCallableValid(const F& f)
-{
-    if constexpr (std::is_same_v<std::decay_t<F>, std::nullptr_t>) {
-        return false;
-    } else if constexpr (std::is_pointer_v<std::decay_t<F>>) {
-        return f != nullptr;
-    } else if constexpr (is_std_function_v<F>) {
-        return static_cast<bool>(f);
-    } else {
-        return true;
-    }
-}
 
 template <typename T>
 struct is_optional_type : std::false_type {};
@@ -58,9 +35,20 @@ struct is_task_result_type : std::false_type {};
 template <typename T>
 struct is_task_result_type<Core::Async::TaskResult<T>> : std::true_type {};
 
+template <typename T>
+struct is_task_result_type<const Core::Async::TaskResult<T>&> : std::true_type {};
+
+template <typename Fn>
+bool isCallableValid(const Fn& fn) {
+    if constexpr (std::is_convertible_v<Fn, bool>) {
+        return !!fn;
+    } else {
+        return true;
+    }
+}
+
 template <typename ResultType>
-Core::Async::TaskExecutionStatus inspectResultStatus(const ResultType& result)
-{
+Core::Async::TaskExecutionStatus inspectResultStatus(const ResultType& result) {
     if constexpr (is_task_result_type<std::decay_t<ResultType>>::value) {
         return result.status();
     } else if constexpr (std::is_same_v<std::decay_t<ResultType>, bool>) {
@@ -75,32 +63,66 @@ Core::Async::TaskExecutionStatus inspectResultStatus(const ResultType& result)
 } // namespace Detail
 
 /**
- * @brief Helper for standardized asynchronous task execution with TaskLoggingContext,
- * multi-level hierarchical sub-tasks, exception safety, semantic failure detection, and Qt thread-safe callback delivery.
+ * @brief Dispatcher and coordinator for asynchronous tasks, bridging Task Execution Lifecycle
+ * (Core::Logging::TaskState) and Business Outcome (Core::Async::TaskResult<T>).
  *
- * Contract & Guarantees:
- * - Task Creation Enforcement: If LogManager rejects task creation (e.g. invalid parentTaskId),
- *   the worker is strictly NOT dispatched to QThreadPool.
- * - Worker Execution: Always executed in a worker thread (via QThreadPool) with guaranteed non-null TaskLoggingContext.
- * - Lifecycle Management: TaskLoggingContext is automatically created and started.
- * - Semantic Outcome Handling (TaskResult<T> / optional / bool):
- *   1. An unhandled exception -> TaskState::Failed.
- *   2. TaskResult::success(...) (or valid optional / true) with 0 logged errors -> TaskState::Completed.
- *   3. TaskResult::failure(...) (or nullopt / false / logged errors) -> TaskState::Failed.
- *   4. TaskResult::cancelled(...) -> TaskState::Cancelled.
- *   5. TaskResult::skipped(...) -> TaskState::Skipped.
- *   6. Explicit worker context call (taskContext->fail/complete/cancel/skip) -> Explicit terminal state preserved.
- * - Context Affinity: @p context is optional (nullptr allowed for pure background/headless tasks).
- * - Callback Delivery: If @p context != nullptr and @p callback is valid/callable, results are
- *   delivered to @p context's thread via Qt::QueuedConnection. If @p context == nullptr and @p callback is valid,
- *   callback is executed directly.
- * - Lifetime Guarding: If @p context is destroyed before worker finishes, callback is safely dropped.
- * - Fire-and-Forget: If @p callback is omitted, null, or empty, worker runs and logs normally in the background.
+ * Architectural Dual-Plane Model:
+ * 1. **Execution Lifecycle Plane (`TaskState`)**:
+ *    - Managed by `LogManager` / `TaskLoggingContext` (`Pending` -> `Running` -> `Completed` | `Failed` | `Cancelled` | `Skipped`).
+ *    - Tracked and rendered in UI log models (`LogViewModel`, `LogTaskModel`).
+ * 2. **Business Outcome Plane (`TaskResult<T>`)**:
+ *    - Produced by the worker and returned to the caller callback (`Success`, `Failure`, `Cancelled`, `Skipped` + payload `T`).
+ *
+ * `AsyncTaskRunner` directly consumes `TaskResult<T>` from the worker and translates its business outcome
+ * into the appropriate terminal `TaskState`, without wrapping `TaskResult` in another layer.
+ *
+ * Standard API Usage:
+ * - Use `runTask<T>(...)` where `T` is the business payload (e.g. `GameInstallationInfo`, `void`).
+ * - Use `run<ResultType>(...)` for custom result types.
+ * - Use `runVoid(...)` for fire-and-forget or non-returning operations.
  */
 class AsyncTaskRunner {
 public:
     /**
-     * @brief Runs an async worker with a return value and delivers the result to callback on context thread.
+     * @brief Primary API: Runs an async task whose business outcome is TaskResult<T>.
+     *
+     * @tparam T The business payload type (e.g. GameInstallationInfo, DetectionResult, or void).
+     * @param taskName The name of the task for logging/UI display.
+     * @param context The Qt lifetime context object (callback marshaled to its thread).
+     * @param worker Lambda taking std::shared_ptr<TaskLoggingContext> and returning TaskResult<T>.
+     * @param callback Callback receiving const TaskResult<T>&.
+     * @param pool The QThreadPool to dispatch to (defaults to globalInstance).
+     * @param parentTaskId Optional parent task ID for hierarchical sub-tasks.
+     */
+    template <typename T, typename WorkerFn, typename CallbackFn = std::function<void(const TaskResult<T>&)>>
+    static void runTask(
+        const QString& taskName,
+        QObject* context,
+        WorkerFn&& worker,
+        CallbackFn&& callback = CallbackFn{},
+        QThreadPool* pool = QThreadPool::globalInstance(),
+        quint64 parentTaskId = 0)
+    {
+        run<TaskResult<T>>(taskName, context, std::forward<WorkerFn>(worker), std::forward<CallbackFn>(callback), pool, parentTaskId);
+    }
+
+    /**
+     * @brief Primary API: Runs an async child sub-task whose business outcome is TaskResult<T>.
+     */
+    template <typename T, typename WorkerFn, typename CallbackFn = std::function<void(const TaskResult<T>&)>>
+    static void runChildTask(
+        quint64 parentTaskId,
+        const QString& taskName,
+        QObject* context,
+        WorkerFn&& worker,
+        CallbackFn&& callback = CallbackFn{},
+        QThreadPool* pool = QThreadPool::globalInstance())
+    {
+        run<TaskResult<T>>(taskName, context, std::forward<WorkerFn>(worker), std::forward<CallbackFn>(callback), pool, parentTaskId);
+    }
+
+    /**
+     * @brief Runs an async worker with an explicit ResultType and delivers the result to callback on context thread.
      */
     template <typename ResultType, typename WorkerFn, typename CallbackFn = std::function<void(const ResultType&)>>
     static void run(
@@ -125,12 +147,16 @@ public:
                     if (context) {
                         QPointer<QObject> guard(context);
                         QMetaObject::invokeMethod(guard.data(), [guard, cb = std::forward<CallbackFn>(callback), res = std::move(failureResult)]() {
-                            if (guard) {
-                                cb(res);
-                            }
+                            try {
+                                if (guard && Detail::isCallableValid(cb)) {
+                                    cb(res);
+                                }
+                            } catch (...) {}
                         }, Qt::QueuedConnection);
                     } else {
-                        callback(failureResult);
+                        try {
+                            callback(failureResult);
+                        } catch (...) {}
                     }
                 }
             }
@@ -140,72 +166,85 @@ public:
         taskContext->start();
         QPointer<QObject> contextGuard(context);
         quint64 taskId = taskContext->taskId();
+        bool hasValidCallback = false;
+        if constexpr (std::is_invocable_v<CallbackFn, ResultType>) {
+            hasValidCallback = Detail::isCallableValid(callback);
+        }
 
-        auto workerLambda = [taskContext, taskId, contextGuard, context,
+        auto workerLambda = [taskContext, taskId, contextGuard, context, hasValidCallback,
                              worker = std::forward<WorkerFn>(worker),
                              callback = std::forward<CallbackFn>(callback)]() mutable {
-            ResultType result{};
-            bool threwException = false;
-
             try {
-                result = worker(taskContext);
-            } catch (const std::exception& ex) {
-                threwException = true;
-                if (taskContext) {
-                    taskContext->error(QStringLiteral("Unhandled exception in task: %1").arg(QString::fromUtf8(ex.what())));
-                }
-            } catch (...) {
-                threwException = true;
-                if (taskContext) {
-                    taskContext->error(QStringLiteral("Unhandled unknown exception in task"));
-                }
-            }
+                ResultType result{};
+                bool threwException = false;
 
-            if (taskContext) {
-                bool isTerminal = Core::Logging::TaskLoggingContext::isTerminalState(taskContext->state());
-                if (!isTerminal) {
-                    if (threwException) {
-                        Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task failed with exception"));
-                    } else {
-                        Core::Async::TaskExecutionStatus execStatus = Detail::inspectResultStatus(result);
-                        if (execStatus == Core::Async::TaskExecutionStatus::Success) {
-                            if (taskContext->hasErrors()) {
-                                Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task completed with logged errors"));
-                            } else {
-                                Core::Logging::LogManager::instance().finishTask(taskId, QStringLiteral("Completed"));
-                            }
-                        } else if (execStatus == Core::Async::TaskExecutionStatus::Cancelled) {
-                            Core::Logging::LogManager::instance().cancelTask(taskId, QStringLiteral("Cancelled"));
-                        } else if (execStatus == Core::Async::TaskExecutionStatus::Skipped) {
-                            Core::Logging::LogManager::instance().skipTask(taskId, QStringLiteral("Skipped"));
+                try {
+                    result = worker(taskContext);
+                } catch (const std::exception& ex) {
+                    threwException = true;
+                    if (taskContext) {
+                        taskContext->error(QStringLiteral("Unhandled exception in task: %1").arg(QString::fromUtf8(ex.what())));
+                    }
+                } catch (...) {
+                    threwException = true;
+                    if (taskContext) {
+                        taskContext->error(QStringLiteral("Unhandled unknown exception in task"));
+                    }
+                }
+
+                if (taskContext) {
+                    bool isTerminal = Core::Logging::TaskLoggingContext::isTerminalState(taskContext->state());
+                    if (!isTerminal) {
+                        if (threwException) {
+                            Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task failed with exception"));
                         } else {
-                            Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task failed"));
+                            Core::Async::TaskExecutionStatus execStatus = Detail::inspectResultStatus(result);
+                            if (execStatus == Core::Async::TaskExecutionStatus::Success) {
+                                if (taskContext->hasErrors()) {
+                                    Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task completed with logged errors"));
+                                } else {
+                                    Core::Logging::LogManager::instance().finishTask(taskId, QStringLiteral("Completed"));
+                                }
+                            } else if (execStatus == Core::Async::TaskExecutionStatus::Cancelled) {
+                                Core::Logging::LogManager::instance().cancelTask(taskId, QStringLiteral("Cancelled"));
+                            } else if (execStatus == Core::Async::TaskExecutionStatus::Skipped) {
+                                Core::Logging::LogManager::instance().skipTask(taskId, QStringLiteral("Skipped"));
+                            } else {
+                                Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task failed"));
+                            }
+                        }
+                    } else {
+                        Core::Logging::LogManager::instance().flushTask(taskId);
+                    }
+                }
+
+                if constexpr (std::is_invocable_v<CallbackFn, ResultType>) {
+                    if (hasValidCallback) {
+                        if (contextGuard) {
+                            QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, callback = std::move(callback), res = std::move(result)]() {
+                                try {
+                                    if (contextGuard && Detail::isCallableValid(callback)) {
+                                        callback(res);
+                                    }
+                                } catch (...) {}
+                            }, Qt::QueuedConnection);
+                        } else if (!context) {
+                            try {
+                                callback(result);
+                            } catch (...) {}
                         }
                     }
-                } else {
-                    Core::Logging::LogManager::instance().flushTask(taskId);
                 }
-            }
-
-            if constexpr (std::is_invocable_v<CallbackFn, ResultType>) {
-                if (Detail::isCallableValid(callback)) {
-                    if (contextGuard) {
-                        QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, callback = std::move(callback), res = std::move(result)]() {
-                            if (contextGuard) {
-                                callback(res);
-                            }
-                        }, Qt::QueuedConnection);
-                    } else if (!context) {
-                        callback(result);
-                    }
-                }
+            } catch (...) {
+                // Guaranteed no unhandled exception ever leaks to QtConcurrent/QThreadPool
             }
         };
 
+        QRunnable* runnable = QRunnable::create(std::move(workerLambda));
         if (pool) {
-            pool->start(std::move(workerLambda));
+            pool->start(runnable);
         } else {
-            QThreadPool::globalInstance()->start(std::move(workerLambda));
+            QThreadPool::globalInstance()->start(runnable);
         }
     }
 
@@ -230,58 +269,71 @@ public:
         taskContext->start();
         QPointer<QObject> contextGuard(context);
         quint64 taskId = taskContext->taskId();
+        bool hasValidCallback = false;
+        if constexpr (std::is_invocable_v<CallbackFn>) {
+            hasValidCallback = Detail::isCallableValid(callback);
+        }
 
-        auto workerLambda = [taskContext, taskId, contextGuard, context,
+        auto workerLambda = [taskContext, taskId, contextGuard, context, hasValidCallback,
                              worker = std::forward<WorkerFn>(worker),
                              callback = std::forward<CallbackFn>(callback)]() mutable {
-            bool threwException = false;
-
             try {
-                worker(taskContext);
-            } catch (const std::exception& ex) {
-                threwException = true;
+                bool threwException = false;
+
+                try {
+                    worker(taskContext);
+                } catch (const std::exception& ex) {
+                    threwException = true;
+                    if (taskContext) {
+                        taskContext->error(QStringLiteral("Unhandled exception in task: %1").arg(QString::fromUtf8(ex.what())));
+                    }
+                } catch (...) {
+                    threwException = true;
+                    if (taskContext) {
+                        taskContext->error(QStringLiteral("Unhandled unknown exception in task"));
+                    }
+                }
+
                 if (taskContext) {
-                    taskContext->error(QStringLiteral("Unhandled exception in task: %1").arg(QString::fromUtf8(ex.what())));
+                    bool isTerminal = Core::Logging::TaskLoggingContext::isTerminalState(taskContext->state());
+                    if (!isTerminal) {
+                        if (threwException || taskContext->hasErrors()) {
+                            Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task failed"));
+                        } else {
+                            Core::Logging::LogManager::instance().finishTask(taskId, QStringLiteral("Completed"));
+                        }
+                    } else {
+                        Core::Logging::LogManager::instance().flushTask(taskId);
+                    }
+                }
+
+                if constexpr (std::is_invocable_v<CallbackFn>) {
+                    if (hasValidCallback) {
+                        if (contextGuard) {
+                            QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, callback = std::move(callback)]() {
+                                try {
+                                    if (contextGuard && Detail::isCallableValid(callback)) {
+                                        callback();
+                                    }
+                                } catch (...) {}
+                            }, Qt::QueuedConnection);
+                        } else if (!context) {
+                            try {
+                                callback();
+                            } catch (...) {}
+                        }
+                    }
                 }
             } catch (...) {
-                threwException = true;
-                if (taskContext) {
-                    taskContext->error(QStringLiteral("Unhandled unknown exception in task"));
-                }
-            }
-
-            if (taskContext) {
-                bool isTerminal = Core::Logging::TaskLoggingContext::isTerminalState(taskContext->state());
-                if (!isTerminal) {
-                    if (threwException || taskContext->hasErrors()) {
-                        Core::Logging::LogManager::instance().failTask(taskId, QStringLiteral("Task failed"));
-                    } else {
-                        Core::Logging::LogManager::instance().finishTask(taskId, QStringLiteral("Completed"));
-                    }
-                } else {
-                    Core::Logging::LogManager::instance().flushTask(taskId);
-                }
-            }
-
-            if constexpr (std::is_invocable_v<CallbackFn>) {
-                if (Detail::isCallableValid(callback)) {
-                    if (contextGuard) {
-                        QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, callback = std::move(callback)]() {
-                            if (contextGuard) {
-                                callback();
-                            }
-                        }, Qt::QueuedConnection);
-                    } else if (!context) {
-                        callback();
-                    }
-                }
+                // Guaranteed no unhandled exception ever leaks to QtConcurrent/QThreadPool
             }
         };
 
+        QRunnable* runnable = QRunnable::create(std::move(workerLambda));
         if (pool) {
-            pool->start(std::move(workerLambda));
+            pool->start(runnable);
         } else {
-            QThreadPool::globalInstance()->start(std::move(workerLambda));
+            QThreadPool::globalInstance()->start(runnable);
         }
     }
 

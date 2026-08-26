@@ -8,7 +8,14 @@
 namespace Core::Async {
 
 /**
- * @brief Standard execution status outcome for Workflow and Application tasks.
+ * @brief Business outcome status for operations in Workflow, Application, and Domain layers.
+ *
+ * Architectural Role:
+ * - TaskExecutionStatus represents the **Business Outcome Plane** (业务操作结果).
+ * - Core::Logging::TaskState represents the **Execution Lifecycle Plane** (任务执行生命周期).
+ *
+ * AsyncTaskRunner bridges the two: evaluating the business outcome (along with logged errors
+ * and exception safety) to transition the underlying TaskState in LogManager.
  */
 enum class TaskExecutionStatus {
     Success,
@@ -18,8 +25,14 @@ enum class TaskExecutionStatus {
 };
 
 /**
- * @brief Standardized result wrapper for asynchronous, workflow, and application operations.
- * Explicitly distinguishes between Success, Failure, Cancelled, and Skipped states.
+ * @brief Standardized result wrapper for business operations in Workflow and Application services.
+ *
+ * Represents a single-layer business outcome containing:
+ * - status: Success, Failure, Cancelled, Skipped
+ * - value / partialValue: The primary business payload of type T
+ * - message: Diagnostic or user-facing outcome explanation
+ *
+ * @tparam T The business payload type (or void).
  */
 template <typename T = void>
 class TaskResult {
@@ -72,11 +85,7 @@ public:
     bool hasValue() const noexcept { return m_value.has_value(); }
     const T& value() const { return m_value.value(); }
     T& value() { return m_value.value(); }
-    T valueOr(T defaultVal) const { return m_value.value_or(std::move(defaultVal)); }
-
-    const std::optional<T>& optionalValue() const noexcept { return m_value; }
-
-    explicit operator bool() const noexcept { return isSuccess(); }
+    T valueOr(T&& defaultValue) const { return m_value.value_or(std::forward<T>(defaultValue)); }
 
 private:
     TaskExecutionStatus m_status = TaskExecutionStatus::Failure;
@@ -84,6 +93,9 @@ private:
     QString m_message;
 };
 
+/**
+ * @brief Specialization of TaskResult for void business payload.
+ */
 template <>
 class TaskResult<void> {
 public:
@@ -129,12 +141,9 @@ public:
     TaskExecutionStatus status() const noexcept { return m_status; }
     const QString& message() const noexcept { return m_message; }
 
-    explicit operator bool() const noexcept { return isSuccess(); }
-
 private:
     TaskExecutionStatus m_status = TaskExecutionStatus::Failure;
     QString m_message;
 };
 
 } // namespace Core::Async
-

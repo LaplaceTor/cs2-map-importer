@@ -15,7 +15,7 @@ void GameDetectService::detectEnvironmentAsync(
     std::function<void(const Core::Async::TaskResult<DetectionResult>&)> callback,
     const Core::Path::FilesystemPath& customSteamPath)
 {
-    Application::Async::AsyncTaskRunner::run<Core::Async::TaskResult<DetectionResult>>(
+    Application::Async::AsyncTaskRunner::runTask<DetectionResult>(
         QStringLiteral("Detect Environment"),
         context,
         [customSteamPath](std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) -> Core::Async::TaskResult<DetectionResult> {

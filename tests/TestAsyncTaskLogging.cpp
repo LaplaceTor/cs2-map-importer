@@ -45,6 +45,7 @@ private slots:
     void testInvalidParentTaskRejection();
     void testLoggedErrorForcesTaskFailure();
     void testLoggedWarningPreservesTaskCompleted();
+    void testRunTaskAndChildTaskApi();
 };
 
 void TestAsyncTaskLogging::init()
@@ -54,6 +55,7 @@ void TestAsyncTaskLogging::init()
 
 void TestAsyncTaskLogging::cleanup()
 {
+    QThreadPool::globalInstance()->waitForDone(3000);
     LogManager::instance().clear();
 }
 
@@ -506,6 +508,7 @@ void TestAsyncTaskLogging::testNullContextAndEmptyCallbackExecution()
         });
 
     QTRY_COMPARE_WITH_TIMEOUT(computeResult.load(), 42, 3000);
+    QThreadPool::globalInstance()->waitForDone(3000);
 }
 
 void TestAsyncTaskLogging::testSemanticBusinessFailureDetection()
@@ -773,6 +776,79 @@ void TestAsyncTaskLogging::testLoggedWarningPreservesTaskCompleted()
     // Verification: TaskState must remain COMPLETED
     QModelIndex idx = logVm->index(0, 0);
     QCOMPARE(logVm->data(idx, LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testRunTaskAndChildTaskApi()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    // 1. runTask<int>
+    std::atomic<bool> runTaskFired{false};
+    AsyncTaskRunner::runTask<int>(
+        QStringLiteral("RunTask Integer Test"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            if (ctx) {
+                ctx->info("Computing value in runTask...");
+            }
+            return TaskResult<int>::success(12345);
+        },
+        [&runTaskFired](const TaskResult<int>& res) {
+            QVERIFY(res.isSuccess());
+            QCOMPARE(res.value(), 12345);
+            runTaskFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(runTaskFired.load(), 3000);
+    QTRY_COMPARE(logVm->taskCount(), 1);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+
+    // 2. runTask<void>
+    std::atomic<bool> voidTaskFired{false};
+    AsyncTaskRunner::runTask<void>(
+        QStringLiteral("RunTask Void Test"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<void> {
+            if (ctx) {
+                ctx->info("Executing void operation...");
+            }
+            return TaskResult<void>::success(QStringLiteral("Void operation succeeded"));
+        },
+        [&voidTaskFired](const TaskResult<void>& res) {
+            QVERIFY(res.isSuccess());
+            voidTaskFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(voidTaskFired.load(), 3000);
+    QTRY_COMPARE(logVm->taskCount(), 2);
+    QCOMPARE(logVm->data(logVm->index(1, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+
+    // 3. runChildTask<QString>
+    auto rootContext = LogManager::instance().createTask("Parent Task for Child");
+    rootContext->start();
+    std::atomic<bool> childTaskFired{false};
+
+    AsyncTaskRunner::runChildTask<QString>(
+        rootContext->taskId(),
+        QStringLiteral("Child Task Via runChildTask"),
+        this,
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<QString> {
+            if (ctx) {
+                ctx->info("Child task executing...");
+            }
+            return TaskResult<QString>::success(QStringLiteral("Child Result Data"));
+        },
+        [&childTaskFired](const TaskResult<QString>& res) {
+            QVERIFY(res.isSuccess());
+            QCOMPARE(res.value(), QStringLiteral("Child Result Data"));
+            childTaskFired.store(true);
+        });
+
+    QTRY_VERIFY_WITH_TIMEOUT(childTaskFired.load(), 3000);
+    LogManager::instance().finishTask(rootContext->taskId(), "Parent done");
 
     logVm->unregisterFromLogManager();
 }
