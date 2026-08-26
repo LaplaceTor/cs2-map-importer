@@ -387,9 +387,29 @@ To avoid diagnostic information loss and UI message conflation, all Workflow, Ap
   ```
 
 
+#### Terminal Severity Hierarchy (终态严重性级联规则)
+
+The cross-terminal arbitration matrix below is governed by a single deterministic cascade rule:
+
+> **Failure dominates all other terminal states, regardless of which plane (lifecycle or business) produced it.**
+
+The full cascade, applied in strict priority order:
+
+1. **Any Failure** (either `TaskState::Failed`, logged errors on `TaskLoggingContext`, or `TaskResult::failure`) → final state is **`Failed`**, final result is **`Failure`**.
+2. **Otherwise, any Cancelled** (either `TaskState::Cancelled` or `TaskResult::cancelled`) → final state is **`Cancelled`**, final result is **`Cancelled`**.
+3. **Otherwise, any Skipped** (either `TaskState::Skipped` or `TaskResult::skipped`) → final state is **`Skipped`**, final result is **`Skipped`**.
+4. **Otherwise** → final state is **`Completed`**, final result is **`Success`**.
+
+This means:
+- `Cancelled` + `Failure` → **`Failed`** (failure wins over cancellation)
+- `Skipped` + `Failure` → **`Failed`** (failure wins over skip)
+- `Skipped` + `Cancelled` → **`Cancelled`** (cancellation wins over skip)
+
+Workflow code MAY rely on this guarantee. For example, a multi-step pipeline that encounters a genuine business failure after a cancellation signal was already set can trust that the failure will be faithfully reported to the caller — the cancellation will not silently swallow it.
+
 #### Cross-Terminal State Conflict Arbitration Matrix (跨终态冲突仲裁矩阵)
 
-When a background worker finishes, the task may possess a lifecycle `TaskState` set on `TaskLoggingContext` (e.g. via `fail()`, `cancel()`, `skip()`, `complete()`, or logged errors) while simultaneously returning a business `TaskResult<T>`. `AsyncTaskRunner` strictly resolves all 16 state combinations using a deterministic severity hierarchy (`Failed` > `Cancelled` > `Skipped` > `Completed`):
+When a background worker finishes, the task may possess a lifecycle `TaskState` set on `TaskLoggingContext` (e.g. via `fail()`, `cancel()`, `skip()`, `complete()`, or logged errors) while simultaneously returning a business `TaskResult<T>`. `AsyncTaskRunner` strictly resolves all 16 state combinations according to the terminal severity hierarchy defined above:
 
 | Context `TaskState` | Worker `TaskResult` | Contract Violation Logged? | Final `TaskState` in `LogManager` | Final `TaskResult<T>` delivered to Callback |
 | :--- | :--- | :--- | :--- | :--- |
@@ -412,18 +432,63 @@ When a background worker finishes, the task may possess a lifecycle `TaskState` 
 
 *Value Preservation Rule*: When `TaskResult<T>` is converted due to a contract violation or conflict, any existing partial payload (`result.value()`) is strictly preserved across the conversion.
 
-#### Exception Transport Contract vs. Business Control Flow
+*Original Error Preservation Rule (原始错误保留规则)*: When `TaskResult<T>` is converted to `Failure` due to a contract violation, the original `result.error()` is preserved if it carries a non-success error (retaining domain code, failure reason, and technical details). A new `OperationFailed` error is only synthesized when the original result had no meaningful error (e.g. was `Success`). The contract violation description is always recorded separately in the task log via `taskContext->error()` and surfaced in `TaskResult::message()` as the operation summary.
 
-* **`Core::Error::Exception` is a Qt cross-thread exception transport carrier (`QException`), NOT a business exception hierarchy.**
-  * Qt's concurrent infrastructure relies on `QException` (`clone()` / `raise()`) to marshal background panics back to the invoking thread.
-  * `AsyncTaskRunner` catches `Core::Error::Exception` (and `std::exception`) purely to convert background crashes into structured `TaskResult<T>::failure(...)`.
-  * **Rule:** Do **NOT** use `throw / catch` for normal business outcomes or domain logic control flow. Workflow and Domain layers must strictly return `Core::Async::TaskResult<T>`.
+#### Exception Transport Boundary vs. Business Error Model (异常边界 vs 业务错误数据模型)
+
+The architecture defines two distinct error-related models with strictly separated concerns:
+* **`Core::Error::Error`**: The **stable business error data model** and cross-layer value object across Domain, Workflow, Application, and UI.
+* **`Core::Error::Exception`**: The **control flow exception boundary** and Qt cross-thread exception transport carrier (`QException`).
+
+```text
+Normal Business Failure Path:
+  Domain / Workflow / Application ──[returns TaskResult<T>::failure(Error)]──► Application / UI Callback
+
+Exceptional / Crash Boundary Path:
+  Uncaught Exception ──[throw Core::Error::Exception(Error)]──► AsyncTaskRunner Catch Block
+                                                                       │
+                                              ┌────────────────────────┼────────────────────────┐
+                                              ▼                        ▼                        ▼
+                                    Task Log Entry           Task Terminal Summary         TaskResult<T>
+                                 (Detailed Diagnostics)       (Concise Status)        (Structured Failure)
+```
+
+##### 1. Normative Rules: When to Return `TaskResult` vs. When to Throw `Exception`
+
+* **Domain / Workflow / Application Normal Business Failures**:
+  * **Rule**: All predictable operational failures, format/syntax parse errors, validation rejections, and I/O failures MUST strictly return `Core::Async::TaskResult<T>::failure(error)`.
+  * **Forbidden**: Do **NOT** throw `Core::Error::Exception` for ordinary business or environment conditions (e.g. `"file not found"`, `"invalid keyvalues syntax"`, `"game directory mismatch"`, `"asset entity missing"`, `"validator rejected"`).
+* **Legitimate Use Cases for `throw Core::Error::Exception`**:
+  * Throwing `Core::Error::Exception` is strictly restricted to true exceptional boundaries:
+    1. **Unrecoverable internal invariant failures**: Critical internal state corruption or violated algorithmic preconditions where local continuation or recovery is impossible.
+    2. **Third-party / External library exception wrapping**: When calling external C++/Qt libraries that signal errors via C++ exceptions, catch and translate them at the immediate integration boundary into `Exception` or `TaskResult`.
+    3. **Deep cross-stack-frame interruption**: Exceptional abort scenarios across multi-layer non-domain legacy call stacks where intermediate frames cannot pass `TaskResult<T>`.
+* **Prohibition on Mixed Control Flow**:
+  * Never mix `throw Core::Error::Exception` and `return TaskResult<T>::failure` for normal business branching or control flow.
+
+##### 2. Tripartite Reporting Responsibilities & UI Deduplication (三层上报职责与去重规范)
+
+When an async task fails (particularly on an uncaught exception path), `AsyncTaskRunner` coordinates three distinct reporting channels to prevent redundant message duplication in collapsible UI logs:
+
+| Reporting Channel | Target Receiver | Semantic Responsibility | Content Format & Policy |
+| :--- | :--- | :--- | :--- |
+| **Task Log Messages** | `TaskLoggingContext` (`taskContext->error(...)`) | **Detailed technical diagnostics** | Full technical trace: `ErrorCode`, specific error reason, technical `details()` (e.g. absolute paths, CLI args, compiler stderr), or `std::exception::what()`. Displayed when user expands task log blocks. |
+| **Task Final Summary** | `LogManager` / `TaskSnapshot.currentMessage` (`forceTaskState`) | **Concise high-level status summary** | Short status text (e.g. `"Task failed with uncaught exception"`, `"Validation failed"`). **Must NOT** duplicate long technical payloads, file paths, or stack strings. |
+| **TaskResult** | Caller / UI Callback (`TaskResult<T>`) | **Structured business outcome** | Carries `status()`, `message()` (operation summary), and structured `Error` (`code()`, `message()`, `details()`) for programmatic branching, UI status badges, or toast alerts. |
 
 #### Error Code Stratification: Core vs. Domain Error Domains
 
-* **`Core::Error::ErrorCode`**: General-purpose infrastructure, system, and I/O error categories (`InvalidArgument`, `FileNotFound`, `ProcessFailed`, `DomainError`, etc.). Must remain clean and free of Valve/game-specific concepts.
-* **Domain Error Codes (e.g. `Domain::Game::GameErrorCode`)**: Fine-grained business error codes owned by specific domain namespaces (e.g. `UnsupportedGame`, `GameInfoNotFound`, `GameTypeMismatch`, `SteamAppMismatch`).
-* **Integration**: Domain layers attach domain error codes to structured `Core::Error::Error` via `Error::domain(DomainName, code, msg, details)` or dedicated domain error factories (`Domain::Game::GameError`). Callers can inspect domain codes via `err.is(GameErrorCode::...)` or `err.domainCodeAs<GameErrorCode>()`.
+* **`Core::Error::ErrorCode`**: General-purpose infrastructure, system, and I/O error categories (`InvalidArgument`, `InvalidPath`, `DirectoryNotFound`, `FileNotFound`, `InvalidFile`, `ProcessFailed`, `DomainError`, etc.). Must remain clean and free of Valve/game-specific concepts.
+* **Domain Error Codes (e.g. `Domain::Game::GameErrorCode`)**: Fine-grained business error codes owned by specific domain namespaces (e.g. `UnsupportedGame`, `GameInfoNotFound`, `GameTypeMismatch`, `SteamAppMismatch`, `InvalidGameInstallation`, `EmptyCustomGameInfo`).
+* **Non-conflation invariant (禁止领域错误侵入底层事实)**:
+  * Low-level path syntax errors (`!path.isValid() || path.isEmpty()`) must strictly return `Core::ErrorCode::InvalidPath` (`Core::Error::Error::invalidPath()`).
+  * Missing directory on disk (`!dir.exists()`) must strictly return `Core::ErrorCode::DirectoryNotFound` (`Core::Error::Error::directoryNotFound()`).
+  * Low-level filesystem/input validation failures must **NEVER** be swallowed or masqueraded into domain-specific error codes like `GameInfoNotFound` or `InvalidGameInstallation`.
+  * Domain errors (e.g. `GameErrors::gameInfoNotFound`, `GameErrors::gameTypeMismatch`, `GameErrors::invalidGameInstallation`) are reserved solely for valid paths where game-specific structure or business rules fail.
+* **Inspection Contract**:
+  * Check high-level infrastructure/system status: `err.is(Core::Error::ErrorCode::InvalidPath)` or `err.code() == ErrorCode::...`
+  * Check domain business outcome: `err.is(Domain::Game::GameErrorCode::GameInfoNotFound)` or `err.domainCodeAs<GameErrorCode>()`
+  * `Core::Error::Error::is` provides distinct overloads for `ErrorCode` and generic enum types, ensuring both checks are supported unambiguously.
 
 #### Heuristic Matching (`try*` -> `std::optional<T>`) vs. Validation (`TaskResult<T>`)
 

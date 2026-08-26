@@ -1,5 +1,5 @@
 #include "Application/Environment/GameInstallationValidator.h"
-#include "Domain/Game/GameError.h"
+#include "Domain/Game/GameErrors.h"
 
 namespace Application::Environment {
 
@@ -57,13 +57,23 @@ Core::Async::TaskResult<GameInstallation> GameInstallationValidator::validateSou
             .arg(typeStr, directory.toString()));
     }
 
-    if (!directory.isValid() || !directory.exists()) {
+    if (!directory.isValid() || directory.isEmpty()) {
         if (logCtx) {
-            logCtx->debug(QStringLiteral("Target directory does not exist or is invalid: %1").arg(directory.toString()));
+            logCtx->debug(QStringLiteral("Target directory path is empty or invalid: %1").arg(directory.toString()));
         }
         return Core::Async::TaskResult<GameInstallation>::failure(
-            Domain::Game::GameError::invalidGameInstallation(
-                QStringLiteral("Target directory does not exist or is invalid"),
+            Core::Error::Error::invalidPath(
+                QStringLiteral("Target directory path is empty or invalid"),
+                directory.toString()),
+            QStringLiteral("Source 1 validation failed"));
+    }
+    if (!directory.exists()) {
+        if (logCtx) {
+            logCtx->debug(QStringLiteral("Target directory does not exist: %1").arg(directory.toString()));
+        }
+        return Core::Async::TaskResult<GameInstallation>::failure(
+            Core::Error::Error::directoryNotFound(
+                QStringLiteral("Target directory does not exist"),
                 directory.toString()),
             QStringLiteral("Source 1 validation failed"));
     }
@@ -90,7 +100,7 @@ Core::Async::TaskResult<GameInstallation> GameInstallationValidator::validateSou
         logCtx->debug(QStringLiteral("Failed to create installation from resolved Source 1 path: %1").arg(directory.toString()));
     }
     return Core::Async::TaskResult<GameInstallation>::failure(
-        Domain::Game::GameError::invalidGameInstallation(
+        Domain::Game::GameErrors::invalidGameInstallation(
             QStringLiteral("Failed to create installation from resolved Source 1 path"),
             directory.toString()),
         QStringLiteral("Source 1 validation failed"));
@@ -105,13 +115,23 @@ Core::Async::TaskResult<GameInstallation> GameInstallationValidator::validateSou
         logCtx->debug(QStringLiteral("Checking Source 2 directory structure: %1").arg(directory.toString()));
     }
 
-    if (!directory.isValid() || !directory.exists()) {
+    if (!directory.isValid() || directory.isEmpty()) {
         if (logCtx) {
-            logCtx->debug(QStringLiteral("Target directory does not exist or is invalid: %1").arg(directory.toString()));
+            logCtx->debug(QStringLiteral("Target directory path is empty or invalid: %1").arg(directory.toString()));
         }
         return Core::Async::TaskResult<GameInstallation>::failure(
-            Domain::Game::GameError::invalidGameInstallation(
-                QStringLiteral("Target directory does not exist or is invalid"),
+            Core::Error::Error::invalidPath(
+                QStringLiteral("Target directory path is empty or invalid"),
+                directory.toString()),
+            QStringLiteral("Source 2 validation failed"));
+    }
+    if (!directory.exists()) {
+        if (logCtx) {
+            logCtx->debug(QStringLiteral("Target directory does not exist: %1").arg(directory.toString()));
+        }
+        return Core::Async::TaskResult<GameInstallation>::failure(
+            Core::Error::Error::directoryNotFound(
+                QStringLiteral("Target directory does not exist"),
                 directory.toString()),
             QStringLiteral("Source 2 validation failed"));
     }
@@ -138,7 +158,7 @@ Core::Async::TaskResult<GameInstallation> GameInstallationValidator::validateSou
         logCtx->debug(QStringLiteral("Failed to create installation from resolved Source 2 path: %1").arg(directory.toString()));
     }
     return Core::Async::TaskResult<GameInstallation>::failure(
-        Domain::Game::GameError::invalidGameInstallation(
+        Domain::Game::GameErrors::invalidGameInstallation(
             QStringLiteral("Failed to create installation from resolved Source 2 path"),
             directory.toString()),
         QStringLiteral("Source 2 validation failed"));
@@ -152,13 +172,23 @@ Core::Async::TaskResult<GameInstallation> GameInstallationValidator::inspectGame
         logCtx->debug(QStringLiteral("Inspecting custom GameInfo at: %1").arg(gameInfoPath.toString()));
     }
 
-    if (!gameInfoPath.isValid() || !gameInfoPath.exists()) {
+    if (!gameInfoPath.isValid() || gameInfoPath.isEmpty()) {
+        if (logCtx) {
+            logCtx->debug(QStringLiteral("GameInfo path is empty or invalid: %1").arg(gameInfoPath.toString()));
+        }
+        return Core::Async::TaskResult<GameInstallation>::failure(
+            Core::Error::Error::invalidPath(
+                QStringLiteral("GameInfo path is empty or invalid"),
+                gameInfoPath.toString()),
+            QStringLiteral("GameInfo inspection failed"));
+    }
+    if (!gameInfoPath.exists()) {
         if (logCtx) {
             logCtx->debug(QStringLiteral("GameInfo path does not exist: %1").arg(gameInfoPath.toString()));
         }
         return Core::Async::TaskResult<GameInstallation>::failure(
-            Domain::Game::GameError::gameInfoNotFound(
-                QStringLiteral("GameInfo path does not exist or is invalid"),
+            Core::Error::Error::fileNotFound(
+                QStringLiteral("GameInfo path does not exist"),
                 gameInfoPath.toString()),
             QStringLiteral("GameInfo inspection failed"));
     }
@@ -185,7 +215,7 @@ Core::Async::TaskResult<GameInstallation> GameInstallationValidator::inspectGame
         logCtx->debug(QStringLiteral("Failed to create installation from inspected GameInfo: %1").arg(gameInfoPath.toString()));
     }
     return Core::Async::TaskResult<GameInstallation>::failure(
-        Domain::Game::GameError::invalidGameInstallation(
+        Domain::Game::GameErrors::invalidGameInstallation(
             QStringLiteral("Failed to create installation from inspected GameInfo"),
             gameInfoPath.toString()),
         QStringLiteral("GameInfo inspection failed"));
@@ -217,7 +247,7 @@ Core::Async::TaskResult<GameInstallation> GameInstallationValidator::validateGam
     }
 
     return Core::Async::TaskResult<GameInstallation>::failure(
-        Domain::Game::GameError::invalidGameInstallation(
+        Domain::Game::GameErrors::invalidGameInstallation(
             QStringLiteral("Failed to create installation from resolved game directory"),
             directory.toString()),
         QStringLiteral("Game directory validation failed"));

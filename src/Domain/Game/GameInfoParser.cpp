@@ -1,5 +1,5 @@
 #include "Domain/Game/GameInfoParser.h"
-#include "Domain/Game/GameError.h"
+#include "Domain/Game/GameErrors.h"
 #include "Domain/Game/SearchPathResolver.h"
 #include "Core/KeyValues/KeyValuesDocument.h"
 #include <QDir>
@@ -134,14 +134,14 @@ Core::Async::TaskResult<GameInfo> GameInfoParser::parse(
 {
     if (!gameInfoPath.isValid() || gameInfoPath.isEmpty()) {
         return Core::Async::TaskResult<GameInfo>::failure(
-            GameError::gameInfoNotFound(
+            Core::Error::Error::invalidPath(
                 QStringLiteral("GameInfo file path is invalid or empty"),
                 gameInfoPath.toString()),
             QStringLiteral("GameInfo parsing failed"));
     }
     if (!gameInfoPath.exists()) {
         return Core::Async::TaskResult<GameInfo>::failure(
-            GameError::gameInfoNotFound(
+            GameErrors::gameInfoNotFound(
                 QStringLiteral("GameInfo file does not exist"),
                 gameInfoPath.toString()),
             QStringLiteral("GameInfo parsing failed"));

@@ -9,7 +9,8 @@
 #include "Domain/Game/GameDefinition.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Domain/Game/GameValidator.h"
-#include "Domain/Game/GameError.h"
+#include "Domain/Game/GameInstallationResolver.h"
+#include "Domain/Game/GameErrors.h"
 #include "Core/Path/FilesystemPath.h"
 
 using namespace Domain::Game;
@@ -538,6 +539,71 @@ private slots:
         QCOMPARE(mockS2Def.contentSubdirectory(), QStringLiteral("content/custom_mod"));
         QCOMPARE(mockS2Def.addonModSubdirectory(), QStringLiteral("game/custom_mod_addons"));
         QCOMPARE(mockS2Def.addonContentSubdirectory(), QStringLiteral("content/custom_mod_addons"));
+    }
+
+    void testGameResolverErrorStratification() {
+        // 1. Invalid / Empty path input -> Core::ErrorCode::InvalidPath
+        Core::Path::FilesystemPath emptyPath;
+        auto resS1Empty = GameInstallationResolver::resolveSource1(GameType::CSS, emptyPath);
+        QVERIFY(resS1Empty.isFailure());
+        QCOMPARE(resS1Empty.errorCode(), Core::Error::ErrorCode::InvalidPath);
+        QVERIFY(resS1Empty.error().is(Core::Error::ErrorCode::InvalidPath));
+        QVERIFY(!resS1Empty.error().hasDomain());
+
+        auto resS2Empty = GameInstallationResolver::resolveSource2(emptyPath, GameType::CS2);
+        QVERIFY(resS2Empty.isFailure());
+        QCOMPARE(resS2Empty.errorCode(), Core::Error::ErrorCode::InvalidPath);
+
+        auto resInspectEmpty = GameInstallationResolver::inspectGameInfo(emptyPath);
+        QVERIFY(resInspectEmpty.isFailure());
+        QCOMPARE(resInspectEmpty.errorCode(), Core::Error::ErrorCode::InvalidPath);
+
+        auto resDirEmpty = GameInstallationResolver::resolveGameDirectory(GameType::CSS, emptyPath);
+        QVERIFY(resDirEmpty.isFailure());
+        QCOMPARE(resDirEmpty.errorCode(), Core::Error::ErrorCode::InvalidPath);
+
+        // 2. Directory does not exist on disk -> Core::ErrorCode::DirectoryNotFound
+        Core::Path::FilesystemPath nonExistentDir(QStringLiteral("C:/non_existent_folder_abc123"));
+        auto resS1NonExistent = GameInstallationResolver::resolveSource1(GameType::CSS, nonExistentDir);
+        QVERIFY(resS1NonExistent.isFailure());
+        QCOMPARE(resS1NonExistent.errorCode(), Core::Error::ErrorCode::DirectoryNotFound);
+        QVERIFY(resS1NonExistent.error().is(Core::Error::ErrorCode::DirectoryNotFound));
+        QVERIFY(!resS1NonExistent.error().hasDomain());
+
+        auto resS2NonExistent = GameInstallationResolver::resolveSource2(nonExistentDir, GameType::CS2);
+        QVERIFY(resS2NonExistent.isFailure());
+        QCOMPARE(resS2NonExistent.errorCode(), Core::Error::ErrorCode::DirectoryNotFound);
+
+        auto resDirNonExistent = GameInstallationResolver::resolveGameDirectory(GameType::CSS, nonExistentDir);
+        QVERIFY(resDirNonExistent.isFailure());
+        QCOMPARE(resDirNonExistent.errorCode(), Core::Error::ErrorCode::DirectoryNotFound);
+
+        // 3. Game directory exists, but gameinfo is missing -> Domain::Game::GameErrorCode::GameInfoNotFound (high-level FileNotFound)
+        QString fixtureRoot = m_testFilesRoot;
+        auto resMissingGi = GameValidator::validateDirectory(Core::Path::FilesystemPath(fixtureRoot), GameType::CSS);
+        QVERIFY(resMissingGi.isFailure());
+        QCOMPARE(resMissingGi.errorCode(), Core::Error::ErrorCode::FileNotFound);
+        QVERIFY(resMissingGi.error().is(GameErrorCode::GameInfoNotFound));
+        QVERIFY(resMissingGi.error().is(Core::Error::ErrorCode::FileNotFound));
+
+        // 4. SteamAppMismatch: CSS GameInfo (AppId 240) validated against CSGO -> Domain::Game::GameErrorCode::SteamAppMismatch (high-level TypeMismatch)
+        QString cssGiStr = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source/cstrike/gameinfo.txt"));
+        auto cssParsed = GameInfoParser::parse(Core::Path::FilesystemPath(cssGiStr));
+        QVERIFY(cssParsed.isSuccess());
+        auto resAppMismatch = GameValidator::validateGameInfo(*cssParsed, GameType::CSGO);
+        QVERIFY(resAppMismatch.isFailure());
+        QCOMPARE(resAppMismatch.errorCode(), Core::Error::ErrorCode::TypeMismatch);
+        QVERIFY(resAppMismatch.error().is(GameErrorCode::SteamAppMismatch));
+        QVERIFY(resAppMismatch.error().is(Core::Error::ErrorCode::TypeMismatch));
+
+        // 5. GameTypeMismatch: Custom title without matching AppID validated against CSGO -> Domain::Game::GameErrorCode::GameTypeMismatch (high-level TypeMismatch)
+        auto customParsed = GameInfoParser::parseFromString(QStringLiteral("\"GameInfo\" { game \"UnknownGame\" }\n"));
+        QVERIFY(customParsed.isSuccess());
+        auto resTypeMismatch = GameValidator::validateGameInfo(*customParsed, GameType::CSGO);
+        QVERIFY(resTypeMismatch.isFailure());
+        QCOMPARE(resTypeMismatch.errorCode(), Core::Error::ErrorCode::TypeMismatch);
+        QVERIFY(resTypeMismatch.error().is(GameErrorCode::GameTypeMismatch));
+        QVERIFY(resTypeMismatch.error().is(Core::Error::ErrorCode::TypeMismatch));
     }
 };
 

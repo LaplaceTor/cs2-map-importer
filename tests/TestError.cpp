@@ -7,7 +7,7 @@
 #include "Core/Async/TaskResult.h"
 #include "Core/Process/ProcessResult.h"
 #include "Domain/Game/GameInfoParser.h"
-#include "Domain/Game/GameError.h"
+#include "Domain/Game/GameErrors.h"
 
 using namespace Core::Error;
 using namespace Core::Async;
@@ -77,14 +77,16 @@ void TestError::testDomainErrorExtension()
     QCOMPARE(domainErr.details(), QStringLiteral("Expected 730, found 240"));
     QCOMPARE(domainErr.toString(), QStringLiteral("[Domain::Game:4] AppID mismatch (Expected 730, found 240)"));
 
-    // Via GameError factory helper
-    auto factoryErr = GameError::steamAppMismatch(QStringLiteral("AppID mismatch"), QStringLiteral("Expected 730, found 240"));
+    // Via GameErrors factory helper
+    auto factoryErr = GameErrors::steamAppMismatch(QStringLiteral("AppID mismatch"), QStringLiteral("Expected 730, found 240"));
     QVERIFY(factoryErr.is(GameErrorCode::SteamAppMismatch));
+    QVERIFY(factoryErr.is(ErrorCode::TypeMismatch));
+    QVERIFY(!factoryErr.is(ErrorCode::FileNotFound));
     QCOMPARE(factoryErr.code(), ErrorCode::TypeMismatch);
     QCOMPARE(factoryErr, domainErr);
 
     // Equality check with different domain codes
-    auto otherDomainErr = GameError::gameTypeMismatch(QStringLiteral("GameType mismatch"));
+    auto otherDomainErr = GameErrors::gameTypeMismatch(QStringLiteral("GameType mismatch"));
     QVERIFY(otherDomainErr != factoryErr);
 }
 
@@ -306,10 +308,19 @@ void TestError::testTaskResultValueOr()
 
 void TestError::testGameInfoParserStructuredError()
 {
-    // Non-existent file
+    // Invalid / empty path
+    auto invalidPath = GameInfoParser::parse(Core::Path::FilesystemPath(QString()));
+    QVERIFY(invalidPath.isFailure());
+    QCOMPARE(invalidPath.errorCode(), ErrorCode::InvalidPath);
+    QVERIFY(invalidPath.error().is(ErrorCode::InvalidPath));
+    QVERIFY(!invalidPath.error().hasDomain());
+
+    // Non-existent file (path syntax is valid, but file absent on disk)
     auto nonExistent = GameInfoParser::parse(Core::Path::FilesystemPath(QStringLiteral("C:/non_existent_folder/gameinfo.txt")));
     QVERIFY(nonExistent.isFailure());
     QCOMPARE(nonExistent.errorCode(), ErrorCode::FileNotFound);
+    QVERIFY(nonExistent.error().is(ErrorCode::FileNotFound));
+    QVERIFY(nonExistent.error().is(GameErrorCode::GameInfoNotFound));
 
     // Malformed string (unclosed brace)
     QString malformed = QStringLiteral("GameInfo { key value");
@@ -344,30 +355,30 @@ void TestError::testTripartiteDiagnosticContract()
     QVERIFY(nonExistent.error().is(GameErrorCode::GameInfoNotFound));
     QCOMPARE(nonExistent.errorCode(), ErrorCode::FileNotFound);
 
-    // 2. GameError factory default and custom diagnostics
-    auto invInst = GameError::invalidGameInstallation(QString(), QStringLiteral("D:/InvalidGameDir"));
+    // 2. GameErrors factory default and custom diagnostics
+    auto invInst = GameErrors::invalidGameInstallation(QString(), QStringLiteral("D:/InvalidGameDir"));
     QVERIFY(invInst.is(GameErrorCode::InvalidGameInstallation));
     QCOMPARE(invInst.message(), QStringLiteral("Invalid game installation structure"));
     QCOMPARE(invInst.details(), QStringLiteral("D:/InvalidGameDir"));
     QCOMPARE(invInst.code(), ErrorCode::InvalidState);
 
-    auto unsupp = GameError::unsupportedGame(QStringLiteral("Unknown game type"), QStringLiteral("GameType::999"));
+    auto unsupp = GameErrors::unsupportedGame(QStringLiteral("Unknown game type"), QStringLiteral("GameType::999"));
     QVERIFY(unsupp.is(GameErrorCode::UnsupportedGame));
     QCOMPARE(unsupp.message(), QStringLiteral("Unknown game type"));
     QCOMPARE(unsupp.details(), QStringLiteral("GameType::999"));
     QCOMPARE(unsupp.code(), ErrorCode::NotSupported);
 
-    auto mismatch = GameError::gameTypeMismatch(QString(), QStringLiteral("Expected CS2, got TF2"));
+    auto mismatch = GameErrors::gameTypeMismatch(QString(), QStringLiteral("Expected CS2, got TF2"));
     QVERIFY(mismatch.is(GameErrorCode::GameTypeMismatch));
     QCOMPARE(mismatch.message(), QStringLiteral("Game configuration does not match expected game type"));
     QCOMPARE(mismatch.details(), QStringLiteral("Expected CS2, got TF2"));
 
-    auto appMismatch = GameError::steamAppMismatch(QString(), QStringLiteral("Expected 730, got 440"));
+    auto appMismatch = GameErrors::steamAppMismatch(QString(), QStringLiteral("Expected 730, got 440"));
     QVERIFY(appMismatch.is(GameErrorCode::SteamAppMismatch));
     QCOMPARE(appMismatch.message(), QStringLiteral("Steam AppID does not match expected game"));
     QCOMPARE(appMismatch.details(), QStringLiteral("Expected 730, got 440"));
 
-    auto emptyCustom = GameError::emptyCustomGameInfo();
+    auto emptyCustom = GameErrors::emptyCustomGameInfo();
     QVERIFY(emptyCustom.is(GameErrorCode::EmptyCustomGameInfo));
     QCOMPARE(emptyCustom.message(), QStringLiteral("Custom GameInfo is empty and has no valid gameinfo file path"));
     QCOMPARE(emptyCustom.details(), QString());

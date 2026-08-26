@@ -3,7 +3,7 @@
 #include "Application/Async/AsyncTaskRunner.h"
 #include "Domain/Game/SteamGameLocator.h"
 #include "Domain/Game/GameRegistry.h"
-#include "Domain/Game/GameError.h"
+#include "Domain/Game/GameErrors.h"
 #include "Core/Path/PathUtils.h"
 #include <algorithm>
 #include <functional>
@@ -155,7 +155,7 @@ Core::Async::TaskResult<GameInstallation> GameDetectService::detectGame(
     }
 
     return Core::Async::TaskResult<GameInstallation>::failure(
-        Domain::Game::GameError::gameInfoNotFound(
+        Domain::Game::GameErrors::gameInfoNotFound(
             QStringLiteral("Game not found in detected Steam libraries"),
             Domain::Game::GameRegistry::gameTypeToString(type)),
         QStringLiteral("Steam game detection failed"));

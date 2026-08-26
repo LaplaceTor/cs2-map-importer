@@ -1,5 +1,5 @@
 #include "Domain/Game/GameInstallationResolver.h"
-#include "Domain/Game/GameError.h"
+#include "Domain/Game/GameErrors.h"
 #include "Domain/Game/GameDefinition.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Domain/Game/GameValidator.h"
@@ -95,21 +95,21 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
 {
     if (!directory.isValid() || directory.isEmpty()) {
         return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-            GameError::invalidGameInstallation(
+            Core::Error::Error::invalidPath(
                 QStringLiteral("Source 1 directory path is empty or invalid"),
                 directory.toString()),
             QStringLiteral("Source 1 directory resolution failed"));
     }
     if (!directory.exists()) {
         return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-            GameError::invalidGameInstallation(
+            Core::Error::Error::directoryNotFound(
                 QStringLiteral("Source 1 directory does not exist"),
                 directory.toString()),
             QStringLiteral("Source 1 directory resolution failed"));
     }
     if (!directory.isDirectory()) {
         return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-            GameError::invalidGameInstallation(
+            Core::Error::Error::invalidPath(
                 QStringLiteral("Source 1 path is not a directory"),
                 directory.toString()),
             QStringLiteral("Source 1 directory resolution failed"));
@@ -131,14 +131,14 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
 {
     if (!directory.isValid() || directory.isEmpty()) {
         return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-            GameError::invalidGameInstallation(
+            Core::Error::Error::invalidPath(
                 QStringLiteral("Source 2 directory path is empty or invalid"),
                 directory.toString()),
             QStringLiteral("Source 2 directory resolution failed"));
     }
     if (!directory.exists()) {
         return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-            GameError::invalidGameInstallation(
+            Core::Error::Error::directoryNotFound(
                 QStringLiteral("Source 2 directory does not exist"),
                 directory.toString()),
             QStringLiteral("Source 2 directory resolution failed"));
@@ -159,7 +159,7 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
             }
         } else {
             return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-                GameError::invalidGameInstallation(
+                Core::Error::Error::invalidFile(
                     QStringLiteral("Target file is not a Source 2 gameinfo.gi"),
                     directory.toString()),
                 QStringLiteral("Source 2 directory resolution failed"));
@@ -210,7 +210,7 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
 
     if (!giPath.exists() || !giPath.isFile()) {
         return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-            GameError::gameInfoNotFound(
+            GameErrors::gameInfoNotFound(
                 QStringLiteral("Could not locate gameinfo.gi in Source 2 structure"),
                 directory.toString()),
             QStringLiteral("Source 2 directory resolution failed"));
@@ -245,14 +245,14 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::insp
 {
     if (!path.isValid() || path.isEmpty()) {
         return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-            GameError::gameInfoNotFound(
+            Core::Error::Error::invalidPath(
                 QStringLiteral("GameInfo path is empty or invalid"),
                 path.toString()),
             QStringLiteral("GameInfo inspection failed"));
     }
     if (!path.exists()) {
         return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-            GameError::gameInfoNotFound(
+            Core::Error::Error::fileNotFound(
                 QStringLiteral("GameInfo path does not exist"),
                 path.toString()),
             QStringLiteral("GameInfo inspection failed"));
@@ -294,7 +294,7 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::insp
             }
             if (!actualPath.isFile()) {
                 return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-                    GameError::gameInfoNotFound(
+                    GameErrors::gameInfoNotFound(
                         QStringLiteral("No gameinfo.txt or gameinfo.gi found in directory"),
                         path.toString()),
                     QStringLiteral("GameInfo inspection failed"));
@@ -304,7 +304,7 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::insp
 
     if (!actualPath.exists() || !actualPath.isFile()) {
         return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-            GameError::gameInfoNotFound(
+            GameErrors::gameInfoNotFound(
                 QStringLiteral("GameInfo file not found"),
                 actualPath.toString()),
             QStringLiteral("GameInfo inspection failed"));
@@ -334,14 +334,14 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
 {
     if (!directory.isValid() || directory.isEmpty()) {
         return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-            GameError::invalidGameInstallation(
+            Core::Error::Error::invalidPath(
                 QStringLiteral("Directory path is empty or invalid"),
                 directory.toString()),
             QStringLiteral("Game directory resolution failed"));
     }
     if (!directory.exists()) {
         return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
-            GameError::invalidGameInstallation(
+            Core::Error::Error::directoryNotFound(
                 QStringLiteral("Directory does not exist"),
                 directory.toString()),
             QStringLiteral("Game directory resolution failed"));

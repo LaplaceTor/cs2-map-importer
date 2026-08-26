@@ -2,7 +2,7 @@
 #include "Core/KeyValues/KeyValuesDocument.h"
 #include "Core/Path/PathUtils.h"
 #include "Domain/Game/GameRegistry.h"
-#include "Domain/Game/GameError.h"
+#include "Domain/Game/GameErrors.h"
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
@@ -316,7 +316,7 @@ Core::Async::TaskResult<void> SteamService::validateGameFiles(
             logCtx->error(QStringLiteral("No primary AppID registered for game type: %1").arg(typeStr));
         }
         return Core::Async::TaskResult<void>::failure(
-            Domain::Game::GameError::unsupportedGame(
+            Domain::Game::GameErrors::unsupportedGame(
                 QStringLiteral("No primary AppID registered for game type"),
                 typeStr));
     }

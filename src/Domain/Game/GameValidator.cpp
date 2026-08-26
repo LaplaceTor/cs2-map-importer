@@ -1,7 +1,7 @@
 #include "Domain/Game/GameValidator.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Domain/Game/GameInfoParser.h"
-#include "Domain/Game/GameError.h"
+#include "Domain/Game/GameErrors.h"
 #include <algorithm>
 #include <QDir>
 #include <QFileInfo>
@@ -20,14 +20,14 @@ Core::Async::TaskResult<void> GameValidator::validateGameInfo(const GameInfo& in
             return Core::Async::TaskResult<void>::success();
         }
         return Core::Async::TaskResult<void>::failure(
-            GameError::emptyCustomGameInfo(
+            GameErrors::emptyCustomGameInfo(
                 QStringLiteral("Custom GameInfo is empty and has no valid gameinfo file path")));
     }
 
     const auto* def = GameRegistry::findByType(expectedType);
     if (!def) {
         return Core::Async::TaskResult<void>::failure(
-            GameError::unsupportedGame(
+            GameErrors::unsupportedGame(
                 QStringLiteral("Game definition not found for type"),
                 GameRegistry::gameTypeToString(expectedType)));
     }
@@ -74,7 +74,7 @@ Core::Async::TaskResult<void> GameValidator::validateGameInfo(const GameInfo& in
         const auto* otherDef = GameRegistry::findByAppId(info.steamAppId());
         if (otherDef && otherDef->type != expectedType && !(otherDef->primaryAppId == 730 && def->primaryAppId == 730)) {
             return Core::Async::TaskResult<void>::failure(
-                GameError::steamAppMismatch(
+                GameErrors::steamAppMismatch(
                     QStringLiteral("GameInfo AppID belongs to another game"),
                     QStringLiteral("AppID %1 belongs to '%2', expected '%3'")
                         .arg(QString::number(info.steamAppId()),
@@ -127,7 +127,7 @@ Core::Async::TaskResult<void> GameValidator::validateGameInfo(const GameInfo& in
     }
 
     return Core::Async::TaskResult<void>::failure(
-        GameError::gameTypeMismatch(
+        GameErrors::gameTypeMismatch(
             QStringLiteral("GameInfo does not match expected game type"),
             QStringLiteral("game: '%1', title: '%2', appid: %3, expected: '%4'")
                 .arg(actualGame, actualTitle, QString::number(info.steamAppId()), GameRegistry::gameTypeToString(expectedType))));
@@ -262,14 +262,14 @@ Core::Async::TaskResult<GameInfo> GameValidator::validateDirectory(
 {
     if (!gameDir.isValid() || gameDir.isEmpty()) {
         return Core::Async::TaskResult<GameInfo>::failure(
-            GameError::invalidGameInstallation(
+            Core::Error::Error::invalidPath(
                 QStringLiteral("Game directory path is empty or invalid"),
                 gameDir.toString()),
             QStringLiteral("Game directory validation failed"));
     }
     if (!gameDir.exists()) {
         return Core::Async::TaskResult<GameInfo>::failure(
-            GameError::invalidGameInstallation(
+            Core::Error::Error::directoryNotFound(
                 QStringLiteral("Game directory does not exist"),
                 gameDir.toString()),
             QStringLiteral("Game directory validation failed"));
@@ -283,7 +283,7 @@ Core::Async::TaskResult<GameInfo> GameValidator::validateDirectory(
         targetGameInfoPath = getExpectedGameInfoPath(gameDir, type);
     } else {
         return Core::Async::TaskResult<GameInfo>::failure(
-            GameError::invalidGameInstallation(
+            Core::Error::Error::invalidPath(
                 QStringLiteral("Path is neither a directory nor a valid custom gameinfo file"),
                 gameDir.toString()),
             QStringLiteral("Game directory validation failed"));
@@ -291,7 +291,7 @@ Core::Async::TaskResult<GameInfo> GameValidator::validateDirectory(
 
     if (!targetGameInfoPath.exists() || !targetGameInfoPath.isFile()) {
         return Core::Async::TaskResult<GameInfo>::failure(
-            GameError::gameInfoNotFound(
+            GameErrors::gameInfoNotFound(
                 QStringLiteral("GameInfo file was not found"),
                 targetGameInfoPath.toString()),
             QStringLiteral("Game directory validation failed"));

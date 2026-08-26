@@ -21,7 +21,7 @@ enum class GameErrorCode {
 /**
  * @brief Factory helper for creating Domain::Game structured Error objects.
  */
-class GameError {
+class GameErrors {
 public:
     static inline const QString DomainName = QStringLiteral("Domain::Game");
 

@@ -93,6 +93,11 @@ public:
 
     bool isDomain(const QString& domainName) const noexcept { return m_domain == domainName; }
 
+    bool is(ErrorCode code) const noexcept
+    {
+        return m_code == code;
+    }
+
     template <typename EnumT>
     bool is(EnumT code) const noexcept
     {
