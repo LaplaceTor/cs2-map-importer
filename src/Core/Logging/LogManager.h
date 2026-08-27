@@ -137,7 +137,7 @@ public:
     qsizetype taskCount() const;
 
     /**
-     * @brief Resets the current logging session.
+     * @brief Resets the logging session and is not intended for UI log clearing.
      * Registered tasks are invalidated before the registry and sinks are cleared.
      * External shared pointers remain valid only for read-only inspection and no
      * longer accept logs, state transitions, or fault reports.

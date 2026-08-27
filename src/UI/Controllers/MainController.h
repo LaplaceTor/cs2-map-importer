@@ -3,6 +3,10 @@
 #include <QObject>
 #include <QString>
 
+namespace UI::ViewModels {
+class LogViewModel;
+}
+
 namespace UI::Controllers {
 
 class MainController : public QObject {
@@ -15,8 +19,11 @@ class MainController : public QObject {
     Q_PROPERTY(bool canStart READ canStart NOTIFY canStartChanged)
 
 public:
-    explicit MainController(QObject* parent = nullptr);
+    explicit MainController(UI::ViewModels::LogViewModel* logViewModel = nullptr, QObject* parent = nullptr);
     ~MainController() override = default;
+
+    void setLogViewModel(UI::ViewModels::LogViewModel* logViewModel) noexcept { m_logViewModel = logViewModel; }
+    UI::ViewModels::LogViewModel* logViewModel() const noexcept { return m_logViewModel; }
 
     int activeTab() const noexcept { return m_activeTab; }
     void setActiveTab(int tab);
@@ -51,6 +58,7 @@ private:
     QString m_theme = QStringLiteral("system");
     bool m_isProcessing = false;
     bool m_canStart = false;
+    UI::ViewModels::LogViewModel* m_logViewModel = nullptr;
 };
 
 } // namespace UI::Controllers

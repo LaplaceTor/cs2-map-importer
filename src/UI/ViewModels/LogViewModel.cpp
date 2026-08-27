@@ -194,7 +194,7 @@ void LogViewModel::processIncomingBlock(const Core::Logging::LogBlock& block, co
     emit totalMessageCountChanged();
 }
 
-void LogViewModel::clear()
+void LogViewModel::resetView()
 {
     LogTaskModel::clear();
     m_taskRegistry.clear();
@@ -204,6 +204,11 @@ void LogViewModel::clear()
     m_totalMessages = 0;
 
     emit totalMessageCountChanged();
+}
+
+void LogViewModel::clearView()
+{
+    resetView();
 }
 
 QString LogViewModel::getFullLogText() const

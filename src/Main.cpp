@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
     auto gameEnvService = std::make_unique<Application::Environment::GameEnvironmentService>();
     auto gameViewModel = std::make_unique<UI::ViewModels::GameViewModel>(gameEnvService.get());
     auto logViewModel = std::make_shared<UI::ViewModels::LogViewModel>();
-    auto mainController = std::make_unique<UI::Controllers::MainController>();
+    auto mainController = std::make_unique<UI::Controllers::MainController>(logViewModel.get());
 
     logViewModel->registerWithLogManager();
 

@@ -43,6 +43,13 @@ private slots:
     void testOpenLogFileSelectionHierarchy();
     void testDuplicateTaskNameLogFileUniqueness();
     void testLogFileReadySemantics();
+    void testResetViewDoesNotTerminateTask();
+    void testResetViewKeepsDiskLog();
+    void testResetViewOnlyChangesUi();
+    void testWorkflowFailureKeepsUiLogs();
+    void testNextWorkflowResetsUiKeepsDiskLogs();
+    void testOpenLogFilePointsToLatestTaskAfterReset();
+    void testResetViewDoesNotResetSinkCursor();
 
 private:
     std::unique_ptr<QTemporaryDir> m_tempDir;
@@ -557,6 +564,266 @@ void TestLoggingInfrastructure::testLogFileReadySemantics()
     LogManager::instance().removeSink(taskSink);
     QVERIFY(!taskNoSink->isLogFileReady());
     QVERIFY(!taskWithSink->isLogFileReady());
+}
+
+void TestLoggingInfrastructure::testResetViewDoesNotTerminateTask()
+{
+    auto taskSink = std::make_shared<TaskFileSink>();
+    LogManager::instance().addSink(taskSink);
+
+    LogViewModel logVm;
+    logVm.registerWithLogManager();
+
+    auto task = LogManager::instance().createTask(QStringLiteral("Non Terminating Task"));
+    QVERIFY(task != nullptr);
+    task->start();
+    task->info(QStringLiteral("Log A before reset"));
+    LogManager::instance().flushTask(task->taskId());
+
+    QTRY_COMPARE(logVm.totalMessageCount(), 1);
+
+    // Reset UI view
+    logVm.resetView();
+
+    // Verify task state remains running, context remains active, file sink handle remains open
+    QCOMPARE(task->state(), TaskState::Running);
+    QVERIFY(!TaskLoggingContext::isTerminalState(task->state()));
+    QVERIFY(taskSink->isTaskFileOpen(task->taskId()));
+
+    // Write Log B after reset
+    task->info(QStringLiteral("Log B after reset"));
+    LogManager::instance().flushTask(task->taskId());
+
+    // Task still running and healthy
+    QCOMPARE(task->state(), TaskState::Running);
+    QVERIFY(taskSink->isTaskFileOpen(task->taskId()));
+
+    LogManager::instance().finishTask(task->taskId(), QStringLiteral("Task completed"));
+    logVm.unregisterFromLogManager();
+    LogManager::instance().removeSink(taskSink);
+}
+
+void TestLoggingInfrastructure::testResetViewKeepsDiskLog()
+{
+    auto taskSink = std::make_shared<TaskFileSink>();
+    LogManager::instance().addSink(taskSink);
+
+    LogViewModel logVm;
+    logVm.registerWithLogManager();
+
+    auto task = LogManager::instance().createTask(QStringLiteral("Disk Log Persistence Task"));
+    task->start();
+    task->info(QStringLiteral("Log A entry"));
+    LogManager::instance().flushTask(task->taskId());
+
+    // UI View Reset
+    logVm.resetView();
+
+    task->info(QStringLiteral("Log B entry"));
+    task->complete(QStringLiteral("All done"));
+    LogManager::instance().flushTask(task->taskId());
+
+    const QString taskPath = taskSink->taskLogFilePath(task->taskId());
+    QVERIFY(QFile::exists(taskPath));
+
+    QFile file(taskPath);
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString content = QString::fromUtf8(file.readAll());
+    QVERIFY(content.contains(QStringLiteral("Log A entry")));
+    QVERIFY(content.contains(QStringLiteral("Log B entry")));
+    QVERIFY(content.contains(QStringLiteral("All done")));
+
+    logVm.unregisterFromLogManager();
+    LogManager::instance().removeSink(taskSink);
+}
+
+void TestLoggingInfrastructure::testResetViewOnlyChangesUi()
+{
+    LogViewModel logVm;
+    logVm.registerWithLogManager();
+
+    auto task = LogManager::instance().createTask(QStringLiteral("UI Isolation Task"));
+    task->start();
+    task->info(QStringLiteral("Message Alpha"));
+    LogManager::instance().flushTask(task->taskId());
+
+    QTRY_COMPARE(logVm.totalMessageCount(), 1);
+    QCOMPARE(logVm.taskCount(), 1);
+    QVERIFY(logVm.getFullLogText().contains(QStringLiteral("Message Alpha")));
+
+    // Perform resetView
+    logVm.resetView();
+
+    QCOMPARE(logVm.totalMessageCount(), 0);
+    QCOMPARE(logVm.taskCount(), 0);
+    QVERIFY(logVm.getFullLogText().isEmpty());
+
+    // New log message arrives
+    task->info(QStringLiteral("Message Beta"));
+    LogManager::instance().flushTask(task->taskId());
+
+    QTRY_COMPARE(logVm.totalMessageCount(), 1);
+    QCOMPARE(logVm.taskCount(), 1);
+    QString textAfter = logVm.getFullLogText();
+    QVERIFY(textAfter.contains(QStringLiteral("Message Beta")));
+    QVERIFY(!textAfter.contains(QStringLiteral("Message Alpha")));
+
+    LogManager::instance().finishTask(task->taskId(), QStringLiteral("Finished"));
+    logVm.unregisterFromLogManager();
+}
+
+void TestLoggingInfrastructure::testWorkflowFailureKeepsUiLogs()
+{
+    LogViewModel logVm;
+    logVm.registerWithLogManager();
+
+    auto task = LogManager::instance().createTask(QStringLiteral("Failing Workflow Task"));
+    task->start();
+    task->info(QStringLiteral("Starting step that fails"));
+    task->fail(QStringLiteral("Critical error encountered in asset conversion"));
+    LogManager::instance().flushTask(task->taskId());
+
+    QTRY_COMPARE(logVm.totalMessageCount(), 2);
+    QCOMPARE(logVm.taskCount(), 1);
+
+    // Verify UI still retains the full failure logs and state
+    QModelIndex idx = logVm.index(0, 0);
+    QCOMPARE(logVm.data(idx, LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+    QString fullText = logVm.getFullLogText();
+    QVERIFY(fullText.contains(QStringLiteral("Starting step that fails")));
+    QVERIFY(fullText.contains(QStringLiteral("Critical error encountered in asset conversion")));
+
+    logVm.unregisterFromLogManager();
+}
+
+void TestLoggingInfrastructure::testNextWorkflowResetsUiKeepsDiskLogs()
+{
+    auto taskSink = std::make_shared<TaskFileSink>();
+    LogManager::instance().addSink(taskSink);
+
+    LogViewModel logVm;
+    logVm.registerWithLogManager();
+
+    // 1. Run Workflow A
+    auto taskA = LogManager::instance().createTask(QStringLiteral("Workflow A"));
+    taskA->start();
+    taskA->info(QStringLiteral("Log A message"));
+    taskA->complete(QStringLiteral("Workflow A succeeded"));
+    LogManager::instance().flushTask(taskA->taskId());
+
+    QTRY_COMPARE(logVm.taskCount(), 1);
+    QVERIFY(logVm.getFullLogText().contains(QStringLiteral("Log A message")));
+
+    const QString pathA = taskSink->taskLogFilePath(taskA->taskId());
+
+    // 2. Start Workflow B: resetView is invoked at workflow acceptance point
+    logVm.resetView();
+
+    auto taskB = LogManager::instance().createTask(QStringLiteral("Workflow B"));
+    taskB->start();
+    taskB->info(QStringLiteral("Log B message"));
+    taskB->complete(QStringLiteral("Workflow B succeeded"));
+    LogManager::instance().flushTask(taskB->taskId());
+
+    QTRY_COMPARE(logVm.taskCount(), 1);
+    QString textB = logVm.getFullLogText();
+    QVERIFY(textB.contains(QStringLiteral("Log B message")));
+    QVERIFY(!textB.contains(QStringLiteral("Log A message")));
+
+    const QString pathB = taskSink->taskLogFilePath(taskB->taskId());
+
+    // 3. Verify disk logs: both file A and file B exist and contain their respective logs
+    QVERIFY(QFile::exists(pathA));
+    QVERIFY(QFile::exists(pathB));
+    QVERIFY(pathA != pathB);
+
+    QFile fileA(pathA);
+    QVERIFY(fileA.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString contentA = QString::fromUtf8(fileA.readAll());
+    QVERIFY(contentA.contains(QStringLiteral("Log A message")));
+    QVERIFY(!contentA.contains(QStringLiteral("Log B message")));
+
+    QFile fileB(pathB);
+    QVERIFY(fileB.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString contentB = QString::fromUtf8(fileB.readAll());
+    QVERIFY(contentB.contains(QStringLiteral("Log B message")));
+    QVERIFY(!contentB.contains(QStringLiteral("Log A message")));
+
+    logVm.unregisterFromLogManager();
+    LogManager::instance().removeSink(taskSink);
+}
+
+void TestLoggingInfrastructure::testOpenLogFilePointsToLatestTaskAfterReset()
+{
+    auto taskSink = std::make_shared<TaskFileSink>();
+    LogManager::instance().addSink(taskSink);
+
+    LogViewModel logVm;
+    logVm.registerWithLogManager();
+
+    // Run Task 1
+    auto task1 = LogManager::instance().createTask(QStringLiteral("First Task"));
+    task1->start();
+    task1->info(QStringLiteral("Task 1 processing"));
+    LogManager::instance().finishTask(task1->taskId(), QStringLiteral("Task 1 done"));
+    LogManager::instance().flushTask(task1->taskId());
+
+    QTRY_COMPARE(logVm.taskCount(), 1);
+    QVERIFY(logVm.lastTaskLogFilePath().contains(QStringLiteral("First_Task")));
+
+    // Reset UI before Workflow 2 starts
+    logVm.resetView();
+    QCOMPARE(logVm.activeTaskLogFilePath(), QString());
+    QCOMPARE(logVm.lastTaskLogFilePath(), QString());
+
+    // Start Task 2
+    auto task2 = LogManager::instance().createTask(QStringLiteral("Second Task"));
+    task2->start();
+    task2->info(QStringLiteral("Task 2 processing"));
+    LogManager::instance().flushTask(task2->taskId());
+
+    QTRY_VERIFY(logVm.activeTaskLogFilePath().contains(QStringLiteral("Second_Task")));
+    QCOMPARE(logVm.activeTaskLogFilePath(), logVm.lastTaskLogFilePath());
+
+    LogManager::instance().finishTask(task2->taskId(), QStringLiteral("Task 2 done"));
+    logVm.unregisterFromLogManager();
+    LogManager::instance().removeSink(taskSink);
+}
+
+void TestLoggingInfrastructure::testResetViewDoesNotResetSinkCursor()
+{
+    LogViewModel logVm;
+    logVm.registerWithLogManager();
+
+    auto task = LogManager::instance().createTask(QStringLiteral("Cursor Test Task"));
+    task->start();
+
+    // Write entries to seal multiple blocks
+    task->info(QStringLiteral("Block entry 1"));
+    LogManager::instance().flushTask(task->taskId());
+
+    task->info(QStringLiteral("Block entry 2"));
+    LogManager::instance().flushTask(task->taskId());
+
+    QTRY_COMPARE(logVm.totalMessageCount(), 2);
+
+    // Reset UI view
+    logVm.resetView();
+    QCOMPARE(logVm.totalMessageCount(), 0);
+
+    // Write third entry (Block 3)
+    task->info(QStringLiteral("Block entry 3"));
+    LogManager::instance().flushTask(task->taskId());
+
+    // UI should only receive Block 3, NOT duplicate Block 1 and Block 2
+    QTRY_COMPARE(logVm.totalMessageCount(), 1);
+    QString fullText = logVm.getFullLogText();
+    QVERIFY(fullText.contains(QStringLiteral("Block entry 3")));
+    QVERIFY(!fullText.contains(QStringLiteral("Block entry 1")));
+    QVERIFY(!fullText.contains(QStringLiteral("Block entry 2")));
+
+    LogManager::instance().finishTask(task->taskId(), QStringLiteral("Completed"));
+    logVm.unregisterFromLogManager();
 }
 
 QTEST_MAIN(TestLoggingInfrastructure)

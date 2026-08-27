@@ -147,8 +147,15 @@ private slots:
         QVERIFY(fullText.contains(QStringLiteral("WARN   Warning: something missing")));
         QVERIFY(fullText.contains(QStringLiteral("ERROR  ERROR: failed to load")));
 
-        logVm.clear();
+        logVm.resetView();
         QCOMPARE(logVm.totalMessageCount(), 0);
+        QCOMPARE(logVm.taskCount(), 0);
+
+        logVm.appendLog(QStringLiteral("Another entry"), 1);
+        QCOMPARE(logVm.totalMessageCount(), 1);
+        logVm.clearView();
+        QCOMPARE(logVm.totalMessageCount(), 0);
+        QCOMPARE(logVm.taskCount(), 0);
     }
 
     void testMainControllerProperties() {
@@ -306,6 +313,19 @@ private slots:
         QCOMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), true);
 
         delete obj;
+    }
+
+    void testMainControllerStartImportResetsLogView() {
+        LogViewModel logVm;
+        logVm.appendLog(QStringLiteral("Old Workflow Log Entry"), 1);
+        QCOMPARE(logVm.totalMessageCount(), 1);
+        QCOMPARE(logVm.taskCount(), 1);
+
+        MainController controller(&logVm);
+        controller.startImport();
+
+        QCOMPARE(logVm.totalMessageCount(), 0);
+        QCOMPARE(logVm.taskCount(), 0);
     }
 };
 

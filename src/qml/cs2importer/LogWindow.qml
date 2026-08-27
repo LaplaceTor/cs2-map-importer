@@ -28,15 +28,6 @@ ApplicationWindow {
             spacing: 8
 
             Button {
-                text: qsTr("Clear")
-                onClicked: {
-                    if (root.logViewModel) {
-                        root.logViewModel.clear()
-                    }
-                }
-            }
-
-            Button {
                 text: qsTr("Open log file")
                 onClicked: {
                     if (root.logViewModel) {

@@ -1,4 +1,5 @@
 #include "UI/Controllers/MainController.h"
+#include "UI/ViewModels/LogViewModel.h"
 #include <QGuiApplication>
 #include <QStyleHints>
 
@@ -8,8 +9,9 @@
 
 namespace UI::Controllers {
 
-MainController::MainController(QObject* parent)
+MainController::MainController(UI::ViewModels::LogViewModel* logViewModel, QObject* parent)
     : QObject(parent)
+    , m_logViewModel(logViewModel)
 {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     if (QGuiApplication::styleHints()) {
@@ -78,6 +80,9 @@ void MainController::applyTheme(const QString& themeName) {
 void MainController::startImport() {
     if (m_isProcessing) {
         return;
+    }
+    if (m_logViewModel) {
+        m_logViewModel->resetView();
     }
     // Placeholder for WorkflowRunner integration in Stage 4
     emit alertRequested(
