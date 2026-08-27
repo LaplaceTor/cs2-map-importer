@@ -141,8 +141,13 @@ TaskRegistryEntry LogViewModel::ensureTaskRegistered(quint64 taskId, const QStri
     m_taskRegistry.insert(taskId, entry);
 
     if (!m_taskLogFiles.contains(taskId)) {
-        const qint64 startTimestamp = context ? context->startTimestamp() : 0;
-        const QString taskFilePath = Core::Logging::LogFileManager::generateTaskLogFilePath(newTask.taskName, startTimestamp);
+        QString taskFilePath;
+        if (context && !context->logFilePath().isEmpty()) {
+            taskFilePath = context->logFilePath();
+        } else {
+            const qint64 startTimestamp = context ? context->startTimestamp() : 0;
+            taskFilePath = Core::Logging::LogFileManager::generateTaskLogFilePath(newTask.taskName, startTimestamp);
+        }
         m_taskLogFiles.insert(taskId, taskFilePath);
     }
     m_activeTaskId = taskId;

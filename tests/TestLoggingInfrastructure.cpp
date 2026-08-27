@@ -29,7 +29,9 @@ private slots:
     void testLogFileManagerSanitization();
     void testApplicationLogCreationAndNaming();
     void testTaskLogCreationAndNaming();
+    void testTaskFileCreatedImmediatelyAtTaskCreation();
     void testTaskCompletionFlushesToFile();
+    void testTaskFileClosedOnCompletion();
     void testTaskFailureRecordsError();
     void testTaskCancellationRecordsWarning();
     void testExternalToolLogIsolation();
@@ -141,6 +143,24 @@ void TestLoggingInfrastructure::testTaskLogCreationAndNaming()
     LogManager::instance().removeSink(taskSink);
 }
 
+void TestLoggingInfrastructure::testTaskFileCreatedImmediatelyAtTaskCreation()
+{
+    auto taskSink = std::make_shared<TaskFileSink>();
+    LogManager::instance().addSink(taskSink);
+
+    // Create task but DO NOT log anything or call start()
+    auto task = LogManager::instance().createTask(QStringLiteral("Instant File Creation Task"));
+    QVERIFY(task != nullptr);
+
+    // Task log file MUST exist on disk immediately upon createTask()
+    const QString taskPath = taskSink->taskLogFilePath(task->taskId());
+    QVERIFY(!taskPath.isEmpty());
+    QCOMPARE(taskPath, task->logFilePath());
+    QVERIFY(QFile::exists(taskPath));
+
+    LogManager::instance().removeSink(taskSink);
+}
+
 void TestLoggingInfrastructure::testTaskCompletionFlushesToFile()
 {
     auto taskSink = std::make_shared<TaskFileSink>();
@@ -160,6 +180,34 @@ void TestLoggingInfrastructure::testTaskCompletionFlushesToFile()
     QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
     QString content = QString::fromUtf8(file.readAll());
     QVERIFY(content.contains(QStringLiteral("All materials compiled successfully")));
+
+    LogManager::instance().removeSink(taskSink);
+}
+
+void TestLoggingInfrastructure::testTaskFileClosedOnCompletion()
+{
+    auto taskSink = std::make_shared<TaskFileSink>();
+    LogManager::instance().addSink(taskSink);
+
+    auto task = LogManager::instance().createTask(QStringLiteral("Closure Test Task"));
+    task->start();
+    task->info(QStringLiteral("Task running"));
+
+    const QString taskPath = taskSink->taskLogFilePath(task->taskId());
+    QVERIFY(QFile::exists(taskPath));
+
+    // Finish task through LogManager
+    LogManager::instance().finishTask(task->taskId(), QStringLiteral("Task completed"));
+
+    // Verify file can be removed or renamed without file-lock issues
+    // Path remains queryable
+    QCOMPARE(taskSink->taskLogFilePath(task->taskId()), taskPath);
+
+    QFile file(taskPath);
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString content = QString::fromUtf8(file.readAll());
+    QVERIFY(content.contains(QStringLiteral("Task completed")));
+    file.close();
 
     LogManager::instance().removeSink(taskSink);
 }

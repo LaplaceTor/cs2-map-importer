@@ -1,4 +1,5 @@
 #include "LogManager.h"
+#include "LogFileManager.h"
 #include <QMutexLocker>
 #include <algorithm>
 #include <limits>
@@ -64,7 +65,15 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskNa
     quint64 id = m_nextTaskId++;
     auto context = std::make_shared<TaskLoggingContext>(
         id, taskName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++, parentTaskId);
+    const QString logPath = LogFileManager::generateTaskLogFilePath(taskName, context->startTimestamp());
+    context->setLogFilePath(logPath);
     m_tasks.insert(id, context);
+
+    for (const auto& sink : m_sinks) {
+        if (sink) {
+            sink->onTaskCreated(id, taskName, context->startTimestamp(), logPath);
+        }
+    }
     return context;
 }
 
@@ -84,10 +93,18 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const
 
     auto context = std::make_shared<TaskLoggingContext>(
         taskId, taskName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++, parentTaskId);
+    const QString logPath = LogFileManager::generateTaskLogFilePath(taskName, context->startTimestamp());
+    context->setLogFilePath(logPath);
     m_tasks.insert(taskId, context);
 
     if (taskId >= m_nextTaskId && taskId != (std::numeric_limits<quint64>::max)()) {
         m_nextTaskId = taskId + 1;
+    }
+
+    for (const auto& sink : m_sinks) {
+        if (sink) {
+            sink->onTaskCreated(taskId, taskName, context->startTimestamp(), logPath);
+        }
     }
 
     return context;
@@ -110,75 +127,112 @@ std::shared_ptr<TaskLoggingContext> LogManager::findTask(quint64 taskId) const
 bool LogManager::finishTask(quint64 taskId, const QString& message)
 {
     std::shared_ptr<TaskLoggingContext> task;
+    QVector<std::shared_ptr<ILogSink>> sinks;
     {
         QMutexLocker locker(&m_mutex);
         task = m_tasks.value(taskId, nullptr);
+        sinks = m_sinks;
     }
     if (!task) {
         return false;
     }
     bool result = task->complete(message);
     bool flushOk = flushTask(taskId);
+    for (const auto& sink : sinks) {
+        if (sink) {
+            sink->onTaskTerminated(taskId, TaskState::Completed);
+        }
+    }
     return result && flushOk;
 }
 
 bool LogManager::failTask(quint64 taskId, const QString& message)
 {
     std::shared_ptr<TaskLoggingContext> task;
+    QVector<std::shared_ptr<ILogSink>> sinks;
     {
         QMutexLocker locker(&m_mutex);
         task = m_tasks.value(taskId, nullptr);
+        sinks = m_sinks;
     }
     if (!task) {
         return false;
     }
     bool result = task->fail(message);
     bool flushOk = flushTask(taskId);
+    for (const auto& sink : sinks) {
+        if (sink) {
+            sink->onTaskTerminated(taskId, TaskState::Failed);
+        }
+    }
     return result && flushOk;
 }
 
 bool LogManager::cancelTask(quint64 taskId, const QString& message)
 {
     std::shared_ptr<TaskLoggingContext> task;
+    QVector<std::shared_ptr<ILogSink>> sinks;
     {
         QMutexLocker locker(&m_mutex);
         task = m_tasks.value(taskId, nullptr);
+        sinks = m_sinks;
     }
     if (!task) {
         return false;
     }
     bool result = task->cancel(message);
     bool flushOk = flushTask(taskId);
+    for (const auto& sink : sinks) {
+        if (sink) {
+            sink->onTaskTerminated(taskId, TaskState::Cancelled);
+        }
+    }
     return result && flushOk;
 }
 
 bool LogManager::skipTask(quint64 taskId, const QString& message)
 {
     std::shared_ptr<TaskLoggingContext> task;
+    QVector<std::shared_ptr<ILogSink>> sinks;
     {
         QMutexLocker locker(&m_mutex);
         task = m_tasks.value(taskId, nullptr);
+        sinks = m_sinks;
     }
     if (!task) {
         return false;
     }
     bool result = task->skip(message);
     bool flushOk = flushTask(taskId);
+    for (const auto& sink : sinks) {
+        if (sink) {
+            sink->onTaskTerminated(taskId, TaskState::Skipped);
+        }
+    }
     return result && flushOk;
 }
 
 bool LogManager::forceTaskState(quint64 taskId, TaskState state, const QString& message)
 {
     std::shared_ptr<TaskLoggingContext> task;
+    QVector<std::shared_ptr<ILogSink>> sinks;
     {
         QMutexLocker locker(&m_mutex);
         task = m_tasks.value(taskId, nullptr);
+        sinks = m_sinks;
     }
     if (!task) {
         return false;
     }
     bool result = task->forceTerminalState(state, message);
     bool flushOk = flushTask(taskId);
+    if (TaskLoggingContext::isTerminalState(state)) {
+        for (const auto& sink : sinks) {
+            if (sink) {
+                sink->onTaskTerminated(taskId, state);
+            }
+        }
+    }
     return result && flushOk;
 }
 
@@ -192,6 +246,12 @@ void LogManager::addSink(std::shared_ptr<ILogSink> sink)
         m_sinks.append(sink);
         m_sinkCursors.insert(sink->sinkId(), QHash<quint64, SinkCursor>());
         m_sinkGenerations.insert(sink->sinkId(), m_nextSinkGeneration++);
+
+        for (const auto& task : m_tasks) {
+            if (task) {
+                sink->onTaskCreated(task->taskId(), task->taskName(), task->startTimestamp(), task->logFilePath());
+            }
+        }
     }
 }
 

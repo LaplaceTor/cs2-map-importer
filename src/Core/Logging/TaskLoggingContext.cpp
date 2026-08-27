@@ -51,6 +51,18 @@ TaskSnapshot TaskLoggingContext::snapshot() const
     return result;
 }
 
+QString TaskLoggingContext::logFilePath() const
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    return m_logFilePath;
+}
+
+void TaskLoggingContext::setLogFilePath(const QString& path)
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    m_logFilePath = path;
+}
+
 QString TaskLoggingContext::taskName() const
 {
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);

@@ -16,6 +16,21 @@ TaskFileSink::~TaskFileSink()
     closeAll();
 }
 
+void TaskFileSink::onTaskCreated(quint64 taskId, const QString& taskName, qint64 startTimestamp, const QString& logFilePath)
+{
+    QMutexLocker locker(&m_mutex);
+    if (!logFilePath.isEmpty()) {
+        m_taskFilePaths.insert(taskId, logFilePath);
+    }
+    ensureTaskFileOpenLocked(taskId, taskName, startTimestamp);
+}
+
+void TaskFileSink::onTaskTerminated(quint64 taskId, TaskState state)
+{
+    Q_UNUSED(state);
+    closeTask(taskId);
+}
+
 bool TaskFileSink::ensureTaskFileOpenLocked(quint64 taskId, const QString& taskName, qint64 startTimestamp)
 {
     if (m_taskFiles.contains(taskId)) {

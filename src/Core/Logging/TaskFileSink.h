@@ -29,6 +29,16 @@ public:
     TaskFileSink& operator=(TaskFileSink&&) = delete;
 
     /**
+     * @brief Creates and opens the log file immediately upon task creation.
+     */
+    void onTaskCreated(quint64 taskId, const QString& taskName, qint64 startTimestamp, const QString& logFilePath) override;
+
+    /**
+     * @brief Flushes and closes the task log file upon task completion/failure/cancellation.
+     */
+    void onTaskTerminated(quint64 taskId, TaskState state) override;
+
+    /**
      * @brief Writes a sealed LogBlock to the task's individual log file.
      */
     bool writeBlock(const LogBlock& block, const QString& taskName) override;

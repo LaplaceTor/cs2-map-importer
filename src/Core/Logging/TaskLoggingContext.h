@@ -33,6 +33,9 @@ public:
     quint64 parentTaskId() const noexcept { return m_parentTaskId; }
     qint64 startTimestamp() const noexcept { return m_startTimestamp; }
 
+    QString logFilePath() const;
+    void setLogFilePath(const QString& path);
+
     TaskSnapshot snapshot() const;
 
     void setFaultBarrier(std::shared_ptr<FaultBarrier> barrier);
@@ -159,6 +162,7 @@ private:
     quint64 m_parentTaskId = 0;
     quint64 m_creationSequence = 0;
     qint64 m_startTimestamp = 0;
+    QString m_logFilePath;
     mutable QRecursiveMutex m_mutex;
     std::shared_ptr<FaultBarrier> m_faultBarrier;
     mutable QMutex m_flushMutex;

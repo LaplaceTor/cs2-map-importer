@@ -22,6 +22,7 @@ qt_add_library(cs2importer_core STATIC
     KeyValues/KeyValuesDocument.h
     KeyValues/KeyValuesDocument.cpp
     Logging/LogLevel.h
+    Logging/LogSource.h
     Logging/LogEntry.h
     Logging/LogBlock.h
     Logging/LogBlock.cpp
@@ -34,6 +35,15 @@ qt_add_library(cs2importer_core STATIC
     Logging/ILogSink.h
     Logging/FileSink.h
     Logging/FileSink.cpp
+    Logging/LogFileManager.h
+    Logging/LogFileManager.cpp
+    Logging/ApplicationLogSink.h
+    Logging/ApplicationLogSink.cpp
+    Logging/ApplicationLogger.h
+    Logging/ApplicationLogger.cpp
+    Logging/TaskFileSink.h
+    Logging/TaskFileSink.cpp
+    Logging/TaskRunContext.h
     Logging/TaskLoggingContext.h
     Logging/TaskLoggingContext.cpp
     Logging/LogManager.h
