@@ -11,6 +11,7 @@ TaskLoggingContext::TaskLoggingContext(quint64 taskId, QString taskName, qsizety
     : m_taskId(taskId)
     , m_parentTaskId(parentTaskId)
     , m_creationSequence(creationSequence)
+    , m_startTimestamp(QDateTime::currentMSecsSinceEpoch())
     , m_faultBarrier(std::move(faultBarrier))
     , m_taskName(std::move(taskName))
     , m_activeBlock(taskId, 0)
@@ -228,7 +229,7 @@ bool TaskLoggingContext::error(const QString& message)
     return log(LogLevel::Error, message);
 }
 
-bool TaskLoggingContext::log(LogLevel level, const QString& message)
+bool TaskLoggingContext::log(LogLevel level, const QString& message, LogSource source)
 {
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     if (!m_sessionValid || isTerminalState(m_state)) {
@@ -246,6 +247,7 @@ bool TaskLoggingContext::log(LogLevel level, const QString& message)
     entry.sequence = m_nextSequence++;
     entry.timestamp = QDateTime::currentMSecsSinceEpoch();
     entry.level = level;
+    entry.source = source;
     entry.message = message;
 
     if (!m_activeBlock.append(std::move(entry))) {
@@ -257,6 +259,11 @@ bool TaskLoggingContext::log(LogLevel level, const QString& message)
     }
     checkAndFlushActiveBlockLocked();
     return true;
+}
+
+bool TaskLoggingContext::logExternalToolOutput(const QString& message, LogLevel level)
+{
+    return log(level, message, LogSource::ExternalTool);
 }
 
 LogSubmissionResult TaskLoggingContext::reportFault(const QString& message)

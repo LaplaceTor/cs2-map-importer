@@ -3,6 +3,7 @@
 #include <QString>
 #include <QtGlobal>
 #include "LogLevel.h"
+#include "LogSource.h"
 
 namespace Core::Logging {
 
@@ -17,6 +18,7 @@ struct LogEntry {
     quint64 sequence = 0; // Monotonically increasing sequence number within its Task
     qint64 timestamp = 0; // UTC Unix epoch milliseconds
     LogLevel level = LogLevel::Info;
+    LogSource source = LogSource::Workflow;
     QString message;
 
     // Estimated memory footprint in bytes for size management / flush decisions

@@ -37,10 +37,10 @@ ApplicationWindow {
             }
 
             Button {
-                text: qsTr("Copy All")
+                text: qsTr("Open log file")
                 onClicked: {
                     if (root.logViewModel) {
-                        root.logViewModel.copyToClipboard()
+                        root.logViewModel.openLogFile()
                     }
                 }
             }

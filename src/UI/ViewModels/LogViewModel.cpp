@@ -1,10 +1,15 @@
 #include "UI/ViewModels/LogViewModel.h"
 #include "Core/Logging/ILogSink.h"
 #include "Core/Logging/LogManager.h"
+#include "Core/Logging/ApplicationLogger.h"
+#include "Core/Logging/LogFileManager.h"
 #include <QClipboard>
+#include <QDesktopServices>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QMetaObject>
 #include <QPointer>
+#include <QUrl>
 
 namespace UI::ViewModels {
 
@@ -135,6 +140,14 @@ TaskRegistryEntry LogViewModel::ensureTaskRegistered(quint64 taskId, const QStri
 
     m_taskRegistry.insert(taskId, entry);
 
+    if (!m_taskLogFiles.contains(taskId)) {
+        const qint64 startTimestamp = context ? context->startTimestamp() : 0;
+        const QString taskFilePath = Core::Logging::LogFileManager::generateTaskLogFilePath(newTask.taskName, startTimestamp);
+        m_taskLogFiles.insert(taskId, taskFilePath);
+    }
+    m_activeTaskId = taskId;
+    m_lastTaskId = taskId;
+
     return entry;
 }
 
@@ -180,6 +193,9 @@ void LogViewModel::clear()
 {
     LogTaskModel::clear();
     m_taskRegistry.clear();
+    m_taskLogFiles.clear();
+    m_activeTaskId = 0;
+    m_lastTaskId = 0;
     m_totalMessages = 0;
 
     emit totalMessageCountChanged();
@@ -190,13 +206,43 @@ QString LogViewModel::getFullLogText() const
     return exportToPlainText(0);
 }
 
-void LogViewModel::copyToClipboard()
+QString LogViewModel::activeTaskLogFilePath() const
 {
-    QString fullText = getFullLogText();
-    QClipboard* clipboard = QGuiApplication::clipboard();
-    if (clipboard) {
-        clipboard->setText(fullText);
+    if (m_activeTaskId != 0) {
+        auto context = Core::Logging::LogManager::instance().findTask(m_activeTaskId);
+        if (context && context->state() == Core::Logging::TaskState::Running) {
+            return m_taskLogFiles.value(m_activeTaskId);
+        }
     }
+    return QString();
+}
+
+QString LogViewModel::lastTaskLogFilePath() const
+{
+    if (m_lastTaskId != 0) {
+        return m_taskLogFiles.value(m_lastTaskId);
+    }
+    return QString();
+}
+
+bool LogViewModel::openLogFile()
+{
+    QString targetPath = activeTaskLogFilePath();
+    if (targetPath.isEmpty() || !QFileInfo::exists(targetPath)) {
+        targetPath = lastTaskLogFilePath();
+    }
+    if (targetPath.isEmpty() || !QFileInfo::exists(targetPath)) {
+        targetPath = Core::Logging::ApplicationLogger::logFilePath();
+    }
+    if (targetPath.isEmpty() || !QFileInfo::exists(targetPath)) {
+        targetPath = Core::Logging::LogFileManager::generateApplicationLogFilePath();
+    }
+
+    if (targetPath.isEmpty() || !QFileInfo::exists(targetPath)) {
+        return false;
+    }
+
+    return QDesktopServices::openUrl(QUrl::fromLocalFile(targetPath));
 }
 
 void LogViewModel::appendLog(const QString& message, int level)

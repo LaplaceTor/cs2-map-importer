@@ -47,8 +47,10 @@ public:
 
 public slots:
     void clear();
-    void copyToClipboard();
+    Q_INVOKABLE bool openLogFile();
     QString getFullLogText() const;
+    QString activeTaskLogFilePath() const;
+    QString lastTaskLogFilePath() const;
     void appendLog(const QString& message, int level = 0);
     void processIncomingBlock(const Core::Logging::LogBlock& block, const QString& taskName);
 
@@ -60,6 +62,9 @@ private:
     TaskRegistryEntry ensureTaskRegistered(quint64 taskId, const QString& taskName);
 
     QHash<quint64, TaskRegistryEntry> m_taskRegistry;
+    QHash<quint64, QString> m_taskLogFiles;
+    quint64 m_activeTaskId = 0;
+    quint64 m_lastTaskId = 0;
     int m_totalMessages = 0;
     bool m_autoScroll = true;
     quint64 m_registeredSinkId = 0;

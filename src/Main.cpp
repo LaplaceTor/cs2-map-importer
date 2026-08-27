@@ -8,6 +8,9 @@
 
 #include "Application/Environment/GameEnvironmentService.h"
 #include "Application/Environment/VpkSignatureLeaseService.h"
+#include "Core/Logging/ApplicationLogger.h"
+#include "Core/Logging/LogManager.h"
+#include "Core/Logging/TaskFileSink.h"
 #include "UI/ViewModels/GameViewModel.h"
 #include "UI/ViewModels/LogViewModel.h"
 #include "UI/Controllers/MainController.h"
@@ -20,6 +23,14 @@ int main(int argc, char *argv[])
     app.setApplicationName(QStringLiteral("CS2 Importer"));
     app.setOrganizationName(QStringLiteral("LaplaceTor"));
     app.setWindowIcon(QIcon(QStringLiteral(":/icons/icon.png")));
+
+    // Initialize application-level logging immediately after app setup
+    Core::Logging::ApplicationLogger::initialize();
+    Core::Logging::ApplicationLogger::info(QStringLiteral("CS2 Importer starting up..."));
+
+    // Register file sink for workflow tasks
+    auto taskFileSink = std::make_shared<Core::Logging::TaskFileSink>();
+    Core::Logging::LogManager::instance().addSink(taskFileSink);
 
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 
@@ -47,6 +58,13 @@ int main(int argc, char *argv[])
     // Trigger non-blocking asynchronous game detection in the background
     gameViewModel->autoDetect();
 
-    return app.exec();
+    const int exitCode = app.exec();
+
+    // Flush workflow logs and shut down application logger cleanly
+    Core::Logging::LogManager::instance().flushAll();
+    Core::Logging::ApplicationLogger::info(QStringLiteral("CS2 Importer shutting down..."));
+    Core::Logging::ApplicationLogger::shutdown();
+
+    return exitCode;
 }
 

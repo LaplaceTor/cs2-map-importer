@@ -213,6 +213,26 @@ target_include_directories(test_error PRIVATE
 
 add_test(NAME test_error COMMAND test_error)
 
+qt_add_executable(test_logging_infrastructure
+    TestLoggingInfrastructure.cpp
+)
+
+target_link_libraries(test_logging_infrastructure PRIVATE
+    cs2importer_ui
+    cs2importer_application
+    cs2importer_domain
+    cs2importer_core
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Test
+)
+
+target_include_directories(test_logging_infrastructure PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+add_test(NAME test_logging_infrastructure COMMAND test_logging_infrastructure)
+
 
 
 

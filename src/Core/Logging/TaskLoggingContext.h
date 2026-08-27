@@ -11,6 +11,7 @@
 #include "FaultBarrier.h"
 #include "LogBlock.h"
 #include "LogLevel.h"
+#include "LogSource.h"
 #include "TaskSnapshot.h"
 
 namespace Core::Logging {
@@ -30,6 +31,7 @@ public:
 
     quint64 taskId() const noexcept { return m_taskId; }
     quint64 parentTaskId() const noexcept { return m_parentTaskId; }
+    qint64 startTimestamp() const noexcept { return m_startTimestamp; }
 
     TaskSnapshot snapshot() const;
 
@@ -114,7 +116,8 @@ public:
     bool info(const QString& message);
     bool warning(const QString& message);
     bool error(const QString& message);
-    bool log(LogLevel level, const QString& message);
+    bool log(LogLevel level, const QString& message, LogSource source = LogSource::Workflow);
+    bool logExternalToolOutput(const QString& message, LogLevel level = LogLevel::Info);
     LogSubmissionResult reportFault(const QString& message);
 
     /**
@@ -155,6 +158,7 @@ private:
     quint64 m_taskId = 0;
     quint64 m_parentTaskId = 0;
     quint64 m_creationSequence = 0;
+    qint64 m_startTimestamp = 0;
     mutable QRecursiveMutex m_mutex;
     std::shared_ptr<FaultBarrier> m_faultBarrier;
     mutable QMutex m_flushMutex;
