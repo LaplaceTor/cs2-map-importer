@@ -2,7 +2,6 @@
 
 #include "Application/Environment/GameInstallationInfo.h"
 #include "Application/Environment/GameInstallation.h"
-#include "Application/Environment/Internal/SteamLibraryDetector.h"
 #include "Domain/Game/GameType.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Logging/TaskLoggingContext.h"

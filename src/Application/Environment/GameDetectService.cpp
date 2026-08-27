@@ -1,4 +1,5 @@
 #include "Application/Environment/GameDetectService.h"
+#include "Application/Environment/Internal/SteamLibraryDetector.h"
 #include "Application/Environment/GameInstallationValidator.h"
 #include "Application/Async/AsyncTaskRunner.h"
 #include "Application/Execution/ExecutionGuard.h"
@@ -174,7 +175,7 @@ Core::Result<GameInstallation> GameDetectService::detectGame(
         if (!libRes.isSuccess()) {
             return Core::Result<GameInstallation>::failure(
                 libRes.error(),
-                QStringLiteral("Steam game detection failed"));
+                libRes.message());
         }
 
         const auto& libraries = libRes.value();
