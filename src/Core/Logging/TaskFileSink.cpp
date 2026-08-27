@@ -48,9 +48,14 @@ bool TaskFileSink::isTaskFileOpen(quint64 taskId) const
     return false;
 }
 
-bool TaskFileSink::isTaskFileReady(quint64 taskId) const
+bool TaskFileSink::hasTaskLogFile(quint64 taskId) const
 {
-    return isTaskFileOpen(taskId);
+    QMutexLocker locker(&m_mutex);
+    const QString filePath = m_taskFilePaths.value(taskId);
+    if (filePath.isEmpty()) {
+        return false;
+    }
+    return QFileInfo::exists(filePath);
 }
 
 void TaskFileSink::onTaskTerminated(quint64 taskId, TaskState state)

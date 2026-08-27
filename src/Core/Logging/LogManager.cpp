@@ -1,5 +1,6 @@
 #include "LogManager.h"
 #include "LogFileManager.h"
+#include "TaskFileSink.h"
 #include <QMutexLocker>
 #include <algorithm>
 #include <limits>
@@ -80,8 +81,10 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskNa
     for (const auto& sink : sinks) {
         if (sink) {
             sink->onTaskCreated(id, taskName, context->startTimestamp(), logPath);
-            if (sink->isTaskFileReady(id)) {
-                logFileReady = true;
+            if (auto fileSink = std::dynamic_pointer_cast<TaskFileSink>(sink)) {
+                if (fileSink->hasTaskLogFile(id)) {
+                    logFileReady = true;
+                }
             }
         }
     }
@@ -123,8 +126,10 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const
     for (const auto& sink : sinks) {
         if (sink) {
             sink->onTaskCreated(taskId, taskName, context->startTimestamp(), logPath);
-            if (sink->isTaskFileReady(taskId)) {
-                logFileReady = true;
+            if (auto fileSink = std::dynamic_pointer_cast<TaskFileSink>(sink)) {
+                if (fileSink->hasTaskLogFile(taskId)) {
+                    logFileReady = true;
+                }
             }
         }
     }
@@ -282,8 +287,10 @@ void LogManager::addSink(std::shared_ptr<ILogSink> sink)
     for (const auto& task : tasks) {
         if (task && !TaskLoggingContext::isTerminalState(task->state())) {
             if (sink->onTaskCreated(task->taskId(), task->taskName(), task->startTimestamp(), task->logFilePath())) {
-                if (sink->isTaskFileReady(task->taskId())) {
-                    task->setLogFileReady(true);
+                if (auto fileSink = std::dynamic_pointer_cast<TaskFileSink>(sink)) {
+                    if (fileSink->hasTaskLogFile(task->taskId())) {
+                        task->setLogFileReady(true);
+                    }
                 }
             }
         }
@@ -327,9 +334,11 @@ void LogManager::removeSink(quint64 sinkId)
             {
                 QMutexLocker locker(&m_mutex);
                 for (const auto& s : m_sinks) {
-                    if (s && s->isTaskFileReady(taskId)) {
-                        ready = true;
-                        break;
+                    if (auto fileSink = std::dynamic_pointer_cast<TaskFileSink>(s)) {
+                        if (fileSink->hasTaskLogFile(taskId)) {
+                            ready = true;
+                            break;
+                        }
                     }
                 }
             }

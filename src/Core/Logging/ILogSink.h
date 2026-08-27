@@ -40,15 +40,6 @@ public:
     }
 
     /**
-     * @brief Checks whether this sink maintains an active/ready log file for the specified task.
-     */
-    virtual bool isTaskFileReady(quint64 taskId) const
-    {
-        Q_UNUSED(taskId);
-        return false;
-    }
-
-    /**
      * @brief Lifecycle callback invoked when a task reaches a terminal state (Completed, Failed, Cancelled, Skipped).
      */
     virtual void onTaskTerminated(quint64 taskId, TaskState state)

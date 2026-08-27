@@ -533,15 +533,27 @@ void TestLoggingInfrastructure::testLogFileReadySemantics()
     auto taskSink = std::make_shared<TaskFileSink>();
     LogManager::instance().addSink(taskSink);
     QVERIFY(taskNoSink->isLogFileReady());
+    QVERIFY(taskSink->hasTaskLogFile(taskNoSink->taskId()));
+    QVERIFY(taskSink->isTaskFileOpen(taskNoSink->taskId()));
     QVERIFY(QFile::exists(taskNoSink->logFilePath()));
 
     // 3. Creating a new task with TaskFileSink registered results in isLogFileReady() == true
     auto taskWithSink = LogManager::instance().createTask(QStringLiteral("With Sink Task"));
     QVERIFY(taskWithSink != nullptr);
     QVERIFY(taskWithSink->isLogFileReady());
+    QVERIFY(taskSink->hasTaskLogFile(taskWithSink->taskId()));
+    QVERIFY(taskSink->isTaskFileOpen(taskWithSink->taskId()));
     QVERIFY(QFile::exists(taskWithSink->logFilePath()));
 
-    // 4. Remove TaskFileSink -> isLogFileReady() becomes false for active tasks
+    // 4. Complete taskWithSink: file handle closes, but log file remains ready and available on disk
+    taskWithSink->start();
+    taskWithSink->info(QStringLiteral("Some execution details"));
+    LogManager::instance().finishTask(taskWithSink->taskId(), QStringLiteral("Done"));
+    QVERIFY(!taskSink->isTaskFileOpen(taskWithSink->taskId())); // Write handle closed
+    QVERIFY(taskSink->hasTaskLogFile(taskWithSink->taskId()));  // Log file physically exists
+    QVERIFY(taskWithSink->isLogFileReady());                     // Context still reports file ready
+
+    // 5. Remove TaskFileSink -> isLogFileReady() becomes false for active/tracked tasks
     LogManager::instance().removeSink(taskSink);
     QVERIFY(!taskNoSink->isLogFileReady());
     QVERIFY(!taskWithSink->isLogFileReady());

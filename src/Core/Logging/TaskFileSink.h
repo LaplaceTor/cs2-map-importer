@@ -39,14 +39,14 @@ public:
     bool onTaskCreated(quint64 taskId, const QString& taskName, qint64 startTimestamp, const QString& logFilePath) override;
 
     /**
-     * @brief Checks if the log file handle for a given task is open and ready.
+     * @brief Checks if the log file handle for a given task is open for active writing.
      */
     bool isTaskFileOpen(quint64 taskId) const;
 
     /**
-     * @brief Checks whether this sink maintains an active log file for the specified task.
+     * @brief Checks whether a valid log file exists on disk for the specified task.
      */
-    bool isTaskFileReady(quint64 taskId) const override;
+    bool hasTaskLogFile(quint64 taskId) const;
 
     /**
      * @brief Flushes and closes the task log file upon task completion/failure/cancellation.
