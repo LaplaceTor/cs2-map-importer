@@ -24,13 +24,16 @@ TaskFileSink::~TaskFileSink()
 bool TaskFileSink::onTaskCreated(quint64 taskId, const QString& taskName, qint64 startTimestamp, const QString& logFilePath)
 {
     QMutexLocker locker(&m_mutex);
-    if (!logFilePath.isEmpty()) {
-        m_taskFilePaths.insert(taskId, logFilePath);
+    if (logFilePath.isEmpty()) {
+        ApplicationLogger::error(QStringLiteral("TaskFileSink: Cannot create log file for task [%1] '%2' with empty path")
+            .arg(QString::number(taskId), taskName));
+        return false;
     }
+    m_taskFilePaths.insert(taskId, logFilePath);
     const bool ok = ensureTaskFileOpenLocked(taskId, taskName, startTimestamp);
     if (!ok) {
         ApplicationLogger::error(QStringLiteral("TaskFileSink: Failed to create or open log file for task [%1] '%2' at path '%3'")
-            .arg(QString::number(taskId), taskName, m_taskFilePaths.value(taskId)));
+            .arg(QString::number(taskId), taskName, logFilePath));
     }
     return ok;
 }
@@ -45,6 +48,11 @@ bool TaskFileSink::isTaskFileOpen(quint64 taskId) const
     return false;
 }
 
+bool TaskFileSink::isTaskFileReady(quint64 taskId) const
+{
+    return isTaskFileOpen(taskId);
+}
+
 void TaskFileSink::onTaskTerminated(quint64 taskId, TaskState state)
 {
     Q_UNUSED(state);
@@ -53,6 +61,8 @@ void TaskFileSink::onTaskTerminated(quint64 taskId, TaskState state)
 
 bool TaskFileSink::ensureTaskFileOpenLocked(quint64 taskId, const QString& taskName, qint64 startTimestamp)
 {
+    Q_UNUSED(taskName);
+    Q_UNUSED(startTimestamp);
     if (m_taskFiles.contains(taskId)) {
         auto handle = m_taskFiles.value(taskId);
         if (handle && handle->file && handle->file->isOpen()) {
@@ -60,16 +70,16 @@ bool TaskFileSink::ensureTaskFileOpenLocked(quint64 taskId, const QString& taskN
         }
     }
 
-    LogFileManager::ensureLogsDirectoryExists();
-
-    QString filePath;
-    if (m_taskFilePaths.contains(taskId)) {
-        filePath = m_taskFilePaths.value(taskId);
-    } else {
-        const qint64 time = (startTimestamp > 0) ? startTimestamp : QDateTime::currentMSecsSinceEpoch();
-        filePath = LogFileManager::generateTaskLogFilePath(taskName, time, taskId);
-        m_taskFilePaths.insert(taskId, filePath);
+    if (!m_taskFilePaths.contains(taskId)) {
+        return false;
     }
+
+    const QString filePath = m_taskFilePaths.value(taskId);
+    if (filePath.isEmpty()) {
+        return false;
+    }
+
+    LogFileManager::ensureLogsDirectoryExists();
 
     QFileInfo fileInfo(filePath);
     QDir dir = fileInfo.dir();
@@ -84,12 +94,9 @@ bool TaskFileSink::ensureTaskFileOpenLocked(quint64 taskId, const QString& taskN
         return false;
     }
 
-    auto stream = std::make_unique<QTextStream>(file.get());
-
     auto handle = std::make_shared<TaskFileHandle>();
     handle->filePath = filePath;
     handle->file = std::move(file);
-    handle->stream = std::move(stream);
 
     m_taskFiles.insert(taskId, handle);
     m_lastTaskLogFilePath = filePath;
@@ -147,7 +154,6 @@ bool TaskFileSink::writeBlock(const LogBlock& block, const QString& taskName)
         return false;
     }
 
-    handle->file->flush();
     return true;
 }
 
@@ -157,14 +163,9 @@ bool TaskFileSink::flush()
     bool allSuccess = true;
     for (auto it = m_taskFiles.begin(); it != m_taskFiles.end(); ++it) {
         auto handle = it.value();
-        if (handle) {
-            if (handle->stream) {
-                handle->stream->flush();
-            }
-            if (handle->file && handle->file->isOpen()) {
-                if (!handle->file->flush() || handle->file->error() != QFile::NoError) {
-                    allSuccess = false;
-                }
+        if (handle && handle->file && handle->file->isOpen()) {
+            if (!handle->file->flush() || handle->file->error() != QFile::NoError) {
+                allSuccess = false;
             }
         }
     }
@@ -176,14 +177,9 @@ void TaskFileSink::closeTask(quint64 taskId)
     QMutexLocker locker(&m_mutex);
     if (m_taskFiles.contains(taskId)) {
         auto handle = m_taskFiles.value(taskId);
-        if (handle) {
-            if (handle->stream) {
-                handle->stream->flush();
-            }
-            if (handle->file && handle->file->isOpen()) {
-                handle->file->flush();
-                handle->file->close();
-            }
+        if (handle && handle->file && handle->file->isOpen()) {
+            handle->file->flush();
+            handle->file->close();
         }
         m_taskFiles.remove(taskId);
     }
@@ -194,14 +190,9 @@ void TaskFileSink::closeAll()
     QMutexLocker locker(&m_mutex);
     for (auto it = m_taskFiles.begin(); it != m_taskFiles.end(); ++it) {
         auto handle = it.value();
-        if (handle) {
-            if (handle->stream) {
-                handle->stream->flush();
-            }
-            if (handle->file && handle->file->isOpen()) {
-                handle->file->flush();
-                handle->file->close();
-            }
+        if (handle && handle->file && handle->file->isOpen()) {
+            handle->file->flush();
+            handle->file->close();
         }
     }
     m_taskFiles.clear();

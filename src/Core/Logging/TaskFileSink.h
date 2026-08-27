@@ -16,12 +16,11 @@ namespace Core::Logging {
 struct TaskFileHandle {
     QString filePath;
     std::unique_ptr<QFile> file;
-    std::unique_ptr<QTextStream> stream;
 };
 
 /**
  * @brief Log sink that writes sealed log blocks to task-specific log files.
- * Automatically manages task file creation, naming (<task_name>_<start_timestamp>.log),
+ * Automatically manages task file creation, naming (<task_name>_<start_timestamp>_<task_id>.log),
  * continuous appending, and reliable flushing upon task completion/failure/cancellation.
  */
 class TaskFileSink : public ILogSink {
@@ -43,6 +42,11 @@ public:
      * @brief Checks if the log file handle for a given task is open and ready.
      */
     bool isTaskFileOpen(quint64 taskId) const;
+
+    /**
+     * @brief Checks whether this sink maintains an active log file for the specified task.
+     */
+    bool isTaskFileReady(quint64 taskId) const override;
 
     /**
      * @brief Flushes and closes the task log file upon task completion/failure/cancellation.

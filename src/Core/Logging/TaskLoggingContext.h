@@ -166,7 +166,7 @@ private:
     quint64 m_creationSequence = 0;
     qint64 m_startTimestamp = 0;
     QString m_logFilePath;
-    bool m_logFileReady = true;
+    bool m_logFileReady = false;
     mutable QRecursiveMutex m_mutex;
     std::shared_ptr<FaultBarrier> m_faultBarrier;
     mutable QMutex m_flushMutex;

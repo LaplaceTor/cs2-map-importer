@@ -54,6 +54,7 @@ private slots:
     void testTaskIdValidationAndEntryIsolation();
     void testTaskLifecycleAndStateMachine();
     void testClearInvalidatesExternalTaskContexts();
+    void testClearTransitionsPendingAndRunningTasksToCancelled();
     void testExplicitTaskIdConflict();
     void testMultiThreadTaskCreation();
     void testMultiThreadLogWritingAndIsolation();
@@ -360,6 +361,7 @@ void TestLogManager::testClearInvalidatesExternalTaskContexts()
     LogManager::instance().clear();
 
     QCOMPARE(LogManager::instance().taskCount(), static_cast<qsizetype>(0));
+    QCOMPARE(oldTask->state(), TaskState::Cancelled);
     QVERIFY(LogManager::instance().faultBarrier() != oldBarrier);
     QVERIFY(!oldTask->info("after reset"));
     QVERIFY(!oldTask->start());
@@ -370,6 +372,35 @@ void TestLogManager::testClearInvalidatesExternalTaskContexts()
     QVERIFY(newTask->start());
     QVERIFY(newTask->info("new session log"));
     QVERIFY(newTask->faultBarrier() != oldBarrier);
+}
+
+void TestLogManager::testClearTransitionsPendingAndRunningTasksToCancelled()
+{
+    auto taskPending = LogManager::instance().createTask("Pending Task");
+    auto taskRunning = LogManager::instance().createTask("Running Task");
+    auto taskCompleted = LogManager::instance().createTask("Completed Task");
+    auto taskFailed = LogManager::instance().createTask("Failed Task");
+
+    QVERIFY(taskRunning->start());
+    QVERIFY(taskCompleted->start());
+    QVERIFY(taskCompleted->complete("Finished"));
+    QVERIFY(taskFailed->start());
+    QVERIFY(taskFailed->fail("Error"));
+
+    QCOMPARE(taskPending->state(), TaskState::Pending);
+    QCOMPARE(taskRunning->state(), TaskState::Running);
+    QCOMPARE(taskCompleted->state(), TaskState::Completed);
+    QCOMPARE(taskFailed->state(), TaskState::Failed);
+
+    LogManager::instance().clear();
+
+    // Pending and Running tasks must be transitioned to Cancelled terminal state
+    QCOMPARE(taskPending->state(), TaskState::Cancelled);
+    QCOMPARE(taskRunning->state(), TaskState::Cancelled);
+
+    // Already-terminal tasks preserve their terminal state
+    QCOMPARE(taskCompleted->state(), TaskState::Completed);
+    QCOMPARE(taskFailed->state(), TaskState::Failed);
 }
 
 void TestLogManager::testExplicitTaskIdConflict()

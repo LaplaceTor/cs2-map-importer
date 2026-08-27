@@ -76,15 +76,16 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskNa
         sinks = m_sinks;
     }
 
-    bool allSinksReady = true;
+    bool logFileReady = false;
     for (const auto& sink : sinks) {
         if (sink) {
-            if (!sink->onTaskCreated(id, taskName, context->startTimestamp(), logPath)) {
-                allSinksReady = false;
+            sink->onTaskCreated(id, taskName, context->startTimestamp(), logPath);
+            if (sink->isTaskFileReady(id)) {
+                logFileReady = true;
             }
         }
     }
-    context->setLogFileReady(allSinksReady);
+    context->setLogFileReady(logFileReady);
     return context;
 }
 
@@ -118,15 +119,16 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const
         sinks = m_sinks;
     }
 
-    bool allSinksReady = true;
+    bool logFileReady = false;
     for (const auto& sink : sinks) {
         if (sink) {
-            if (!sink->onTaskCreated(taskId, taskName, context->startTimestamp(), logPath)) {
-                allSinksReady = false;
+            sink->onTaskCreated(taskId, taskName, context->startTimestamp(), logPath);
+            if (sink->isTaskFileReady(taskId)) {
+                logFileReady = true;
             }
         }
     }
-    context->setLogFileReady(allSinksReady);
+    context->setLogFileReady(logFileReady);
 
     return context;
 }
@@ -279,7 +281,11 @@ void LogManager::addSink(std::shared_ptr<ILogSink> sink)
 
     for (const auto& task : tasks) {
         if (task && !TaskLoggingContext::isTerminalState(task->state())) {
-            sink->onTaskCreated(task->taskId(), task->taskName(), task->startTimestamp(), task->logFilePath());
+            if (sink->onTaskCreated(task->taskId(), task->taskName(), task->startTimestamp(), task->logFilePath())) {
+                if (sink->isTaskFileReady(task->taskId())) {
+                    task->setLogFileReady(true);
+                }
+            }
         }
     }
 }
@@ -311,6 +317,24 @@ void LogManager::removeSink(quint64 sinkId)
         m_sinkCursors.remove(sinkId);
         m_sinkGenerations.remove(sinkId);
         hasRemainingSinks = !m_sinks.isEmpty();
+    }
+
+    // Update log file readiness across remaining sinks
+    for (const quint64 taskId : taskIds()) {
+        const auto task = findTask(taskId);
+        if (task) {
+            bool ready = false;
+            {
+                QMutexLocker locker(&m_mutex);
+                for (const auto& s : m_sinks) {
+                    if (s && s->isTaskFileReady(taskId)) {
+                        ready = true;
+                        break;
+                    }
+                }
+            }
+            task->setLogFileReady(ready);
+        }
     }
 
     // A removed sink no longer owns delivery responsibility. Re-run delivery
@@ -345,7 +369,10 @@ void LogManager::clearSinks()
     // clearSinks ends all outstanding sink responsibilities. Release pending
     // blocks now rather than retaining them for a sink that no longer exists.
     for (const auto& task : tasks) {
-        task->releaseSealedBlocksBefore((std::numeric_limits<quint64>::max)());
+        if (task) {
+            task->setLogFileReady(false);
+            task->releaseSealedBlocksBefore((std::numeric_limits<quint64>::max)());
+        }
     }
 }
 
@@ -603,10 +630,7 @@ qsizetype LogManager::taskCount() const
 
 void LogManager::clear()
 {
-    // 1. Flush all tasks first so pending sealed blocks reach sinks
-    flushAll();
-
-    // 2. Snapshot sinks and tasks without holding lock during notifications
+    // 1. Snapshot sinks and tasks under lock
     QVector<std::shared_ptr<TaskLoggingContext>> tasks;
     QVector<std::shared_ptr<ILogSink>> sinks;
     {
@@ -618,7 +642,17 @@ void LogManager::clear()
         sinks = m_sinks;
     }
 
-    // 3. Notify sinks of task termination outside of mutex lock
+    // 2. Transition any unfinished (Pending or Running) tasks to Cancelled
+    for (const auto& task : tasks) {
+        if (task && !TaskLoggingContext::isTerminalState(task->state())) {
+            task->forceTerminalState(TaskState::Cancelled, QStringLiteral("Logging session reset"));
+        }
+    }
+
+    // 3. Flush all tasks so all sealed blocks reach sinks
+    flushAll();
+
+    // 4. Notify sinks of task termination outside of mutex lock
     for (const auto& task : tasks) {
         if (task) {
             for (const auto& sink : sinks) {
@@ -629,7 +663,7 @@ void LogManager::clear()
         }
     }
 
-    // 4. Invalidate sessions and clear internal state under lock
+    // 5. Invalidate sessions and clear internal state under lock
     {
         QMutexLocker locker(&m_mutex);
         for (const auto& task : tasks) {

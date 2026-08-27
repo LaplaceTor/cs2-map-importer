@@ -41,6 +41,8 @@ private slots:
     void testApplicationLogIsolation();
     void testLegacyLoggerRedirectsToApplicationLog();
     void testOpenLogFileSelectionHierarchy();
+    void testDuplicateTaskNameLogFileUniqueness();
+    void testLogFileReadySemantics();
 
 private:
     std::unique_ptr<QTemporaryDir> m_tempDir;
@@ -463,6 +465,86 @@ void TestLoggingInfrastructure::testOpenLogFileSelectionHierarchy()
     logVm.unregisterFromLogManager();
     LogManager::instance().removeSink(taskSink);
     ApplicationLogger::shutdown();
+}
+
+void TestLoggingInfrastructure::testDuplicateTaskNameLogFileUniqueness()
+{
+    auto taskSink = std::make_shared<TaskFileSink>();
+    LogManager::instance().addSink(taskSink);
+
+    // Create two distinct tasks with the exact same name
+    auto task1 = LogManager::instance().createTask(QStringLiteral("Map Import"));
+    auto task2 = LogManager::instance().createTask(QStringLiteral("Map Import"));
+
+    QVERIFY(task1 != nullptr);
+    QVERIFY(task2 != nullptr);
+    QVERIFY(task1->taskId() != task2->taskId());
+
+    const QString path1 = task1->logFilePath();
+    const QString path2 = task2->logFilePath();
+
+    // Critical invariant: Even with the identical task name and identical second timestamp,
+    // unique task IDs ensure distinct log file paths.
+    QVERIFY(!path1.isEmpty());
+    QVERIFY(!path2.isEmpty());
+    QVERIFY(path1 != path2);
+
+    QVERIFY(QFile::exists(path1));
+    QVERIFY(QFile::exists(path2));
+
+    task1->start();
+    task1->info(QStringLiteral("Task 1 specific processing"));
+    task2->start();
+    task2->info(QStringLiteral("Task 2 specific processing"));
+
+    LogManager::instance().finishTask(task1->taskId(), QStringLiteral("Task 1 finished"));
+    LogManager::instance().finishTask(task2->taskId(), QStringLiteral("Task 2 finished"));
+
+    // Verify isolation in log files
+    QFile file1(path1);
+    QVERIFY(file1.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString content1 = QString::fromUtf8(file1.readAll());
+    file1.close();
+
+    QFile file2(path2);
+    QVERIFY(file2.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString content2 = QString::fromUtf8(file2.readAll());
+    file2.close();
+
+    QVERIFY(content1.contains(QStringLiteral("Task 1 specific processing")));
+    QVERIFY(content1.contains(QStringLiteral("Task 1 finished")));
+    QVERIFY(!content1.contains(QStringLiteral("Task 2 specific processing")));
+
+    QVERIFY(content2.contains(QStringLiteral("Task 2 specific processing")));
+    QVERIFY(content2.contains(QStringLiteral("Task 2 finished")));
+    QVERIFY(!content2.contains(QStringLiteral("Task 1 specific processing")));
+
+    LogManager::instance().removeSink(taskSink);
+}
+
+void TestLoggingInfrastructure::testLogFileReadySemantics()
+{
+    // 1. When no sink is registered, createTask produces a context where isLogFileReady() == false
+    auto taskNoSink = LogManager::instance().createTask(QStringLiteral("No Sink Task"));
+    QVERIFY(taskNoSink != nullptr);
+    QVERIFY(!taskNoSink->isLogFileReady());
+
+    // 2. Add TaskFileSink dynamically -> taskNoSink is notified and isLogFileReady() becomes true
+    auto taskSink = std::make_shared<TaskFileSink>();
+    LogManager::instance().addSink(taskSink);
+    QVERIFY(taskNoSink->isLogFileReady());
+    QVERIFY(QFile::exists(taskNoSink->logFilePath()));
+
+    // 3. Creating a new task with TaskFileSink registered results in isLogFileReady() == true
+    auto taskWithSink = LogManager::instance().createTask(QStringLiteral("With Sink Task"));
+    QVERIFY(taskWithSink != nullptr);
+    QVERIFY(taskWithSink->isLogFileReady());
+    QVERIFY(QFile::exists(taskWithSink->logFilePath()));
+
+    // 4. Remove TaskFileSink -> isLogFileReady() becomes false for active tasks
+    LogManager::instance().removeSink(taskSink);
+    QVERIFY(!taskNoSink->isLogFileReady());
+    QVERIFY(!taskWithSink->isLogFileReady());
 }
 
 QTEST_MAIN(TestLoggingInfrastructure)
