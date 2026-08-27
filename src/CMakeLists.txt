@@ -6,6 +6,7 @@ add_subdirectory(qml/cs2importer)
 
 set(APP_SOURCES
     Main.cpp
+    ${CMAKE_SOURCE_DIR}/icons/cs2importer.rc
 )
 
 qt_add_executable(cs2importer MANUAL_FINALIZATION ${APP_SOURCES})
@@ -51,6 +52,7 @@ if(CS2IMPORTER_DEPLOY_QT_RUNTIME)
     qt_generate_deploy_qml_app_script(
         TARGET cs2importer
         OUTPUT_SCRIPT deploy_script
+    )
 
     install(SCRIPT ${deploy_script})
 endif()
