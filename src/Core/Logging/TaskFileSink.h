@@ -80,11 +80,6 @@ public:
     QString lastTaskLogFilePath() const;
 
     /**
-     * @brief Sets or registers a task's log file path explicitly (e.g. at task initialization).
-     */
-    void registerTaskPath(quint64 taskId, const QString& path);
-
-    /**
      * @brief Formats a single log entry line.
      * Format: [2026-08-27 21:30:01.012] [Task 42 - Map Import] [Block 1] [Seq 1] [Source: Workflow] [INFO] message
      */

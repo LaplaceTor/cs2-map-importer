@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QMutexLocker>
+#include <QTimeZone>
 
 namespace Core::Logging {
 
@@ -216,13 +217,6 @@ QString TaskFileSink::lastTaskLogFilePath() const
 {
     QMutexLocker locker(&m_mutex);
     return m_lastTaskLogFilePath;
-}
-
-void TaskFileSink::registerTaskPath(quint64 taskId, const QString& path)
-{
-    QMutexLocker locker(&m_mutex);
-    m_taskFilePaths.insert(taskId, path);
-    m_lastTaskLogFilePath = path;
 }
 
 QString TaskFileSink::formatEntry(qint64 timestamp, quint64 taskId, const QString& taskName,
