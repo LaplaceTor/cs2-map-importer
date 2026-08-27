@@ -97,6 +97,7 @@ private:
     mutable QMutex m_mutex;
     QHash<quint64, std::shared_ptr<TaskFileHandle>> m_taskFiles;
     QHash<quint64, QString> m_taskFilePaths;
+    QHash<quint64, bool> m_taskLogReady;
     QString m_lastTaskLogFilePath;
 };
 

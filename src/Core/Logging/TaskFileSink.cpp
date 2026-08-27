@@ -27,10 +27,12 @@ bool TaskFileSink::onTaskCreated(quint64 taskId, const QString& taskName, qint64
     if (logFilePath.isEmpty()) {
         ApplicationLogger::error(QStringLiteral("TaskFileSink: Cannot create log file for task [%1] '%2' with empty path")
             .arg(QString::number(taskId), taskName));
+        m_taskLogReady.insert(taskId, false);
         return false;
     }
     m_taskFilePaths.insert(taskId, logFilePath);
     const bool ok = ensureTaskFileOpenLocked(taskId, taskName, startTimestamp);
+    m_taskLogReady.insert(taskId, ok);
     if (!ok) {
         ApplicationLogger::error(QStringLiteral("TaskFileSink: Failed to create or open log file for task [%1] '%2' at path '%3'")
             .arg(QString::number(taskId), taskName, logFilePath));
@@ -51,11 +53,7 @@ bool TaskFileSink::isTaskFileOpen(quint64 taskId) const
 bool TaskFileSink::hasTaskLogFile(quint64 taskId) const
 {
     QMutexLocker locker(&m_mutex);
-    const QString filePath = m_taskFilePaths.value(taskId);
-    if (filePath.isEmpty()) {
-        return false;
-    }
-    return QFileInfo::exists(filePath);
+    return m_taskLogReady.value(taskId, false);
 }
 
 void TaskFileSink::onTaskTerminated(quint64 taskId, TaskState state)
@@ -76,11 +74,13 @@ bool TaskFileSink::ensureTaskFileOpenLocked(quint64 taskId, const QString& taskN
     }
 
     if (!m_taskFilePaths.contains(taskId)) {
+        m_taskLogReady.insert(taskId, false);
         return false;
     }
 
     const QString filePath = m_taskFilePaths.value(taskId);
     if (filePath.isEmpty()) {
+        m_taskLogReady.insert(taskId, false);
         return false;
     }
 
@@ -90,12 +90,14 @@ bool TaskFileSink::ensureTaskFileOpenLocked(quint64 taskId, const QString& taskN
     QDir dir = fileInfo.dir();
     if (!dir.exists()) {
         if (!dir.mkpath(QStringLiteral("."))) {
+            m_taskLogReady.insert(taskId, false);
             return false;
         }
     }
 
     auto file = std::make_unique<QFile>(filePath);
     if (!file->open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+        m_taskLogReady.insert(taskId, false);
         return false;
     }
 
@@ -104,6 +106,7 @@ bool TaskFileSink::ensureTaskFileOpenLocked(quint64 taskId, const QString& taskN
     handle->file = std::move(file);
 
     m_taskFiles.insert(taskId, handle);
+    m_taskLogReady.insert(taskId, true);
     m_lastTaskLogFilePath = filePath;
     return true;
 }
