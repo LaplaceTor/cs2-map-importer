@@ -75,6 +75,9 @@ public:
         WorkerFn&& worker,
         const QString& operationSummary = QString())
     {
+        static_assert(
+            std::is_invocable_r_v<Core::Result<T>, WorkerFn>,
+            "ExecutionGuard::guard<T> requires WorkerFn to be callable and return Core::Result<T>");
         try {
             return worker();
         } catch (const Core::Error::Exception& ex) {
@@ -96,6 +99,9 @@ public:
         -> std::invoke_result_t<WorkerFn>
     {
         using ReturnType = std::invoke_result_t<WorkerFn>;
+        static_assert(
+            Core::is_core_result_v<ReturnType>,
+            "ExecutionGuard::guard requires WorkerFn to return Core::Result<T>");
         using ValueType = typename ReturnType::value_type;
         return guard<ValueType>(std::forward<WorkerFn>(worker), operationSummary);
     }

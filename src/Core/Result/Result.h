@@ -253,4 +253,17 @@ private:
     QString m_message;
 };
 
+template <typename T>
+struct is_result : std::false_type {};
+
+template <typename T>
+struct is_result<Result<T>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_result_v = is_result<std::decay_t<T>>::value;
+
+template <typename T>
+inline constexpr bool is_core_result_v = is_result_v<T>;
+
 } // namespace Core
+

@@ -42,20 +42,24 @@ private slots:
     }
 
     void testSteamRegistryDetection() {
-        auto steamPath = SteamService::detectSteamInstallPath();
+        auto steamRes = SteamService::detectSteamInstallPath();
         // On Windows systems where Steam is installed, this must find a valid directory
-        if (steamPath.isValid()) {
-            QVERIFY(steamPath.exists());
-            QVERIFY(steamPath.isDirectory());
+        if (steamRes.isSuccess()) {
+            QVERIFY(steamRes.value().isValid());
+            QVERIFY(steamRes.value().exists());
+            QVERIFY(steamRes.value().isDirectory());
+        } else {
+            QCOMPARE(steamRes.errorCode(), Core::Error::ErrorCode::DirectoryNotFound);
         }
     }
 
     void testSteamLibraryDetection() {
-        auto libraries = SteamService::detectLibraries();
-        if (libraries.empty()) {
+        auto libRes = SteamService::detectLibraries();
+        if (!libRes.isSuccess()) {
             QSKIP("No Steam libraries detected on this system, skipping live library tests.");
         }
 
+        const auto& libraries = libRes.value();
         for (const auto& lib : libraries) {
             QVERIFY(lib.path.isValid());
             QVERIFY(lib.path.exists());
@@ -284,7 +288,9 @@ private slots:
         );
         vdfFile.close();
 
-        auto libraries = SteamService::parseLibraryFolders(Core::Path::FilesystemPath(vdfPath));
+        auto libRes = SteamService::parseLibraryFolders(Core::Path::FilesystemPath(vdfPath));
+        QVERIFY(libRes.isSuccess());
+        const auto& libraries = libRes.value();
         QCOMPARE(libraries.size(), static_cast<size_t>(1));
         QCOMPARE(libraries[0].path.toString(), Core::Path::PathUtils::normalize(tempSteamDir.path()));
         QCOMPARE(libraries[0].installedAppIds.size(), static_cast<size_t>(2));
@@ -541,18 +547,24 @@ private slots:
     }
 
     void testApplicationHelperExceptionBubbling() {
-        // 1. SteamService helpers with empty/invalid inputs return default values through normal control flow
+        // 1. SteamService methods with invalid inputs return structured Result::failure with ErrorCode and details
         auto emptyLibs = SteamService::detectLibraries(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/SteamRoot")));
-        QVERIFY(emptyLibs.empty());
+        QVERIFY(emptyLibs.isFailure());
+        QCOMPARE(emptyLibs.errorCode(), Core::Error::ErrorCode::DirectoryNotFound);
+        QVERIFY(!emptyLibs.details().isEmpty());
 
         auto emptyParse = SteamService::parseLibraryFolders(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/libraryfolders.vdf")));
-        QVERIFY(emptyParse.empty());
+        QVERIFY(emptyParse.isFailure());
+        QCOMPARE(emptyParse.errorCode(), Core::Error::ErrorCode::FileNotFound);
+        QVERIFY(!emptyParse.details().isEmpty());
 
         auto emptyAppDir = SteamService::readAppInstallDir(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/Lib")), 730);
-        QVERIFY(emptyAppDir.isEmpty());
+        QVERIFY(emptyAppDir.isFailure());
+        QCOMPARE(emptyAppDir.errorCode(), Core::Error::ErrorCode::DirectoryNotFound);
 
         auto emptyAppName = SteamService::readAppName(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/Lib")), 730);
-        QVERIFY(emptyAppName.isEmpty());
+        QVERIFY(emptyAppName.isFailure());
+        QCOMPARE(emptyAppName.errorCode(), Core::Error::ErrorCode::DirectoryNotFound);
 
         // 2. Exception bubbling from helper to ExecutionGuard
         auto res = Application::Execution::ExecutionGuard::guard<int>([]() -> Core::Result<int> {
@@ -564,6 +576,18 @@ private slots:
         QCOMPARE(res.errorCode(), Core::Error::ErrorCode::InvalidFile);
         QCOMPARE(res.message(), QStringLiteral("Steam library discovery failed"));
         QCOMPARE(res.error().message(), QStringLiteral("Corrupted library VDF"));
+
+        // 3. GameDetectService fatal error vs benign missing Steam
+        // Explicit invalid custom Steam path must return Failure
+        auto invalidCustomRes = GameDetectService::detectEnvironment(QStringLiteral("Z:/NonExistent/CustomSteam"));
+        QVERIFY(invalidCustomRes.isFailure());
+        QCOMPARE(invalidCustomRes.message(), QStringLiteral("Invalid custom Steam path"));
+
+        // 4. ExecutionGuard type trait constraint verification
+        static_assert(Core::is_core_result_v<Core::Result<int>>, "Result<int> must satisfy is_core_result_v");
+        static_assert(Core::is_core_result_v<Core::Result<void>>, "Result<void> must satisfy is_core_result_v");
+        static_assert(!Core::is_core_result_v<int>, "int must not satisfy is_core_result_v");
+        static_assert(!Core::is_core_result_v<QString>, "QString must not satisfy is_core_result_v");
     }
 };
 
