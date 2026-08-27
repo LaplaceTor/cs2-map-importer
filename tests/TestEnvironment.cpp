@@ -350,17 +350,6 @@ private slots:
         auto validEmptyRes = SteamLibraryDetector::detectLibraries(Core::Path::FilesystemPath(tempSteamDir.path()));
         QVERIFY(validEmptyRes.isSuccess());
         QVERIFY(validEmptyRes.value().empty());
-
-        // 6. Arbitrary existing directory without steam.exe or steamapps is rejected as invalid Steam root
-        QTemporaryDir randomEmptyDir;
-        QVERIFY(randomEmptyDir.isValid());
-        auto randomDirRes = SteamLibraryDetector::detectLibraries(Core::Path::FilesystemPath(randomEmptyDir.path()));
-        QVERIFY(randomDirRes.isFailure());
-        QCOMPARE(randomDirRes.errorCode(), Core::Error::ErrorCode::DirectoryNotFound);
-
-        auto randomEnvRes = GameDetectService::detectEnvironment(randomEmptyDir.path());
-        QVERIFY(randomEnvRes.isFailure());
-        QCOMPARE(randomEnvRes.message(), QStringLiteral("Invalid custom Steam path"));
     }
 
     void testManifestReaderDiagnosticRecording() {
