@@ -30,7 +30,7 @@ void VpkSignatureLeaseService::setLoggingContext(std::shared_ptr<Core::Logging::
     m_loggingContext = std::move(loggingContext);
 }
 
-Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallation(const GameInstallation& s2Installation)
+Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallation(const GameInstallation& s2Installation)
 {
     m_activeInstallation = s2Installation;
 
@@ -42,10 +42,10 @@ Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::updat
     m_lastStatus = VpkSignatureLeaseStatus::Inactive;
     emit leaseStatusChanged(m_lastStatus, QString(), QString());
     VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QString(), QString()};
-    return Core::Async::TaskResult<VpkSignatureLeaseResult>::success(res);
+    return Core::Result<VpkSignatureLeaseResult>::success(res);
 }
 
-Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallation(const GameInstallationInfo& s2Info)
+Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallation(const GameInstallationInfo& s2Info)
 {
     if (s2Info.isValid && (s2Info.gameId == QStringLiteral("cs2") || s2Info.gameTitle == QStringLiteral("Counter-Strike 2") || s2Info.displayName == QStringLiteral("Counter-Strike 2"))) {
         return acquireLease(s2Info.basePath);
@@ -55,29 +55,29 @@ Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::updat
     m_lastStatus = VpkSignatureLeaseStatus::Inactive;
     emit leaseStatusChanged(m_lastStatus, QString(), QString());
     VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QString(), QString()};
-    return Core::Async::TaskResult<VpkSignatureLeaseResult>::success(res);
+    return Core::Result<VpkSignatureLeaseResult>::success(res);
 }
 
-Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLease(const Core::Path::FilesystemPath& cs2BasePath)
+Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLease(const Core::Path::FilesystemPath& cs2BasePath)
 {
     return acquireLeaseInternal(cs2BasePath);
 }
 
-Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLease(const QString& cs2BasePath)
+Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLease(const QString& cs2BasePath)
 {
     return acquireLeaseInternal(Core::Path::FilesystemPath(cs2BasePath));
 }
 
-Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::retryLease()
+Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::retryLease()
 {
     if (m_activeInstallation.isValid() && m_activeInstallation.type() == Domain::Game::GameType::CS2) {
         return acquireLeaseInternal(m_activeInstallation.baseDirectory());
     }
     VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("No active CS2 installation to retry leasing"), QString()};
-    return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidArgument, res.systemMessage, QString(), res);
+    return Core::Result<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidArgument, res.systemMessage, QString(), res);
 }
 
-Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLeaseInternal(const Core::Path::FilesystemPath& cs2BasePath)
+Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLeaseInternal(const Core::Path::FilesystemPath& cs2BasePath)
 {
     VpkSignatureLeaseResult result;
 
@@ -89,7 +89,7 @@ Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::acqui
             m_loggingContext->warning(QStringLiteral("CS2 base directory is invalid or does not exist: %1").arg(cs2BasePath.toString()));
         }
         emit leaseStatusChanged(result.status, QString(), result.systemMessage);
-        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(
+        return Core::Result<VpkSignatureLeaseResult>::failure(
             Core::Error::ErrorCode::DirectoryNotFound,
             result.systemMessage,
             cs2BasePath.toString(),
@@ -109,7 +109,7 @@ Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::acqui
             m_loggingContext->warning(QStringLiteral("vpk.signatures does not exist at expected path: %1").arg(targetPath));
         }
         emit leaseStatusChanged(result.status, targetPath, result.systemMessage);
-        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(
+        return Core::Result<VpkSignatureLeaseResult>::failure(
             Core::Error::ErrorCode::FileNotFound,
             result.systemMessage,
             targetPath,
@@ -124,7 +124,7 @@ Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::acqui
             m_loggingContext->warning(QStringLiteral("Target vpk.signatures is not a regular file: %1").arg(targetPath));
         }
         emit leaseStatusChanged(result.status, targetPath, result.systemMessage);
-        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(
+        return Core::Result<VpkSignatureLeaseResult>::failure(
             Core::Error::ErrorCode::InvalidPath,
             result.systemMessage,
             targetPath,
@@ -135,7 +135,7 @@ Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::acqui
     if (m_lease.isHeld() && m_lease.filePath() == QDir::toNativeSeparators(targetInfo.absoluteFilePath())) {
         result.status = VpkSignatureLeaseStatus::Acquired;
         m_lastStatus = result.status;
-        return Core::Async::TaskResult<VpkSignatureLeaseResult>::success(result);
+        return Core::Result<VpkSignatureLeaseResult>::success(result);
     }
 
     // Release previous lease before acquiring new one
@@ -172,7 +172,7 @@ Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::acqui
         }
         emit leaseStateChanged(false, QString());
         emit leaseStatusChanged(result.status, targetPath, result.systemMessage);
-        return Core::Async::TaskResult<VpkSignatureLeaseResult>::failure(
+        return Core::Result<VpkSignatureLeaseResult>::failure(
             errCode,
             result.systemMessage,
             targetPath,
@@ -187,7 +187,7 @@ Core::Async::TaskResult<VpkSignatureLeaseResult> VpkSignatureLeaseService::acqui
 
     emit leaseStateChanged(true, m_lease.filePath());
     emit leaseStatusChanged(result.status, m_lease.filePath(), QString());
-    return Core::Async::TaskResult<VpkSignatureLeaseResult>::success(result);
+    return Core::Result<VpkSignatureLeaseResult>::success(result);
 }
 
 void VpkSignatureLeaseService::releaseLease() noexcept

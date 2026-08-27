@@ -3,7 +3,7 @@
 #include "Core/KeyValues/KeyValuesNode.h"
 #include "Core/KeyValues/KeyValuesWriter.h"
 #include "Core/Path/FilesystemPath.h"
-#include "Core/Async/TaskResult.h"
+#include "Core/Result/Result.h"
 #include <QString>
 #include <QByteArray>
 #include <utility>
@@ -20,13 +20,13 @@ public:
     static KeyValuesDocument fromString(const QString& content);
     static KeyValuesDocument fromData(const QByteArray& data);
 
-    // Load methods returning TaskResult<void>
-    Core::Async::TaskResult<void> loadFromFile(const Path::FilesystemPath& path);
-    Core::Async::TaskResult<void> loadFromString(const QString& content);
-    Core::Async::TaskResult<void> loadFromData(const QByteArray& data);
+    // Load methods returning Result<void>
+    Core::Result<void> loadFromFile(const Path::FilesystemPath& path);
+    Core::Result<void> loadFromString(const QString& content);
+    Core::Result<void> loadFromData(const QByteArray& data);
 
-    // Save methods returning TaskResult<void>
-    Core::Async::TaskResult<void> saveToFile(const Path::FilesystemPath& path, const KeyValuesWriter::Options& options = {}) const;
+    // Save methods returning Result<void>
+    Core::Result<void> saveToFile(const Path::FilesystemPath& path, const KeyValuesWriter::Options& options = {}) const;
     QString saveToString(const KeyValuesWriter::Options& options = {}) const;
     QByteArray saveToData(const KeyValuesWriter::Options& options = {}) const;
 

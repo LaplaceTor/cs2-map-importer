@@ -3,7 +3,7 @@
 #include "Domain/Game/GameInfo.h"
 #include "Domain/Game/GameType.h"
 #include "Core/Path/FilesystemPath.h"
-#include "Core/Async/TaskResult.h"
+#include "Core/Result/Result.h"
 #include <QStringList>
 
 namespace Domain::Game {
@@ -31,26 +31,26 @@ struct ResolvedGameInstallation {
 class GameInstallationResolver {
 public:
     // Resolves a Source 1 game directory against an expected GameType
-    static Core::Async::TaskResult<ResolvedGameInstallation> resolveSource1(
+    static Core::Result<ResolvedGameInstallation> resolveSource1(
         GameType type,
         const Core::Path::FilesystemPath& directory);
 
     // Resolves a Source 2 game directory or gameinfo.gi file using Source 2 layout heuristics
-    static Core::Async::TaskResult<ResolvedGameInstallation> resolveSource2(
+    static Core::Result<ResolvedGameInstallation> resolveSource2(
         const Core::Path::FilesystemPath& directory,
         GameType type = GameType::Unknown);
 
     // Inspects an arbitrary gameinfo.txt or gameinfo.gi file/directory and resolves the installation
-    static Core::Async::TaskResult<ResolvedGameInstallation> inspectGameInfo(
+    static Core::Result<ResolvedGameInstallation> inspectGameInfo(
         const Core::Path::FilesystemPath& path);
 
     // Generic entry point resolving a directory according to GameType
-    static Core::Async::TaskResult<ResolvedGameInstallation> resolveGameDirectory(
+    static Core::Result<ResolvedGameInstallation> resolveGameDirectory(
         GameType type,
         const Core::Path::FilesystemPath& directory);
 
     // Helper constructing a ResolvedGameInstallation from parsed GameInfo and base directory
-    static Core::Async::TaskResult<ResolvedGameInstallation> createResolved(
+    static Core::Result<ResolvedGameInstallation> createResolved(
         GameType type,
         const Core::Path::FilesystemPath& baseDir,
         const GameInfo& info);

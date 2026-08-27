@@ -14,15 +14,15 @@
 #include "Core/Logging/LogManager.h"
 #include "Core/Logging/TaskLoggingContext.h"
 #include "Core/Logging/TaskState.h"
-#include "Core/Async/TaskResult.h"
+#include "Core/Result/Result.h"
 #include "Core/Error/Error.h"
 #include "Core/Error/ErrorCode.h"
 #include "Core/Error/Exception.h"
 
 namespace Application::Async {
 
-using Core::Async::TaskResult;
-using Core::Async::TaskExecutionStatus;
+using Core::Result;
+using Core::ResultStatus;
 
 namespace Detail {
 
@@ -39,18 +39,18 @@ bool isCallableValid(const Fn& fn) {
 
 /**
  * @brief Dispatcher and coordinator for asynchronous tasks, bridging Task Execution Lifecycle
- * (Core::Logging::TaskState) and Business Outcome (Core::Async::TaskResult<T>).
+ * (Core::Logging::TaskState) and Business Outcome (Core::Result<T>).
  *
  * Architectural Dual-Plane Model:
  * 1. **Execution Lifecycle Plane (`TaskState`)**:
  *    - Managed by `LogManager` / `TaskLoggingContext` (`Pending` -> `Running` -> `Completed` | `Failed` | `Cancelled` | `Skipped`).
  *    - Tracked and rendered in UI log models (`LogViewModel`, `LogTaskModel`).
- * 2. **Business Outcome Plane (`TaskResult<T>`)**:
+ * 2. **Business Outcome Plane (`Result<T>`)**:
  *    - Standard single-layer return contract for Workflow and Application APIs (`Success`, `Failure`, `Cancelled`, `Skipped` + payload `T`).
  *
  * Public Business API:
  * - `runTask<T>(taskName, context, worker, callback)`: For tasks with business payload `T`.
- * - `runTask<void>(taskName, context, worker, callback)`: For tasks without payload, retaining full `TaskResult<void>` outcome semantics.
+ * - `runTask<void>(taskName, context, worker, callback)`: For tasks without payload, retaining full `Result<void>` outcome semantics.
  * - `runChildTask<T>(parentTaskId, taskName, context, worker, callback)`: For hierarchical child sub-tasks.
  * - `runChildTask<void>(parentTaskId, taskName, context, worker, callback)`: For void child sub-tasks.
  * - `runBackground(taskName, worker)`: For fire-and-forget background logging tasks.
@@ -58,17 +58,17 @@ bool isCallableValid(const Fn& fn) {
 class AsyncTaskRunner {
 public:
     /**
-     * @brief Primary API: Runs an async task whose business outcome is TaskResult<T>.
+     * @brief Primary API: Runs an async task whose business outcome is Result<T>.
      *
      * @tparam T The business payload type (e.g. GameInstallationInfo, DetectionResult, or void).
      * @param taskName The name of the task for logging/UI display.
      * @param context The Qt lifetime context object (callback marshaled to its thread).
-     * @param worker Lambda taking std::shared_ptr<TaskLoggingContext> and returning TaskResult<T>.
-     * @param callback Callback receiving const TaskResult<T>&.
+     * @param worker Lambda taking std::shared_ptr<TaskLoggingContext> and returning Result<T>.
+     * @param callback Callback receiving const Result<T>&.
      * @param pool The QThreadPool to dispatch to (defaults to globalInstance).
      * @param parentTaskId Optional parent task ID for hierarchical sub-tasks.
      */
-    template <typename T = void, typename WorkerFn, typename CallbackFn = std::function<void(const TaskResult<T>&)>>
+    template <typename T = void, typename WorkerFn, typename CallbackFn = std::function<void(const Result<T>&)>>
     static void runTask(
         const QString& taskName,
         QObject* context,
@@ -81,17 +81,17 @@ public:
     }
 
     /**
-     * @brief Primary API: Runs an async child sub-task whose business outcome is TaskResult<T>.
+     * @brief Primary API: Runs an async child sub-task whose business outcome is Result<T>.
      *
      * @tparam T The business payload type (e.g. GameInstallationInfo, DetectionResult, or void).
      * @param parentTaskId Parent task ID in LogManager.
      * @param taskName The name of the child sub-task.
      * @param context The Qt lifetime context object.
-     * @param worker Lambda taking std::shared_ptr<TaskLoggingContext> and returning TaskResult<T>.
-     * @param callback Callback receiving const TaskResult<T>&.
+     * @param worker Lambda taking std::shared_ptr<TaskLoggingContext> and returning Result<T>.
+     * @param callback Callback receiving const Result<T>&.
      * @param pool The QThreadPool to dispatch to.
      */
-    template <typename T = void, typename WorkerFn, typename CallbackFn = std::function<void(const TaskResult<T>&)>>
+    template <typename T = void, typename WorkerFn, typename CallbackFn = std::function<void(const Result<T>&)>>
     static void runChildTask(
         quint64 parentTaskId,
         const QString& taskName,
@@ -105,6 +105,9 @@ public:
 
     /**
      * @brief Runs a fire-and-forget background worker task without return value or UI callback.
+     *
+     * Convenience wrapper delegating to runTask<void> to ensure unified execution lifecycle,
+     * structured error handling, and state arbitration across all tasks.
      */
     template <typename WorkerFn>
     static void runBackground(
@@ -113,12 +116,26 @@ public:
         QThreadPool* pool = QThreadPool::globalInstance(),
         quint64 parentTaskId = 0)
     {
-        runVoidInternal(taskName, std::forward<WorkerFn>(worker), pool, parentTaskId);
+        using DecayedWorker = std::decay_t<WorkerFn>;
+        if constexpr (std::is_invocable_r_v<Result<void>, DecayedWorker, std::shared_ptr<Core::Logging::TaskLoggingContext>>) {
+            runTask<void>(taskName, nullptr, std::forward<WorkerFn>(worker), {}, pool, parentTaskId);
+        } else {
+            runTask<void>(
+                taskName,
+                nullptr,
+                [w = DecayedWorker(std::forward<WorkerFn>(worker))](std::shared_ptr<Core::Logging::TaskLoggingContext> ctx) mutable -> Result<void> {
+                    w(ctx);
+                    return Result<void>::success();
+                },
+                {},
+                pool,
+                parentTaskId);
+        }
     }
 
 private:
     /**
-     * @brief Internal engine executing a typed TaskResult<T> async worker.
+     * @brief Internal engine executing a typed Result<T> async worker.
      */
     template <typename T, typename WorkerFn, typename CallbackFn>
     static void runTaskInternal(
@@ -135,10 +152,10 @@ private:
         auto taskContext = Core::Logging::LogManager::instance().createTask(taskName, parentTaskId);
         if (!taskContext) {
             // Task creation rejected (e.g. invalid parentTaskId). Do NOT dispatch worker.
-            // Safely deliver explicit TaskResult<T>::failure to callback.
-            if constexpr (std::is_invocable_v<DecayedCallback, TaskResult<T>>) {
+            // Safely deliver explicit Result<T>::failure to callback.
+            if constexpr (std::is_invocable_v<DecayedCallback, Result<T>>) {
                 if (Detail::isCallableValid(callback)) {
-                    TaskResult<T> failureResult = TaskResult<T>::failure(
+                    Result<T> failureResult = Result<T>::failure(
                         Core::Error::ErrorCode::OperationFailed,
                         QStringLiteral("Failed to create task context for '%1' (invalid parentTaskId: %2)")
                             .arg(taskName).arg(parentTaskId));
@@ -165,7 +182,7 @@ private:
         QPointer<QObject> contextGuard(context);
         quint64 taskId = taskContext->taskId();
         bool hasValidCallback = false;
-        if constexpr (std::is_invocable_v<DecayedCallback, TaskResult<T>>) {
+        if constexpr (std::is_invocable_v<DecayedCallback, Result<T>>) {
             hasValidCallback = Detail::isCallableValid(callback);
         }
 
@@ -173,7 +190,7 @@ private:
                              worker = DecayedWorker(std::forward<WorkerFn>(worker)),
                              callback = DecayedCallback(std::forward<CallbackFn>(callback))]() mutable {
             try {
-                TaskResult<T> result{};
+                Result<T> result{};
                 bool threwException = false;
 
                 try {
@@ -188,7 +205,7 @@ private:
                             .arg(static_cast<int>(ex.errorCode()))
                             .arg(detailInfo));
                     }
-                    result = TaskResult<T>::failure(
+                    result = Result<T>::failure(
                         ex.error(),
                         QStringLiteral("Task '%1' failed").arg(taskName));
                 } catch (const std::exception& ex) {
@@ -196,7 +213,7 @@ private:
                     if (taskContext) {
                         taskContext->error(QStringLiteral("Unhandled standard exception: %1").arg(QString::fromUtf8(ex.what())));
                     }
-                    result = TaskResult<T>::failure(
+                    result = Result<T>::failure(
                         Core::Error::Error::unknown(
                             QStringLiteral("Unhandled standard exception"),
                             QString::fromUtf8(ex.what())),
@@ -206,7 +223,7 @@ private:
                     if (taskContext) {
                         taskContext->error(QStringLiteral("Unhandled unknown exception in task"));
                     }
-                    result = TaskResult<T>::failure(
+                    result = Result<T>::failure(
                         Core::Error::Error::unknown(QStringLiteral("Unhandled unknown exception")),
                         QStringLiteral("Task '%1' failed").arg(taskName));
                 }
@@ -228,9 +245,9 @@ private:
                                 : result.error();
 
                             if constexpr (std::is_void_v<T>) {
-                                return TaskResult<T>::failure(std::move(error), msg);
+                                return Result<T>::failure(std::move(error), msg);
                             } else {
-                                return TaskResult<T>::failure(
+                                return Result<T>::failure(
                                     std::move(error),
                                     msg,
                                     result.hasValue() ? std::make_optional(result.value()) : std::nullopt);
@@ -239,9 +256,9 @@ private:
 
                         auto makeContractCancelled = [&](const QString& msg) {
                             if constexpr (std::is_void_v<T>) {
-                                return TaskResult<T>::cancelled(msg);
+                                return Result<T>::cancelled(msg);
                             } else {
-                                return TaskResult<T>::cancelled(
+                                return Result<T>::cancelled(
                                     msg,
                                     result.hasValue() ? std::make_optional(result.value()) : std::nullopt);
                             }
@@ -249,9 +266,9 @@ private:
 
                         auto makeContractSkipped = [&](const QString& msg) {
                             if constexpr (std::is_void_v<T>) {
-                                return TaskResult<T>::skipped(msg);
+                                return Result<T>::skipped(msg);
                             } else {
-                                return TaskResult<T>::skipped(
+                                return Result<T>::skipped(
                                     msg,
                                     result.hasValue() ? std::make_optional(result.value()) : std::nullopt);
                             }
@@ -262,14 +279,14 @@ private:
                             // Priority 1: Failed / Logged errors dominate
                             if (result.isSuccess()) {
                                 if (!hasErrors) {
-                                    taskContext->error(QStringLiteral("Contract violation: worker returned TaskResult::success after task failed"));
+                                    taskContext->error(QStringLiteral("Contract violation: worker returned Result::success after task failed"));
                                 }
                                 result = makeContractFailure(QStringLiteral("Contract violation: Task completed with logged errors or explicit failure"));
                             } else if (result.isCancelled()) {
-                                taskContext->error(QStringLiteral("Contract violation: worker returned TaskResult::cancelled after task failed with errors"));
+                                taskContext->error(QStringLiteral("Contract violation: worker returned Result::cancelled after task failed with errors"));
                                 result = makeContractFailure(QStringLiteral("Contract violation: Task failed with errors before cancellation"));
                             } else if (result.isSkipped()) {
-                                taskContext->error(QStringLiteral("Contract violation: worker returned TaskResult::skipped after task failed with errors"));
+                                taskContext->error(QStringLiteral("Contract violation: worker returned Result::skipped after task failed with errors"));
                                 result = makeContractFailure(QStringLiteral("Contract violation: Task failed with errors before skipping"));
                             }
                             Core::Logging::LogManager::instance().forceTaskState(
@@ -279,17 +296,17 @@ private:
                         } else if (currentState == Core::Logging::TaskState::Cancelled) {
                             // Priority 2: Cancelled (without errors)
                             if (result.isSuccess()) {
-                                taskContext->warning(QStringLiteral("Contract violation: worker returned TaskResult::success after task was cancelled"));
+                                taskContext->warning(QStringLiteral("Contract violation: worker returned Result::success after task was cancelled"));
                                 result = makeContractCancelled(QStringLiteral("Contract violation: Task was cancelled"));
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Cancelled, QStringLiteral("Cancelled"));
                             } else if (result.isFailure()) {
-                                taskContext->warning(QStringLiteral("Contract violation: worker returned TaskResult::failure after task was cancelled"));
+                                taskContext->warning(QStringLiteral("Contract violation: worker returned Result::failure after task was cancelled"));
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Failed,
                                     result.message().isEmpty() ? QStringLiteral("Task failed") : result.message());
                             } else if (result.isSkipped()) {
-                                taskContext->warning(QStringLiteral("Contract violation: worker returned TaskResult::skipped after task was cancelled"));
+                                taskContext->warning(QStringLiteral("Contract violation: worker returned Result::skipped after task was cancelled"));
                                 result = makeContractCancelled(QStringLiteral("Contract violation: Task was cancelled"));
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Cancelled, QStringLiteral("Cancelled"));
@@ -302,17 +319,17 @@ private:
                         } else if (currentState == Core::Logging::TaskState::Skipped) {
                             // Priority 3: Skipped (without errors)
                             if (result.isSuccess()) {
-                                taskContext->warning(QStringLiteral("Contract violation: worker returned TaskResult::success after task was skipped"));
+                                taskContext->warning(QStringLiteral("Contract violation: worker returned Result::success after task was skipped"));
                                 result = makeContractSkipped(QStringLiteral("Contract violation: Task was skipped"));
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Skipped, QStringLiteral("Skipped"));
                             } else if (result.isFailure()) {
-                                taskContext->warning(QStringLiteral("Contract violation: worker returned TaskResult::failure after task was skipped"));
+                                taskContext->warning(QStringLiteral("Contract violation: worker returned Result::failure after task was skipped"));
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Failed,
                                     result.message().isEmpty() ? QStringLiteral("Task failed") : result.message());
                             } else if (result.isCancelled()) {
-                                taskContext->warning(QStringLiteral("Contract violation: worker returned TaskResult::cancelled after task was skipped"));
+                                taskContext->warning(QStringLiteral("Contract violation: worker returned Result::cancelled after task was skipped"));
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Cancelled,
                                     result.message().isEmpty() ? QStringLiteral("Cancelled") : result.message());
@@ -323,7 +340,7 @@ private:
                             }
 
                         } else {
-                            // Normal / Completed / Running state -> outcome determined by TaskResult
+                            // Normal / Completed / Running state -> outcome determined by Result
                             if (result.isSuccess()) {
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Completed,
@@ -345,7 +362,7 @@ private:
                     }
                 }
 
-                if constexpr (std::is_invocable_v<DecayedCallback, TaskResult<T>>) {
+                if constexpr (std::is_invocable_v<DecayedCallback, Result<T>>) {
                     if (hasValidCallback) {
                         if (contextGuard) {
                             QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, cb = std::move(callback), res = std::move(result)]() {
@@ -359,89 +376,6 @@ private:
                             try {
                                 callback(result);
                             } catch (...) {}
-                        }
-                    }
-                }
-            } catch (...) {
-                // Guaranteed no unhandled exception ever leaks to QThreadPool
-            }
-        };
-
-        QRunnable* runnable = QRunnable::create(std::move(workerLambda));
-        if (pool) {
-            pool->start(runnable);
-        } else {
-            QThreadPool::globalInstance()->start(runnable);
-        }
-    }
-
-    /**
-     * @brief Internal engine for fire-and-forget void background operations.
-     */
-    template <typename WorkerFn>
-    static void runVoidInternal(
-        const QString& taskName,
-        WorkerFn&& worker,
-        QThreadPool* pool,
-        quint64 parentTaskId)
-    {
-        using DecayedWorker = std::decay_t<WorkerFn>;
-
-        auto taskContext = Core::Logging::LogManager::instance().createTask(taskName, parentTaskId);
-        if (!taskContext) {
-            return;
-        }
-
-        taskContext->start();
-        quint64 taskId = taskContext->taskId();
-
-        auto workerLambda = [taskContext, taskId, taskName,
-                             worker = DecayedWorker(std::forward<WorkerFn>(worker))]() mutable {
-            try {
-                bool threwException = false;
-
-                try {
-                    worker(taskContext);
-                } catch (const Core::Error::Exception& ex) {
-                    threwException = true;
-                    if (taskContext) {
-                        const QString detailInfo = ex.details().isEmpty()
-                            ? (ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message())
-                            : QStringLiteral("%1 (%2)").arg(ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message(), ex.details());
-                        taskContext->error(QStringLiteral("Task exception [%1]: %2")
-                            .arg(static_cast<int>(ex.errorCode()))
-                            .arg(detailInfo));
-                    }
-                } catch (const std::exception& ex) {
-                    threwException = true;
-                    if (taskContext) {
-                        taskContext->error(QStringLiteral("Unhandled standard exception: %1").arg(QString::fromUtf8(ex.what())));
-                    }
-                } catch (...) {
-                    threwException = true;
-                    if (taskContext) {
-                        taskContext->error(QStringLiteral("Unhandled unknown exception in task"));
-                    }
-                }
-
-                if (taskContext) {
-                    if (threwException) {
-                        Core::Logging::LogManager::instance().forceTaskState(
-                            taskId, Core::Logging::TaskState::Failed, QStringLiteral("Task failed with uncaught exception"));
-                    } else {
-                        const auto currentState = taskContext->state();
-                        if (taskContext->hasErrors() || currentState == Core::Logging::TaskState::Failed) {
-                            Core::Logging::LogManager::instance().forceTaskState(
-                                taskId, Core::Logging::TaskState::Failed, QStringLiteral("Task failed"));
-                        } else if (currentState == Core::Logging::TaskState::Cancelled) {
-                            Core::Logging::LogManager::instance().forceTaskState(
-                                taskId, Core::Logging::TaskState::Cancelled, QStringLiteral("Cancelled"));
-                        } else if (currentState == Core::Logging::TaskState::Skipped) {
-                            Core::Logging::LogManager::instance().forceTaskState(
-                                taskId, Core::Logging::TaskState::Skipped, QStringLiteral("Skipped"));
-                        } else {
-                            Core::Logging::LogManager::instance().forceTaskState(
-                                taskId, Core::Logging::TaskState::Completed, QStringLiteral("Completed"));
                         }
                     }
                 }

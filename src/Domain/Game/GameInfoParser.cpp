@@ -128,19 +128,19 @@ GameInfo GameInfoParser::createFromDocument(
     return info;
 }
 
-Core::Async::TaskResult<GameInfo> GameInfoParser::parse(
+Core::Result<GameInfo> GameInfoParser::parse(
     const Core::Path::FilesystemPath& gameInfoPath,
     EngineType engine)
 {
     if (!gameInfoPath.isValid() || gameInfoPath.isEmpty()) {
-        return Core::Async::TaskResult<GameInfo>::failure(
+        return Core::Result<GameInfo>::failure(
             Core::Error::Error::invalidPath(
                 QStringLiteral("GameInfo file path is invalid or empty"),
                 gameInfoPath.toString()),
             QStringLiteral("GameInfo parsing failed"));
     }
     if (!gameInfoPath.exists()) {
-        return Core::Async::TaskResult<GameInfo>::failure(
+        return Core::Result<GameInfo>::failure(
             GameErrors::gameInfoNotFound(
                 QStringLiteral("GameInfo file does not exist"),
                 gameInfoPath.toString()),
@@ -150,21 +150,21 @@ Core::Async::TaskResult<GameInfo> GameInfoParser::parse(
     Core::KeyValues::KeyValuesDocument doc;
     auto loadResult = doc.loadFromFile(gameInfoPath);
     if (!loadResult.isSuccess()) {
-        return Core::Async::TaskResult<GameInfo>::failure(
+        return Core::Result<GameInfo>::failure(
             loadResult.error(),
             QStringLiteral("Failed to load GameInfo"));
     }
 
-    return Core::Async::TaskResult<GameInfo>::success(createFromDocument(std::move(doc), gameInfoPath, engine));
+    return Core::Result<GameInfo>::success(createFromDocument(std::move(doc), gameInfoPath, engine));
 }
 
-Core::Async::TaskResult<GameInfo> GameInfoParser::parseFromString(
+Core::Result<GameInfo> GameInfoParser::parseFromString(
     const QString& content,
     const Core::Path::FilesystemPath& gameInfoPath,
     EngineType engine)
 {
     if (!gameInfoPath.isEmpty() && !gameInfoPath.isValid()) {
-        return Core::Async::TaskResult<GameInfo>::failure(
+        return Core::Result<GameInfo>::failure(
             Core::Error::ErrorCode::InvalidPath,
             QStringLiteral("GameInfo path hint is invalid"),
             gameInfoPath.toString());
@@ -173,12 +173,12 @@ Core::Async::TaskResult<GameInfo> GameInfoParser::parseFromString(
     Core::KeyValues::KeyValuesDocument doc;
     auto loadResult = doc.loadFromString(content);
     if (!loadResult.isSuccess()) {
-        return Core::Async::TaskResult<GameInfo>::failure(
+        return Core::Result<GameInfo>::failure(
             loadResult.error(),
             QStringLiteral("Failed to parse GameInfo content"));
     }
 
-    return Core::Async::TaskResult<GameInfo>::success(createFromDocument(std::move(doc), gameInfoPath, engine));
+    return Core::Result<GameInfo>::success(createFromDocument(std::move(doc), gameInfoPath, engine));
 }
 
 } // namespace Domain::Game

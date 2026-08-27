@@ -3,7 +3,7 @@
 #include "Domain/Game/GameInfo.h"
 #include "Domain/Game/GameType.h"
 #include "Core/Path/FilesystemPath.h"
-#include "Core/Async/TaskResult.h"
+#include "Core/Result/Result.h"
 #include <optional>
 
 namespace Domain::Game {
@@ -11,7 +11,7 @@ namespace Domain::Game {
 class GameValidator {
 public:
     // Checks if parsed GameInfo matches the expected GameType
-    static Core::Async::TaskResult<void> validateGameInfo(const GameInfo& info, GameType expectedType);
+    static Core::Result<void> validateGameInfo(const GameInfo& info, GameType expectedType);
 
     // Determines GameType from a parsed GameInfo object if recognized, or std::nullopt if no known pattern matches
     static std::optional<GameType> tryIdentifyGameType(const GameInfo& info);
@@ -22,7 +22,7 @@ public:
         GameType type);
 
     // Validates a game installation directory against a GameType and returns the parsed GameInfo on success
-    static Core::Async::TaskResult<GameInfo> validateDirectory(
+    static Core::Result<GameInfo> validateDirectory(
         const Core::Path::FilesystemPath& gameDir,
         GameType type);
 };

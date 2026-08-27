@@ -7,7 +7,7 @@
 #include "Core/FileSystem/FileLease.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Logging/TaskLoggingContext.h"
-#include "Core/Async/TaskResult.h"
+#include "Core/Result/Result.h"
 
 namespace Application::Environment {
 
@@ -64,23 +64,23 @@ public:
      * the exclusive lease. Otherwise, cleanly releases any existing lease.
      *
      * @param s2Installation The active Source 2 game installation.
-     * @return TaskResult containing VpkSignatureLeaseResult.
+     * @return Result containing VpkSignatureLeaseResult.
      */
-    Core::Async::TaskResult<VpkSignatureLeaseResult> updateInstallation(const GameInstallation& s2Installation);
-    Core::Async::TaskResult<VpkSignatureLeaseResult> updateInstallation(const GameInstallationInfo& s2Info);
+    Core::Result<VpkSignatureLeaseResult> updateInstallation(const GameInstallation& s2Installation);
+    Core::Result<VpkSignatureLeaseResult> updateInstallation(const GameInstallationInfo& s2Info);
 
     /**
      * @brief Directly acquires an exclusive file lease for the specified CS2 base directory.
      * @param cs2BasePath Base directory of Counter-Strike 2.
-     * @return TaskResult containing VpkSignatureLeaseResult.
+     * @return Result containing VpkSignatureLeaseResult.
      */
-    Core::Async::TaskResult<VpkSignatureLeaseResult> acquireLease(const Core::Path::FilesystemPath& cs2BasePath);
-    Core::Async::TaskResult<VpkSignatureLeaseResult> acquireLease(const QString& cs2BasePath);
+    Core::Result<VpkSignatureLeaseResult> acquireLease(const Core::Path::FilesystemPath& cs2BasePath);
+    Core::Result<VpkSignatureLeaseResult> acquireLease(const QString& cs2BasePath);
 
     /**
      * @brief Retries acquiring the lease for the currently active installation.
      */
-    Core::Async::TaskResult<VpkSignatureLeaseResult> retryLease();
+    Core::Result<VpkSignatureLeaseResult> retryLease();
 
     /**
      * @brief Releases the active file lease, making vpk.signatures accessible again.
@@ -107,7 +107,7 @@ signals:
     void leaseStatusChanged(Application::Environment::VpkSignatureLeaseStatus status, const QString& filePath, const QString& systemMessage);
 
 private:
-    Core::Async::TaskResult<VpkSignatureLeaseResult> acquireLeaseInternal(const Core::Path::FilesystemPath& cs2BasePath);
+    Core::Result<VpkSignatureLeaseResult> acquireLeaseInternal(const Core::Path::FilesystemPath& cs2BasePath);
 
     std::shared_ptr<Core::Logging::TaskLoggingContext> m_loggingContext;
     Core::FileSystem::FileLease m_lease;

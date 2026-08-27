@@ -8,25 +8,25 @@
 
 namespace Domain::Game {
 
-Core::Async::TaskResult<void> GameValidator::validateGameInfo(const GameInfo& info, GameType expectedType) {
+Core::Result<void> GameValidator::validateGameInfo(const GameInfo& info, GameType expectedType) {
     if (expectedType == GameType::Unknown) {
-        return Core::Async::TaskResult<void>::failure(
+        return Core::Result<void>::failure(
             Core::Error::ErrorCode::InvalidArgument,
             QStringLiteral("Cannot validate against GameType::Unknown"));
     }
 
     if (expectedType == GameType::Custom) {
         if (!info.game().isEmpty() || !info.title().isEmpty() || info.gameInfoPath().exists()) {
-            return Core::Async::TaskResult<void>::success();
+            return Core::Result<void>::success();
         }
-        return Core::Async::TaskResult<void>::failure(
+        return Core::Result<void>::failure(
             GameErrors::emptyCustomGameInfo(
                 QStringLiteral("Custom GameInfo is empty and has no valid gameinfo file path")));
     }
 
     const auto* def = GameRegistry::findByType(expectedType);
     if (!def) {
-        return Core::Async::TaskResult<void>::failure(
+        return Core::Result<void>::failure(
             GameErrors::unsupportedGame(
                 QStringLiteral("Game definition not found for type"),
                 GameRegistry::gameTypeToString(expectedType)));
@@ -40,7 +40,7 @@ Core::Async::TaskResult<void> GameValidator::validateGameInfo(const GameInfo& in
     if (!expectedTitle.isEmpty()) {
         if (actualGame.compare(expectedTitle, Qt::CaseInsensitive) == 0 ||
             actualTitle.compare(expectedTitle, Qt::CaseInsensitive) == 0) {
-            return Core::Async::TaskResult<void>::success();
+            return Core::Result<void>::success();
         }
     }
 
@@ -49,7 +49,7 @@ Core::Async::TaskResult<void> GameValidator::validateGameInfo(const GameInfo& in
         if (!alias.isEmpty()) {
             if (actualGame.compare(alias, Qt::CaseInsensitive) == 0 ||
                 actualTitle.compare(alias, Qt::CaseInsensitive) == 0) {
-                return Core::Async::TaskResult<void>::success();
+                return Core::Result<void>::success();
             }
         }
     }
@@ -61,10 +61,10 @@ Core::Async::TaskResult<void> GameValidator::validateGameInfo(const GameInfo& in
             if (def->primaryAppId == 730) {
                 bool isGi = (info.gameInfoPath().extension().compare(QStringLiteral("gi"), Qt::CaseInsensitive) == 0);
                 if (def->isSource2() == isGi) {
-                    return Core::Async::TaskResult<void>::success();
+                    return Core::Result<void>::success();
                 }
             } else {
-                return Core::Async::TaskResult<void>::success();
+                return Core::Result<void>::success();
             }
         }
     }
@@ -73,7 +73,7 @@ Core::Async::TaskResult<void> GameValidator::validateGameInfo(const GameInfo& in
     if (info.steamAppId() > 0) {
         const auto* otherDef = GameRegistry::findByAppId(info.steamAppId());
         if (otherDef && otherDef->type != expectedType && !(otherDef->primaryAppId == 730 && def->primaryAppId == 730)) {
-            return Core::Async::TaskResult<void>::failure(
+            return Core::Result<void>::failure(
                 GameErrors::steamAppMismatch(
                     QStringLiteral("GameInfo AppID belongs to another game"),
                     QStringLiteral("AppID %1 belongs to '%2', expected '%3'")
@@ -118,15 +118,15 @@ Core::Async::TaskResult<void> GameValidator::validateGameInfo(const GameInfo& in
     };
 
     if (matchesLooseString(expectedTitle)) {
-        return Core::Async::TaskResult<void>::success();
+        return Core::Result<void>::success();
     }
     for (const auto& alias : def->titleAliases) {
         if (matchesLooseString(alias)) {
-            return Core::Async::TaskResult<void>::success();
+            return Core::Result<void>::success();
         }
     }
 
-    return Core::Async::TaskResult<void>::failure(
+    return Core::Result<void>::failure(
         GameErrors::gameTypeMismatch(
             QStringLiteral("GameInfo does not match expected game type"),
             QStringLiteral("game: '%1', title: '%2', appid: %3, expected: '%4'")
@@ -256,19 +256,19 @@ Core::Path::FilesystemPath GameValidator::getExpectedGameInfoPath(
     return Core::Path::FilesystemPath(QDir(baseStr).filePath(relativePath));
 }
 
-Core::Async::TaskResult<GameInfo> GameValidator::validateDirectory(
+Core::Result<GameInfo> GameValidator::validateDirectory(
     const Core::Path::FilesystemPath& gameDir,
     GameType type)
 {
     if (!gameDir.isValid() || gameDir.isEmpty()) {
-        return Core::Async::TaskResult<GameInfo>::failure(
+        return Core::Result<GameInfo>::failure(
             Core::Error::Error::invalidPath(
                 QStringLiteral("Game directory path is empty or invalid"),
                 gameDir.toString()),
             QStringLiteral("Game directory validation failed"));
     }
     if (!gameDir.exists()) {
-        return Core::Async::TaskResult<GameInfo>::failure(
+        return Core::Result<GameInfo>::failure(
             Core::Error::Error::directoryNotFound(
                 QStringLiteral("Game directory does not exist"),
                 gameDir.toString()),
@@ -282,7 +282,7 @@ Core::Async::TaskResult<GameInfo> GameValidator::validateDirectory(
     } else if (gameDir.isDirectory()) {
         targetGameInfoPath = getExpectedGameInfoPath(gameDir, type);
     } else {
-        return Core::Async::TaskResult<GameInfo>::failure(
+        return Core::Result<GameInfo>::failure(
             Core::Error::Error::invalidPath(
                 QStringLiteral("Path is neither a directory nor a valid custom gameinfo file"),
                 gameDir.toString()),
@@ -290,7 +290,7 @@ Core::Async::TaskResult<GameInfo> GameValidator::validateDirectory(
     }
 
     if (!targetGameInfoPath.exists() || !targetGameInfoPath.isFile()) {
-        return Core::Async::TaskResult<GameInfo>::failure(
+        return Core::Result<GameInfo>::failure(
             GameErrors::gameInfoNotFound(
                 QStringLiteral("GameInfo file was not found"),
                 targetGameInfoPath.toString()),
@@ -310,7 +310,7 @@ Core::Async::TaskResult<GameInfo> GameValidator::validateDirectory(
 
     auto validationResult = validateGameInfo(parseResult.value(), type);
     if (!validationResult.isSuccess()) {
-        return Core::Async::TaskResult<GameInfo>::failure(
+        return Core::Result<GameInfo>::failure(
             validationResult.error(),
             QStringLiteral("Game directory validation failed"));
     }

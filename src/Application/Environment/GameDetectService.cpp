@@ -13,13 +13,13 @@ namespace Application::Environment {
 
 void GameDetectService::detectEnvironmentAsync(
     QObject* context,
-    std::function<void(const Core::Async::TaskResult<DetectionResult>&)> callback,
+    std::function<void(const Core::Result<DetectionResult>&)> callback,
     const Core::Path::FilesystemPath& customSteamPath)
 {
     Application::Async::AsyncTaskRunner::runTask<DetectionResult>(
         QStringLiteral("Detect Environment"),
         context,
-        [customSteamPath](std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) -> Core::Async::TaskResult<DetectionResult> {
+        [customSteamPath](std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) -> Core::Result<DetectionResult> {
             if (logCtx) {
                 logCtx->info(QStringLiteral("Starting environment detection across Steam libraries..."));
             }
@@ -36,14 +36,14 @@ void GameDetectService::detectEnvironmentAsync(
 
 void GameDetectService::detectEnvironmentAsync(
     QObject* context,
-    std::function<void(const Core::Async::TaskResult<DetectionResult>&)> callback,
+    std::function<void(const Core::Result<DetectionResult>&)> callback,
     const QString& customSteamPath)
 {
     Core::Path::FilesystemPath fsPath(customSteamPath.isEmpty() ? QString() : Core::Path::PathUtils::normalize(customSteamPath));
     detectEnvironmentAsync(context, std::move(callback), fsPath);
 }
 
-Core::Async::TaskResult<DetectionResult> GameDetectService::detectEnvironment(
+Core::Result<DetectionResult> GameDetectService::detectEnvironment(
     const Core::Path::FilesystemPath& customSteamPath,
     std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {
@@ -55,7 +55,7 @@ Core::Async::TaskResult<DetectionResult> GameDetectService::detectEnvironment(
             logCtx->warning(warnMsg);
         }
         result.warnings.append(warnMsg);
-        return Core::Async::TaskResult<DetectionResult>::success(std::move(result));
+        return Core::Result<DetectionResult>::success(std::move(result));
     }
 
     auto isAlreadyAdded = [&](const QString& gameId) {
@@ -105,10 +105,10 @@ Core::Async::TaskResult<DetectionResult> GameDetectService::detectEnvironment(
         }
     }
 
-    return Core::Async::TaskResult<DetectionResult>::success(std::move(result));
+    return Core::Result<DetectionResult>::success(std::move(result));
 }
 
-Core::Async::TaskResult<DetectionResult> GameDetectService::detectEnvironment(
+Core::Result<DetectionResult> GameDetectService::detectEnvironment(
     const QString& customSteamPath,
     std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {
@@ -116,20 +116,20 @@ Core::Async::TaskResult<DetectionResult> GameDetectService::detectEnvironment(
     return detectEnvironment(fsPath, logCtx);
 }
 
-Core::Async::TaskResult<GameInstallation> GameDetectService::detectGame(
+Core::Result<GameInstallation> GameDetectService::detectGame(
     Domain::Game::GameType type,
     const Core::Path::FilesystemPath& customSteamPath,
     std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {
     if (type == Domain::Game::GameType::Unknown || type == Domain::Game::GameType::Custom) {
-        return Core::Async::TaskResult<GameInstallation>::failure(
+        return Core::Result<GameInstallation>::failure(
             Core::Error::ErrorCode::InvalidArgument,
             QStringLiteral("Cannot detect games with Unknown or Custom type in Steam libraries"));
     }
 
     auto libraries = SteamService::detectLibraries(customSteamPath, logCtx);
     if (libraries.empty()) {
-        return Core::Async::TaskResult<GameInstallation>::failure(
+        return Core::Result<GameInstallation>::failure(
             Core::Error::ErrorCode::DirectoryNotFound,
             QStringLiteral("No Steam libraries detected on this host"));
     }
@@ -149,12 +149,12 @@ Core::Async::TaskResult<GameInstallation> GameDetectService::detectGame(
         if (optResolved.has_value()) {
             auto optInst = GameInstallationValidator::createInstallationFromResolved(*optResolved);
             if (optInst.has_value()) {
-                return Core::Async::TaskResult<GameInstallation>::success(std::move(*optInst));
+                return Core::Result<GameInstallation>::success(std::move(*optInst));
             }
         }
     }
 
-    return Core::Async::TaskResult<GameInstallation>::failure(
+    return Core::Result<GameInstallation>::failure(
         Domain::Game::GameErrors::gameInfoNotFound(
             QStringLiteral("Game not found in detected Steam libraries"),
             Domain::Game::GameRegistry::gameTypeToString(type)),

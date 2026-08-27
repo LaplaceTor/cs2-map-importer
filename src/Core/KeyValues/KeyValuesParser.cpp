@@ -8,7 +8,7 @@ bool KeyValuesParser::isConditional(const QString& token) const noexcept {
     return token.startsWith(QLatin1Char('[')) && token.endsWith(QLatin1Char(']')) && token.contains(QLatin1Char('$'));
 }
 
-Core::Async::TaskResult<void> KeyValuesParser::parse(const QString& source, KeyValuesNode& rootNode) {
+Core::Result<void> KeyValuesParser::parse(const QString& source, KeyValuesNode& rootNode) {
     rootNode.clear();
     rootNode.setName(QString());
 
@@ -20,14 +20,14 @@ Core::Async::TaskResult<void> KeyValuesParser::parse(const QString& source, KeyV
         }
 
         if (token.isCloseBrace()) {
-            return Core::Async::TaskResult<void>::failure(
+            return Core::Result<void>::failure(
                 Core::Error::ErrorCode::InvalidFile,
                 QStringLiteral("Unexpected '}' at top level"),
                 QStringLiteral("Line %1, column %2").arg(token.line).arg(token.column));
         }
 
         if (token.isOpenBrace()) {
-            return Core::Async::TaskResult<void>::failure(
+            return Core::Result<void>::failure(
                 Core::Error::ErrorCode::InvalidFile,
                 QStringLiteral("Unexpected '{' without a preceding key"),
                 QStringLiteral("Line %1, column %2").arg(token.line).arg(token.column));
@@ -39,7 +39,7 @@ Core::Async::TaskResult<void> KeyValuesParser::parse(const QString& source, KeyV
         }
     }
 
-    return Core::Async::TaskResult<void>::success();
+    return Core::Result<void>::success();
 }
 
 KeyValuesNode KeyValuesParser::parseOrThrow(const QString& source) {
@@ -54,10 +54,10 @@ KeyValuesNode KeyValuesParser::parseOrThrow(const QString& source) {
     return root;
 }
 
-Core::Async::TaskResult<void> KeyValuesParser::parseBlock(KeyValuesLexer& lexer, KeyValuesNode& parentNode) {
+Core::Result<void> KeyValuesParser::parseBlock(KeyValuesLexer& lexer, KeyValuesNode& parentNode) {
     Token keyToken = lexer.nextToken();
     if (!keyToken.isString()) {
-        return Core::Async::TaskResult<void>::failure(
+        return Core::Result<void>::failure(
             Core::Error::ErrorCode::InvalidFile,
             QStringLiteral("Expected string token for key"),
             QStringLiteral("Line %1, column %2").arg(keyToken.line).arg(keyToken.column));
@@ -71,7 +71,7 @@ Core::Async::TaskResult<void> KeyValuesParser::parseBlock(KeyValuesLexer& lexer,
     if (!lexer.hasNext()) {
         // End of file with single property key with empty value
         parentNode.addProperty(keyToken.text, QString());
-        return Core::Async::TaskResult<void>::success();
+        return Core::Result<void>::success();
     }
 
     Token nextToken = lexer.nextToken();
@@ -94,7 +94,7 @@ Core::Async::TaskResult<void> KeyValuesParser::parseBlock(KeyValuesLexer& lexer,
             }
 
             if (childToken.isOpenBrace()) {
-                return Core::Async::TaskResult<void>::failure(
+                return Core::Result<void>::failure(
                     Core::Error::ErrorCode::InvalidFile,
                     QStringLiteral("Unexpected '{' inside section"),
                     QStringLiteral("Section '%1' at line %2, column %3")
@@ -110,14 +110,14 @@ Core::Async::TaskResult<void> KeyValuesParser::parseBlock(KeyValuesLexer& lexer,
         }
 
         if (!closed) {
-            return Core::Async::TaskResult<void>::failure(
+            return Core::Result<void>::failure(
                 Core::Error::ErrorCode::InvalidFile,
                 QStringLiteral("Unclosed '{' block (reached EOF)"),
                 QStringLiteral("Section '%1'").arg(keyToken.text));
         }
 
         parentNode.addChild(std::move(sectionNode));
-        return Core::Async::TaskResult<void>::success();
+        return Core::Result<void>::success();
     }
 
     if (nextToken.isString()) {
@@ -130,16 +130,16 @@ Core::Async::TaskResult<void> KeyValuesParser::parseBlock(KeyValuesLexer& lexer,
         }
 
         parentNode.addProperty(keyToken.text, std::move(val));
-        return Core::Async::TaskResult<void>::success();
+        return Core::Result<void>::success();
     }
 
     if (nextToken.isCloseBrace()) {
         // Standalone key before close brace
         parentNode.addProperty(keyToken.text, QString());
-        return Core::Async::TaskResult<void>::success();
+        return Core::Result<void>::success();
     }
 
-    return Core::Async::TaskResult<void>::failure(
+    return Core::Result<void>::failure(
         Core::Error::ErrorCode::InvalidFile,
         QStringLiteral("Unexpected token"),
         QStringLiteral("Line %1, column %2").arg(nextToken.line).arg(nextToken.column));

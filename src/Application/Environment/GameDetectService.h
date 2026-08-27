@@ -6,7 +6,7 @@
 #include "Domain/Game/GameType.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Logging/TaskLoggingContext.h"
-#include "Core/Async/TaskResult.h"
+#include "Core/Result/Result.h"
 #include <functional>
 #include <memory>
 #include <vector>
@@ -24,25 +24,25 @@ public:
     // Asynchronous environment detection dispatched on a worker thread and marshaled safely to caller's QObject context
     static void detectEnvironmentAsync(
         QObject* context,
-        std::function<void(const Core::Async::TaskResult<DetectionResult>&)> callback,
+        std::function<void(const Core::Result<DetectionResult>&)> callback,
         const Core::Path::FilesystemPath& customSteamPath = {});
 
     static void detectEnvironmentAsync(
         QObject* context,
-        std::function<void(const Core::Async::TaskResult<DetectionResult>&)> callback,
+        std::function<void(const Core::Result<DetectionResult>&)> callback,
         const QString& customSteamPath);
 
     // Synchronous environment detection returning both installations (as UI DTOs) and any non-fatal scan warnings
-    static Core::Async::TaskResult<DetectionResult> detectEnvironment(
+    static Core::Result<DetectionResult> detectEnvironment(
         const Core::Path::FilesystemPath& customSteamPath = {},
         std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
 
-    static Core::Async::TaskResult<DetectionResult> detectEnvironment(
+    static Core::Result<DetectionResult> detectEnvironment(
         const QString& customSteamPath,
         std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
 
     // Synchronous single game detection in Steam libraries (Application internal model)
-    static Core::Async::TaskResult<GameInstallation> detectGame(
+    static Core::Result<GameInstallation> detectGame(
         Domain::Game::GameType type,
         const Core::Path::FilesystemPath& customSteamPath = {},
         std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);

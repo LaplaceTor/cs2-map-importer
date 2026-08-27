@@ -18,7 +18,7 @@ namespace Core::Error {
  *
  * Note on Exception Architecture:
  * - This type is a Qt exception transport carrier, NOT a general-purpose C++ business exception hierarchy.
- * - Workflow and Domain layers must strictly return Core::Async::TaskResult<T> for business outcomes
+ * - Workflow and Domain layers must strictly return Core::Result<T> for business outcomes
  *   rather than throwing or catching exceptions for control flow.
  */
 class Exception : public QException {

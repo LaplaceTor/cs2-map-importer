@@ -4,13 +4,14 @@
 #include "Core/Error/Error.h"
 #include "Core/Error/ErrorCode.h"
 #include "Core/Error/Exception.h"
-#include "Core/Async/TaskResult.h"
+#include "Core/Result/Result.h"
 #include "Core/Process/ProcessResult.h"
 #include "Domain/Game/GameInfoParser.h"
 #include "Domain/Game/GameErrors.h"
 
 using namespace Core::Error;
-using namespace Core::Async;
+using Core::Result;
+using Core::ResultStatus;
 using namespace Core::Process;
 using namespace Domain::Game;
 
@@ -23,10 +24,10 @@ private slots:
     void testDomainErrorExtension();
     void testExceptionLifecycleAndStdExceptionCompatibility();
     void testProcessResultMapping();
-    void testTaskResultStructuredError();
-    void testTaskResultSeparationOfStatusAndMessage();
-    void testTaskResultStatusErrorCodeInvariants();
-    void testTaskResultValueOr();
+    void testResultStructuredError();
+    void testResultSeparationOfStatusAndMessage();
+    void testResultStatusErrorCodeInvariants();
+    void testResultValueOr();
     void testGameInfoParserStructuredError();
     void testTripartiteDiagnosticContract();
 };
@@ -141,34 +142,34 @@ void TestError::testProcessResultMapping()
     QCOMPARE(rNonZero.toErrorCode(), ErrorCode::ProcessFailed);
 }
 
-void TestError::testTaskResultStructuredError()
+void TestError::testResultStructuredError()
 {
-    // TaskResult<int>
-    auto failResult = TaskResult<int>::failure(ErrorCode::CorruptedData, QStringLiteral("Corrupted VPK header"), 10);
+    // Result<int>
+    auto failResult = Result<int>::failure(ErrorCode::CorruptedData, QStringLiteral("Corrupted VPK header"), 10);
     QVERIFY(failResult.isFailure());
     QCOMPARE(failResult.errorCode(), ErrorCode::CorruptedData);
     QCOMPARE(failResult.message(), QStringLiteral("Corrupted VPK header"));
     QVERIFY(failResult.hasValue());
     QCOMPARE(failResult.value(), 10);
 
-    // TaskResult<void>
-    auto failVoid = TaskResult<void>::failure(ErrorCode::NetworkError, QStringLiteral("Steam network offline"));
+    // Result<void>
+    auto failVoid = Result<void>::failure(ErrorCode::NetworkError, QStringLiteral("Steam network offline"));
     QVERIFY(failVoid.isFailure());
     QCOMPARE(failVoid.errorCode(), ErrorCode::NetworkError);
     QCOMPARE(failVoid.message(), QStringLiteral("Steam network offline"));
 }
 
-void TestError::testTaskResultSeparationOfStatusAndMessage()
+void TestError::testResultSeparationOfStatusAndMessage()
 {
     // Success with message
-    auto okResult = TaskResult<int>::success(123, QStringLiteral("Loaded 123 items"));
+    auto okResult = Result<int>::success(123, QStringLiteral("Loaded 123 items"));
     QVERIFY(okResult.isSuccess());
     QCOMPARE(okResult.value(), 123);
     QCOMPARE(okResult.message(), QStringLiteral("Loaded 123 items"));
     QVERIFY(okResult.error().isSuccess());
 
     // Skipped: not an error, distinct status, carries reason as message
-    auto skipResult = TaskResult<int>::skipped(QStringLiteral("Already up to date"), 42);
+    auto skipResult = Result<int>::skipped(QStringLiteral("Already up to date"), 42);
     QVERIFY(skipResult.isSkipped());
     QVERIFY(!skipResult.isFailure());
     QCOMPARE(skipResult.message(), QStringLiteral("Already up to date"));
@@ -177,7 +178,7 @@ void TestError::testTaskResultSeparationOfStatusAndMessage()
 
     // Failure with operation summary and underlying Error semantics
     Error domainErr(ErrorCode::FileNotFound, QStringLiteral("gameinfo.gi not found"), QStringLiteral("C:/games/csgo/gameinfo.gi"));
-    auto failWithSummary = TaskResult<void>::failure(domainErr, QStringLiteral("Validation failed for Counter-Strike 2"));
+    auto failWithSummary = Result<void>::failure(domainErr, QStringLiteral("Validation failed for Counter-Strike 2"));
     QVERIFY(failWithSummary.isFailure());
     QCOMPARE(failWithSummary.errorCode(), ErrorCode::FileNotFound);
     QCOMPARE(failWithSummary.message(), QStringLiteral("Validation failed for Counter-Strike 2"));
@@ -185,124 +186,124 @@ void TestError::testTaskResultSeparationOfStatusAndMessage()
     QCOMPARE(failWithSummary.details(), QStringLiteral("C:/games/csgo/gameinfo.gi"));
 
     // Cancelled: distinct status, carries reason
-    auto cancelResult = TaskResult<void>::cancelled(QStringLiteral("User aborted import"));
+    auto cancelResult = Result<void>::cancelled(QStringLiteral("User aborted import"));
     QVERIFY(cancelResult.isCancelled());
     QCOMPARE(cancelResult.message(), QStringLiteral("User aborted import"));
     QCOMPARE(cancelResult.errorCode(), ErrorCode::Cancelled);
 }
 
-void TestError::testTaskResultStatusErrorCodeInvariants()
+void TestError::testResultStatusErrorCodeInvariants()
 {
-    // Invariant for TaskResult<int>
+    // Invariant for Result<int>
     {
         // 1. Success -> ErrorCode::Success
-        auto s = TaskResult<int>::success(100, QStringLiteral("All good"));
+        auto s = Result<int>::success(100, QStringLiteral("All good"));
         QVERIFY(s.isSuccess());
         QVERIFY(!s.isFailure());
         QVERIFY(!s.isCancelled());
         QVERIFY(!s.isSkipped());
-        QCOMPARE(s.status(), TaskExecutionStatus::Success);
+        QCOMPARE(s.status(), ResultStatus::Success);
         QCOMPARE(s.errorCode(), ErrorCode::Success);
         QVERIFY(s.error().isSuccess());
 
         // 2. Skipped -> ErrorCode::Success (benign non-fault path)
-        auto sk = TaskResult<int>::skipped(QStringLiteral("Cache hit"), 100);
+        auto sk = Result<int>::skipped(QStringLiteral("Cache hit"), 100);
         QVERIFY(sk.isSkipped());
         QVERIFY(!sk.isSuccess());
         QVERIFY(!sk.isFailure());
         QVERIFY(!sk.isCancelled());
-        QCOMPARE(sk.status(), TaskExecutionStatus::Skipped);
+        QCOMPARE(sk.status(), ResultStatus::Skipped);
         QCOMPARE(sk.errorCode(), ErrorCode::Success);
         QVERIFY(sk.error().isSuccess());
         QCOMPARE(sk.message(), QStringLiteral("Cache hit"));
 
         // 3. Cancelled -> ErrorCode::Cancelled
-        auto c = TaskResult<int>::cancelled(QStringLiteral("Aborted by user"));
+        auto c = Result<int>::cancelled(QStringLiteral("Aborted by user"));
         QVERIFY(c.isCancelled());
         QVERIFY(!c.isSuccess());
         QVERIFY(!c.isFailure());
         QVERIFY(!c.isSkipped());
-        QCOMPARE(c.status(), TaskExecutionStatus::Cancelled);
+        QCOMPARE(c.status(), ResultStatus::Cancelled);
         QCOMPARE(c.errorCode(), ErrorCode::Cancelled);
         QVERIFY(c.error().isFailure());
         QCOMPARE(c.message(), QStringLiteral("Aborted by user"));
 
         // 4. Failure -> Non-Success ErrorCode
-        auto f = TaskResult<int>::failure(ErrorCode::PermissionDenied, QStringLiteral("Access denied"));
+        auto f = Result<int>::failure(ErrorCode::PermissionDenied, QStringLiteral("Access denied"));
         QVERIFY(f.isFailure());
         QVERIFY(!f.isSuccess());
         QVERIFY(!f.isCancelled());
         QVERIFY(!f.isSkipped());
-        QCOMPARE(f.status(), TaskExecutionStatus::Failure);
+        QCOMPARE(f.status(), ResultStatus::Failure);
         QVERIFY(f.errorCode() != ErrorCode::Success);
         QCOMPARE(f.errorCode(), ErrorCode::PermissionDenied);
         QVERIFY(f.error().isFailure());
     }
 
-    // Invariant for TaskResult<void>
+    // Invariant for Result<void>
     {
         // 1. Success -> ErrorCode::Success
-        auto s = TaskResult<void>::success(QStringLiteral("Completed"));
+        auto s = Result<void>::success(QStringLiteral("Completed"));
         QVERIFY(s.isSuccess());
         QVERIFY(!s.isFailure());
         QVERIFY(!s.isCancelled());
         QVERIFY(!s.isSkipped());
-        QCOMPARE(s.status(), TaskExecutionStatus::Success);
+        QCOMPARE(s.status(), ResultStatus::Success);
         QCOMPARE(s.errorCode(), ErrorCode::Success);
         QVERIFY(s.error().isSuccess());
 
         // 2. Skipped -> ErrorCode::Success (benign non-fault path)
-        auto sk = TaskResult<void>::skipped(QStringLiteral("Up to date"));
+        auto sk = Result<void>::skipped(QStringLiteral("Up to date"));
         QVERIFY(sk.isSkipped());
         QVERIFY(!sk.isSuccess());
         QVERIFY(!sk.isFailure());
         QVERIFY(!sk.isCancelled());
-        QCOMPARE(sk.status(), TaskExecutionStatus::Skipped);
+        QCOMPARE(sk.status(), ResultStatus::Skipped);
         QCOMPARE(sk.errorCode(), ErrorCode::Success);
         QVERIFY(sk.error().isSuccess());
         QCOMPARE(sk.message(), QStringLiteral("Up to date"));
 
         // 3. Cancelled -> ErrorCode::Cancelled
-        auto c = TaskResult<void>::cancelled(QStringLiteral("User cancel"));
+        auto c = Result<void>::cancelled(QStringLiteral("User cancel"));
         QVERIFY(c.isCancelled());
         QVERIFY(!c.isSuccess());
         QVERIFY(!c.isFailure());
         QVERIFY(!c.isSkipped());
-        QCOMPARE(c.status(), TaskExecutionStatus::Cancelled);
+        QCOMPARE(c.status(), ResultStatus::Cancelled);
         QCOMPARE(c.errorCode(), ErrorCode::Cancelled);
         QVERIFY(c.error().isFailure());
 
         // 4. Failure -> Non-Success ErrorCode
-        auto f = TaskResult<void>::failure(ErrorCode::CorruptedData, QStringLiteral("Corrupted VPK"));
+        auto f = Result<void>::failure(ErrorCode::CorruptedData, QStringLiteral("Corrupted VPK"));
         QVERIFY(f.isFailure());
         QVERIFY(!f.isSuccess());
         QVERIFY(!f.isCancelled());
         QVERIFY(!f.isSkipped());
-        QCOMPARE(f.status(), TaskExecutionStatus::Failure);
+        QCOMPARE(f.status(), ResultStatus::Failure);
         QVERIFY(f.errorCode() != ErrorCode::Success);
         QCOMPARE(f.errorCode(), ErrorCode::CorruptedData);
         QVERIFY(f.error().isFailure());
 
         // 5. Invariant enforcement against Error::success() passed into failure()
-        auto defensiveErr = TaskResult<int>::failure(Error::success());
+        auto defensiveErr = Result<int>::failure(Error::success());
         QVERIFY(defensiveErr.isFailure());
         QVERIFY(defensiveErr.errorCode() != ErrorCode::Success);
         QCOMPARE(defensiveErr.errorCode(), ErrorCode::OperationFailed);
 
-        auto defensiveVoid = TaskResult<void>::failure(ErrorCode::Success);
+        auto defensiveVoid = Result<void>::failure(ErrorCode::Success);
         QVERIFY(defensiveVoid.isFailure());
         QVERIFY(defensiveVoid.errorCode() != ErrorCode::Success);
         QCOMPARE(defensiveVoid.errorCode(), ErrorCode::OperationFailed);
     }
 }
 
-void TestError::testTaskResultValueOr()
+void TestError::testResultValueOr()
 {
-    TaskResult<int> successRes = TaskResult<int>::success(42);
+    Result<int> successRes = Result<int>::success(42);
     int fallbackVal = 100;
     QCOMPARE(successRes.valueOr(fallbackVal), 42);
 
-    TaskResult<int> failRes = TaskResult<int>::failure(ErrorCode::Unknown, QStringLiteral("error"));
+    Result<int> failRes = Result<int>::failure(ErrorCode::Unknown, QStringLiteral("error"));
     QCOMPARE(failRes.valueOr(fallbackVal), 100);
 }
 
@@ -345,11 +346,11 @@ void TestError::testTripartiteDiagnosticContract()
     // 1. Non-existent file via GameInfoParser
     auto nonExistent = GameInfoParser::parse(Core::Path::FilesystemPath(QStringLiteral("C:/mock/nonexistent/gameinfo.gi")));
     QVERIFY(nonExistent.isFailure());
-    // Operation summary (TaskResult::message)
+    // Operation summary (Result::message)
     QCOMPARE(nonExistent.message(), QStringLiteral("GameInfo parsing failed"));
     // Failure reason (Error::message)
     QCOMPARE(nonExistent.error().message(), QStringLiteral("GameInfo file does not exist"));
-    // Technical diagnostics (Error::details / TaskResult::details)
+    // Technical diagnostics (Error::details / Result::details)
     QCOMPARE(nonExistent.details(), QStringLiteral("C:/mock/nonexistent/gameinfo.gi"));
     // Domain error inspection
     QVERIFY(nonExistent.error().is(GameErrorCode::GameInfoNotFound));

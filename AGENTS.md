@@ -169,7 +169,7 @@ Workflow may:
 * own use-case-specific step ordering and error handling;
 * receive `TaskLoggingContext` and cancellation primitives from Application;
 * use Core infrastructure when required;
-* return `Core::Async::TaskResult<T>` or `TaskResult<void>` to explicitly communicate `Success`, `Failure`, `Cancelled`, and `Skipped` execution outcomes.
+* return `Core::Result<T>` or `Result<void>` to explicitly communicate `Success`, `Failure`, `Cancelled`, and `Skipped` execution outcomes.
 
 Workflow must not:
 
@@ -178,7 +178,7 @@ Workflow must not:
 * show dialogs or directly request user interaction through QML;
 * own global application configuration;
 * discover Steam installations or perform application-wide environment selection unless the behavior is explicitly part of an importer use-case and passed in as data/services;
-* use `std::optional<T>` or `bool` to implicitly encode business outcomes. All new Workflow APIs must strictly use `TaskResult<T>`.
+* use `std::optional<T>` or `bool` to implicitly encode business outcomes. All new Workflow APIs must strictly use `Result<T>`.
 
 ### 3.4 Domain rules
 
@@ -318,20 +318,25 @@ To maintain strict conceptual clarity across async tasks and workflow operations
 │    States: Pending → Running → Completed | Failed | Cancelled | Skipped    │
 │    Tracked and displayed in UI log models (LogViewModel / LogTaskModel)     │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ 2. Business Outcome Plane (TaskResult<T>)                                   │
+│ 2. Business Outcome Plane (Result<T>)                                       │
 │    Standard single-layer return contract for Workflow and Application APIs  │
 │    Statuses: Success | Failure | Cancelled | Skipped + payload T & message  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 `AsyncTaskRunner` acts as the bridge connecting both planes:
-* **Primary API**: `AsyncTaskRunner::runTask<T>(taskName, context, worker, callback)`
-  * `T` is the **Business Payload Type** (e.g. `GameInstallationInfo`, `DetectionResult`, `void`), never `TaskResult<TaskResult<T>>`.
-  * The worker returns a single-layer `TaskResult<T>`.
-  * `AsyncTaskRunner` inspects the business outcome (and logged errors / exceptions) to transition the underlying `TaskState` in `LogManager`.
-  * The callback receives `const TaskResult<T>&` delivered thread-safely to the caller's context thread.
+* **Canonical API Suite**:
+  * `AsyncTaskRunner::runTask<T>(taskName, context, worker, callback)`: For async tasks producing business payload `T`.
+  * `AsyncTaskRunner::runTask<void>(taskName, context, worker, callback)`: For async tasks without payload, retaining full `Result<void>` outcome semantics.
+  * `AsyncTaskRunner::runChildTask<T>(parentTaskId, taskName, context, worker, callback)`: For hierarchical child sub-tasks.
+  * `AsyncTaskRunner::runChildTask<void>(parentTaskId, taskName, context, worker, callback)`: For void child sub-tasks.
+  * `AsyncTaskRunner::runBackground(taskName, worker)`: Inline convenience wrapper delegating directly to `runTask<void>` with no UI callback. It executes on the same single canonical execution engine, guaranteeing identical lifecycle tracking, structured exception safety, and arbitration rules.
+* `T` is the **Business Payload Type** (e.g. `GameInstallationInfo`, `DetectionResult`, `void`), never `Result<Result<T>>`.
+* The worker returns a single-layer `Result<T>`.
+* `AsyncTaskRunner` inspects the business outcome (and logged errors / exceptions) to transition the underlying `TaskState` in `LogManager`.
+* The callback receives `const Result<T>&` delivered thread-safely to the caller's context thread.
 
-#### TaskResult Semantic Contract
+#### Result Semantic Contract
 
 * **`status()` / `isSuccess()` / `isFailure()` / `isCancelled()` / `isSkipped()`**: Authoritative source for business outcome branching. Always check `status()` or `isSuccess()` / `isFailure()` rather than relying solely on `errorCode()`.
 * **`error()`**: Machine-interpretable structured failure object (`Core::Error::Error`), carrying:
@@ -347,9 +352,9 @@ To avoid diagnostic information loss and UI message conflation, all Workflow, Ap
 
 | Diagnostic Tier | Accessor | Owner / Layer | Semantic Role | Example |
 | :--- | :--- | :--- | :--- | :--- |
-| **Operation Summary** | `TaskResult::message()` | Workflow / Application | High-level user/task-facing summary of *what high-level operation failed or succeeded*. | `"Map import 'de_dust2' failed"`, `"CS2 environment validation failed"` |
+| **Operation Summary** | `Result::message()` | Workflow / Application | High-level user/task-facing summary of *what high-level operation failed or succeeded*. | `"Map import 'de_dust2' failed"`, `"CS2 environment validation failed"` |
 | **Failure Reason** | `Error::message()` | Domain / Core | Concrete semantic/domain explanation of *why the failure happened*. | `"gameinfo.gi not found"`, `"Entity block parser syntax error"` |
-| **Technical Diagnostics** | `Error::details()` / `TaskResult::details()` | Domain / Core / Process | Low-level technical diagnostics for logs and troubleshooting (paths, stderr, AST line info, CLI args). | `"C:/Steam/steamapps/common/CS2/game/csgo/gameinfo.gi"`, compiler stderr output |
+| **Technical Diagnostics** | `Error::details()` / `Result::details()` | Domain / Core / Process | Low-level technical diagnostics for logs and troubleshooting (paths, stderr, AST line info, CLI args). | `"C:/Steam/steamapps/common/CS2/game/csgo/gameinfo.gi"`, compiler stderr output |
 
 ##### Construction Anti-Patterns vs. Canonical Patterns
 
@@ -357,29 +362,29 @@ To avoid diagnostic information loss and UI message conflation, all Workflow, Ap
   ```cpp
   // BAD: High-level operation summary replaces specific failure reason.
   // The actual missing file and failure cause are lost!
-  return TaskResult<void>::failure(ErrorCode::FileNotFound, "Could not import map");
+  return Result<void>::failure(ErrorCode::FileNotFound, "Could not import map");
   ```
 * ❌ **Anti-Pattern 2: String-formatting technical details into `Error.message`**
   ```cpp
   // BAD: Hardcodes file paths into failure message, polluting UI strings and preventing clean error grouping.
-  return TaskResult<void>::failure(ErrorCode::FileNotFound, "gameinfo.gi not found at C:/Games/CS2/gameinfo.gi");
+  return Result<void>::failure(ErrorCode::FileNotFound, "gameinfo.gi not found at C:/Games/CS2/gameinfo.gi");
   ```
 * ✅ **Canonical Pattern 1: Multi-layer structured failure**
   ```cpp
-  // GOOD: Error carries concrete reason + technical path; TaskResult wraps with operation summary.
+  // GOOD: Error carries concrete reason + technical path; Result wraps with operation summary.
   auto err = Core::Error::Error::fileNotFound(
       QStringLiteral("gameinfo.gi not found"), // Error.message: 具体失败原因
       gamePath.toQString()                     // Error.details: 技术诊断细节（绝对路径）
   );
-  return TaskResult<void>::failure(
+  return Result<void>::failure(
       err,
-      QStringLiteral("CS2 game directory validation failed") // TaskResult.message: 操作层总结
+      QStringLiteral("CS2 game directory validation failed") // Result.message: 操作层总结
   );
   ```
 * ✅ **Canonical Pattern 2: Convenience overload with technical details**
   ```cpp
   // GOOD: ErrorCode + specific reason + technical path details.
-  return TaskResult<void>::failure(
+  return Result<void>::failure(
       Core::Error::ErrorCode::FileNotFound,
       QStringLiteral("gameinfo.gi not found"), // Error.message
       gamePath.toQString()                     // Error.details
@@ -395,9 +400,9 @@ The cross-terminal arbitration matrix below is governed by a single deterministi
 
 The full cascade, applied in strict priority order:
 
-1. **Any Failure** (either `TaskState::Failed`, logged errors on `TaskLoggingContext`, or `TaskResult::failure`) → final state is **`Failed`**, final result is **`Failure`**.
-2. **Otherwise, any Cancelled** (either `TaskState::Cancelled` or `TaskResult::cancelled`) → final state is **`Cancelled`**, final result is **`Cancelled`**.
-3. **Otherwise, any Skipped** (either `TaskState::Skipped` or `TaskResult::skipped`) → final state is **`Skipped`**, final result is **`Skipped`**.
+1. **Any Failure** (either `TaskState::Failed`, logged errors on `TaskLoggingContext`, or `Result::failure`) → final state is **`Failed`**, final result is **`Failure`**.
+2. **Otherwise, any Cancelled** (either `TaskState::Cancelled` or `Result::cancelled`) → final state is **`Cancelled`**, final result is **`Cancelled`**.
+3. **Otherwise, any Skipped** (either `TaskState::Skipped` or `Result::skipped`) → final state is **`Skipped`**, final result is **`Skipped`**.
 4. **Otherwise** → final state is **`Completed`**, final result is **`Success`**.
 
 This means:
@@ -409,9 +414,9 @@ Workflow code MAY rely on this guarantee. For example, a multi-step pipeline tha
 
 #### Cross-Terminal State Conflict Arbitration Matrix (跨终态冲突仲裁矩阵)
 
-When a background worker finishes, the task may possess a lifecycle `TaskState` set on `TaskLoggingContext` (e.g. via `fail()`, `cancel()`, `skip()`, `complete()`, or logged errors) while simultaneously returning a business `TaskResult<T>`. `AsyncTaskRunner` strictly resolves all 16 state combinations according to the terminal severity hierarchy defined above:
+When a background worker finishes, the task may possess a lifecycle `TaskState` set on `TaskLoggingContext` (e.g. via `fail()`, `cancel()`, `skip()`, `complete()`, or logged errors) while simultaneously returning a business `Result<T>`. `AsyncTaskRunner` strictly resolves all 16 state combinations according to the terminal severity hierarchy defined above:
 
-| Context `TaskState` | Worker `TaskResult` | Contract Violation Logged? | Final `TaskState` in `LogManager` | Final `TaskResult<T>` delivered to Callback |
+| Context `TaskState` | Worker `Result` | Contract Violation Logged? | Final `TaskState` in `LogManager` | Final `Result<T>` delivered to Callback |
 | :--- | :--- | :--- | :--- | :--- |
 | **Failed** (or errors) | **Success** | `error()` ("... returned success after task failed") | `Failed` | Converted to `Failure` (`OperationFailed`) |
 | **Failed** (or errors) | **Failure** | No (Agreement) | `Failed` | `Failure` (original) |
@@ -430,9 +435,9 @@ When a background worker finishes, the task may possess a lifecycle `TaskState` 
 | **Completed / Running** | **Cancelled** | No (Outcome transition) | `Cancelled` | `Cancelled` (original) |
 | **Completed / Running** | **Skipped** | No (Outcome transition) | `Skipped` | `Skipped` (original) |
 
-*Value Preservation Rule*: When `TaskResult<T>` is converted due to a contract violation or conflict, any existing partial payload (`result.value()`) is strictly preserved across the conversion.
+*Value Preservation Rule*: When `Result<T>` is converted due to a contract violation or conflict, any existing partial payload (`result.value()`) is strictly preserved across the conversion.
 
-*Original Error Preservation Rule (原始错误保留规则)*: When `TaskResult<T>` is converted to `Failure` due to a contract violation, the original `result.error()` is preserved if it carries a non-success error (retaining domain code, failure reason, and technical details). A new `OperationFailed` error is only synthesized when the original result had no meaningful error (e.g. was `Success`). The contract violation description is always recorded separately in the task log via `taskContext->error()` and surfaced in `TaskResult::message()` as the operation summary.
+*Original Error Preservation Rule (原始错误保留规则)*: When `Result<T>` is converted to `Failure` due to a contract violation, the original `result.error()` is preserved if it carries a non-success error (retaining domain code, failure reason, and technical details). A new `OperationFailed` error is only synthesized when the original result had no meaningful error (e.g. was `Success`). The contract violation description is always recorded separately in the task log via `taskContext->error()` and surfaced in `Result::message()` as the operation summary.
 
 #### Exception Transport Boundary vs. Business Error Model (异常边界 vs 业务错误数据模型)
 
@@ -442,29 +447,29 @@ The architecture defines two distinct error-related models with strictly separat
 
 ```text
 Normal Business Failure Path:
-  Domain / Workflow / Application ──[returns TaskResult<T>::failure(Error)]──► Application / UI Callback
+  Domain / Workflow / Application ──[returns Result<T>::failure(Error)]──► Application / UI Callback
 
 Exceptional / Crash Boundary Path:
   Uncaught Exception ──[throw Core::Error::Exception(Error)]──► AsyncTaskRunner Catch Block
                                                                        │
                                               ┌────────────────────────┼────────────────────────┐
                                               ▼                        ▼                        ▼
-                                    Task Log Entry           Task Terminal Summary         TaskResult<T>
+                                    Task Log Entry           Task Terminal Summary           Result<T>
                                  (Detailed Diagnostics)       (Concise Status)        (Structured Failure)
 ```
 
-##### 1. Normative Rules: When to Return `TaskResult` vs. When to Throw `Exception`
+##### 1. Normative Rules: When to Return `Result` vs. When to Throw `Exception`
 
 * **Domain / Workflow / Application Normal Business Failures**:
-  * **Rule**: All predictable operational failures, format/syntax parse errors, validation rejections, and I/O failures MUST strictly return `Core::Async::TaskResult<T>::failure(error)`.
+  * **Rule**: All predictable operational failures, format/syntax parse errors, validation rejections, and I/O failures MUST strictly return `Core::Result<T>::failure(error)`.
   * **Forbidden**: Do **NOT** throw `Core::Error::Exception` for ordinary business or environment conditions (e.g. `"file not found"`, `"invalid keyvalues syntax"`, `"game directory mismatch"`, `"asset entity missing"`, `"validator rejected"`).
 * **Legitimate Use Cases for `throw Core::Error::Exception`**:
   * Throwing `Core::Error::Exception` is strictly restricted to true exceptional boundaries:
     1. **Unrecoverable internal invariant failures**: Critical internal state corruption or violated algorithmic preconditions where local continuation or recovery is impossible.
-    2. **Third-party / External library exception wrapping**: When calling external C++/Qt libraries that signal errors via C++ exceptions, catch and translate them at the immediate integration boundary into `Exception` or `TaskResult`.
-    3. **Deep cross-stack-frame interruption**: Exceptional abort scenarios across multi-layer non-domain legacy call stacks where intermediate frames cannot pass `TaskResult<T>`.
+    2. **Third-party / External library exception wrapping**: When calling external C++/Qt libraries that signal errors via C++ exceptions, catch and translate them at the immediate integration boundary into `Exception` or `Result`.
+    3. **Deep cross-stack-frame interruption**: Exceptional abort scenarios across multi-layer non-domain legacy call stacks where intermediate frames cannot pass `Result<T>`.
 * **Prohibition on Mixed Control Flow**:
-  * Never mix `throw Core::Error::Exception` and `return TaskResult<T>::failure` for normal business branching or control flow.
+  * Never mix `throw Core::Error::Exception` and `return Result<T>::failure` for normal business branching or control flow.
 
 ##### 2. Tripartite Reporting Responsibilities & UI Deduplication (三层上报职责与去重规范)
 
@@ -474,7 +479,7 @@ When an async task fails (particularly on an uncaught exception path), `AsyncTas
 | :--- | :--- | :--- | :--- |
 | **Task Log Messages** | `TaskLoggingContext` (`taskContext->error(...)`) | **Detailed technical diagnostics** | Full technical trace: `ErrorCode`, specific error reason, technical `details()` (e.g. absolute paths, CLI args, compiler stderr), or `std::exception::what()`. Displayed when user expands task log blocks. |
 | **Task Final Summary** | `LogManager` / `TaskSnapshot.currentMessage` (`forceTaskState`) | **Concise high-level status summary** | Short status text (e.g. `"Task failed with uncaught exception"`, `"Validation failed"`). **Must NOT** duplicate long technical payloads, file paths, or stack strings. |
-| **TaskResult** | Caller / UI Callback (`TaskResult<T>`) | **Structured business outcome** | Carries `status()`, `message()` (operation summary), and structured `Error` (`code()`, `message()`, `details()`) for programmatic branching, UI status badges, or toast alerts. |
+| **Result** | Caller / UI Callback (`Result<T>`) | **Structured business outcome** | Carries `status()`, `message()` (operation summary), and structured `Error` (`code()`, `message()`, `details()`) for programmatic branching, UI status badges, or toast alerts. |
 
 #### Error Code Stratification: Core vs. Domain Error Domains
 
@@ -485,14 +490,17 @@ When an async task fails (particularly on an uncaught exception path), `AsyncTas
   * Missing directory on disk (`!dir.exists()`) must strictly return `Core::ErrorCode::DirectoryNotFound` (`Core::Error::Error::directoryNotFound()`).
   * Low-level filesystem/input validation failures must **NEVER** be swallowed or masqueraded into domain-specific error codes like `GameInfoNotFound` or `InvalidGameInstallation`.
   * Domain errors (e.g. `GameErrors::gameInfoNotFound`, `GameErrors::gameTypeMismatch`, `GameErrors::invalidGameInstallation`) are reserved solely for valid paths where game-specific structure or business rules fail.
+* **Domain Error Factory Exclusivity (领域错误工厂唯一入口契约)**:
+  * `Domain::Game::GameErrors` (and corresponding domain error factories) is the **exclusive authoritative entry point** for constructing domain business error objects.
+  * Application, Workflow, and UI layers must **NEVER** invent or construct Domain business errors ad-hoc (e.g. fabricating `GameTypeMismatch` or raw `GameErrorCode`). Upper layers must strictly consume or propagate Domain errors generated by `GameErrors`, wrapping them with high-level operation summaries via `Result<T>::failure(domainError, operationSummary)`.
 * **Inspection Contract**:
   * Check high-level infrastructure/system status: `err.is(Core::Error::ErrorCode::InvalidPath)` or `err.code() == ErrorCode::...`
   * Check domain business outcome: `err.is(Domain::Game::GameErrorCode::GameInfoNotFound)` or `err.domainCodeAs<GameErrorCode>()`
   * `Core::Error::Error::is` provides distinct overloads for `ErrorCode` and generic enum types, ensuring both checks are supported unambiguously.
 
-#### Heuristic Matching (`try*` -> `std::optional<T>`) vs. Validation (`TaskResult<T>`)
+#### Heuristic Matching (`try*` -> `std::optional<T>`) vs. Validation (`Result<T>`)
 
-* **Deterministic Validation (`validate*` -> `TaskResult<T>`)**: Use when asserting preconditions or contract validity against an expected target. If validation fails, it is an operation failure that must communicate *why* it failed via `TaskResult<T>::failure(Error)`.
+* **Deterministic Validation (`validate*` -> `Result<T>`)**: Use when asserting preconditions or contract validity against an expected target. If validation fails, it is an operation failure that must communicate *why* it failed via `Result<T>::failure(Error)`.
 * **Heuristic Identification (`tryIdentify*` -> `std::optional<T>`)**: Use for best-effort pattern recognition / deduction (e.g. `tryIdentifyGameType`). Returning `std::nullopt` signifies a normal non-match branch (e.g. falling back to manual selection or Custom game), rather than an operational failure.
 
 ---
@@ -530,7 +538,7 @@ Code should use the context for task messages, progress and faults.
 The logging system is semantically coupled with task lifecycle arbitration:
 
 * **`error()` / `reportFault()`**: **Unrecoverable business failure for the current task**.
-  * Any task that emits an `error()` is automatically transitioned to `TaskState::Failed` by `AsyncTaskRunner`, even if the worker returns normally or yields `TaskResult::success`.
+  * Any task that emits an `error()` is automatically transitioned to `TaskState::Failed` by `AsyncTaskRunner`, even if the worker returns normally or yields `Result::success`.
   * **Rule:** Only call `error()` if the current task has actually failed. If a step failed but was recovered, handled, or retried, do not emit `error()`.
 * **`warning()`**: **Recoverable issue, fallback, degradation, or skip**.
   * Emitting a `warning()` does **not** fail the task. Use `warning()` when an unexpected condition occurred but execution continued safely or fell back.
@@ -873,7 +881,7 @@ const auto result =
 
 ### `Core::Error`
 
-`Core::Error::ErrorCode`, `Core::Error::Error`, and `Core::Error::Exception` are generic infrastructure and application error primitives. `ProcessResult` converts cleanly to `Core::Error::Error` via `.toError()`. `TaskResult<T>` natively carries `Core::Error::Error`. `ImportErrorCode` and `ImportException` are retained as backward compatibility aliases. Prefer structured error codes and `TaskResult<T>` over throwing exceptions or dropping error reasons via `std::optional` in migrated code.
+`Core::Error::ErrorCode`, `Core::Error::Error`, and `Core::Error::Exception` are generic infrastructure and application error primitives. `ProcessResult` converts cleanly to `Core::Error::Error` via `.toError()`. `Result<T>` natively carries `Core::Error::Error`. `ImportErrorCode` and `ImportException` are retained as backward compatibility aliases. Prefer structured error codes and `Result<T>` over throwing exceptions or dropping error reasons via `std::optional` in migrated code.
 
 ---
 

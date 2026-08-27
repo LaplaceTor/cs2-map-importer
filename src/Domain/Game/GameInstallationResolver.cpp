@@ -68,7 +68,7 @@ Core::Path::FilesystemPath ResolvedGameInstallation::addonContentDirectory(const
     return Core::Path::FilesystemPath(QDir(baseDirectory.toString()).filePath(rel));
 }
 
-Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::createResolved(
+Core::Result<ResolvedGameInstallation> GameInstallationResolver::createResolved(
     GameType type,
     const Core::Path::FilesystemPath& baseDir,
     const GameInfo& info)
@@ -86,29 +86,29 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::crea
     res.gameInfo = info;
     res.isValid = true;
 
-    return Core::Async::TaskResult<ResolvedGameInstallation>::success(std::move(res));
+    return Core::Result<ResolvedGameInstallation>::success(std::move(res));
 }
 
-Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::resolveSource1(
+Core::Result<ResolvedGameInstallation> GameInstallationResolver::resolveSource1(
     GameType type,
     const Core::Path::FilesystemPath& directory)
 {
     if (!directory.isValid() || directory.isEmpty()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+        return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::invalidPath(
                 QStringLiteral("Source 1 directory path is empty or invalid"),
                 directory.toString()),
             QStringLiteral("Source 1 directory resolution failed"));
     }
     if (!directory.exists()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+        return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::directoryNotFound(
                 QStringLiteral("Source 1 directory does not exist"),
                 directory.toString()),
             QStringLiteral("Source 1 directory resolution failed"));
     }
     if (!directory.isDirectory()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+        return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::invalidPath(
                 QStringLiteral("Source 1 path is not a directory"),
                 directory.toString()),
@@ -117,7 +117,7 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
 
     auto infoResult = GameValidator::validateDirectory(directory, type);
     if (!infoResult.isSuccess()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+        return Core::Result<ResolvedGameInstallation>::failure(
             infoResult.error(),
             QStringLiteral("Source 1 directory resolution failed"));
     }
@@ -125,19 +125,19 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
     return createResolved(type, directory, infoResult.value());
 }
 
-Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::resolveSource2(
+Core::Result<ResolvedGameInstallation> GameInstallationResolver::resolveSource2(
     const Core::Path::FilesystemPath& directory,
     GameType type)
 {
     if (!directory.isValid() || directory.isEmpty()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+        return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::invalidPath(
                 QStringLiteral("Source 2 directory path is empty or invalid"),
                 directory.toString()),
             QStringLiteral("Source 2 directory resolution failed"));
     }
     if (!directory.exists()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+        return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::directoryNotFound(
                 QStringLiteral("Source 2 directory does not exist"),
                 directory.toString()),
@@ -158,7 +158,7 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
                 candidateBaseDir = directory.parentPath();
             }
         } else {
-            return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+            return Core::Result<ResolvedGameInstallation>::failure(
                 Core::Error::Error::invalidFile(
                     QStringLiteral("Target file is not a Source 2 gameinfo.gi"),
                     directory.toString()),
@@ -209,7 +209,7 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
     }
 
     if (!giPath.exists() || !giPath.isFile()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+        return Core::Result<ResolvedGameInstallation>::failure(
             GameErrors::gameInfoNotFound(
                 QStringLiteral("Could not locate gameinfo.gi in Source 2 structure"),
                 directory.toString()),
@@ -218,7 +218,7 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
 
     auto parseResult = GameInfoParser::parse(giPath, EngineType::Source2);
     if (!parseResult.isSuccess()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+        return Core::Result<ResolvedGameInstallation>::failure(
             parseResult.error(),
             QStringLiteral("Failed to parse Source 2 gameinfo.gi"));
     }
@@ -230,7 +230,7 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
     if (type != GameType::Unknown && type != GameType::Custom) {
         auto valRes = GameValidator::validateGameInfo(optInfo, type);
         if (!valRes.isSuccess()) {
-            return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+            return Core::Result<ResolvedGameInstallation>::failure(
                 valRes.error(),
                 QStringLiteral("Source 2 gameinfo validation failed"));
         }
@@ -240,18 +240,18 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::reso
     return createResolved(resolvedType, candidateBaseDir, optInfo);
 }
 
-Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::inspectGameInfo(
+Core::Result<ResolvedGameInstallation> GameInstallationResolver::inspectGameInfo(
     const Core::Path::FilesystemPath& path)
 {
     if (!path.isValid() || path.isEmpty()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+        return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::invalidPath(
                 QStringLiteral("GameInfo path is empty or invalid"),
                 path.toString()),
             QStringLiteral("GameInfo inspection failed"));
     }
     if (!path.exists()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+        return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::fileNotFound(
                 QStringLiteral("GameInfo path does not exist"),
                 path.toString()),
@@ -293,7 +293,7 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::insp
                 }
             }
             if (!actualPath.isFile()) {
-                return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+                return Core::Result<ResolvedGameInstallation>::failure(
                     GameErrors::gameInfoNotFound(
                         QStringLiteral("No gameinfo.txt or gameinfo.gi found in directory"),
                         path.toString()),
@@ -303,7 +303,7 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::insp
     }
 
     if (!actualPath.exists() || !actualPath.isFile()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+        return Core::Result<ResolvedGameInstallation>::failure(
             GameErrors::gameInfoNotFound(
                 QStringLiteral("GameInfo file not found"),
                 actualPath.toString()),
@@ -315,7 +315,7 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::insp
 
     auto parseResult = GameInfoParser::parse(actualPath, engine);
     if (!parseResult.isSuccess()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+        return Core::Result<ResolvedGameInstallation>::failure(
             parseResult.error(),
             QStringLiteral("Failed to parse GameInfo file"));
     }
@@ -328,19 +328,19 @@ Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::insp
     return createResolved(type, baseDir, optInfo);
 }
 
-Core::Async::TaskResult<ResolvedGameInstallation> GameInstallationResolver::resolveGameDirectory(
+Core::Result<ResolvedGameInstallation> GameInstallationResolver::resolveGameDirectory(
     GameType type,
     const Core::Path::FilesystemPath& directory)
 {
     if (!directory.isValid() || directory.isEmpty()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+        return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::invalidPath(
                 QStringLiteral("Directory path is empty or invalid"),
                 directory.toString()),
             QStringLiteral("Game directory resolution failed"));
     }
     if (!directory.exists()) {
-        return Core::Async::TaskResult<ResolvedGameInstallation>::failure(
+        return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::directoryNotFound(
                 QStringLiteral("Directory does not exist"),
                 directory.toString()),

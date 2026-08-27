@@ -6,7 +6,7 @@
 #include "Core/FileSystem/FileLease.h"
 #include "Application/Environment/VpkSignatureLeaseService.h"
 #include "Core/Path/FilesystemPath.h"
-#include "Core/Async/TaskResult.h"
+#include "Core/Result/Result.h"
 
 #ifdef Q_OS_WIN
 #ifndef WIN32_LEAN_AND_MEAN
@@ -21,7 +21,8 @@
 using namespace Core::FileSystem;
 using namespace Application::Environment;
 using namespace Core::Path;
-using namespace Core::Async;
+using Core::Result;
+using Core::ResultStatus;
 
 class TestFileLease : public QObject {
     Q_OBJECT

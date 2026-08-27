@@ -13,11 +13,12 @@
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Path/PathUtils.h"
 #include "Core/FileSystem/FileSystem.h"
-#include "Core/Async/TaskResult.h"
+#include "Core/Result/Result.h"
 
 using namespace Application::Environment;
 using namespace Domain::Game;
-using namespace Core::Async;
+using Core::Result;
+using Core::ResultStatus;
 
 class TestEnvironment : public QObject {
     Q_OBJECT
@@ -359,7 +360,7 @@ private slots:
 
     void testDetectEnvironmentAsync() {
         bool finished = false;
-        GameDetectService::detectEnvironmentAsync(this, [&](const TaskResult<DetectionResult>& result) {
+        GameDetectService::detectEnvironmentAsync(this, [&](const Result<DetectionResult>& result) {
             finished = true;
             QVERIFY(result.isSuccess());
             QVERIFY(result.value().installations.size() >= 0);
@@ -407,7 +408,7 @@ private slots:
         QCOMPARE(cssRes.value().gameTitle, QStringLiteral("Counter-Strike Source"));
 
         bool asyncFinished = false;
-        envService.validateSource1FolderAsync(QStringLiteral("CS: Source"), cssDirStr, this, [&](const TaskResult<GameInstallationInfo>& res) {
+        envService.validateSource1FolderAsync(QStringLiteral("CS: Source"), cssDirStr, this, [&](const Result<GameInstallationInfo>& res) {
             asyncFinished = true;
             QVERIFY(res.isSuccess());
             QCOMPARE(res.value().gameTitle, QStringLiteral("Counter-Strike Source"));

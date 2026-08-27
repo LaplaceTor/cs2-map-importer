@@ -1,5 +1,5 @@
 qt_add_library(cs2importer_core STATIC
-    Async/TaskResult.h
+    Result/Result.h
     Error/ErrorCode.h
     Error/Error.h
     Error/Exception.h

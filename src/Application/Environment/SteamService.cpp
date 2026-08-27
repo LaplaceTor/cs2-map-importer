@@ -277,14 +277,14 @@ QString SteamService::readAppName(const Core::Path::FilesystemPath& libraryPath,
     return node->property(QStringLiteral("name"));
 }
 
-Core::Async::TaskResult<void> SteamService::validateGameFiles(
+Core::Result<void> SteamService::validateGameFiles(
     int appId,
     std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) {
     if (appId <= 0) {
         if (logCtx) {
             logCtx->error(QStringLiteral("Invalid Steam AppID: %1").arg(appId));
         }
-        return Core::Async::TaskResult<void>::failure(
+        return Core::Result<void>::failure(
             Core::Error::ErrorCode::InvalidArgument,
             QStringLiteral("Invalid Steam AppID"),
             QString::number(appId));
@@ -298,15 +298,15 @@ Core::Async::TaskResult<void> SteamService::validateGameFiles(
         if (logCtx) {
             logCtx->error(QStringLiteral("Failed to open Steam validation URL for AppID: %1").arg(appId));
         }
-        return Core::Async::TaskResult<void>::failure(
+        return Core::Result<void>::failure(
             Core::Error::ErrorCode::OperationFailed,
             QStringLiteral("Failed to open Steam validation URL"),
             validateUrl.toString());
     }
-    return Core::Async::TaskResult<void>::success();
+    return Core::Result<void>::success();
 }
 
-Core::Async::TaskResult<void> SteamService::validateGameFiles(
+Core::Result<void> SteamService::validateGameFiles(
     Domain::Game::GameType type,
     std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) {
     const auto* def = Domain::Game::GameRegistry::findByType(type);
@@ -315,7 +315,7 @@ Core::Async::TaskResult<void> SteamService::validateGameFiles(
         if (logCtx) {
             logCtx->error(QStringLiteral("No primary AppID registered for game type: %1").arg(typeStr));
         }
-        return Core::Async::TaskResult<void>::failure(
+        return Core::Result<void>::failure(
             Domain::Game::GameErrors::unsupportedGame(
                 QStringLiteral("No primary AppID registered for game type"),
                 typeStr));

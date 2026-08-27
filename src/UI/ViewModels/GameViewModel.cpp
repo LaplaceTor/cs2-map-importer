@@ -123,7 +123,7 @@ void GameViewModel::autoDetect() {
 
     m_envService->detectEnvironmentAsync(
         this,
-        [this](const Core::Async::TaskResult<Application::Environment::DetectionResult>& result) {
+        [this](const Core::Result<Application::Environment::DetectionResult>& result) {
             if (result.isSuccess()) {
                 applyDetectionResult(result.value());
             } else {
@@ -204,7 +204,7 @@ void GameViewModel::setSelectedS1Type(const QString& typeId) {
             requestedType,
             currentPath,
             this,
-            [this, requestedType, key](const Core::Async::TaskResult<Application::Environment::GameInstallationInfo>& validated) {
+            [this, requestedType, key](const Core::Result<Application::Environment::GameInstallationInfo>& validated) {
                 if (m_selectedS1Type == requestedType && validated.isSuccess() && validated.value().isValid) {
                     m_detectedGames.insert(key, validated.value());
                     applyS1Installation(validated.value());
@@ -276,7 +276,7 @@ void GameViewModel::selectS1Folder(const QString& pathOrUrl) {
         capturedType,
         pathOrUrl,
         this,
-        [this, capturedType](const Core::Async::TaskResult<Application::Environment::GameInstallationInfo>& validated) {
+        [this, capturedType](const Core::Result<Application::Environment::GameInstallationInfo>& validated) {
             if (validated.isSuccess() && validated.value().isValid) {
                 const QString key = capturedType.trimmed().toLower();
                 m_detectedGames.insert(key, validated.value());
@@ -309,7 +309,7 @@ void GameViewModel::selectS2Folder(const QString& pathOrUrl) {
     m_envService->validateSource2FolderAsync(
         pathOrUrl,
         this,
-        [this](const Core::Async::TaskResult<Application::Environment::GameInstallationInfo>& validated) {
+        [this](const Core::Result<Application::Environment::GameInstallationInfo>& validated) {
             if (validated.isSuccess() && validated.value().isValid) {
                 if (!validated.value().gameId.isEmpty()) {
                     m_detectedGames.insert(validated.value().gameId.toLower(), validated.value());

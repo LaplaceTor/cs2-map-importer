@@ -7,7 +7,7 @@
 #include "Domain/Game/GameInstallationResolver.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Logging/TaskLoggingContext.h"
-#include "Core/Async/TaskResult.h"
+#include "Core/Result/Result.h"
 #include <memory>
 #include <optional>
 
@@ -20,24 +20,24 @@ namespace Application::Environment {
 class GameInstallationValidator {
 public:
     // Validates a Source 1 game installation directory against expected GameType
-    static Core::Async::TaskResult<GameInstallation> validateSource1(
+    static Core::Result<GameInstallation> validateSource1(
         Domain::Game::GameType type,
         const Core::Path::FilesystemPath& directory,
         std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
 
     // Validates a Source 2 game installation directory or gameinfo.gi file
-    static Core::Async::TaskResult<GameInstallation> validateSource2(
+    static Core::Result<GameInstallation> validateSource2(
         const Core::Path::FilesystemPath& directory,
         Domain::Game::GameType type = Domain::Game::GameType::Unknown,
         std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
 
     // Inspects an arbitrary gameinfo.txt or gameinfo.gi file/directory and creates a GameInstallation
-    static Core::Async::TaskResult<GameInstallation> inspectGameInfo(
+    static Core::Result<GameInstallation> inspectGameInfo(
         const Core::Path::FilesystemPath& gameInfoPath,
         std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
 
     // Generic entry point that validates a directory according to GameType
-    static Core::Async::TaskResult<GameInstallation> validateGameDirectory(
+    static Core::Result<GameInstallation> validateGameDirectory(
         Domain::Game::GameType type,
         const Core::Path::FilesystemPath& directory,
         std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);

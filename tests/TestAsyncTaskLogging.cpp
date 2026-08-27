@@ -9,7 +9,7 @@
 #include "Core/Logging/LogManager.h"
 #include "Core/Logging/TaskLoggingContext.h"
 #include "Core/Logging/TaskState.h"
-#include "Core/Async/TaskResult.h"
+#include "Core/Result/Result.h"
 #include "UI/ViewModels/LogViewModel.h"
 #include "UI/ViewModels/LogTaskModel.h"
 #include "Core/Error/Error.h"
@@ -19,8 +19,9 @@
 #include "Application/Async/AsyncTaskRunner.h"
 
 using namespace Core::Logging;
-using namespace Core::Async;
 using namespace Core::Error;
+using Core::Result;
+using Core::ResultStatus;
 using namespace UI::ViewModels;
 using namespace Application::Async;
 
@@ -53,28 +54,29 @@ private slots:
     void testNullContextAndEmptyCallbackExecution();
     void testSemanticBusinessFailureDetection();
 
-    // TaskResult outcome mapping tests
-    void testTaskResultOutcomes();
-    void testStructuredTaskResultPayload();
+    // Result outcome mapping tests
+    void testResultOutcomes();
+    void testStructuredResultPayload();
     void testProcessResultToErrorMapping();
     void testInvalidParentTaskRejection();
     void testLoggedErrorForcesTaskFailure();
     void testLoggedWarningPreservesTaskCompleted();
     void testRunTaskAndChildTaskApi();
+    void testRunBackgroundApi();
 
     // State contradiction and contract violation reconciliation tests
-    void testExplicitFailWithTaskResultSuccessContradiction();
-    void testExplicitCancelWithTaskResultSuccessContradiction();
-    void testExplicitSkipWithTaskResultSuccessContradiction();
-    void testExplicitCompleteWithTaskResultFailureContradiction();
-    void testExplicitCancelWithTaskResultSkippedContradiction();
-    void testExplicitSkipWithTaskResultCancelledContradiction();
-    void testExplicitFailWithTaskResultCancelledContradiction();
-    void testExplicitFailWithTaskResultSkippedContradiction();
-    void testExplicitCancelWithTaskResultFailureContradiction();
-    void testExplicitSkipWithTaskResultFailureContradiction();
-    void testExplicitCompleteWithTaskResultCancelledContradiction();
-    void testExplicitCompleteWithTaskResultSkippedContradiction();
+    void testExplicitFailWithResultSuccessContradiction();
+    void testExplicitCancelWithResultSuccessContradiction();
+    void testExplicitSkipWithResultSuccessContradiction();
+    void testExplicitCompleteWithResultFailureContradiction();
+    void testExplicitCancelWithResultSkippedContradiction();
+    void testExplicitSkipWithResultCancelledContradiction();
+    void testExplicitFailWithResultCancelledContradiction();
+    void testExplicitFailWithResultSkippedContradiction();
+    void testExplicitCancelWithResultFailureContradiction();
+    void testExplicitSkipWithResultFailureContradiction();
+    void testExplicitCompleteWithResultCancelledContradiction();
+    void testExplicitCompleteWithResultSkippedContradiction();
 };
 
 void TestAsyncTaskLogging::initTestCase()
@@ -251,13 +253,13 @@ void TestAsyncTaskLogging::testAsyncTaskRunnerNormal()
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Runner Task"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->info("Runner working...");
             }
-            return TaskResult<int>::success(42);
+            return Result<int>::success(42);
         },
-        [&](const TaskResult<int>& res) {
+        [&](const Result<int>& res) {
             callbackInvoked = true;
             if (res.isSuccess()) {
                 returnedResult = res.value();
@@ -285,13 +287,13 @@ void TestAsyncTaskLogging::testAsyncTaskRunnerExceptionSafety()
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Faulty Runner Task"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->info("About to throw");
             }
             throw std::runtime_error("Simulated I/O failure");
         },
-        [&](const TaskResult<int>& res) {
+        [&](const Result<int>& res) {
             callbackInvoked = true;
             resultFailed = res.isFailure();
         });
@@ -312,12 +314,12 @@ void TestAsyncTaskLogging::testStructuredExceptionHandling()
     logVm->registerWithLogManager();
 
     bool callbackInvoked = false;
-    TaskResult<int> capturedResult;
+    Result<int> capturedResult;
 
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Structured Faulty Task"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->info("About to throw structured Exception");
             }
@@ -326,7 +328,7 @@ void TestAsyncTaskLogging::testStructuredExceptionHandling()
                 QStringLiteral("Compiler execution timed out"),
                 QStringLiteral("resourcecompiler.exe --compile map.vmap"));
         },
-        [&](const TaskResult<int>& res) {
+        [&](const Result<int>& res) {
             callbackInvoked = true;
             capturedResult = res;
         });
@@ -335,11 +337,11 @@ void TestAsyncTaskLogging::testStructuredExceptionHandling()
     QVERIFY(capturedResult.isFailure());
     QCOMPARE(capturedResult.errorCode(), Core::Error::ErrorCode::ProcessTimeout);
     QCOMPARE(capturedResult.error().code(), Core::Error::ErrorCode::ProcessTimeout);
-    // Operation summary (TaskResult::message) carries task-level failure summary
+    // Operation summary (Result::message) carries task-level failure summary
     QCOMPARE(capturedResult.message(), QStringLiteral("Task 'Structured Faulty Task' failed"));
     // Failure reason (Error::message) carries specific domain/system failure
     QCOMPARE(capturedResult.error().message(), QStringLiteral("Compiler execution timed out"));
-    // Technical diagnostics (Error::details / TaskResult::details)
+    // Technical diagnostics (Error::details / Result::details)
     QCOMPARE(capturedResult.details(), QStringLiteral("resourcecompiler.exe --compile map.vmap"));
 
     QTRY_COMPARE(logVm->taskCount(), 1);
@@ -355,18 +357,18 @@ void TestAsyncTaskLogging::testStandardExceptionDiagnostics()
     logVm->registerWithLogManager();
 
     std::atomic<bool> callbackInvoked{false};
-    TaskResult<int> capturedResult = TaskResult<int>::success(0);
+    Result<int> capturedResult = Result<int>::success(0);
 
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Std Exception Task"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->info("About to throw std::runtime_error");
             }
             throw std::runtime_error("Corrupted block in filesystem sector 4096");
         },
-        [&](const TaskResult<int>& res) {
+        [&](const Result<int>& res) {
             callbackInvoked = true;
             capturedResult = res;
         });
@@ -374,7 +376,7 @@ void TestAsyncTaskLogging::testStandardExceptionDiagnostics()
     QTRY_VERIFY(callbackInvoked.load());
     QVERIFY(capturedResult.isFailure());
     QCOMPARE(capturedResult.errorCode(), Core::Error::ErrorCode::Unknown);
-    // Operation summary (TaskResult::message) carries task-level failure summary
+    // Operation summary (Result::message) carries task-level failure summary
     QCOMPARE(capturedResult.message(), QStringLiteral("Task 'Std Exception Task' failed"));
     // Failure reason (Error::message)
     QCOMPARE(capturedResult.error().message(), QStringLiteral("Unhandled standard exception"));
@@ -399,15 +401,15 @@ void TestAsyncTaskLogging::testContextDestroyedSafety()
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Destroyed Context Task"),
         tempContext,
-        [&workerRan](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [&workerRan](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->info("Worker executing while context is deleted");
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
             workerRan.store(true);
-            return TaskResult<int>::success(100);
+            return Result<int>::success(100);
         },
-        [](const TaskResult<int>&) {
+        [](const Result<int>&) {
             QFAIL("Callback should not be called when context is destroyed");
         });
 
@@ -546,15 +548,15 @@ void TestAsyncTaskLogging::testMultiLevelNestedTasksAndParallelChildExecution()
             rootTask->taskId(),
             QStringLiteral("Parallel Child Task %1").arg(i + 1),
             this,
-            [i](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+            [i](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
                 if (ctx) {
                     ctx->info(QStringLiteral("Child %1 working in parallel").arg(i + 1));
                     std::this_thread::sleep_for(std::chrono::milliseconds(20));
                     ctx->info(QStringLiteral("Child %1 finished work").arg(i + 1));
                 }
-                return TaskResult<int>::success(i + 1);
+                return Result<int>::success(i + 1);
             },
-            [&completedChildren](const TaskResult<int>&) {
+            [&completedChildren](const Result<int>&) {
                 completedChildren.fetch_add(1);
             });
     }
@@ -614,12 +616,12 @@ void TestAsyncTaskLogging::testNullContextAndEmptyCallbackExecution()
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Void Callback Task"),
         this,
-        [&computeResult](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [&computeResult](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->info("Calculating value");
             }
             computeResult.store(42);
-            return TaskResult<int>::success(42);
+            return Result<int>::success(42);
         });
 
     QTRY_COMPARE_WITH_TIMEOUT(computeResult.load(), 42, 3000);
@@ -631,19 +633,19 @@ void TestAsyncTaskLogging::testSemanticBusinessFailureDetection()
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
-    // 1. Worker returning TaskResult::failure and logging error (no exception thrown)
+    // 1. Worker returning Result::failure and logging error (no exception thrown)
     std::atomic<bool> callbackFired{false};
     AsyncTaskRunner::runTask<QString>(
         QStringLiteral("Validate Source 1 Failure Test"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<QString> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<QString> {
             if (ctx) {
                 ctx->info("Starting validation");
                 ctx->error("gameinfo.txt not found");
             }
-            return TaskResult<QString>::failure(ErrorCode::FileNotFound, QStringLiteral("gameinfo.txt not found"));
+            return Result<QString>::failure(ErrorCode::FileNotFound, QStringLiteral("gameinfo.txt not found"));
         },
-        [&callbackFired](const TaskResult<QString>& res) {
+        [&callbackFired](const Result<QString>& res) {
             QVERIFY(res.isFailure());
             callbackFired.store(true);
         });
@@ -652,18 +654,18 @@ void TestAsyncTaskLogging::testSemanticBusinessFailureDetection()
     QTRY_COMPARE(logVm->taskCount(), 1);
     QTRY_COMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
 
-    // 2. Worker returning TaskResult<void>::failure
+    // 2. Worker returning Result<void>::failure
     std::atomic<bool> failureCallbackFired{false};
     AsyncTaskRunner::runTask<void>(
         QStringLiteral("Void Failure Test"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<void> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<void> {
             if (ctx) {
                 ctx->info("Checking condition");
             }
-            return TaskResult<void>::failure(ErrorCode::OperationFailed, QStringLiteral("Condition failed"));
+            return Result<void>::failure(ErrorCode::OperationFailed, QStringLiteral("Condition failed"));
         },
-        [&failureCallbackFired](const TaskResult<void>& res) {
+        [&failureCallbackFired](const Result<void>& res) {
             QVERIFY(res.isFailure());
             failureCallbackFired.store(true);
         });
@@ -677,14 +679,14 @@ void TestAsyncTaskLogging::testSemanticBusinessFailureDetection()
     AsyncTaskRunner::runTask<QString>(
         QStringLiteral("Successful Validation Test"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<QString> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<QString> {
             if (ctx) {
                 ctx->info("Starting validation");
                 ctx->info("Validation succeeded");
             }
-            return TaskResult<QString>::success(QStringLiteral("Valid Installation"));
+            return Result<QString>::success(QStringLiteral("Valid Installation"));
         },
-        [&successCallbackFired](const TaskResult<QString>& res) {
+        [&successCallbackFired](const Result<QString>& res) {
             QVERIFY(res.isSuccess());
             successCallbackFired.store(true);
         });
@@ -696,23 +698,23 @@ void TestAsyncTaskLogging::testSemanticBusinessFailureDetection()
     logVm->unregisterFromLogManager();
 }
 
-void TestAsyncTaskLogging::testTaskResultOutcomes()
+void TestAsyncTaskLogging::testResultOutcomes()
 {
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
-    // 1. TaskResult::success
+    // 1. Result::success
     std::atomic<bool> successFired{false};
     AsyncTaskRunner::runTask<int>(
-        QStringLiteral("TaskResult Success"),
+        QStringLiteral("Result Success"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->info("Step 1 done");
             }
-            return TaskResult<int>::success(100);
+            return Result<int>::success(100);
         },
-        [&successFired](const TaskResult<int>& res) {
+        [&successFired](const Result<int>& res) {
             QVERIFY(res.isSuccess());
             QCOMPARE(res.value(), 100);
             successFired.store(true);
@@ -721,18 +723,18 @@ void TestAsyncTaskLogging::testTaskResultOutcomes()
     QTRY_COMPARE(logVm->taskCount(), 1);
     QTRY_COMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
 
-    // 2. TaskResult::failure with partial value
+    // 2. Result::failure with partial value
     std::atomic<bool> failureFired{false};
     AsyncTaskRunner::runTask<int>(
-        QStringLiteral("TaskResult Failure"),
+        QStringLiteral("Result Failure"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->info("Step failed");
             }
-            return TaskResult<int>::failure(ErrorCode::FileNotFound, QStringLiteral("Asset not found"), QString(), 50);
+            return Result<int>::failure(ErrorCode::FileNotFound, QStringLiteral("Asset not found"), QString(), 50);
         },
-        [&failureFired](const TaskResult<int>& res) {
+        [&failureFired](const Result<int>& res) {
             QVERIFY(res.isFailure());
             QCOMPARE(res.message(), QStringLiteral("Asset not found"));
             QVERIFY(res.hasValue());
@@ -743,18 +745,18 @@ void TestAsyncTaskLogging::testTaskResultOutcomes()
     QTRY_COMPARE(logVm->taskCount(), 2);
     QTRY_COMPARE(logVm->data(logVm->index(1, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
 
-    // 3. TaskResult::cancelled
+    // 3. Result::cancelled
     std::atomic<bool> cancelFired{false};
     AsyncTaskRunner::runTask<QString>(
-        QStringLiteral("TaskResult Cancelled"),
+        QStringLiteral("Result Cancelled"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<QString> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<QString> {
             if (ctx) {
                 ctx->info("User requested cancellation");
             }
-            return TaskResult<QString>::cancelled(QStringLiteral("User aborted import"));
+            return Result<QString>::cancelled(QStringLiteral("User aborted import"));
         },
-        [&cancelFired](const TaskResult<QString>& res) {
+        [&cancelFired](const Result<QString>& res) {
             QVERIFY(res.isCancelled());
             cancelFired.store(true);
         });
@@ -762,18 +764,18 @@ void TestAsyncTaskLogging::testTaskResultOutcomes()
     QTRY_COMPARE(logVm->taskCount(), 3);
     QTRY_COMPARE(logVm->data(logVm->index(2, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("CANCELLED"));
 
-    // 4. TaskResult::skipped
+    // 4. Result::skipped
     std::atomic<bool> skipFired{false};
     AsyncTaskRunner::runTask<void>(
-        QStringLiteral("TaskResult Skipped"),
+        QStringLiteral("Result Skipped"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<void> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<void> {
             if (ctx) {
                 ctx->info("Asset already up to date, skipping");
             }
-            return TaskResult<void>::skipped(QStringLiteral("Already compiled"));
+            return Result<void>::skipped(QStringLiteral("Already compiled"));
         },
-        [&skipFired](const TaskResult<void>& res) {
+        [&skipFired](const Result<void>& res) {
             QVERIFY(res.isSkipped());
             skipFired.store(true);
         });
@@ -784,11 +786,11 @@ void TestAsyncTaskLogging::testTaskResultOutcomes()
     logVm->unregisterFromLogManager();
 }
 
-void TestAsyncTaskLogging::testStructuredTaskResultPayload()
+void TestAsyncTaskLogging::testStructuredResultPayload()
 {
-    // 1. TaskResult<T> with structured Error
+    // 1. Result<T> with structured Error
     Error err(ErrorCode::FileNotFound, QStringLiteral("materials/models/player/custom.vmt"), QStringLiteral("File lease missing"));
-    auto res = TaskResult<int>::failure(err, 12);
+    auto res = Result<int>::failure(err, 12);
     QVERIFY(res.isFailure());
     QCOMPARE(res.errorCode(), ErrorCode::FileNotFound);
     QCOMPARE(res.error().code(), ErrorCode::FileNotFound);
@@ -797,8 +799,8 @@ void TestAsyncTaskLogging::testStructuredTaskResultPayload()
     QVERIFY(res.hasValue());
     QCOMPARE(res.value(), 12);
 
-    // 2. TaskResult<void> with ErrorCode and string
-    auto voidRes = TaskResult<void>::failure(ErrorCode::DirectoryNotFound, QStringLiteral("csgo/maps directory missing"));
+    // 2. Result<void> with ErrorCode and string
+    auto voidRes = Result<void>::failure(ErrorCode::DirectoryNotFound, QStringLiteral("csgo/maps directory missing"));
     QVERIFY(voidRes.isFailure());
     QCOMPARE(voidRes.errorCode(), ErrorCode::DirectoryNotFound);
     QCOMPARE(voidRes.message(), QStringLiteral("csgo/maps directory missing"));
@@ -844,17 +846,17 @@ void TestAsyncTaskLogging::testInvalidParentTaskRejection()
     // 1. Calling runChildTask with an invalid non-existent parentTaskId (e.g. 999999)
     std::atomic<bool> workerRan{false};
     std::atomic<bool> callbackFired{false};
-    TaskResult<int> receivedResult;
+    Result<int> receivedResult;
 
     AsyncTaskRunner::runChildTask<int>(
         999999, // non-existent parent ID
         QStringLiteral("Orphaned Child Task"),
         this,
-        [&workerRan](std::shared_ptr<TaskLoggingContext>) -> TaskResult<int> {
+        [&workerRan](std::shared_ptr<TaskLoggingContext>) -> Result<int> {
             workerRan.store(true);
-            return TaskResult<int>::success(42);
+            return Result<int>::success(42);
         },
-        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+        [&callbackFired, &receivedResult](const Result<int>& res) {
             receivedResult = res;
             callbackFired.store(true);
         });
@@ -870,17 +872,17 @@ void TestAsyncTaskLogging::testInvalidParentTaskRejection()
     // 2. Calling runChildTask<void> with an invalid non-existent parentTaskId
     std::atomic<bool> voidWorkerRan{false};
     std::atomic<bool> voidCallbackFired{false};
-    TaskResult<void> voidResult;
+    Result<void> voidResult;
 
     AsyncTaskRunner::runChildTask<void>(
         888888, // non-existent parent ID
         QStringLiteral("Orphaned Void Task"),
         this,
-        [&voidWorkerRan](std::shared_ptr<TaskLoggingContext>) -> TaskResult<void> {
+        [&voidWorkerRan](std::shared_ptr<TaskLoggingContext>) -> Result<void> {
             voidWorkerRan.store(true);
-            return TaskResult<void>::success();
+            return Result<void>::success();
         },
-        [&voidCallbackFired, &voidResult](const TaskResult<void>& res) {
+        [&voidCallbackFired, &voidResult](const Result<void>& res) {
             voidResult = res;
             voidCallbackFired.store(true);
         });
@@ -899,15 +901,15 @@ void TestAsyncTaskLogging::testLoggedErrorForcesTaskFailure()
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Success With Logged Error Task"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->info("Beginning work...");
                 ctx->error("Unrecoverable sub-step failed!");
             }
             // Even though worker returns success, logged error must force task state to FAILED
-            return TaskResult<int>::success(42);
+            return Result<int>::success(42);
         },
-        [&callbackFired](const TaskResult<int>& res) {
+        [&callbackFired](const Result<int>& res) {
             QVERIFY(res.isFailure());
             QCOMPARE(res.value(), 42); // Partial value preserved
             callbackFired.store(true);
@@ -929,14 +931,14 @@ void TestAsyncTaskLogging::testLoggedWarningPreservesTaskCompleted()
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Success With Warning Task"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->info("Beginning work...");
                 ctx->warning("Recoverable warning occurred, continuing with fallback.");
             }
-            return TaskResult<int>::success(42);
+            return Result<int>::success(42);
         },
-        [&callbackFired](const TaskResult<int>& res) {
+        [&callbackFired](const Result<int>& res) {
             QVERIFY(res.isSuccess());
             callbackFired.store(true);
         });
@@ -958,13 +960,13 @@ void TestAsyncTaskLogging::testRunTaskAndChildTaskApi()
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("RunTask Integer Test"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->info("Computing value in runTask...");
             }
-            return TaskResult<int>::success(12345);
+            return Result<int>::success(12345);
         },
-        [&runTaskFired](const TaskResult<int>& res) {
+        [&runTaskFired](const Result<int>& res) {
             QVERIFY(res.isSuccess());
             QCOMPARE(res.value(), 12345);
             runTaskFired.store(true);
@@ -979,13 +981,13 @@ void TestAsyncTaskLogging::testRunTaskAndChildTaskApi()
     AsyncTaskRunner::runTask<void>(
         QStringLiteral("RunTask Void Test"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<void> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<void> {
             if (ctx) {
                 ctx->info("Executing void operation...");
             }
-            return TaskResult<void>::success(QStringLiteral("Void operation succeeded"));
+            return Result<void>::success(QStringLiteral("Void operation succeeded"));
         },
-        [&voidTaskFired](const TaskResult<void>& res) {
+        [&voidTaskFired](const Result<void>& res) {
             QVERIFY(res.isSuccess());
             voidTaskFired.store(true);
         });
@@ -1003,13 +1005,13 @@ void TestAsyncTaskLogging::testRunTaskAndChildTaskApi()
         rootContext->taskId(),
         QStringLiteral("Child Task Via runChildTask"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<QString> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<QString> {
             if (ctx) {
                 ctx->info("Child task executing...");
             }
-            return TaskResult<QString>::success(QStringLiteral("Child Result Data"));
+            return Result<QString>::success(QStringLiteral("Child Result Data"));
         },
-        [&childTaskFired](const TaskResult<QString>& res) {
+        [&childTaskFired](const Result<QString>& res) {
             QVERIFY(res.isSuccess());
             QCOMPARE(res.value(), QStringLiteral("Child Result Data"));
             childTaskFired.store(true);
@@ -1021,24 +1023,71 @@ void TestAsyncTaskLogging::testRunTaskAndChildTaskApi()
     logVm->unregisterFromLogManager();
 }
 
-void TestAsyncTaskLogging::testExplicitFailWithTaskResultSuccessContradiction()
+void TestAsyncTaskLogging::testRunBackgroundApi()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    // 1. runBackground with void return (normal success)
+    AsyncTaskRunner::runBackground(
+        QStringLiteral("Background Void Test"),
+        [](std::shared_ptr<TaskLoggingContext> ctx) {
+            if (ctx) {
+                ctx->info("Executing void background work...");
+            }
+        });
+
+    QTRY_COMPARE_WITH_TIMEOUT(logVm->taskCount(), 1, 3000);
+    QTRY_COMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+
+    // 2. runBackground with Result<void> return (failure outcome)
+    AsyncTaskRunner::runBackground(
+        QStringLiteral("Background Result Failure Test"),
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<void> {
+            if (ctx) {
+                ctx->info("Executing failing background task...");
+            }
+            return Result<void>::failure(ErrorCode::OperationFailed, "Background operation failed");
+        });
+
+    QTRY_COMPARE_WITH_TIMEOUT(logVm->taskCount(), 2, 3000);
+    QTRY_COMPARE(logVm->data(logVm->index(1, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+
+    // 3. runBackground with Exception throw (structured error)
+    AsyncTaskRunner::runBackground(
+        QStringLiteral("Background Exception Test"),
+        [](std::shared_ptr<TaskLoggingContext> ctx) {
+            if (ctx) {
+                ctx->info("About to throw exception in background...");
+            }
+            throw Core::Error::Exception(
+                Error::fileNotFound("Missing background file", "C:/test/file.vpk"));
+        });
+
+    QTRY_COMPARE_WITH_TIMEOUT(logVm->taskCount(), 3, 3000);
+    QTRY_COMPARE(logVm->data(logVm->index(2, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testExplicitFailWithResultSuccessContradiction()
 {
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
     std::atomic<bool> callbackFired{false};
-    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+    Result<int> receivedResult = Result<int>::success(0);
 
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Contradiction Fail + Success"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->fail("Worker explicit failure");
             }
-            return TaskResult<int>::success(42);
+            return Result<int>::success(42);
         },
-        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+        [&callbackFired, &receivedResult](const Result<int>& res) {
             receivedResult = res;
             callbackFired.store(true);
         });
@@ -1056,24 +1105,24 @@ void TestAsyncTaskLogging::testExplicitFailWithTaskResultSuccessContradiction()
     logVm->unregisterFromLogManager();
 }
 
-void TestAsyncTaskLogging::testExplicitCancelWithTaskResultSuccessContradiction()
+void TestAsyncTaskLogging::testExplicitCancelWithResultSuccessContradiction()
 {
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
     std::atomic<bool> callbackFired{false};
-    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+    Result<int> receivedResult = Result<int>::success(0);
 
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Contradiction Cancel + Success"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->cancel("Worker explicit cancel");
             }
-            return TaskResult<int>::success(42);
+            return Result<int>::success(42);
         },
-        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+        [&callbackFired, &receivedResult](const Result<int>& res) {
             receivedResult = res;
             callbackFired.store(true);
         });
@@ -1091,24 +1140,24 @@ void TestAsyncTaskLogging::testExplicitCancelWithTaskResultSuccessContradiction(
     logVm->unregisterFromLogManager();
 }
 
-void TestAsyncTaskLogging::testExplicitSkipWithTaskResultSuccessContradiction()
+void TestAsyncTaskLogging::testExplicitSkipWithResultSuccessContradiction()
 {
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
     std::atomic<bool> callbackFired{false};
-    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+    Result<int> receivedResult = Result<int>::success(0);
 
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Contradiction Skip + Success"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->skip("Worker explicit skip");
             }
-            return TaskResult<int>::success(42);
+            return Result<int>::success(42);
         },
-        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+        [&callbackFired, &receivedResult](const Result<int>& res) {
             receivedResult = res;
             callbackFired.store(true);
         });
@@ -1126,24 +1175,24 @@ void TestAsyncTaskLogging::testExplicitSkipWithTaskResultSuccessContradiction()
     logVm->unregisterFromLogManager();
 }
 
-void TestAsyncTaskLogging::testExplicitCompleteWithTaskResultFailureContradiction()
+void TestAsyncTaskLogging::testExplicitCompleteWithResultFailureContradiction()
 {
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
     std::atomic<bool> callbackFired{false};
-    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+    Result<int> receivedResult = Result<int>::success(0);
 
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Contradiction Complete + Failure"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->complete("Worker completed early");
             }
-            return TaskResult<int>::failure(ErrorCode::OperationFailed, QStringLiteral("Fatal backend error"), QString(), 10);
+            return Result<int>::failure(ErrorCode::OperationFailed, QStringLiteral("Fatal backend error"), QString(), 10);
         },
-        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+        [&callbackFired, &receivedResult](const Result<int>& res) {
             receivedResult = res;
             callbackFired.store(true);
         });
@@ -1161,24 +1210,24 @@ void TestAsyncTaskLogging::testExplicitCompleteWithTaskResultFailureContradictio
     logVm->unregisterFromLogManager();
 }
 
-void TestAsyncTaskLogging::testExplicitCancelWithTaskResultSkippedContradiction()
+void TestAsyncTaskLogging::testExplicitCancelWithResultSkippedContradiction()
 {
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
     std::atomic<bool> callbackFired{false};
-    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+    Result<int> receivedResult = Result<int>::success(0);
 
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Contradiction Cancel + Skipped"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->cancel("Worker explicit cancel");
             }
-            return TaskResult<int>::skipped(QStringLiteral("Worker returned skipped"), 42);
+            return Result<int>::skipped(QStringLiteral("Worker returned skipped"), 42);
         },
-        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+        [&callbackFired, &receivedResult](const Result<int>& res) {
             receivedResult = res;
             callbackFired.store(true);
         });
@@ -1196,24 +1245,24 @@ void TestAsyncTaskLogging::testExplicitCancelWithTaskResultSkippedContradiction(
     logVm->unregisterFromLogManager();
 }
 
-void TestAsyncTaskLogging::testExplicitSkipWithTaskResultCancelledContradiction()
+void TestAsyncTaskLogging::testExplicitSkipWithResultCancelledContradiction()
 {
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
     std::atomic<bool> callbackFired{false};
-    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+    Result<int> receivedResult = Result<int>::success(0);
 
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Contradiction Skip + Cancelled"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->skip("Worker explicit skip");
             }
-            return TaskResult<int>::cancelled(QStringLiteral("Worker cancelled"), 42);
+            return Result<int>::cancelled(QStringLiteral("Worker cancelled"), 42);
         },
-        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+        [&callbackFired, &receivedResult](const Result<int>& res) {
             receivedResult = res;
             callbackFired.store(true);
         });
@@ -1231,24 +1280,24 @@ void TestAsyncTaskLogging::testExplicitSkipWithTaskResultCancelledContradiction(
     logVm->unregisterFromLogManager();
 }
 
-void TestAsyncTaskLogging::testExplicitFailWithTaskResultCancelledContradiction()
+void TestAsyncTaskLogging::testExplicitFailWithResultCancelledContradiction()
 {
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
     std::atomic<bool> callbackFired{false};
-    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+    Result<int> receivedResult = Result<int>::success(0);
 
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Contradiction Fail + Cancelled"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->fail("Worker explicit failure");
             }
-            return TaskResult<int>::cancelled(QStringLiteral("Worker cancelled"), 42);
+            return Result<int>::cancelled(QStringLiteral("Worker cancelled"), 42);
         },
-        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+        [&callbackFired, &receivedResult](const Result<int>& res) {
             receivedResult = res;
             callbackFired.store(true);
         });
@@ -1266,24 +1315,24 @@ void TestAsyncTaskLogging::testExplicitFailWithTaskResultCancelledContradiction(
     logVm->unregisterFromLogManager();
 }
 
-void TestAsyncTaskLogging::testExplicitFailWithTaskResultSkippedContradiction()
+void TestAsyncTaskLogging::testExplicitFailWithResultSkippedContradiction()
 {
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
     std::atomic<bool> callbackFired{false};
-    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+    Result<int> receivedResult = Result<int>::success(0);
 
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Contradiction Fail + Skipped"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->fail("Worker explicit failure");
             }
-            return TaskResult<int>::skipped(QStringLiteral("Worker skipped"), 42);
+            return Result<int>::skipped(QStringLiteral("Worker skipped"), 42);
         },
-        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+        [&callbackFired, &receivedResult](const Result<int>& res) {
             receivedResult = res;
             callbackFired.store(true);
         });
@@ -1301,24 +1350,24 @@ void TestAsyncTaskLogging::testExplicitFailWithTaskResultSkippedContradiction()
     logVm->unregisterFromLogManager();
 }
 
-void TestAsyncTaskLogging::testExplicitCancelWithTaskResultFailureContradiction()
+void TestAsyncTaskLogging::testExplicitCancelWithResultFailureContradiction()
 {
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
     std::atomic<bool> callbackFired{false};
-    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+    Result<int> receivedResult = Result<int>::success(0);
 
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Contradiction Cancel + Failure"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->cancel("Worker explicit cancel");
             }
-            return TaskResult<int>::failure(ErrorCode::OperationFailed, QStringLiteral("Fatal error during cancel cleanup"), QString(), 42);
+            return Result<int>::failure(ErrorCode::OperationFailed, QStringLiteral("Fatal error during cancel cleanup"), QString(), 42);
         },
-        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+        [&callbackFired, &receivedResult](const Result<int>& res) {
             receivedResult = res;
             callbackFired.store(true);
         });
@@ -1336,24 +1385,24 @@ void TestAsyncTaskLogging::testExplicitCancelWithTaskResultFailureContradiction(
     logVm->unregisterFromLogManager();
 }
 
-void TestAsyncTaskLogging::testExplicitSkipWithTaskResultFailureContradiction()
+void TestAsyncTaskLogging::testExplicitSkipWithResultFailureContradiction()
 {
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
     std::atomic<bool> callbackFired{false};
-    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+    Result<int> receivedResult = Result<int>::success(0);
 
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Contradiction Skip + Failure"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->skip("Worker explicit skip");
             }
-            return TaskResult<int>::failure(ErrorCode::OperationFailed, QStringLiteral("Fatal error during skip check"), QString(), 42);
+            return Result<int>::failure(ErrorCode::OperationFailed, QStringLiteral("Fatal error during skip check"), QString(), 42);
         },
-        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+        [&callbackFired, &receivedResult](const Result<int>& res) {
             receivedResult = res;
             callbackFired.store(true);
         });
@@ -1371,24 +1420,24 @@ void TestAsyncTaskLogging::testExplicitSkipWithTaskResultFailureContradiction()
     logVm->unregisterFromLogManager();
 }
 
-void TestAsyncTaskLogging::testExplicitCompleteWithTaskResultCancelledContradiction()
+void TestAsyncTaskLogging::testExplicitCompleteWithResultCancelledContradiction()
 {
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
     std::atomic<bool> callbackFired{false};
-    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+    Result<int> receivedResult = Result<int>::success(0);
 
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Contradiction Complete + Cancelled"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->complete("Worker completed early");
             }
-            return TaskResult<int>::cancelled(QStringLiteral("Worker cancelled"), 42);
+            return Result<int>::cancelled(QStringLiteral("Worker cancelled"), 42);
         },
-        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+        [&callbackFired, &receivedResult](const Result<int>& res) {
             receivedResult = res;
             callbackFired.store(true);
         });
@@ -1406,24 +1455,24 @@ void TestAsyncTaskLogging::testExplicitCompleteWithTaskResultCancelledContradict
     logVm->unregisterFromLogManager();
 }
 
-void TestAsyncTaskLogging::testExplicitCompleteWithTaskResultSkippedContradiction()
+void TestAsyncTaskLogging::testExplicitCompleteWithResultSkippedContradiction()
 {
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
     std::atomic<bool> callbackFired{false};
-    TaskResult<int> receivedResult = TaskResult<int>::success(0);
+    Result<int> receivedResult = Result<int>::success(0);
 
     AsyncTaskRunner::runTask<int>(
         QStringLiteral("Contradiction Complete + Skipped"),
         this,
-        [](std::shared_ptr<TaskLoggingContext> ctx) -> TaskResult<int> {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<int> {
             if (ctx) {
                 ctx->complete("Worker completed early");
             }
-            return TaskResult<int>::skipped(QStringLiteral("Worker skipped"), 42);
+            return Result<int>::skipped(QStringLiteral("Worker skipped"), 42);
         },
-        [&callbackFired, &receivedResult](const TaskResult<int>& res) {
+        [&callbackFired, &receivedResult](const Result<int>& res) {
             receivedResult = res;
             callbackFired.store(true);
         });

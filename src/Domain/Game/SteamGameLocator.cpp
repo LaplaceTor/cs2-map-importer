@@ -65,7 +65,7 @@ std::vector<ResolvedGameInstallation> SteamGameLocator::resolveGamesInLibrary(
                     continue;
                 }
 
-                Core::Async::TaskResult<ResolvedGameInstallation> resolved;
+                Core::Result<ResolvedGameInstallation> resolved;
                 if (def->isSource2()) {
                     resolved = GameInstallationResolver::resolveSource2(candidateDir, def->type);
                 } else {
@@ -107,7 +107,7 @@ std::optional<ResolvedGameInstallation> SteamGameLocator::resolveGameInLibrary(
                 continue;
             }
 
-            Core::Async::TaskResult<ResolvedGameInstallation> resolved;
+            Core::Result<ResolvedGameInstallation> resolved;
             if (def->isSource2()) {
                 resolved = GameInstallationResolver::resolveSource2(candidateDir, type);
             } else {
