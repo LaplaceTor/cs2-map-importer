@@ -52,7 +52,13 @@ std::vector<ResolvedGameInstallation> SteamGameLocator::resolveGamesInLibrary(
             continue;
         }
 
-        QString installDirName = installDirReader ? installDirReader(libraryPath, appId) : QString();
+        QString installDirName;
+        if (installDirReader) {
+            auto dirRes = installDirReader(libraryPath, appId);
+            if (dirRes.isSuccess()) {
+                installDirName = dirRes.value();
+            }
+        }
         auto candidateDirs = locateCandidateDirectories(libraryPath, appId, installDirName);
 
         for (const auto* def : defs) {
@@ -99,7 +105,13 @@ std::optional<ResolvedGameInstallation> SteamGameLocator::resolveGameInLibrary(
     }
 
     for (int appId : def->allAppIds) {
-        QString installDirName = installDirReader ? installDirReader(libraryPath, appId) : QString();
+        QString installDirName;
+        if (installDirReader) {
+            auto dirRes = installDirReader(libraryPath, appId);
+            if (dirRes.isSuccess()) {
+                installDirName = dirRes.value();
+            }
+        }
         auto candidateDirs = locateCandidateDirectories(libraryPath, appId, installDirName);
 
         for (const auto& candidateDir : candidateDirs) {

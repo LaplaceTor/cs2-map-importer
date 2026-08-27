@@ -4,6 +4,7 @@
 #include "Domain/Game/GameRegistry.h"
 #include "Domain/Game/GameType.h"
 #include "Core/Path/FilesystemPath.h"
+#include "Core/Result/Result.h"
 #include <functional>
 #include <optional>
 #include <vector>
@@ -16,7 +17,7 @@ namespace Domain::Game {
  */
 class SteamGameLocator {
 public:
-    using InstallDirReaderFn = std::function<QString(const Core::Path::FilesystemPath& libraryPath, int appId)>;
+    using InstallDirReaderFn = std::function<Core::Result<QString>(const Core::Path::FilesystemPath& libraryPath, int appId)>;
 
     /**
      * @brief Resolves candidate game root paths in a Steam library for an AppId.

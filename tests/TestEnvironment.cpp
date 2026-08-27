@@ -3,6 +3,7 @@
 #include <QTemporaryDir>
 #include <QFile>
 #include "Application/Environment/SteamService.h"
+#include "Application/Environment/SteamLibraryDetector.h"
 #include "Application/Environment/GameDetectService.h"
 #include "Application/Environment/GameInstallationValidator.h"
 #include "Application/Environment/GameEnvironmentService.h"
@@ -42,7 +43,7 @@ private slots:
     }
 
     void testSteamRegistryDetection() {
-        auto steamRes = SteamService::detectSteamInstallPath();
+        auto steamRes = SteamLibraryDetector::detectSteamInstallPath();
         // On Windows systems where Steam is installed, this must find a valid directory
         if (steamRes.isSuccess()) {
             QVERIFY(steamRes.value().isValid());
@@ -54,7 +55,7 @@ private slots:
     }
 
     void testSteamLibraryDetection() {
-        auto libRes = SteamService::detectLibraries();
+        auto libRes = SteamLibraryDetector::detectLibraries();
         if (!libRes.isSuccess()) {
             QSKIP("No Steam libraries detected on this system, skipping live library tests.");
         }
@@ -288,7 +289,7 @@ private slots:
         );
         vdfFile.close();
 
-        auto libRes = SteamService::parseLibraryFolders(Core::Path::FilesystemPath(vdfPath));
+        auto libRes = SteamLibraryDetector::parseLibraryFolders(Core::Path::FilesystemPath(vdfPath));
         QVERIFY(libRes.isSuccess());
         const auto& libraries = libRes.value();
         QCOMPARE(libraries.size(), static_cast<size_t>(1));
@@ -313,12 +314,12 @@ private slots:
         vdfFile.close();
 
         // 1. parseLibraryFolders directly on corrupted file must return Failure
-        auto parseRes = SteamService::parseLibraryFolders(Core::Path::FilesystemPath(vdfPath));
+        auto parseRes = SteamLibraryDetector::parseLibraryFolders(Core::Path::FilesystemPath(vdfPath));
         QVERIFY(parseRes.isFailure());
         QCOMPARE(parseRes.message(), QStringLiteral("Failed to parse libraryfolders.vdf"));
 
         // 2. detectLibraries on directory containing corrupted VDF must NOT silently fall back, but fail
-        auto detectRes = SteamService::detectLibraries(Core::Path::FilesystemPath(tempSteamDir.path()));
+        auto detectRes = SteamLibraryDetector::detectLibraries(Core::Path::FilesystemPath(tempSteamDir.path()));
         QVERIFY(detectRes.isFailure());
         QCOMPARE(detectRes.message(), QStringLiteral("Failed to parse Steam library configuration"));
 
@@ -329,10 +330,18 @@ private slots:
 
         // 4. In contrast, when libraryfolders.vdf does not exist at all, detectLibraries falls back to root
         QVERIFY(QFile::remove(vdfPath));
-        auto fallbackRes = SteamService::detectLibraries(Core::Path::FilesystemPath(tempSteamDir.path()));
+        auto fallbackRes = SteamLibraryDetector::detectLibraries(Core::Path::FilesystemPath(tempSteamDir.path()));
         QVERIFY(fallbackRes.isSuccess());
         QCOMPARE(fallbackRes.value().size(), static_cast<size_t>(1));
         QCOMPARE(fallbackRes.value()[0].path.toString(), Core::Path::PathUtils::normalize(tempSteamDir.path()));
+
+        // 5. Valid empty libraryfolders.vdf returns success with empty library list (no fallback)
+        QVERIFY(vdfFile.open(QIODevice::WriteOnly | QIODevice::Text));
+        vdfFile.write("\"libraryfolders\" { }\n");
+        vdfFile.close();
+        auto validEmptyRes = SteamLibraryDetector::detectLibraries(Core::Path::FilesystemPath(tempSteamDir.path()));
+        QVERIFY(validEmptyRes.isSuccess());
+        QVERIFY(validEmptyRes.value().empty());
     }
 
     void testGameInstallationSource2Paths() {
@@ -584,22 +593,22 @@ private slots:
     }
 
     void testApplicationHelperExceptionBubbling() {
-        // 1. SteamService methods with invalid inputs return structured Result::failure with ErrorCode and details
-        auto emptyLibs = SteamService::detectLibraries(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/SteamRoot")));
+        // 1. SteamLibraryDetector methods with invalid inputs return structured Result::failure with ErrorCode and details
+        auto emptyLibs = SteamLibraryDetector::detectLibraries(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/SteamRoot")));
         QVERIFY(emptyLibs.isFailure());
         QCOMPARE(emptyLibs.errorCode(), Core::Error::ErrorCode::DirectoryNotFound);
         QVERIFY(!emptyLibs.details().isEmpty());
 
-        auto emptyParse = SteamService::parseLibraryFolders(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/libraryfolders.vdf")));
+        auto emptyParse = SteamLibraryDetector::parseLibraryFolders(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/libraryfolders.vdf")));
         QVERIFY(emptyParse.isFailure());
         QCOMPARE(emptyParse.errorCode(), Core::Error::ErrorCode::FileNotFound);
         QVERIFY(!emptyParse.details().isEmpty());
 
-        auto emptyAppDir = SteamService::readAppInstallDir(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/Lib")), 730);
+        auto emptyAppDir = SteamLibraryDetector::readAppInstallDir(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/Lib")), 730);
         QVERIFY(emptyAppDir.isFailure());
         QCOMPARE(emptyAppDir.errorCode(), Core::Error::ErrorCode::DirectoryNotFound);
 
-        auto emptyAppName = SteamService::readAppName(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/Lib")), 730);
+        auto emptyAppName = SteamLibraryDetector::readAppName(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/Lib")), 730);
         QVERIFY(emptyAppName.isFailure());
         QCOMPARE(emptyAppName.errorCode(), Core::Error::ErrorCode::DirectoryNotFound);
 

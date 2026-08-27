@@ -9,10 +9,6 @@
 #include "Domain/Game/GameType.h"
 #include "Domain/Game/GameInstallationResolver.h"
 #include "Core/Path/PathUtils.h"
-#include <QDir>
-#include <QMetaObject>
-#include <QPointer>
-#include <QThreadPool>
 #include <QUrl>
 #include <utility>
 

@@ -50,7 +50,7 @@ Core::Result<DetectionResult> GameDetectService::detectEnvironment(
 {
     return Application::Execution::ExecutionGuard::guard<DetectionResult>([&]() -> Core::Result<DetectionResult> {
         DetectionResult result;
-        auto libRes = SteamService::detectLibraries(customSteamPath, logCtx);
+        auto libRes = SteamLibraryDetector::detectLibraries(customSteamPath, logCtx);
         if (!libRes.isSuccess()) {
             // 1. Explicit customSteamPath was provided but failed -> Fatal Failure
             if (customSteamPath.isValid()) {
@@ -117,8 +117,7 @@ Core::Result<DetectionResult> GameDetectService::detectEnvironment(
                 lib.path,
                 lib.installedAppIds,
                 [](const Core::Path::FilesystemPath& lPath, int appId) {
-                    auto res = SteamService::readAppInstallDir(lPath, appId);
-                    return res.isSuccess() ? res.value() : QString();
+                    return SteamLibraryDetector::readAppInstallDir(lPath, appId);
                 });
 
             for (const auto& resolved : resolvedList) {
@@ -164,7 +163,7 @@ Core::Result<GameInstallation> GameDetectService::detectGame(
                 QStringLiteral("Cannot detect games with Unknown or Custom type in Steam libraries"));
         }
 
-        auto libRes = SteamService::detectLibraries(customSteamPath, logCtx);
+        auto libRes = SteamLibraryDetector::detectLibraries(customSteamPath, logCtx);
         if (!libRes.isSuccess()) {
             return Core::Result<GameInstallation>::failure(
                 libRes.error(),
@@ -187,8 +186,7 @@ Core::Result<GameInstallation> GameDetectService::detectGame(
                 lib.path,
                 type,
                 [](const Core::Path::FilesystemPath& lPath, int appId) {
-                    auto res = SteamService::readAppInstallDir(lPath, appId);
-                    return res.isSuccess() ? res.value() : QString();
+                    return SteamLibraryDetector::readAppInstallDir(lPath, appId);
                 });
 
             if (optResolved.has_value()) {
