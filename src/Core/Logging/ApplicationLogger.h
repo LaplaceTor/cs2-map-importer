@@ -41,6 +41,18 @@ public:
      */
     static QString logFilePath();
 
+    /**
+     * @brief Installs a global Qt message handler redirecting qDebug/qInfo/qWarning/qCritical to ApplicationLogger.
+     * Automatically invoked by initialize().
+     */
+    static void installQtMessageHandler();
+
+    /**
+     * @brief Uninstalls the Qt message handler and restores default handling.
+     * Automatically invoked by shutdown().
+     */
+    static void uninstallQtMessageHandler();
+
     static void debug(const QString& message);
     static void info(const QString& message);
     static void warning(const QString& message);

@@ -53,7 +53,10 @@ int main(int argc, char *argv[])
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
                      &app, [](QObject *obj, const QUrl &objUrl) {
         if (!obj) {
+            Core::Logging::ApplicationLogger::error(QStringLiteral("Failed to load QML root object from URL: %1").arg(objUrl.toString()));
             QCoreApplication::exit(-1);
+        } else {
+            Core::Logging::ApplicationLogger::info(QStringLiteral("QML root object loaded successfully: %1").arg(objUrl.toString()));
         }
     }, Qt::QueuedConnection);
 

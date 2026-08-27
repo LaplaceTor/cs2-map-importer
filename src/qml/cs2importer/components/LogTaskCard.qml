@@ -5,50 +5,36 @@ import QtQuick.Layouts
 Rectangle {
     id: rootCard
 
-    required property var owningModel
-    required property int index
-    required property int depth
-    required property string taskName
-    required property string stateString
-    required property double progress
-    required property bool expanded
-    required property int messageCount
-    required property int subTasksCount
-    required property bool hasSubTasks
-    required property var messagesModel
-    required property var subTasksModel
-
-    width: parent ? parent.width : 0
-    color: depth > 0 ? "#1C1C1C" : "#212121"
-    border.color: expanded ? (depth > 0 ? "#383838" : "#424242") : "#282828"
-    border.width: 1
-    radius: 4
-
-    implicitHeight: cardContent.implicitHeight + 12
-
-    ColumnLayout {
+    property var owningModel: null
+    property int cardIndex: (typeof index !== "undefined") ? index : 0
+    property int cardDepth: (typeof model !== "undefined" && model && model.depth !== undefined) ? model.depth : 0
+    property string taskName: (typeof model !== "undefined" && model && model.taskName !== undefined) ? model.taskName : ""
+    property string stateString: (typeof model !== "undefined" && model && model.stateString !== undefined) ? model.stateString : ""
+    property double progress: (typeof model !== "undefined" && model && model.progress !== undefined) ? model.progress : 0.0
+    property bool expanded: (typeof model !== "undefined" && model && model.expanded !== undefined) ? model.expanded : true
+    property int messageCount: (typeof model !== "undefined" && model && model.messageCount !== undefined) ? model.messageCount : 0
+    property int subTasksCount: (typeof model !== "undefined" && model && model.subTasksCount !== undefined) ? model.subTasksCount : 0
+    property bool hasSubTasks: (typeof model !== "undefined" && model && model.hasSubTasks !== undefined) ? model.hasSubTasks : false
+    property var messagesModel: (typeof model !== "undefined" && model && model.messagesModel !== undefined) ? model.messagesModel : null
+    property var subTasksModel: (typeof model !== "undefined" && model && model.subTasksModel !== undefined) ? model.subTasksModel : null
         id: cardContent
-        anchors.fill: parent
-        anchors.margins: 6
-        spacing: 6
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
 
         // Task Header
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: 28
             color: headerMouseArea.containsMouse ? "#2A2A2A" : "transparent"
             radius: 3
 
             RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 6 + rootCard.depth * 12
-                anchors.rightMargin: 6
                 spacing: 8
 
                 // Expand / Collapse Chevron
                 Text {
                     text: rootCard.expanded ? "▼" : "▶"
-                    color: rootCard.depth > 0 ? "#90A4AE" : "#B0BEC5"
+                    color: rootCard.cardDepth > 0 ? "#90A4AE" : "#B0BEC5"
                     font.pixelSize: 11
                     Layout.alignment: Qt.AlignVCenter
                 }
@@ -56,15 +42,13 @@ Rectangle {
                 // Task Name
                 Text {
                     text: rootCard.taskName
-                    color: "#ECEFF1"
-                    font.bold: rootCard.depth === 0
-                    font.pixelSize: rootCard.depth === 0 ? 13 : 12
+                    font.bold: rootCard.cardDepth === 0
+                    font.pixelSize: rootCard.cardDepth === 0 ? 13 : 12
                     Layout.alignment: Qt.AlignVCenter
                 }
 
                 // State Badge
                 Rectangle {
-                    implicitWidth: stateText.implicitWidth + 10
                     implicitHeight: 18
                     radius: 3
                     Layout.alignment: Qt.AlignVCenter
@@ -75,8 +59,6 @@ Rectangle {
                         if (s === "COMPLETED") return "#2E7D32"
                         if (s === "FAILED") return "#C62828"
                         if (s === "CANCELLED") return "#E65100"
-                        if (s === "SKIPPED") return "#546E7A"
-                        return "#424242"
                     }
 
                     Text {
@@ -128,7 +110,7 @@ Rectangle {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     if (rootCard.owningModel && typeof rootCard.owningModel.toggleTaskExpanded === "function") {
-                        rootCard.owningModel.toggleTaskExpanded(rootCard.index)
+                        rootCard.owningModel.toggleTaskExpanded(rootCard.cardIndex)
                     }
                 }
             }
@@ -142,9 +124,82 @@ Rectangle {
 
             Repeater {
                 model: rootCard.subTasksModel
-                delegate: LogTaskCard {
+                delegate: Loader {
+                    id: subTaskLoader
                     Layout.fillWidth: true
-                    owningModel: rootCard.subTasksModel
+                    source: "LogTaskCard.qml"
+
+                    required property int depth
+                    required property string taskName
+                    required property string stateString
+                    required property double progress
+                    required property bool expanded
+                    required property int messageCount
+                    required property int subTasksCount
+                    required property bool hasSubTasks
+                    required property var messagesModel
+                    required property var subTasksModel
+
+                    Binding {
+                        target: subTaskLoader.item
+                        property: "owningModel"
+                        value: rootCard.subTasksModel
+                    }
+                    Binding {
+                        target: subTaskLoader.item
+                        property: "index"
+                        value: subTaskLoader.index
+                    }
+                    Binding {
+                        target: subTaskLoader.item
+                        property: "depth"
+                        value: subTaskLoader.depth
+                    }
+                    Binding {
+                        target: subTaskLoader.item
+                        property: "taskName"
+                        value: subTaskLoader.taskName
+                    }
+                    Binding {
+                        target: subTaskLoader.item
+                        property: "stateString"
+                        value: subTaskLoader.stateString
+                    }
+                    Binding {
+                        target: subTaskLoader.item
+                        property: "progress"
+                        value: subTaskLoader.progress
+                    }
+                    Binding {
+                        target: subTaskLoader.item
+                        property: "expanded"
+                        value: subTaskLoader.expanded
+                    }
+                    Binding {
+                        target: subTaskLoader.item
+                        property: "messageCount"
+                        value: subTaskLoader.messageCount
+                    }
+                    Binding {
+                        target: subTaskLoader.item
+                        property: "subTasksCount"
+                        value: subTaskLoader.subTasksCount
+                    }
+                    Binding {
+                        target: subTaskLoader.item
+                        property: "hasSubTasks"
+                        value: subTaskLoader.hasSubTasks
+                    }
+                    Binding {
+                        target: subTaskLoader.item
+                        property: "messagesModel"
+                        value: subTaskLoader.messagesModel
+                    }
+                    Binding {
+                        target: subTaskLoader.item
+                        property: "subTasksModel"
+                        value: subTaskLoader.subTasksModel
+                    }
                 }
             }
         }

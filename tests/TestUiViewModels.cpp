@@ -321,6 +321,56 @@ private slots:
         QCOMPARE(logVm.totalMessageCount(), 0);
         QCOMPARE(logVm.taskCount(), 0);
     }
+
+    void testQmlLogTaskCardModelBinding() {
+        QQmlEngine engine;
+
+        LogViewModel logVm;
+        logVm.appendLog(QStringLiteral("Detection started"), 1);
+        logVm.appendLog(QStringLiteral("Found CS2 at D:/Steam"), 1);
+
+        QCOMPARE(logVm.taskCount(), 1);
+        QCOMPARE(logVm.totalMessageCount(), 2);
+
+        // Load LogTaskCard with ListView delegate environment
+        QQmlComponent component(&engine);
+        component.setData(
+            "import QtQuick\n"
+            "import QtQuick.Controls\n"
+            "Item {\n"
+            "    property var logVm\n"
+            "    ListView {\n"
+            "        id: lv\n"
+            "        objectName: \"lv\"\n"
+            "        model: logVm\n"
+            "        delegate: Item {\n"
+            "            property string tName: model.taskName\n"
+            "            property int msgCount: model.messageCount\n"
+            "            property var msgModel: model.messagesModel\n"
+            "            property bool isExpanded: model.expanded\n"
+            "        }\n"
+            "    }\n"
+            "}\n",
+            QUrl()
+        );
+
+        auto* rootObj = component.create();
+        QVERIFY2(rootObj != nullptr, qPrintable(component.errorString()));
+        rootObj->setProperty("logVm", QVariant::fromValue(&logVm));
+
+        QCoreApplication::processEvents();
+
+        auto* lv = rootObj->findChild<QObject*>("lv");
+        QVERIFY(lv != nullptr);
+
+        QCOMPARE(logVm.taskCount(), 1);
+        auto idx = logVm.index(0, 0);
+        QCOMPARE(logVm.data(idx, LogTaskModel::TaskNameRole).toString(), QStringLiteral("General"));
+        QCOMPARE(logVm.data(idx, LogTaskModel::MessageCountRole).toInt(), 2);
+        QVERIFY(logVm.data(idx, LogTaskModel::MessagesModelRole).value<LogMessageListModel*>() != nullptr);
+
+        delete rootObj;
+    }
 };
 
 QTEST_MAIN(TestUiViewModels)
