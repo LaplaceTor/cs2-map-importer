@@ -7,8 +7,9 @@ This project was previously a Python program (forked from sarim's importer) but 
 ## Requirements
 
 To build and run this program, you will need:
-- **C++17** compatible compiler
-- **CMake** (version 3.10 or higher)
+- **Operating System:** Windows 10/11 (64-bit) — *This application is exclusively designed for Windows*
+- **C++17** compatible compiler (MSVC 2019/2022 or MinGW64)
+- **CMake** (version 3.28 or higher)
 - **Qt6** (version 6.8 or higher)
 
 ## Build Instructions

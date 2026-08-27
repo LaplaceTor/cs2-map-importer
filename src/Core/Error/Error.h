@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QString>
+#include <type_traits>
 #include <utility>
 #include "ErrorCode.h"
 
@@ -46,6 +47,16 @@ public:
         return Error(ErrorCode::DirectoryNotFound, msg, details);
     }
 
+    static Error readFailed(const QString& msg = QString(), const QString& details = QString())
+    {
+        return Error(ErrorCode::ReadFailed, msg, details);
+    }
+
+    static Error writeFailed(const QString& msg = QString(), const QString& details = QString())
+    {
+        return Error(ErrorCode::WriteFailed, msg, details);
+    }
+
     static Error permissionDenied(const QString& msg = QString(), const QString& details = QString())
     {
         return Error(ErrorCode::PermissionDenied, msg, details);
@@ -74,6 +85,7 @@ public:
     template <typename EnumT>
     static Error domain(const QString& domainName, EnumT domainCode, const QString& message = QString(), const QString& details = QString(), ErrorCode highLevelCode = ErrorCode::DomainError)
     {
+        static_assert(std::is_enum_v<EnumT>, "Error::domain requires an enum or enum class type for domainCode");
         Error err(highLevelCode, message, details);
         err.m_domain = domainName;
         err.m_domainCode = static_cast<int>(domainCode);
@@ -101,12 +113,14 @@ public:
     template <typename EnumT>
     bool is(EnumT code) const noexcept
     {
+        static_assert(std::is_enum_v<EnumT>, "Error::is requires an enum or enum class type");
         return m_domainCode == static_cast<int>(code);
     }
 
     template <typename EnumT>
     EnumT domainCodeAs() const noexcept
     {
+        static_assert(std::is_enum_v<EnumT>, "Error::domainCodeAs requires an enum or enum class type");
         return static_cast<EnumT>(m_domainCode);
     }
 

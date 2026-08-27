@@ -8,7 +8,6 @@
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
 
-#ifdef Q_OS_WIN
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -16,7 +15,6 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
-#endif
 
 using namespace Core::FileSystem;
 using namespace Application::Environment;
@@ -141,7 +139,6 @@ void TestFileLease::testDestructorReleasesHandle() {
 }
 
 void TestFileLease::testOsLevelExclusionOnWindows() {
-#ifdef Q_OS_WIN
     QTemporaryDir tempDir;
     QVERIFY(tempDir.isValid());
 
@@ -189,11 +186,9 @@ void TestFileLease::testOsLevelExclusionOnWindows() {
 
     QVERIFY(hSecond != INVALID_HANDLE_VALUE);
     CloseHandle(hSecond);
-#endif
 }
 
 void TestFileLease::testScopeLifetime() {
-#ifdef Q_OS_WIN
     QTemporaryDir tempDir;
     QVERIFY(tempDir.isValid());
 
@@ -235,7 +230,6 @@ void TestFileLease::testScopeLifetime() {
     );
     QVERIFY(hAllowed != INVALID_HANDLE_VALUE);
     CloseHandle(hAllowed);
-#endif
 }
 
 void TestFileLease::testVpkSignatureLeaseServiceIntegration() {
@@ -263,7 +257,6 @@ void TestFileLease::testVpkSignatureLeaseServiceIntegration() {
     QVERIFY(service.isLeaseHeld());
     QCOMPARE(service.leasedFilePath(), QDir::toNativeSeparators(QFileInfo(sigPath).absoluteFilePath()));
 
-#ifdef Q_OS_WIN
     // Verify external tool opening fails
     const QString nativePath = service.leasedFilePath();
     HANDLE hTool = CreateFileW(
@@ -277,13 +270,11 @@ void TestFileLease::testVpkSignatureLeaseServiceIntegration() {
     );
     QCOMPARE(hTool, INVALID_HANDLE_VALUE);
     QCOMPARE(GetLastError(), static_cast<DWORD>(ERROR_SHARING_VIOLATION));
-#endif
 
     // Release lease
     service.releaseLease();
     QVERIFY(!service.isLeaseHeld());
 
-#ifdef Q_OS_WIN
     // External tool opening now succeeds
     HANDLE hToolAfter = CreateFileW(
         reinterpret_cast<LPCWSTR>(nativePath.utf16()),
@@ -296,11 +287,9 @@ void TestFileLease::testVpkSignatureLeaseServiceIntegration() {
     );
     QVERIFY(hToolAfter != INVALID_HANDLE_VALUE);
     CloseHandle(hToolAfter);
-#endif
 }
 
 void TestFileLease::testVpkSignatureConflictAndRetry() {
-#ifdef Q_OS_WIN
     QTemporaryDir tempDir;
     QVERIFY(tempDir.isValid());
 
@@ -346,7 +335,6 @@ void TestFileLease::testVpkSignatureConflictAndRetry() {
     QVERIFY(service.isLeaseHeld());
 
     service.releaseLease();
-#endif
 }
 
 void TestFileLease::testVpkSignatureServiceInstallationLifecycle() {

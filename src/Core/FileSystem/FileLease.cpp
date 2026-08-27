@@ -3,7 +3,6 @@
 #include <QDir>
 #include <utility>
 
-#ifdef Q_OS_WIN
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -12,7 +11,6 @@
 #endif
 #include <windows.h>
 #include <system_error>
-#endif
 
 namespace Core::FileSystem {
 
@@ -22,26 +20,18 @@ FileLease::~FileLease()
 }
 
 FileLease::FileLease(FileLease&& other) noexcept
-#ifdef Q_OS_WIN
     : m_handle(other.m_handle)
     , m_filePath(std::move(other.m_filePath))
 {
     other.m_handle = nullptr;
 }
-#else
-    : m_filePath(std::move(other.m_filePath))
-{
-}
-#endif
 
 FileLease& FileLease::operator=(FileLease&& other) noexcept
 {
     if (this != &other) {
         release();
-#ifdef Q_OS_WIN
         m_handle = other.m_handle;
         other.m_handle = nullptr;
-#endif
         m_filePath = std::move(other.m_filePath);
     }
     return *this;
@@ -66,7 +56,6 @@ FileLeaseResult FileLease::acquireExclusive(const QString& filePath)
 
     const QString nativePath = QDir::toNativeSeparators(info.absoluteFilePath());
 
-#ifdef Q_OS_WIN
     // Open with dwShareMode = 0 (exclusive access: no read, write, or delete sharing)
     HANDLE hFile = CreateFileW(
         reinterpret_cast<LPCWSTR>(nativePath.utf16()),
@@ -116,29 +105,20 @@ FileLeaseResult FileLease::acquireExclusive(const QString& filePath)
     m_handle = static_cast<void*>(hFile);
     m_filePath = nativePath;
     return {FileLeaseError::None, QString()};
-#else
-    return {FileLeaseError::Unsupported, QStringLiteral("Exclusive file lease is only supported on Windows.")};
-#endif
 }
 
 void FileLease::release() noexcept
 {
-#ifdef Q_OS_WIN
     if (m_handle != nullptr && m_handle != INVALID_HANDLE_VALUE) {
         CloseHandle(static_cast<HANDLE>(m_handle));
         m_handle = nullptr;
     }
-#endif
     m_filePath.clear();
 }
 
 bool FileLease::isHeld() const noexcept
 {
-#ifdef Q_OS_WIN
     return m_handle != nullptr && m_handle != INVALID_HANDLE_VALUE;
-#else
-    return false;
-#endif
 }
 
 QString FileLease::filePath() const

@@ -41,13 +41,11 @@ private slots:
 
     void testSteamRegistryDetection() {
         auto steamPath = SteamService::detectSteamInstallPath();
-#ifdef Q_OS_WIN
         // On Windows systems where Steam is installed, this must find a valid directory
         if (steamPath.isValid()) {
             QVERIFY(steamPath.exists());
             QVERIFY(steamPath.isDirectory());
         }
-#endif
     }
 
     void testSteamLibraryDetection() {
@@ -414,6 +412,36 @@ private slots:
             QCOMPARE(res.value().gameTitle, QStringLiteral("Counter-Strike Source"));
         });
         QTRY_VERIFY_WITH_TIMEOUT(asyncFinished, 5000);
+
+        // Failure case: invalid Source 1 directory must preserve operation summary
+        auto failS1 = envService.validateSource1Folder(QStringLiteral("CS: Source"), m_testFilesRoot);
+        QVERIFY(failS1.isFailure());
+        QCOMPARE(failS1.message(), QStringLiteral("Source 1 validation failed"));
+        QVERIFY(!failS1.error().message().isEmpty());
+
+        bool asyncFailS1Finished = false;
+        envService.validateSource1FolderAsync(QStringLiteral("CS: Source"), m_testFilesRoot, this, [&](const Result<GameInstallationInfo>& res) {
+            asyncFailS1Finished = true;
+            QVERIFY(res.isFailure());
+            QCOMPARE(res.message(), QStringLiteral("Source 1 validation failed"));
+            QVERIFY(!res.error().message().isEmpty());
+        });
+        QTRY_VERIFY_WITH_TIMEOUT(asyncFailS1Finished, 5000);
+
+        // Failure case: invalid Source 2 directory must preserve operation summary
+        auto failS2 = envService.validateSource2Folder(m_testFilesRoot);
+        QVERIFY(failS2.isFailure());
+        QCOMPARE(failS2.message(), QStringLiteral("Source 2 validation failed"));
+        QVERIFY(!failS2.error().message().isEmpty());
+
+        bool asyncFailS2Finished = false;
+        envService.validateSource2FolderAsync(m_testFilesRoot, this, [&](const Result<GameInstallationInfo>& res) {
+            asyncFailS2Finished = true;
+            QVERIFY(res.isFailure());
+            QCOMPARE(res.message(), QStringLiteral("Source 2 validation failed"));
+            QVERIFY(!res.error().message().isEmpty());
+        });
+        QTRY_VERIFY_WITH_TIMEOUT(asyncFailS2Finished, 5000);
     }
 
     void testGameInstallationResolverAddons() {

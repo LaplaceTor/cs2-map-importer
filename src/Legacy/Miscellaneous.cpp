@@ -1,10 +1,13 @@
 #include "Miscellaneous.h"
 #include "Ui.h"
-#ifdef _WIN32
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
 #include <shellapi.h>
-#endif
 #include <QDir>
 #include <QMetaObject>
 #include <QFile>
@@ -527,12 +530,10 @@ int Miscellaneous::RunCommandSync(int program, const QStringList& arguments, QSt
     lastOutputTimer.start();
 
     auto killProcessTree = [&process]() {
-#ifdef _WIN32
         qint64 pid = process.processId();
         if (pid > 0) {
             QProcess::startDetached("taskkill", QStringList() << "/F" << "/T" << "/PID" << QString::number(pid));
         }
-#endif
         process.kill();
     };
 
@@ -824,7 +825,6 @@ bool Miscellaneous::IsCorrectSymlink(const QString& linkPath, const QString& tar
 }
 
 bool Miscellaneous::CreateSymlink(const QString& linkPath, const QString& targetPath) {
-#ifdef _WIN32
     QString msgText = QString("To fix texture scale errors, the map importer needs to create a directory symbolic link (symlink) named 'csgo' pointing to your Source 1 game directory:\n%1\n\nThis will allow the importer to treat the game as CS:GO and import it properly.\n\nCreating symbolic links requires Administrator privileges. Would you like to request administrator permission and create the symlink?").arg(targetPath);
 
     if (!Backend::ShowMessageBox("Administrator Permission Required", msgText, 0, true)) {
@@ -849,7 +849,4 @@ bool Miscellaneous::CreateSymlink(const QString& linkPath, const QString& target
     }
 
     return IsCorrectSymlink(linkPath, targetPath);
-#else
-    return QFile::link(targetPath, linkPath);
-#endif
 }

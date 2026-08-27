@@ -104,10 +104,11 @@ public:
     }
 
     /**
-     * @brief Runs a fire-and-forget background worker task without return value or UI callback.
+     * @brief Runs a fire-and-forget background worker task returning Result<void> without UI callback.
      *
      * Convenience wrapper delegating to runTask<void> to ensure unified execution lifecycle,
      * structured error handling, and state arbitration across all tasks.
+     * Worker is strictly constrained to return Core::Result<void>.
      */
     template <typename WorkerFn>
     static void runBackground(
@@ -117,20 +118,10 @@ public:
         quint64 parentTaskId = 0)
     {
         using DecayedWorker = std::decay_t<WorkerFn>;
-        if constexpr (std::is_invocable_r_v<Result<void>, DecayedWorker, std::shared_ptr<Core::Logging::TaskLoggingContext>>) {
-            runTask<void>(taskName, nullptr, std::forward<WorkerFn>(worker), {}, pool, parentTaskId);
-        } else {
-            runTask<void>(
-                taskName,
-                nullptr,
-                [w = DecayedWorker(std::forward<WorkerFn>(worker))](std::shared_ptr<Core::Logging::TaskLoggingContext> ctx) mutable -> Result<void> {
-                    w(ctx);
-                    return Result<void>::success();
-                },
-                {},
-                pool,
-                parentTaskId);
-        }
+        static_assert(
+            std::is_invocable_r_v<Result<void>, DecayedWorker, std::shared_ptr<Core::Logging::TaskLoggingContext>>,
+            "AsyncTaskRunner::runBackground worker must return Core::Result<void>");
+        runTask<void>(taskName, nullptr, std::forward<WorkerFn>(worker), {}, pool, parentTaskId);
     }
 
 private:

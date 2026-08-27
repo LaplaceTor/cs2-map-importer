@@ -217,7 +217,7 @@ void GameEnvironmentService::validateSource1FolderAsync(
             if (logCtx) {
                 logCtx->error(QStringLiteral("Validation failed for %1 at: %2: %3").arg(effectiveName, normalizedPath, instResult.message()));
             }
-            return Core::Result<GameInstallationInfo>::failure(instResult.error());
+            return Core::Result<GameInstallationInfo>::failure(instResult.error(), instResult.message());
         },
         std::move(callback));
 }
@@ -241,7 +241,7 @@ Core::Result<GameInstallationInfo> GameEnvironmentService::validateSource1Folder
     }
 
     if (!instResult.isSuccess()) {
-        return Core::Result<GameInstallationInfo>::failure(instResult.error());
+        return Core::Result<GameInstallationInfo>::failure(instResult.error(), instResult.message());
     }
     return Core::Result<GameInstallationInfo>::success(instResult.value().toInfo());
 }
@@ -280,7 +280,7 @@ void GameEnvironmentService::validateSource2FolderAsync(
             if (logCtx) {
                 logCtx->error(QStringLiteral("Validation failed for Source 2 at: %1: %2").arg(normalizedPath, instResult.message()));
             }
-            return Core::Result<GameInstallationInfo>::failure(instResult.error());
+            return Core::Result<GameInstallationInfo>::failure(instResult.error(), instResult.message());
         },
         std::move(callback));
 }
@@ -296,7 +296,7 @@ Core::Result<GameInstallationInfo> GameEnvironmentService::validateSource2Folder
     Core::Path::FilesystemPath fsPath(normalizedPath);
     auto instResult = GameInstallationValidator::validateSource2(fsPath);
     if (!instResult.isSuccess()) {
-        return Core::Result<GameInstallationInfo>::failure(instResult.error());
+        return Core::Result<GameInstallationInfo>::failure(instResult.error(), instResult.message());
     }
     return Core::Result<GameInstallationInfo>::success(instResult.value().toInfo());
 }

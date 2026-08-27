@@ -64,9 +64,7 @@ public:
     QString filePath() const;
 
 private:
-#ifdef Q_OS_WIN
     void* m_handle = nullptr;
-#endif
 
     QString m_filePath;
 };

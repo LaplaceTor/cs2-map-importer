@@ -20,7 +20,6 @@ Core::Path::FilesystemPath SteamService::detectSteamInstallPath(
         logCtx->debug(QStringLiteral("Detecting Steam installation path..."));
     }
 
-#ifdef Q_OS_WIN
     // 1. HKEY_CURRENT_USER\Software\Valve\Steam (SteamPath)
     {
         QSettings reg(QStringLiteral("HKEY_CURRENT_USER\\Software\\Valve\\Steam"), QSettings::NativeFormat);
@@ -63,15 +62,11 @@ Core::Path::FilesystemPath SteamService::detectSteamInstallPath(
             }
         }
     }
-#endif
 
-    // Fallback standard locations
+    // Fallback standard Windows locations
     const std::vector<QString> fallbacks = {
         QStringLiteral("C:/Program Files (x86)/Steam"),
-        QStringLiteral("C:/Program Files/Steam"),
-        QDir::homePath() + QStringLiteral("/.steam/steam"),
-        QDir::homePath() + QStringLiteral("/.local/share/Steam"),
-        QDir::homePath() + QStringLiteral("/Library/Application Support/Steam")
+        QStringLiteral("C:/Program Files/Steam")
     };
     for (const auto& candidate : fallbacks) {
         Core::Path::FilesystemPath path(candidate);

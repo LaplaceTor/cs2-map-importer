@@ -1,95 +1,94 @@
-# CS2 Map Importer — Agent Instructions
+# CS2 Map Importer — Agent 开发指导规范
 
-## 0. Purpose and Priority
+## 0. 目标与优先级
 
-This file is the **architecture contract for AI agents and human contributors** working in this repository.
+本文档是参与本仓库开发的所有 **AI Agent 及人类贡献者必须遵守的架构契约**。
 
-The project is undergoing a staged refactor from a legacy monolithic Qt application into a strict layered architecture. The most important rule is:
+本项目正处于从遗留单体 Qt 应用程序向严格分层架构重构的演进过程中。最核心规则为：
 
-> **Do not merely place files in the correct directory. The dependency graph and responsibilities must also obey the layer rules below.**
+> **切勿仅仅将文件放置在对应的目录中。代码的依赖关系图与职责划分必须严格遵守以下分层规则。**
 
-When these instructions conflict with a tempting local implementation shortcut, prefer the architecture contract and explicitly preserve behavior through adapters/facades rather than bypassing a layer.
+当本规范与局部的“快捷实现方式”发生冲突时，必须坚守架构契约，通过适配器/门面（Adapter/Facade）保持既有行为，严禁跨层违规调用。
 
-### Non-negotiable invariants
+### 核心不可违背原则
 
-1. Presentation/UI may call **Application only**.
-2. Application may orchestrate **Workflow/Domain and Core**.
-3. Workflow may call **Domain and Core**, but never UI/Application.
-4. Domain may call **Core only**, never UI/Application/Workflow.
-5. Core must be reusable infrastructure and know nothing about Valve business rules, workflows, Application services, or QML.
-6. No layer may bypass the layer immediately below it to reach an upper/lower implementation for convenience.
-7. **A directory name is not an architectural boundary by itself. The real boundary is the include/link/dependency graph.**
-
----
-
-## 1. Project Overview
-
-A Windows desktop GUI application that imports Source 1 game assets (maps, models, particles) into Counter-Strike 2.
-
-* **Language:** C++17
-* **Framework:** Qt 6.8+
-* **Build system:** Modern CMake
-* **Platform:** Windows (the project also has non-Windows build branches)
-* **UI:** QML / Qt Quick Controls 2
-* **QML style:** Fusion
-
-The reusable Core layer has been extracted. Domain foundations and Application environment services are being migrated, while Workflow and remaining legacy components are still transitional.
+1. 表现层/UI 只能调用 **Application 层**。
+2. Application 层可编排 **Workflow、Domain 与 Core 层**。
+3. Workflow 层可调用 **Domain 与 Core 层**，但绝不可依赖 UI 或 Application 层。
+4. Domain 层只能调用 **Core 层**，绝不可依赖 UI、Application 或 Workflow 层。
+5. Core 层为通用可复用基础设施，严禁包含任何 Valve 业务规则、导入工作流、Application 服务或 QML 逻辑。
+6. 任何层均不得为了编码便利而跳过下层直接调用更底层/上层实现。
+7. **目录名本身并不代表架构边界，真正的边界在于 include / link / 依赖拓扑图。**
 
 ---
 
-## 2. Target Layered Architecture
+## 1. 项目概览
+
+用于将 Source 1 游戏资产（地图、模型、粒子等）导入至 Counter-Strike 2 的 Windows 桌面 GUI 应用程序。
+
+* **开发语言：** C++17
+* **技术框架：** Qt 6.8+
+* **构建系统：** 现代 CMake
+* **目标平台：** 仅限 Windows（程序仅供 Windows 构建与运行）
+* **UI 技术：** QML / Qt Quick Controls 2
+* **QML 样式：** Fusion
+
+当前 Core 层已完全解耦提取，Domain 基础与 Application 环境服务正逐步迁移，Workflow 及剩余遗留模块仍处于过渡阶段。
+
+---
+
+## 2. 目标分层架构
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ Presentation / UI                                           │
-│ QML Views <-> ViewModels / Controllers                      │
+│ Presentation / UI (表现层)                                   │
+│ QML 视图 <-> ViewModels / Controllers                        │
 │                                                              │
-│ Allowed: Qt/QML + Application contracts                     │
-│ Forbidden: direct Domain/Core orchestration                  │
+│ 允许: Qt/QML + Application 契约                              │
+│ 禁止: 直接编排 Domain/Core                                   │
 └─────────────────────────────┬────────────────────────────────┘
-                              │ calls / connects
+                              │ 调用 / 信号槽连接
 ┌─────────────────────────────▼────────────────────────────────┐
-│ Application                                                   │
-│ Services / Task orchestration / Config / Update / Environment│
+│ Application (应用层)                                         │
+│ 服务 / 任务编排 / 配置 / 自动更新 / 环境感知                  │
 │                                                              │
-│ Converts UI contracts into Domain/Workflow inputs            │
-│ Owns async dispatch, lifecycle and UI-facing results         │
+│ 将 UI 契约转换为 Domain/Workflow 输入                        │
+│ 负责异步调度、生命周期控制及面向 UI 的结果封装               │
 └─────────────────────────────┬────────────────────────────────┘
-                              │ invokes / composes
+                              │ 触发 / 组装
 ┌─────────────────────────────▼────────────────────────────────┐
-│ Workflow                                                     │
-│ Concrete import use-cases / pipelines / cancellation         │
+│ Workflow (工作流层)                                          │
+│ 具体导入用例 / 流水线编排 / 取消响应                         │
 │                                                              │
-│ May use Domain + Core                                        │
-│ Never depends on UI or Application                           │
+│ 可使用 Domain + Core                                         │
+│ 严禁依赖 UI 或 Application                                   │
 └─────────────────────────────┬────────────────────────────────┘
-                              │ uses
+                              │ 调用
 ┌─────────────────────────────▼────────────────────────────────┐
-│ Domain                                                       │
-│ Valve / Source 1/2 rules, models, parsers, processors, tools │
+│ Domain (领域层)                                              │
+│ Valve / Source 1/2 业务规则、领域模型、解析器、处理器、工具  │
 │                                                              │
-│ May use Core only                                            │
-│ No UI, Application, Workflow dependencies                    │
+│ 仅可调用 Core                                                │
+│ 无 UI、Application、Workflow 依赖                            │
 └─────────────────────────────┬────────────────────────────────┘
-                              │ uses base infrastructure
+                              │ 调用底层设施
 ┌─────────────────────────────▼────────────────────────────────┐
-│ Core                                                         │
-│ Path / FileSystem / KeyValues / Process / Logging / Temp     │
-│ Error / generic infrastructure                              │
+│ Core (基础设施层)                                            │
+│ 路径 / 文件系统 / KeyValues / 进程 / 日志 / 临时文件 / 错误 │
 │                                                              │
-│ No business logic / no Valve-specific policy / no UI         │
+│ 无业务逻辑 / 无 Valve 专用策略 / 无 UI                       │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### Canonical dependency direction
+### 规范依赖流向
 
 ```text
 Presentation → Application → Workflow → Domain → Core
 ```
 
-Application may also use Domain/Core directly for services that are not workflow execution, but **UI must not do so**.
+Application 亦可直接调用 Domain/Core 提供的非工作流服务，但 **UI 层严禁跨层直接调用**。
 
-There must be **no upward dependencies**:
+严禁出现**逆向依赖**：
 
 ```text
 Core        ✗→ Domain / Workflow / Application / UI
@@ -98,133 +97,131 @@ Workflow    ✗→ Application / UI
 Application ✗→ UI
 ```
 
-### Why Workflow is separate from Application
+### Workflow 与 Application 分离原因
 
-* **Application** answers: *When, under which app-level policy, and on which execution context should something run?*
-* **Workflow** answers: *How does the import use-case proceed from input to output?*
-* **Domain** answers: *What do Valve/Source-specific rules and transformations mean?*
-* **Core** answers: *How do we safely perform generic infrastructure operations?*
+* **Application** 回答：*在何种应用策略、执行上下文与时机下运行？*
+* **Workflow** 回答：*具体资产导入用例如何从输入推进到输出？*
+* **Domain** 回答：*Valve/Source 专有规则与转换逻辑代表什么？*
+* **Core** 回答：*如何安全执行通用的底层系统/基础设施操作？*
 
-Do not put the concrete import pipeline into `Application` merely because the old code used one `Ui::Start()` function.
-
----
-
-## 3. Hard Architectural Rules for Agents
-
-### 3.1 Presentation/UI rules
-
-`src/UI/` and `src/qml/` are presentation only.
-
-UI may:
-
-* expose `Q_PROPERTY`, Qt signals/slots, commands and presentation state;
-* validate trivial presentation concerns (empty field, tab selection, required UI state);
-* call Application services/facades;
-* transform UI-native values into **Application-defined contracts**;
-* display errors, progress, prompts and results returned by Application.
-
-UI must **not**:
-
-* include `Domain/*` directly;
-* include `Core/*` directly for business execution or filesystem/process operations;
-* call `Domain::*` validators, registries, parsers or processors;
-* call `Core::Process::*`, `Core::FileSystem::*`, `Core::KeyValues::*`, etc. to perform application work;
-* scan game directories, parse `gameinfo`, inspect Steam libraries, extract packages, run external tools, or mutate import assets;
-* decide which Domain validator/processor/tool should execute;
-* own workflow threads, worker pools, cancellation tokens or import lifecycle;
-* create `QProcess` or invoke shell commands;
-* use global/static business state for current imports.
-
-### 3.2 Application rules
-
-`src/Application/` contains application services and orchestration.
-
-Application may:
-
-* expose UI-facing service/facade APIs;
-* translate Application contracts into Domain/Workflow inputs;
-* coordinate `WorkflowRunner` and task execution;
-* own async dispatch and worker-thread policy;
-* coordinate Steam/game detection services;
-* coordinate configuration, update checking and application lifecycle policies;
-* connect logging/progress/result channels to UI adapters;
-* implement interfaces required by lower layers when those interfaces belong to Application policy (for example prompt mediation).
-
-Application must not:
-
-* contain QML or direct widget manipulation;
-* implement Valve-specific parsing/transformation that belongs in Domain;
-* contain concrete map/model/particle import pipelines that belong in Workflow;
-* bypass Workflow and call legacy import entry points merely because they are convenient;
-* expose raw implementation details to QML when a stable Application contract can be returned.
-
-### 3.3 Workflow rules
-
-`src/Workflow/` contains concrete import use-cases.
-
-Workflow may:
-
-* define `IImporter`, `ImportContext`, cancellation, task-level progress and pipeline result types;
-* sequence Domain processors/tools;
-* own use-case-specific step ordering and error handling;
-* receive `TaskLoggingContext` and cancellation primitives from Application;
-* use Core infrastructure when required;
-* return `Core::Result<T>` or `Result<void>` to explicitly communicate `Success`, `Failure`, `Cancelled`, and `Skipped` execution outcomes.
-
-Workflow must not:
-
-* include or call UI classes/QML;
-* depend on Application policy or configuration classes;
-* show dialogs or directly request user interaction through QML;
-* own global application configuration;
-* discover Steam installations or perform application-wide environment selection unless the behavior is explicitly part of an importer use-case and passed in as data/services;
-* use `std::optional<T>` or `bool` to implicitly encode business outcomes. All new Workflow APIs must strictly use `Result<T>`.
-
-### 3.4 Domain rules
-
-`src/Domain/` contains Valve/Source-specific knowledge and deterministic domain operations.
-
-Domain may:
-
-* parse and validate Valve formats;
-* model Source 1/2 concepts;
-* resolve game search paths;
-* process VMF/VMT/VMAT/BSP/VPK/domain assets;
-* wrap external tools behind typed interfaces under `Domain::Tool`.
-
-Domain must not:
-
-* include `Application/*`, `Workflow/*`, `UI/*`, or QML;
-* emit UI notifications or open dialogs;
-* access `QQmlApplicationEngine`, `QGuiApplication`, widgets, or presentation classes;
-* decide application-level lifecycle, retries, Steam discovery policy, configuration persistence, or update policy;
-* call a global application logger.
-
-If a Domain operation needs user confirmation, define a narrow interface at the lower-layer boundary (for example in `Workflow/Common` or another dependency-neutral interface location) and have Application provide the implementation. The Domain operation must remain unaware of QML.
-
-### 3.5 Core rules
-
-`src/Core/` is reusable infrastructure.
-
-Core must not contain:
-
-* game definitions such as CS2/CSGO/HL2-specific rules;
-* import workflow decisions;
-* Steam detection;
-* VPK policy;
-* material conversion logic;
-* UI/QML code;
-* Application service classes.
-
-Core APIs should be generic enough to be reused outside CS2 Map Importer.
+切勿因为旧代码只有一个 `Ui::Start()` 函数就将具体导入流水线塞进 `Application`。
 
 ---
 
-## 4. UI/Application Boundary Contract
+## 3. Agent 强制架构规则
 
-This is a critical rule because the old architecture frequently placed business logic inside `Ui` classes.
+### 3.1 表现层 / UI 规则
 
-### Preferred pattern
+`src/UI/` 与 `src/qml/` 仅负责界面呈现。
+
+UI **允许**：
+
+* 暴露 `Q_PROPERTY`、Qt 信号/槽、命令与界面展示状态；
+* 校验基础界面输入（判空、Tab 切换、必要控件状态）；
+* 调用 Application 服务/门面；
+* 将 UI 本地数据转换为 **Application 层定义的契约 DTO**；
+* 展示 Application 返回的错误、进度、交互弹窗与结果。
+
+UI **严禁**：
+
+* 直接 include `Domain/*`；
+* 直接 include `Core/*` 用于执行业务或文件系统/进程操作；
+* 调用 `Domain::*` 校验器、注册表、解析器或处理器；
+* 调用 `Core::Process::*`、`Core::FileSystem::*`、`Core::KeyValues::*` 等执行应用任务；
+* 扫描游戏目录、解析 `gameinfo`、检索 Steam 库、解压资产包、调用外部工具或修改导入资产；
+* 决定调用哪个 Domain 校验器/处理器/工具；
+* 拥有工作流线程、Worker 线程池、取消令牌或导入生命周期；
+* 创建 `QProcess` 或执行 Shell 脚本/命令；
+* 在当前导入中使用全局/静态业务状态。
+
+### 3.2 Application 规则
+
+`src/Application/` 包含应用层服务与业务编排。
+
+Application **允许**：
+
+* 暴露面向 UI 的服务/门面 API；
+* 将 Application 契约转换为 Domain/Workflow 输入；
+* 编排 `WorkflowRunner` 与异步任务执行；
+* 管理异步调度与 Worker 线程池策略；
+* 协调 Steam 探测与游戏安装识别服务；
+* 协调应用配置持久化、更新检测与生命周期策略；
+* 将日志、进度、结果通道连接至 UI 适配器；
+* 实现下层依赖中立接口（如用于弹窗交互的抽象接口）。
+
+Application **严禁**：
+
+* 包含 QML 或直接操作 UI 控件；
+* 实现属于 Domain 层的 Valve 格式解析或资产转换；
+* 包含属于 Workflow 层的具体地图/模型/粒子导入流水线；
+* 为图省事绕过 Workflow 直接调用旧版导入入口；
+* 在已有稳定 Application 契约时向 QML 暴露底层实现细节。
+
+### 3.3 Workflow 规则
+
+`src/Workflow/` 包含具体资产导入用例。
+
+Workflow **允许**：
+
+* 定义 `IImporter`、`ImportContext`、取消机制、任务级进度与流水线结果类型；
+* 按序调用 Domain 处理器与工具；
+* 管理导入用例专属的执行步骤与错误处理；
+* 从 Application 接收 `TaskLoggingContext` 与取消令牌；
+* 在需要时直接使用 Core 基础设施；
+* 返回 `Core::Result<T>` 或 `Result<void>` 明确表达 `Success`、`Failure`、`Cancelled` 与 `Skipped` 业务状态。
+
+Workflow **严禁**：
+
+* include 或调用 UI 类 / QML；
+* 依赖 Application 策略或全局配置类；
+* 直接弹出对话框或在 QML 中请求用户交互；
+* 拥有全局应用配置状态；
+* 自行发现 Steam 安装或执行全局环境判定（除非该行为作为参数由上层传入）；
+* 使用 `std::optional<T>` 或 `bool` 隐式传递业务执行结果。所有新 Workflow API 必须严格使用 `Result<T>`。
+
+### 3.4 Domain 规则
+
+`src/Domain/` 包含 Valve/Source 专有知识与确定性领域操作。
+
+Domain **允许**：
+
+* 解析与校验 Valve 专属数据格式；
+* 抽象 Source 1/2 领域概念；
+* 解析游戏资产搜索路径（Search Paths）；
+* 处理 VMF/VMT/VMAT/BSP/VPK 等领域资产；
+* 在 `Domain::Tool` 下通过类型安全接口封装外部 CLI 工具。
+
+Domain **严禁**：
+
+* include `Application/*`、`Workflow/*`、`UI/*` 或 QML 相关头文件；
+* 发送 UI 通知或直接弹出对话框；
+* 访问 `QQmlApplicationEngine`、`QGuiApplication`、QWidget 或表现层类；
+* 决定应用生命周期、重试策略、Steam 发现策略、配置持久化或更新策略；
+* 调用全局应用日志器。
+
+若 Domain 操作需要用户确认，应在下层边界（如 `Workflow/Common` 或通用抽象接口）定义轻量接口，由 Application 提供具体实现。Domain 层严禁感知 QML。
+
+### 3.5 Core 规则
+
+`src/Core/` 为通用的底层基础设施。
+
+Core **严禁包含**：
+
+* 游戏定义与 CS2/CSGO/HL2 专有规则；
+* 导入工作流决策；
+* Steam 探测逻辑；
+* VPK 业务策略；
+* 材质转换逻辑；
+* UI / QML 代码；
+* Application 服务类。
+
+Core API 必须保持通用性，可无缝脱离本项目复用。
+
+---
+
+## 4. UI 与 Application 边界契约
+
+### 推荐调用范式
 
 ```text
 QML
@@ -238,11 +235,11 @@ Workflow / Domain
 Core
 ```
 
-### Application contract rule
+### Application 契约规范
 
-UI-facing Application APIs should prefer **Application-owned DTOs/value objects** or plain Qt value types rather than requiring UI code to construct Domain/Core implementation types.
+面向 UI 的 Application API 应优先使用 **Application 自有 DTO/值对象** 或基础 Qt 值类型，避免要求 UI 代码构造 Domain/Core 内部实现类型。
 
-Preferred:
+推荐做法：
 
 ```cpp
 Application::Environment::ValidateGameRequest request;
@@ -252,138 +249,123 @@ request.gameId = selectedGameId;
 auto result = gameEnvironmentService->validate(request);
 ```
 
-Avoid:
+严禁做法：
 
 ```cpp
-// BAD: UI chooses and constructs Domain implementation details.
+// 错误：UI 层直接构造 Domain 实现细节
 auto type = Domain::Game::GameRegistry::stringToGameType(selectedType);
 auto path = Core::Path::FilesystemPath(selectedPath);
 auto result = Domain::Game::GameValidator::validateDirectory(path, type);
 ```
 
-The Application service should perform the translation:
+Application 服务应承担数据转换职责：
 
 ```text
-UI string/path
+UI 字符串/路径
    ↓
-Application request DTO
+Application 请求 DTO
    ↓
-Application resolves GameType / FilesystemPath
+Application 解析为 GameType / FilesystemPath
    ↓
-Domain validator
+Domain 校验器执行
    ↓
-Application result DTO
+Application 结果 DTO
    ↓
-UI properties/signals
+UI 属性/信号
 ```
-
-A small exception is allowed for harmless Qt presentation utilities, but it must not create a route around Application to execute business operations.
 
 ---
 
-## 5. Async / Threading Rules
+## 5. 异步与多线程规范
 
-Any potentially blocking operation must be treated as non-UI work.
+所有潜在的阻塞操作均必须置于非 UI 线程执行。
 
-Examples:
+常见耗时操作：文件系统扫描、大文件解析、Steam 库遍历、涉及磁盘 I/O 的游戏校验、VPK 解包、外部进程调用、地图/模型/粒子导入流水线。
 
-* filesystem scans;
-* parsing large files;
-* Steam library discovery;
-* game validation involving disk I/O;
-* VPK/package extraction;
-* external processes;
-* map/model/particle import pipelines.
+规则：
 
-Rules:
+1. UI 线程必须时刻保持高响应。
+2. Application 层统一管理 Worker 线程调度。
+3. Workflow 执行全部在非 UI 线程进行。
+4. UI 状态刷新必须通过 Qt 排队连接（Queued Connection）或线程安全机制传递。
+5. 严禁未作生命周期守卫即捕获 UI 对象至后台异步任务中。
+6. Domain 代码严禁直接操控 UI 事件循环同步。
+7. 取消机制必须显式、协作式传递，严禁使用临时共享全局标志。
 
-1. UI thread must remain responsive.
-2. Application owns worker dispatch policy.
-3. Workflow execution occurs off the UI thread.
-4. UI updates must cross back through queued Qt delivery or an equivalent safe mechanism.
-5. Do not capture raw UI-owned objects into detached worker tasks without a lifetime guard.
-6. Do not make Domain code directly manage UI event-loop synchronization.
-7. Cancellation must be explicit and cooperative; do not add ad-hoc shared global cancellation flags.
+### 双平面架构：任务执行生命周期 vs 业务执行结果
 
-For services with both sync and async APIs, the sync primitive belongs below Application; the Application service may provide the async wrapper.
-
-### Dual-Plane Architecture: Task Execution Lifecycle vs. Business Outcome
-
-To maintain strict conceptual clarity across async tasks and workflow operations, the architecture defines two orthogonal planes:
+为保证异步任务与工作流操作的概念严密性，架构定义了两个正交平面：
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ 1. Task Execution Lifecycle Plane (TaskState)                               │
-│    Managed by LogManager / TaskLoggingContext                               │
-│    States: Pending → Running → Completed | Failed | Cancelled | Skipped    │
-│    Tracked and displayed in UI log models (LogViewModel / LogTaskModel)     │
+│ 1. 任务执行生命周期平面 (Task Execution Lifecycle Plane: TaskState)        │
+│    由 LogManager / TaskLoggingContext 管理                                  │
+│    状态流转: Pending → Running → Completed | Failed | Cancelled | Skipped    │
+│    在 UI 日志模型中跟踪展示 (LogViewModel / LogTaskModel)                   │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ 2. Business Outcome Plane (Result<T>)                                       │
-│    Standard single-layer return contract for Workflow and Application APIs  │
-│    Statuses: Success | Failure | Cancelled | Skipped + payload T & message  │
+│ 2. 业务执行结果平面 (Business Outcome Plane: Result<T>)                     │
+│    Workflow 与 Application API 的标准单层返回契约                           │
+│    结果状态: Success | Failure | Cancelled | Skipped + 业务负载 T 与说明文本 │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-`AsyncTaskRunner` acts as the bridge connecting both planes:
-* **Canonical API Suite**:
-  * `AsyncTaskRunner::runTask<T>(taskName, context, worker, callback)`: For async tasks producing business payload `T`.
-  * `AsyncTaskRunner::runTask<void>(taskName, context, worker, callback)`: For async tasks without payload, retaining full `Result<void>` outcome semantics.
-  * `AsyncTaskRunner::runChildTask<T>(parentTaskId, taskName, context, worker, callback)`: For hierarchical child sub-tasks.
-  * `AsyncTaskRunner::runChildTask<void>(parentTaskId, taskName, context, worker, callback)`: For void child sub-tasks.
-  * `AsyncTaskRunner::runBackground(taskName, worker)`: Inline convenience wrapper delegating directly to `runTask<void>` with no UI callback. It executes on the same single canonical execution engine, guaranteeing identical lifecycle tracking, structured exception safety, and arbitration rules.
-* `T` is the **Business Payload Type** (e.g. `GameInstallationInfo`, `DetectionResult`, `void`), never `Result<Result<T>>`.
-* The worker returns a single-layer `Result<T>`.
-* `AsyncTaskRunner` inspects the business outcome (and logged errors / exceptions) to transition the underlying `TaskState` in `LogManager`.
-* The callback receives `const Result<T>&` delivered thread-safely to the caller's context thread.
+`AsyncTaskRunner` 是连接两个平面的核心桥梁：
+* **标准 API 体系**：
+  * `AsyncTaskRunner::runTask<T>(taskName, context, worker, callback)`: 用于产出业务负载 `T` 的异步任务。
+  * `AsyncTaskRunner::runTask<void>(taskName, context, worker, callback)`: 用于无返回值的异步任务，保持完整的 `Result<void>` 语义。
+  * `AsyncTaskRunner::runChildTask<T>(parentTaskId, taskName, context, worker, callback)`: 用于层次化子任务。
+  * `AsyncTaskRunner::runChildTask<void>(parentTaskId, taskName, context, worker, callback)`: 用于无返回值子任务。
+  * `AsyncTaskRunner::runBackground(taskName, worker)`: 委派至 `runTask<void>` 的后台便捷封装，Worker 必须返回 `Core::Result<void>`，复用同一套生命周期与异常仲裁逻辑。
+* `T` 为**业务负载类型**（如 `GameInstallationInfo`、`DetectionResult`、`void`），严禁嵌套为 `Result<Result<T>>`。
+* Worker 返回单层 `Result<T>`。
+* `AsyncTaskRunner` 结合业务结果、日志报错与捕获的异常，驱动 `LogManager` 中的 `TaskState` 状态转移。
+* 回调函数接收 `const Result<T>&`，并线程安全地投递至调用方所在线程。
 
-#### Result Semantic Contract
+#### Result 语义契约
 
-* **`status()` / `isSuccess()` / `isFailure()` / `isCancelled()` / `isSkipped()`**: Authoritative source for business outcome branching. Always check `status()` or `isSuccess()` / `isFailure()` rather than relying solely on `errorCode()`.
-* **`error()`**: Machine-interpretable structured failure object (`Core::Error::Error`), carrying:
-  * `error().code()`: Standardized `ErrorCode` enum for branching/routing logic (carries error semantics on `Failure` / `Cancelled`; returns `ErrorCode::Success` on `Success` and `Skipped`);
-  * `error().message()`: Semantic domain/system failure reason (e.g. `"gameinfo.gi not found"`);
-  * `error().details()`: Technical diagnostic payload (e.g. file paths, stderr, syntax line info).
-* **`message()`**: High-level operation summary for presentation / UI (e.g. `"Validation failed for CS2"`). If no custom operation summary is set, it falls back to `error().message()`. For `Skipped`, `message()` carries the specific skip explanation (e.g. `"Already up to date"`).
-* **`details()`**: Direct proxy to `error().details()` for technical diagnosis. On `Success` and `Skipped`, `m_error` is `Error::success()`, so `details()` returns empty.
+* **`status()` / `isSuccess()` / `isFailure()` / `isCancelled()` / `isSkipped()`**：业务结果分支判定的权威来源。严禁仅凭 `errorCode()` 判定业务成败。
+* **`error()`**：机器可解析的结构化错误对象（`Core::Error::Error`），包含：
+  * `error().code()`：用于路由分支的标准 `ErrorCode` 枚举；
+  * `error().message()`：领域/系统层面的具体失败原因（如 `"gameinfo.gi not found"`）；
+  * `error().details()`：技术诊断数据（如文件路径、stderr 输出、语法行号）。
+* **`message()`**：面向用户/UI 的高层操作总结（如 `"CS2 校验失败"`）。未设置时自动回退为 `error().message()`；处于 `Skipped` 状态时携带具体跳过原因。
+* **`details()`**：直接代理 `error().details()`。
 
-##### Tripartite Diagnostic Contract (三层诊断分层规范)
+##### 三层诊断分层规范 (Tripartite Diagnostic Contract)
 
-To avoid diagnostic information loss and UI message conflation, all Workflow, Application, and Domain implementations must strictly distinguish the three diagnostic tiers:
-
-| Diagnostic Tier | Accessor | Owner / Layer | Semantic Role | Example |
+| 诊断层级 | 访问接口 | 归属层级 | 语义职责 | 示例 |
 | :--- | :--- | :--- | :--- | :--- |
-| **Operation Summary** | `Result::message()` | Workflow / Application | High-level user/task-facing summary of *what high-level operation failed or succeeded*. | `"Map import 'de_dust2' failed"`, `"CS2 environment validation failed"` |
-| **Failure Reason** | `Error::message()` | Domain / Core | Concrete semantic/domain explanation of *why the failure happened*. | `"gameinfo.gi not found"`, `"Entity block parser syntax error"` |
-| **Technical Diagnostics** | `Error::details()` / `Result::details()` | Domain / Core / Process | Low-level technical diagnostics for logs and troubleshooting (paths, stderr, AST line info, CLI args). | `"C:/Steam/steamapps/common/CS2/game/csgo/gameinfo.gi"`, compiler stderr output |
+| **操作总结 (Operation Summary)** | `Result::message()` | Workflow / Application | 面向用户/任务的全局高层概括，说明*哪个宏观操作失败或成功*。 | `"地图 'de_dust2' 导入失败"`, `"CS2 环境验证失败"` |
+| **失败原因 (Failure Reason)** | `Error::message()` | Domain / Core | 具体领域或系统原因，说明*为何发生失败*。 | `"gameinfo.gi 未找到"`, `"实体解析语法错误"` |
+| **技术诊断 (Technical Diagnostics)** | `Error::details()` / `Result::details()` | Domain / Core / Process | 供排查问题的低层诊断数据（绝对路径、stderr、AST 行号、CLI 参数等）。 | `"C:/Steam/steamapps/common/CS2/game/csgo/gameinfo.gi"`, 编译器 stderr 输出 |
 
-##### Construction Anti-Patterns vs. Canonical Patterns
+##### 构造反模式与规范模式
 
-* ❌ **Anti-Pattern 1: Conflating operation summary into `Error.message`**
+* ❌ **反模式 1：将高层操作总结挤占进 `Error.message`**
   ```cpp
-  // BAD: High-level operation summary replaces specific failure reason.
-  // The actual missing file and failure cause are lost!
-  return Result<void>::failure(ErrorCode::FileNotFound, "Could not import map");
+  // 错误：丢失了具体缺少哪个文件及底层真实原因
+  return Result<void>::failure(ErrorCode::FileNotFound, "无法导入地图");
   ```
-* ❌ **Anti-Pattern 2: String-formatting technical details into `Error.message`**
+* ❌ **反模式 2：把文件绝对路径等技术细节硬编码进 `Error.message`**
   ```cpp
-  // BAD: Hardcodes file paths into failure message, polluting UI strings and preventing clean error grouping.
-  return Result<void>::failure(ErrorCode::FileNotFound, "gameinfo.gi not found at C:/Games/CS2/gameinfo.gi");
+  // 错误：污染 UI 错误文案，破坏错误分类归纳
+  return Result<void>::failure(ErrorCode::FileNotFound, "gameinfo.gi 未在 C:/Games/CS2/gameinfo.gi 找到");
   ```
-* ✅ **Canonical Pattern 1: Multi-layer structured failure**
+* ✅ **规范模式 1：多层结构化失败封装**
   ```cpp
-  // GOOD: Error carries concrete reason + technical path; Result wraps with operation summary.
+  // 正确：Error 记录具体原因与技术路径，Result 包装宏观操作总结
   auto err = Core::Error::Error::fileNotFound(
       QStringLiteral("gameinfo.gi not found"), // Error.message: 具体失败原因
       gamePath.toQString()                     // Error.details: 技术诊断细节（绝对路径）
   );
   return Result<void>::failure(
       err,
-      QStringLiteral("CS2 game directory validation failed") // Result.message: 操作层总结
+      QStringLiteral("CS2 游戏目录校验失败")     // Result.message: 操作层总结
   );
   ```
-* ✅ **Canonical Pattern 2: Convenience overload with technical details**
+* ✅ **规范模式 2：带技术细节的便捷重载**
   ```cpp
-  // GOOD: ErrorCode + specific reason + technical path details.
+  // 正确：ErrorCode + 明确原因 + 技术路径
   return Result<void>::failure(
       Core::Error::ErrorCode::FileNotFound,
       QStringLiteral("gameinfo.gi not found"), // Error.message
@@ -391,125 +373,127 @@ To avoid diagnostic information loss and UI message conflation, all Workflow, Ap
   );
   ```
 
+##### 值访问规范 (Value Access Contract)
 
-#### Terminal Severity Hierarchy (终态严重性级联规则)
+* **`hasValue()` / `isSuccess()` 前置检查**：访问业务负载 `result.value()`、`operator*`、`operator->` 前，**必须**显式检查。在无值状态下调用 `.value()` 会抛出 `std::bad_optional_access`。
+* **禁止基于异常的业务控制流**：
+  * ❌ 严禁使用 `try { auto v = res.value(); } catch (...) {}` 进行控制流分支。
+  * ✅ 规范做法：`if (res.isSuccess()) { ... } else { ... }` 或使用 `res.valueOr(...)`。
 
-The cross-terminal arbitration matrix below is governed by a single deterministic cascade rule:
+##### 异常处理与转译分层规范 (Exception Handling & Translation)
 
-> **Failure dominates all other terminal states, regardless of which plane (lifecycle or business) produced it.**
+业务主干使用 `Result<T>` 显式单层传递，底层异常在系统边界统一转译：
+* **`Core::Error::Exception`**：项目专用的结构化异常传输类型（派生自 `std::exception` / `QException`），携带强类型 `Core::Error::Error`。用于深层调用栈快速跳出。
+* **`std::exception`**：标准库与第三方库异常兜底。
+* **`catch (...)`**：未知系统异常最终防线。
 
-The full cascade, applied in strict priority order:
-
-1. **Any Failure** (either `TaskState::Failed`, logged errors on `TaskLoggingContext`, or `Result::failure`) → final state is **`Failed`**, final result is **`Failure`**.
-2. **Otherwise, any Cancelled** (either `TaskState::Cancelled` or `Result::cancelled`) → final state is **`Cancelled`**, final result is **`Cancelled`**.
-3. **Otherwise, any Skipped** (either `TaskState::Skipped` or `Result::skipped`) → final state is **`Skipped`**, final result is **`Skipped`**.
-4. **Otherwise** → final state is **`Completed`**, final result is **`Success`**.
-
-This means:
-- `Cancelled` + `Failure` → **`Failed`** (failure wins over cancellation)
-- `Skipped` + `Failure` → **`Failed`** (failure wins over skip)
-- `Skipped` + `Cancelled` → **`Cancelled`** (cancellation wins over skip)
-
-Workflow code MAY rely on this guarantee. For example, a multi-step pipeline that encounters a genuine business failure after a cancellation signal was already set can trust that the failure will be faithfully reported to the caller — the cancellation will not silently swallow it.
-
-#### Cross-Terminal State Conflict Arbitration Matrix (跨终态冲突仲裁矩阵)
-
-When a background worker finishes, the task may possess a lifecycle `TaskState` set on `TaskLoggingContext` (e.g. via `fail()`, `cancel()`, `skip()`, `complete()`, or logged errors) while simultaneously returning a business `Result<T>`. `AsyncTaskRunner` strictly resolves all 16 state combinations according to the terminal severity hierarchy defined above:
-
-| Context `TaskState` | Worker `Result` | Contract Violation Logged? | Final `TaskState` in `LogManager` | Final `Result<T>` delivered to Callback |
-| :--- | :--- | :--- | :--- | :--- |
-| **Failed** (or errors) | **Success** | `error()` ("... returned success after task failed") | `Failed` | Converted to `Failure` (`OperationFailed`) |
-| **Failed** (or errors) | **Failure** | No (Agreement) | `Failed` | `Failure` (original) |
-| **Failed** (or errors) | **Cancelled** | `error()` ("... returned cancelled after task failed") | `Failed` | Converted to `Failure` (`OperationFailed`) |
-| **Failed** (or errors) | **Skipped** | `error()` ("... returned skipped after task failed") | `Failed` | Converted to `Failure` (`OperationFailed`) |
-| **Cancelled** (no errors) | **Success** | `warning()` ("... returned success after task was cancelled") | `Cancelled` | Converted to `Cancelled` |
-| **Cancelled** (no errors) | **Failure** | `warning()` ("... returned failure after task was cancelled") | `Failed` | `Failure` (original) |
-| **Cancelled** (no errors) | **Cancelled** | No (Agreement) | `Cancelled` | `Cancelled` (original) |
-| **Cancelled** (no errors) | **Skipped** | `warning()` ("... returned skipped after task was cancelled") | `Cancelled` | Converted to `Cancelled` |
-| **Skipped** (no errors) | **Success** | `warning()` ("... returned success after task was skipped") | `Skipped` | Converted to `Skipped` |
-| **Skipped** (no errors) | **Failure** | `warning()` ("... returned failure after task was skipped") | `Failed` | `Failure` (original) |
-| **Skipped** (no errors) | **Cancelled** | `warning()` ("... returned cancelled after task was skipped") | `Cancelled` | `Cancelled` (original) |
-| **Skipped** (no errors) | **Skipped** | No (Agreement) | `Skipped` | `Skipped` (original) |
-| **Completed / Running** | **Success** | No (Agreement) | `Completed` | `Success` (original) |
-| **Completed / Running** | **Failure** | No (Outcome transition) | `Failed` | `Failure` (original) |
-| **Completed / Running** | **Cancelled** | No (Outcome transition) | `Cancelled` | `Cancelled` (original) |
-| **Completed / Running** | **Skipped** | No (Outcome transition) | `Skipped` | `Skipped` (original) |
-
-*Value Preservation Rule*: When `Result<T>` is converted due to a contract violation or conflict, any existing partial payload (`result.value()`) is strictly preserved across the conversion.
-
-*Original Error Preservation Rule (原始错误保留规则)*: When `Result<T>` is converted to `Failure` due to a contract violation, the original `result.error()` is preserved if it carries a non-success error (retaining domain code, failure reason, and technical details). A new `OperationFailed` error is only synthesized when the original result had no meaningful error (e.g. was `Success`). The contract violation description is always recorded separately in the task log via `taskContext->error()` and surfaced in `Result::message()` as the operation summary.
-
-#### Exception Transport Boundary vs. Business Error Model (异常边界 vs 业务错误数据模型)
-
-The architecture defines two distinct error-related models with strictly separated concerns:
-* **`Core::Error::Error`**: The **stable business error data model** and cross-layer value object across Domain, Workflow, Application, and UI.
-* **`Core::Error::Exception`**: The **control flow exception boundary** and Qt cross-thread exception transport carrier (`QException`).
-
-```text
-Normal Business Failure Path:
-  Domain / Workflow / Application ──[returns Result<T>::failure(Error)]──► Application / UI Callback
-
-Exceptional / Crash Boundary Path:
-  Uncaught Exception ──[throw Core::Error::Exception(Error)]──► AsyncTaskRunner Catch Block
-                                                                       │
-                                              ┌────────────────────────┼────────────────────────┐
-                                              ▼                        ▼                        ▼
-                                    Task Log Entry           Task Terminal Summary           Result<T>
-                                 (Detailed Diagnostics)       (Concise Status)        (Structured Failure)
+在异步调度入口（`AsyncTaskRunner`）或服务边界处统一转译为 `Result<T>::failure`：
+```cpp
+try {
+    return executeOperation();
+} catch (const Core::Error::Exception& ex) {
+    return Result<T>::failure(ex.error());
+} catch (const std::exception& ex) {
+    return Result<T>::failure(Core::Error::ErrorCode::OperationFailed, QString::fromUtf8(ex.what()));
+} catch (...) {
+    return Result<T>::failure(Core::Error::ErrorCode::Unknown, QStringLiteral("Unknown runtime exception caught"));
+}
 ```
 
-##### 1. Normative Rules: When to Return `Result` vs. When to Throw `Exception`
+##### 强类型 Domain 错误码扩展规范
 
-* **Domain / Workflow / Application Normal Business Failures**:
-  * **Rule**: All predictable operational failures, format/syntax parse errors, validation rejections, and I/O failures MUST strictly return `Core::Result<T>::failure(error)`.
-  * **Forbidden**: Do **NOT** throw `Core::Error::Exception` for ordinary business or environment conditions (e.g. `"file not found"`, `"invalid keyvalues syntax"`, `"game directory mismatch"`, `"asset entity missing"`, `"validator rejected"`).
-* **Legitimate Use Cases for `throw Core::Error::Exception`**:
-  * Throwing `Core::Error::Exception` is strictly restricted to true exceptional boundaries:
-    1. **Unrecoverable internal invariant failures**: Critical internal state corruption or violated algorithmic preconditions where local continuation or recovery is impossible.
-    2. **Third-party / External library exception wrapping**: When calling external C++/Qt libraries that signal errors via C++ exceptions, catch and translate them at the immediate integration boundary into `Exception` or `Result`.
-    3. **Deep cross-stack-frame interruption**: Exceptional abort scenarios across multi-layer non-domain legacy call stacks where intermediate frames cannot pass `Result<T>`.
-* **Prohibition on Mixed Control Flow**:
-  * Never mix `throw Core::Error::Exception` and `return Result<T>::failure` for normal business branching or control flow.
+`Error::domain`、`Error::is` 与 `Error::domainCodeAs` 接口受 `static_assert(std::is_enum_v<EnumT>)` 约束，必须传入强类型 `enum` / `enum class`（如 `Domain::Game::GameErrorCode`），严禁使用整型魔法数。
 
-##### 2. Tripartite Reporting Responsibilities & UI Deduplication (三层上报职责与去重规范)
+#### 终态严重性级联规则 (Terminal Severity Hierarchy)
 
-When an async task fails (particularly on an uncaught exception path), `AsyncTaskRunner` coordinates three distinct reporting channels to prevent redundant message duplication in collapsible UI logs:
+跨终态仲裁遵循单一确定性原则：
 
-| Reporting Channel | Target Receiver | Semantic Responsibility | Content Format & Policy |
+> **Failure 拥有最高优先级，压倒其他所有终态（无论由生命周期还是业务结果产生）。**
+
+优先级顺序：
+1. **存在任何 Failure**（`TaskState::Failed`、日志报错或 `Result::failure`）→ 终态为 **`Failed`**，最终结果为 **`Failure`**。
+2. **否则，存在任何 Cancelled**（`TaskState::Cancelled` 或 `Result::cancelled`）→ 终态为 **`Cancelled`**，最终结果为 **`Cancelled`**。
+3. **否则，存在任何 Skipped**（`TaskState::Skipped` 或 `Result::skipped`）→ 终态为 **`Skipped`**，最终结果为 **`Skipped`**。
+4. **否则** → 终态为 **`Completed`**，最终结果为 **`Success`**。
+
+关系：
+- `Cancelled` + `Failure` → **`Failed`**
+- `Skipped` + `Failure` → **`Failed`**
+- `Skipped` + `Cancelled` → **`Cancelled`**
+
+#### 跨终态冲突仲裁矩阵 (State Conflict Arbitration Matrix)
+
+| Context `TaskState` | Worker `Result` | 是否记录契约违规日志 | LogManager 最终 `TaskState` | 回调接收的最终 `Result<T>` |
+| :--- | :--- | :--- | :--- | :--- |
+| **Failed** (或有错误日志) | **Success** | `error()` ("... 任务失败后返回了 success") | `Failed` | 强制转为 `Failure` (`OperationFailed`) |
+| **Failed** (或有错误日志) | **Failure** | 否（达成一致） | `Failed` | `Failure`（保留原错误） |
+| **Failed** (或有错误日志) | **Cancelled** | `error()` ("... 任务失败后返回了 cancelled") | `Failed` | 强制转为 `Failure` (`OperationFailed`) |
+| **Failed** (或有错误日志) | **Skipped** | `error()` ("... 任务失败后返回了 skipped") | `Failed` | 强制转为 `Failure` (`OperationFailed`) |
+| **Cancelled** (无错误) | **Success** | `warning()` ("... 任务取消后返回了 success") | `Cancelled` | 强制转为 `Cancelled` |
+| **Cancelled** (无错误) | **Failure** | `warning()` ("... 任务取消后返回了 failure") | `Failed` | `Failure`（保留原错误） |
+| **Cancelled** (无错误) | **Cancelled** | 否（达成一致） | `Cancelled` | `Cancelled`（保留原状态） |
+| **Cancelled** (无错误) | **Skipped** | `warning()` ("... 任务取消后返回了 skipped") | `Cancelled` | 强制转为 `Cancelled` |
+| **Skipped** (无错误) | **Success** | `warning()` ("... 任务跳过后返回了 success") | `Skipped` | 强制转为 `Skipped` |
+| **Skipped** (无错误) | **Failure** | `warning()` ("... 任务跳过后返回了 failure") | `Failed` | `Failure`（保留原错误） |
+| **Skipped** (无错误) | **Cancelled** | `warning()` ("... 任务跳过后返回了 cancelled") | `Cancelled` | `Cancelled`（保留原状态） |
+| **Skipped** (无错误) | **Skipped** | 否（达成一致） | `Skipped` | `Skipped`（保留原状态） |
+| **Completed / Running** | **Success** | 否（达成一致） | `Completed` | `Success`（保留原结果） |
+| **Completed / Running** | **Failure** | 否（状态顺推） | `Failed` | `Failure`（保留原错误） |
+| **Completed / Running** | **Cancelled** | 否（状态顺推） | `Cancelled` | `Cancelled`（保留原状态） |
+| **Completed / Running** | **Skipped** | 否（状态顺推） | `Skipped` | `Skipped`（保留原状态） |
+
+*负载保全规则 (Value Preservation Rule)*：当 `Result<T>` 因契约冲突转换状态时，已有的部分数据负载（`result.value()`）严格予以保留。
+*原始错误保留规则 (Original Error Preservation Rule)*：因契约违规转换为 `Failure` 时，若原 `Result` 中已含有非成功错误信息，完整保留其错误码与诊断细节；仅当原结果无有效错误（如原为 `Success`）时才合成 `OperationFailed`。违规描述由 `taskContext->error()` 记入日志并在 `Result::message()` 操作总结中呈现。
+
+#### 异常边界 vs 业务错误数据模型
+
+* **`Core::Error::Error`**：**稳定的业务错误数据模型**，跨 Domain、Workflow、Application 与 UI 的标准传递值对象。
+* **`Core::Error::Exception`**：**控制流异常边界**，Qt 跨线程异常传输载体（`QException`）。
+
+##### 1. 返回 `Result` 与抛出 `Exception` 的界定规则
+
+* **正常业务失败路径**：所有可预测的操作失败、解析错误、校验未通过、I/O 失败等，**必须严格返回** `Core::Result<T>::failure(error)`。严禁就常规业务条件抛出 `Exception`。
+* **抛出 `Exception` 的合法场景**：
+  1. **不可恢复的内部断言/状态损坏**；
+  2. **第三方/外部 C++ 异常包装**（在集成边界捕获并转译）；
+  3. **深层跨栈帧打断**（中继栈帧无法传递 `Result<T>` 的旧有非领域代码）。
+* **严禁混用控制流**：禁止在常规业务分支中交叉混用 `throw Exception` 与 `return Result`。
+
+##### 2. 三层上报职责与 UI 去重规范
+
+| 上报通道 | 目标接收方 | 语义职责 | 内容格式与策略 |
 | :--- | :--- | :--- | :--- |
-| **Task Log Messages** | `TaskLoggingContext` (`taskContext->error(...)`) | **Detailed technical diagnostics** | Full technical trace: `ErrorCode`, specific error reason, technical `details()` (e.g. absolute paths, CLI args, compiler stderr), or `std::exception::what()`. Displayed when user expands task log blocks. |
-| **Task Final Summary** | `LogManager` / `TaskSnapshot.currentMessage` (`forceTaskState`) | **Concise high-level status summary** | Short status text (e.g. `"Task failed with uncaught exception"`, `"Validation failed"`). **Must NOT** duplicate long technical payloads, file paths, or stack strings. |
-| **Result** | Caller / UI Callback (`Result<T>`) | **Structured business outcome** | Carries `status()`, `message()` (operation summary), and structured `Error` (`code()`, `message()`, `details()`) for programmatic branching, UI status badges, or toast alerts. |
+| **任务日志消息 (Task Log)** | `TaskLoggingContext` (`taskContext->error(...)`) | **技术诊断细节** | 完整技术调用栈、`ErrorCode`、具体失败原因、`details()`（绝对路径、CLI 参数、stderr）或 `ex.what()`。展开日志时查看。 |
+| **任务终态总结 (Task Summary)** | `LogManager` / `TaskSnapshot.currentMessage` | **简明宏观状态** | 简短状态文本（如 `"任务异常终止"`, `"校验失败"`）。**严禁**塞入长字符串、路径或堆栈。 |
+| **业务结果 (Result)** | 调用方 / UI 回调 (`Result<T>`) | **结构化业务结果** | 包含 `status()`、`message()`（操作总结）与结构化 `Error`，用于程序分支、UI 徽章或 Toast 提示。 |
 
-#### Error Code Stratification: Core vs. Domain Error Domains
+#### 错误码分层：Core vs Domain 错误域
 
-* **`Core::Error::ErrorCode`**: General-purpose infrastructure, system, and I/O error categories (`InvalidArgument`, `InvalidPath`, `DirectoryNotFound`, `FileNotFound`, `InvalidFile`, `ProcessFailed`, `DomainError`, etc.). Must remain clean and free of Valve/game-specific concepts.
-* **Domain Error Codes (e.g. `Domain::Game::GameErrorCode`)**: Fine-grained business error codes owned by specific domain namespaces (e.g. `UnsupportedGame`, `GameInfoNotFound`, `GameTypeMismatch`, `SteamAppMismatch`, `InvalidGameInstallation`, `EmptyCustomGameInfo`).
-* **Non-conflation invariant (禁止领域错误侵入底层事实)**:
-  * Low-level path syntax errors (`!path.isValid() || path.isEmpty()`) must strictly return `Core::ErrorCode::InvalidPath` (`Core::Error::Error::invalidPath()`).
-  * Missing directory on disk (`!dir.exists()`) must strictly return `Core::ErrorCode::DirectoryNotFound` (`Core::Error::Error::directoryNotFound()`).
-  * Low-level filesystem/input validation failures must **NEVER** be swallowed or masqueraded into domain-specific error codes like `GameInfoNotFound` or `InvalidGameInstallation`.
-  * Domain errors (e.g. `GameErrors::gameInfoNotFound`, `GameErrors::gameTypeMismatch`, `GameErrors::invalidGameInstallation`) are reserved solely for valid paths where game-specific structure or business rules fail.
-* **Domain Error Factory Exclusivity (领域错误工厂唯一入口契约)**:
-  * `Domain::Game::GameErrors` (and corresponding domain error factories) is the **exclusive authoritative entry point** for constructing domain business error objects.
-  * Application, Workflow, and UI layers must **NEVER** invent or construct Domain business errors ad-hoc (e.g. fabricating `GameTypeMismatch` or raw `GameErrorCode`). Upper layers must strictly consume or propagate Domain errors generated by `GameErrors`, wrapping them with high-level operation summaries via `Result<T>::failure(domainError, operationSummary)`.
-* **Inspection Contract**:
-  * Check high-level infrastructure/system status: `err.is(Core::Error::ErrorCode::InvalidPath)` or `err.code() == ErrorCode::...`
-  * Check domain business outcome: `err.is(Domain::Game::GameErrorCode::GameInfoNotFound)` or `err.domainCodeAs<GameErrorCode>()`
-  * `Core::Error::Error::is` provides distinct overloads for `ErrorCode` and generic enum types, ensuring both checks are supported unambiguously.
+* **`Core::Error::ErrorCode`**：通用基础设施/系统错误（`InvalidArgument`, `InvalidPath`, `DirectoryNotFound`, `FileNotFound`, `ProcessFailed` 等），无 Valve/游戏专有概念。
+* **Domain 错误码（如 `Domain::Game::GameErrorCode`）**：细粒度业务错误（`UnsupportedGame`, `GameInfoNotFound`, `GameTypeMismatch`, `SteamAppMismatch`, `InvalidGameInstallation` 等）。
+* **禁止领域错误侵入底层事实**：
+  * 低层路径语法错误（`!path.isValid()`）必须返回 `Core::ErrorCode::InvalidPath`。
+  * 磁盘目录不存在（`!dir.exists()`）必须返回 `Core::ErrorCode::DirectoryNotFound`。
+  * 严禁将底层文件/路径错误吞没并伪装为领域错误（如 `GameInfoNotFound`）。
+* **领域错误工厂唯一入口契约**：
+  * `Domain::Game::GameErrors` 是构建领域业务错误对象的**唯一权威入口**。
+  * 上层（Application/Workflow/UI）严禁随意凭空构造 Domain 业务错误，必须消费 Domain 产生的错误并包装宏观操作总结。
+* **错误检测契约**：
+  * 基础设施状态判定：`err.is(Core::Error::ErrorCode::InvalidPath)`
+  * 领域业务判定：`err.is(Domain::Game::GameErrorCode::GameInfoNotFound)` 或 `err.domainCodeAs<GameErrorCode>()`
 
-#### Heuristic Matching (`try*` -> `std::optional<T>`) vs. Validation (`Result<T>`)
+#### 启发式推导 (`try*` -> `std::optional<T>`) vs 确定性校验 (`validate*` -> `Result<T>`)
 
-* **Deterministic Validation (`validate*` -> `Result<T>`)**: Use when asserting preconditions or contract validity against an expected target. If validation fails, it is an operation failure that must communicate *why* it failed via `Result<T>::failure(Error)`.
-* **Heuristic Identification (`tryIdentify*` -> `std::optional<T>`)**: Use for best-effort pattern recognition / deduction (e.g. `tryIdentifyGameType`). Returning `std::nullopt` signifies a normal non-match branch (e.g. falling back to manual selection or Custom game), rather than an operational failure.
+* **确定性校验 (`validate*` -> `Result<T>`)**：用于对目标进行严格的前置契约校验。失败代表操作受阻，需通过 `Result<T>::failure(Error)` 阐明原因。
+* **启发式识别 (`tryIdentify*` -> `std::optional<T>`)**：用于尽力而为的模式推导（如 `tryIdentifyGameType`）。返回 `std::nullopt` 表示常规未匹配（如回退至手动选择），并非操作错误。
 
 ---
 
-## 6. Logging Rules
+## 6. 日志规范
 
-The project uses task-oriented logging.
+本项目采用**任务导向（Task-Oriented）日志系统**。
 
-### Forbidden
+### 严禁使用
 
 ```cpp
 Core::Logging::Logger::info(...);
@@ -517,11 +501,11 @@ Core::Logging::Logger::warning(...);
 Core::Logging::Logger::error(...);
 ```
 
-Do not add new global/static logger APIs, global logger pointers, or module-global logging state.
+严禁引入全局静态日志 API、全局日志器指针或模块级全局日志状态。
 
-### Required direction
+### 标准流向
 
-Application/Workflow creates or receives a task logging context and passes it downward:
+Application/Workflow 创建或接收任务日志上下文并向下传递：
 
 ```text
 Application
@@ -531,63 +515,52 @@ TaskLoggingContext
 Workflow / Domain
 ```
 
-Code should use the context for task messages, progress and faults.
+### 日志级别与任务生命周期契约
 
-### Log Level & Task Lifecycle Contract
+* **`error()` / `reportFault()`**：**当前任务发生不可恢复的业务失败**。触发后任务将被 `AsyncTaskRunner` 自动置为 `TaskState::Failed`。只有任务真正失败时才可调用；若故障已被降级/重试处理，严禁调用 `error()`。
+* **`warning()`**：**可恢复问题、降级处理或跳过**。不影响任务成功状态。
+* **`info()`**：**面向用户的宏观阶段里程碑**（如任务开始、完成、发现关键资产）。切勿在 info 级别输出冗长技术细节。
+* **`debug()`**：**技术诊断与内部步骤追踪**（搜索路径、解析器细节、CLI 参数等）。
 
-The logging system is semantically coupled with task lifecycle arbitration:
+### UI 日志
 
-* **`error()` / `reportFault()`**: **Unrecoverable business failure for the current task**.
-  * Any task that emits an `error()` is automatically transitioned to `TaskState::Failed` by `AsyncTaskRunner`, even if the worker returns normally or yields `Result::success`.
-  * **Rule:** Only call `error()` if the current task has actually failed. If a step failed but was recovered, handled, or retried, do not emit `error()`.
-* **`warning()`**: **Recoverable issue, fallback, degradation, or skip**.
-  * Emitting a `warning()` does **not** fail the task. Use `warning()` when an unexpected condition occurred but execution continued safely or fell back.
-* **`info()`**: **High-level user-facing milestones only** (e.g. task starting, task completed, major asset/game discovered). Do not spam technical details at `info` level.
-* **`debug()`**: **Technical diagnostics and internal step tracing** (e.g. filesystem search paths, parser details, tool CLI arguments).
-
-### UI logging
-
-A ViewModel may implement `ILogSink` or subscribe to logging events, but that adapter must marshal updates onto the UI thread.
-
-Core logging sinks may route committed logs to files or UI adapters, but Core must not know that a UI exists.
+ViewModel 可实现 `ILogSink` 或订阅日志事件，但适配层必须将更新调度至 UI 线程。Core 层日志接收器可将日志落地为文件，但 Core 绝对不得感知 UI 的存在。
 
 ---
 
-## 7. User Prompts / Confirmation Rules
+## 7. 用户交互与弹窗确认规范
 
-Lower layers must never call a modal dialog directly.
+下层严禁直接调用模态对话框。
 
-Forbidden examples:
+严禁做法：
 
 ```cpp
 QMessageBox::question(...);
 QQmlApplicationEngine ...;
-qml dialog invocation from Domain/Workflow;
+从 Domain/Workflow 中调用 QML 弹窗;
 ```
 
-Required pattern:
+标准调用流：
 
 ```text
-Workflow/Domain needs confirmation
+Workflow/Domain 需要确认
         ↓
-abstract prompt interface
+抽象确认接口 (Prompt Interface)
         ↓
-Application implements policy/bridge
+Application 实现策略/桥接
         ↓
-UI/QML performs the actual prompt
+UI/QML 弹出实际对话框
         ↓
-result returns to Application/worker context
+结果异步返回至 Application/Worker 上下文
 ```
-
-The prompt abstraction must not expose UI widgets to Domain/Workflow.
 
 ---
 
-## 8. External Tool Execution Rules
+## 8. 外部工具调用规范
 
-Direct creation of external processes from business files is forbidden.
+严禁在业务代码中直接创建外部进程。
 
-Forbidden:
+严禁做法：
 
 ```cpp
 QProcess process;
@@ -598,7 +571,7 @@ popen(...);
 WinExec(...);
 ```
 
-All external CLI tools (`bspsrc`, `source1import`, `resourcecompiler`, `vpkeditcli`, `vtfcmd`, etc.) must be wrapped under:
+所有外部 CLI 工具（`bspsrc`, `source1import`, `resourcecompiler`, `vpkeditcli`, `vtfcmd` 等）必须统一封装于：
 
 ```text
 Domain::Tool
@@ -606,22 +579,22 @@ Domain::Tool
 Core::Process::ProcessRunner
 ```
 
-Tool wrappers return structured `Core::Process::ProcessResult` or a domain-specific result that contains it. They must not print directly to a UI console or display dialogs.
+工具包装器统一返回结构化 `Core::Process::ProcessResult` 或包含它的领域结果类型。
 
 ---
 
-## 9. Filesystem / I/O Rules
+## 9. 文件系统与 I/O 规范
 
-* Prefer `Core::Path::FilesystemPath` and `Core::FileSystem` in migrated layers.
-* Do not reimplement path normalization, sanitization, atomic writes, leases or generic filesystem helpers in Domain/Application/UI.
-* Use `Core::FileSystem::AtomicFile` for atomic replacement when the operation requires it.
-* Avoid repeatedly reading/parsing the same file when a single in-memory AST can support the transformation.
-* Use `Core::KeyValues` for Valve KeyValues/VDF/VMF-like documents instead of ad-hoc regex parsing when the file belongs to the supported KV grammar.
-* Domain decides Valve-specific relative paths/search rules; Core only manipulates generic host filesystem paths.
+* 优先使用 `Core::Path::FilesystemPath` 与 `Core::FileSystem`。
+* 严禁在 Domain/Application/UI 中重复实现路径标准化、原子写入、文件锁或基础文件工具函数。
+* 需原子写入时使用 `Core::FileSystem::AtomicFile`。
+* 避免重复读取/解析同一文件，优先在内存 AST 中完成转换。
+* 对 Valve KeyValues/VDF/VMF 格式文件，必须使用 `Core::KeyValues`，严禁使用临时正则表达式解析。
+* Domain 决定 Valve 专有相对路径/搜索规则；Core 只处理通用宿主文件系统路径。
 
 ---
 
-## 10. Target Directory Structure
+## 10. 目标目录结构
 
 ```text
 src/
@@ -671,37 +644,37 @@ src/
         └── Main.qml
 ```
 
-`src/Legacy/` is transitional only. New code must not depend on Legacy unless the migration task explicitly requires a temporary bridge. Do not expand Legacy dependencies as a permanent architecture strategy.
+`src/Legacy/` 仅用于过渡。新代码严禁依赖 Legacy。
 
 ---
 
-## 11. Component Placement Mapping
+## 11. 模块迁移对照表
 
-| Existing / Legacy Component                    | Target Layer                                    | Target Path                          | Key Responsibility                                        |
+| 既有 / 遗留组件                                | 目标分层                                        | 目标路径                             | 核心职责                                                  |
 | :--------------------------------------------- | :---------------------------------------------- | :----------------------------------- | :-------------------------------------------------------- |
-| `Miscellaneous::RunCommandSync`, `PROGRAM_*`   | `Domain::Tool`                                  | `src/Domain/Tool/`                   | Typed wrappers over external tools using `Core::Process`. |
-| `VmfBspProcess`                                | `Domain::Vmf` / `Domain::Bsp`                   | `src/Domain/Vmf/`, `src/Domain/Bsp/` | VMF processing and BSP/decompile behavior.                |
-| `MaterialFix`                                  | `Domain::Material`                              | `src/Domain/Material/`               | VMT/VMAT/material conversion and fixes.                   |
-| `SoundscapeImport`                             | `Domain::Audio`                                 | `src/Domain/Audio/`                  | Soundscape extraction and VMF audio linking.              |
-| `FileExtractFromVPK`                           | `Domain::Package`                               | `src/Domain/Package/`                | Typed VPK/package extraction.                             |
-| `Miscellaneous::ParseGameInfo`, `SearchTarget` | `Domain::Game`                                  | `src/Domain/Game/`                   | GameInfo parsing, validation and search-path resolution.  |
-| `ModelImporter`                                | `Workflow::Model`                               | `src/Workflow/Model/`                | `.mdl → .vmdl` import pipeline.                           |
-| `ParticleImporter`                             | `Workflow::Particle`                            | `src/Workflow/Particle/`             | `.pcf → .vpcf` import pipeline.                           |
-| `MapImporter`                                  | `Workflow::Map`                                 | `src/Workflow/Map/`                  | BSP → VMF → compile/assets pipeline.                      |
-| `Ui::AutoDetectPaths`, `IsValid*`              | `Application::Environment` + `Domain::Game`     | corresponding directories            | Application orchestration + Domain validation.            |
-| `vpk.signatures` locking                       | `Application::Environment` + `Core::FileSystem` | corresponding directories            | Application policy + generic file lease.                  |
-| `Ui::CheckForUpdate`                           | `Application::Update`                           | `src/Application/Update/`            | Update checking.                                          |
-| `Ui::LoadFromCfg`, `SaveToCfg`                 | `Application::Config`                           | `src/Application/Config/`            | Configuration persistence.                                |
-| `Ui::Start`, worker thread, `CancelAll`        | `Application::Task`                             | `src/Application/Task/`              | WorkflowRunner/task lifecycle.                            |
-| `Ui.h/.cpp` Q_PROPERTY/slots                   | `UI`                                            | `src/UI/`                            | Thin presentation adapter only.                           |
+| `Miscellaneous::RunCommandSync`, `PROGRAM_*`   | `Domain::Tool`                                  | `src/Domain/Tool/`                   | 基于 `Core::Process` 的外部工具强类型封装。               |
+| `VmfBspProcess`                                | `Domain::Vmf` / `Domain::Bsp`                   | `src/Domain/Vmf/`, `src/Domain/Bsp/` | VMF 处理与 BSP 反编译行为。                               |
+| `MaterialFix`                                  | `Domain::Material`                              | `src/Domain/Material/`               | VMT/VMAT 材质转换与修正。                                 |
+| `SoundscapeImport`                             | `Domain::Audio`                                 | `src/Domain/Audio/`                  | Soundscape 提取与 VMF 音效关联。                          |
+| `FileExtractFromVPK`                           | `Domain::Package`                               | `src/Domain/Package/`                | 类型安全 VPK/包提取。                                     |
+| `Miscellaneous::ParseGameInfo`, `SearchTarget` | `Domain::Game`                                  | `src/Domain/Game/`                   | GameInfo 解析、校验与搜索路径解析。                       |
+| `ModelImporter`                                | `Workflow::Model`                               | `src/Workflow/Model/`                | `.mdl → .vmdl` 导入流水线。                               |
+| `ParticleImporter`                             | `Workflow::Particle`                            | `src/Workflow/Particle/`             | `.pcf → .vpcf` 导入流水线。                               |
+| `MapImporter`                                  | `Workflow::Map`                                 | `src/Workflow/Map/`                  | BSP → VMF → 编译/资产提取流水线。                         |
+| `Ui::AutoDetectPaths`, `IsValid*`              | `Application::Environment` + `Domain::Game`     | 对应目录                             | Application 编排 + Domain 校验。                          |
+| `vpk.signatures` 锁定                          | `Application::Environment` + `Core::FileSystem` | 对应目录                             | Application 策略 + 通用文件租约（File Lease）。           |
+| `Ui::CheckForUpdate`                           | `Application::Update`                           | `src/Application/Update/`            | 自动更新检测。                                            |
+| `Ui::LoadFromCfg`, `SaveToCfg`                 | `Application::Config`                           | `src/Application/Config/`            | 配置持久化。                                              |
+| `Ui::Start`, 工作线程, `CancelAll`             | `Application::Task`                             | `src/Application/Task/`              | WorkflowRunner / 任务生命周期管理。                       |
+| `Ui.h/.cpp` Q_PROPERTY/slots                   | `UI`                                            | `src/UI/`                            | 极薄的表现层适配器。                                      |
 
 ---
 
-## 12. CMake Dependency Enforcement
+## 12. CMake 依赖强制规范
 
-CMake must reflect the architectural dependency graph.
+CMake 构建配置必须如实映射架构依赖图。
 
-### Required module dependency graph
+### 模块依赖拓扑
 
 ```text
 cs2importer_core
@@ -714,33 +687,30 @@ cs2importer_application
     ↑
 cs2importer_ui
     ↑
-cs2importer executable / QML integration
+cs2importer 主执行程序 / QML 集成
 ```
 
-Where a module does not yet exist during a staged migration, do not invent cross-layer shortcuts. Add the smallest temporary adapter and remove it when the target layer lands.
+### 规则
 
-### Rules
+* `cs2importer_core` 严禁链接 Domain / Application / UI。
+* `cs2importer_domain` 仅链接 Core。
+* `cs2importer_workflow` 链接 Domain + Core。
+* `cs2importer_application` 链接 Workflow + Domain + Core。
+* `cs2importer_ui` 链接 Application 及 Qt UI 模块。**严禁为了方便而在 UI 中直接链接 Domain/Core。**
+* 优先使用 `PRIVATE` 链接，仅在属于公共 API 时使用 `PUBLIC`。
+* 避免无节制暴露全局 `${CMAKE_SOURCE_DIR}` 头文件路径。
 
-* `cs2importer_core` must not link Domain/Application/UI.
-* `cs2importer_domain` links Core only.
-* `cs2importer_workflow` links Domain + Core.
-* `cs2importer_application` links Workflow + Domain + Core as required by its services.
-* `cs2importer_ui` should link Application and Qt UI modules. **Do not add Domain/Core merely to make UI implementation easier.**
-* The final executable may link the top-level application/UI/QML targets as needed, but application logic must still respect the runtime dependency rules.
-* Prefer `PRIVATE` linkage where downstream targets do not need the dependency transitively. Use `PUBLIC` only when the dependency is part of the library's public API.
-* Avoid broad `${CMAKE_SOURCE_DIR}` include exposure when a target-local include root is sufficient.
+### CMake 架构红线
 
-### CMake architecture red flag
-
-If a patch changes `src/UI/CMakeLists.txt` to add `cs2importer_domain` or `cs2importer_core` only because a ViewModel wants to call a Domain/Core function directly, **stop and redesign the boundary**.
+若补丁试图在 `src/UI/CMakeLists.txt` 中添加 `cs2importer_domain` 或 `cs2importer_core` 以便 ViewModel 直接调用，**必须立即停止并重新设计架构边界**。
 
 ---
 
-## 13. Application Service Design
+## 13. Application 服务设计
 
-Application services should be **instance-based** by default, not giant collections of `static` convenience functions.
+Application 服务默认应当是**基于对象实例（Instance-based）**的，而非巨大的 `static` 静态函数集合。
 
-Prefer:
+推荐范式：
 
 ```cpp
 class GameEnvironmentService {
@@ -753,400 +723,242 @@ public:
 };
 ```
 
-Avoid growing APIs like:
-
-```cpp
-GameDetectService::validateSource1(...);
-GameDetectService::validateSource2(...);
-GameDetectService::inspectGameInfo(...);
-GameDetectService::detectAllGames(...);
-...
-```
-
-A static helper is acceptable for a genuinely stateless pure function, but services that own policies, dependencies, lifecycle, logging, caching, or asynchronous work should be injected instances.
-
-When a service becomes responsible for multiple unrelated concerns, split it instead of turning it into a universal environment utility.
+避免将 API 设计成庞大的静态工具类集合。当一个服务承担了过多不相关职责时，应及时拆分。
 
 ---
 
-## 14. Domain API Design
+## 14. Domain API 设计
 
-Domain APIs should be deterministic and testable.
+Domain API 必须保持确定性（Deterministic）和易测性（Testable）。
 
-Prefer:
+推荐范式：
 
 ```text
-input value(s)
-    → domain operation
-    → value/result/error
+输入数据
+    → 领域操作
+    → 返回值 / 结果 / 错误
 ```
 
-Avoid Domain APIs that:
+Domain API **严禁**：
+* 访问 UI 状态；
+* 访问应用全局状态；
+* 弹出对话框；
+* 仅为掩盖设计缺陷而自行启动 Worker 线程；
+* 隐式修改无关的全局配置；
+* 返回面向展示的特定结构。
 
-* reach into UI state;
-* consult application-global state;
-* show dialogs;
-* spawn worker threads solely to hide a design problem;
-* silently mutate unrelated global configuration;
-* return presentation-specific structures.
-
-Use strong domain types (`GameType`, `AssetPath`, `SearchTarget`, etc.) once the call has crossed from Application into Domain.
-
----
-
-## 15. Error Handling Rules
-
-* Use structured `Core::Error` / `ImportException` or typed result objects instead of stringly-typed control flow where practical.
-* Preserve enough context to explain the failure to Application and UI.
-* Domain errors should describe domain/infrastructure failure, not UI wording.
-* Application may translate lower-layer errors into user-facing messages.
-* Do not bury an error behind `catch (...) {}` unless the exception is intentionally treated as non-fatal and the failure is documented.
-* Do not return `true` merely because an operation was skipped unless the public contract defines that state as success/no-op.
+跨入 Domain 层后，统一使用强领域类型（如 `GameType`、`AssetPath`、`SearchTarget` 等）。
 
 ---
 
-## 16. Logging API Reference
+## 15. 错误处理规范
 
-Task-oriented logging is the default architecture:
+* 优先使用结构化 `Core::Error` 与类型安全结果对象，避免字符串型控制流。
+* 保留足够的诊断上下文，以便向 Application 与 UI 层清晰反馈失败原因。
+* Domain 错误应准确描述领域/系统故障事实，而非 UI 文案。
+* 严禁无理由使用 `catch (...) {}` 吞没错误。
+* 严禁仅因操作跳过而返回 `true`（除非契约明确将跳过定义为成功/空操作）。
+
+---
+
+## 16. 日志 API 参考
+
+任务导向日志标准范式：
 
 ```cpp
 auto task =
     Core::Logging::LogManager::instance()
-        .createTask(QStringLiteral("Import model"));
+        .createTask(QStringLiteral("导入模型"));
 
 task->start();
-task->info(QStringLiteral("Started"));
-task->updateProgress(0.5, QStringLiteral("Converting"));
-task->complete(QStringLiteral("Finished"));
+task->info(QStringLiteral("开始处理"));
+task->updateProgress(0.5, QStringLiteral("转换中"));
+task->complete(QStringLiteral("处理完成"));
 ```
 
-Migrated Workflow/Domain code should receive the appropriate task context from its caller rather than obtaining an unrelated global logger.
-
-UI log sinks must be thread-safe and must use queued delivery for QObject state changes when messages originate off the UI thread.
+迁移后的 Workflow/Domain 代码应由调用方显式注入 task 上下文。UI 日志接收器必须线程安全，并在跨线程时通过排队机制更新 QObject 状态。
 
 ---
 
-## 17. Core API Reference
+## 17. Core API 参考
 
-`src/Core/CMakeLists.txt` builds `cs2importer_core` as a static library. Its include root is `src/`.
+`src/Core/CMakeLists.txt` 将 `cs2importer_core` 编译为静态库，包含根路径为 `src/`。
 
-### `Core::Path`
+* **`Core::Path`**：`FilesystemPath` 提供标准化的宿主文件系统路径操作；`PathUtils` 提供通用路径规范化、扩展名提取与安全文件名过滤。
+* **`Core::KeyValues`**：通用 Valve KeyValues/VDF AST 解析与序列化器，支持无引号 Token、嵌套节点、同名兄弟节点、保序输出及原子写入。
+* **`Core::FileSystem`**：提供通用文件系统辅助类、`AtomicFile`、`DirectorySnapshot` 以及 RAII 移动语义的 `FileLease` 文件租约。
+* **`Core::Process`**：`ProcessRunner` 提供结构化外部进程调用与超时控制（`ProcessOptions`, `ProcessResult`）。
+* **`Core::Temp`**：`TempFile` 与 `TempDirectory` 提供 RAII 临时资源生命周期管理。
+* **`Core::Error`**：`ErrorCode`, `Error`, `Exception` 通用错误原语。`Result<T>` 原生集成 `Core::Error::Error`。
 
-```cpp
-#include "Core/Path/FilesystemPath.h"
-#include "Core/Path/PathUtils.h"
+---
 
-Core::Path::FilesystemPath filePath(
-    QStringLiteral("C:/game/assets/models/props/example.mdl"));
+## 18. Domain API 参考
 
-if (filePath.exists() && filePath.isFile()) {
-    const auto parent = filePath.parentPath();
-}
-```
+`src/Domain/CMakeLists.txt` 构建 `cs2importer_domain`，依赖 Core。
 
-`FilesystemPath` provides normalized host filesystem path operations including existence checks, path decomposition and canonical/absolute forms.
+* **`Domain::Asset`**：`AssetPath`（资产相对路径）、`AssetTypeDetector`（资产类型判别）。
+* **`Domain::Game`**：`GameType`, `EngineType`, `GameDefinition`, `GameRegistry`, `GameInfo`, `GameInfoParser`, `SearchTarget`, `SearchPathResolver`, `GameValidator`。封装 Source/Valve 核心业务语义，彻底与 Application/UI 解耦。新增支持的游戏应通过 `GameDefinition` / `GameRegistry` 元数据驱动。
 
-`PathUtils` provides generic normalization, filename/extension/directory extraction, relative paths and host-filename sanitization.
+---
 
-### `Core::KeyValues`
+## 19. Application API 参考
 
-Generic Valve KeyValues/VDF AST parser and writer. The intended lifecycle is:
+核心环境服务：
+* `SteamService`：Steam 安装目录/库探测与 App Manifest 读取；
+* `GameInstallation`：探测到的游戏安装应用层数据表示；
+* `GameDetectService`：游戏探测与校验编排；
+* `VpkSignatureLeaseService`：CS2 `vpk.signatures` 排他性租约策略。
+
+面向 UI 的结果应封装为 DTO（如 `ValidationResult`），避免向 QML 暴露底层 AST 或内部设施指针。
+
+---
+
+## 20. 重构演进路线图
+
+重构按阶段逐步推进，**严禁为了让临时代码通过编译而跨阶段混杂实现**。
+
+1. **Stage 1 — Core 基础设施解耦提取**（已完成）
+2. **Stage 2 — Domain 领域基础迁移**（游戏模型/解析器/注册表/校验器、`Domain::Tool`、`Domain::Package`）
+3. **Stage 3 — 导入器与领域逻辑迁移**（ModelImporter → `Workflow::Model`、ParticleImporter → `Workflow::Particle`、MaterialFix → `Domain::Material`、VmfBspProcess → `Domain::Vmf` + `Domain::Bsp`）
+4. **Stage 4 — Application 应用编排重构**（WorkflowRunner、ConfigService、UpdateService、任务/取消/日志统一路由）
+5. **Stage 5 — MapImporter 重构与 UI 瘦身**（MapImporter → `Workflow::Map`、UI 彻底收敛为纯展示与 Application 调用）
+
+---
+
+## 21. 架构变更必须执行的准则
+
+在修改代码前，Agent 必须明确回答以下问题：
+
+1. **该行为归属于哪一层？**
+2. **在不违反依赖拓扑图的前提下，能够实现该功能的最低层级是哪一层？**
+3. **应该由谁来负责编排该流程？**
+4. **跨越分层边界的公开契约是什么？**
+5. **拟定引入的头文件是否包含了当前层级之上的模块？**
+6. **CMake 目标依赖图是否依然保持严格单向？**
+7. **该操作是否会阻塞 UI 线程？**
+8. **该修改是否引入了全局状态、全局静态日志、直接 QProcess 调用或 UI 耦合？**
+
+若任一答案暴露了架构边界违规，**必须在编码前重新设计**。
+
+### 推荐实现次序
 
 ```text
-load once → mutate/query in memory → save once
+1. 定义/调整底层契约
+2. 实现 Domain / Core 行为
+3. 添加 Application 编排 / 门面
+4. 连接 UI 与 Application 契约
+5. 编写 / 更新自动化测试
+6. 验证 include 与 CMake 依赖方向
 ```
 
-It supports unquoted tokens, nested sections, duplicate siblings, ordering preservation and atomic writes through Core filesystem facilities.
+---
 
-### `Core::FileSystem`
+## 22. 强制架构审查清单 (Architecture Review Checklist)
 
-Includes generic filesystem helpers, `AtomicFile`, `DirectorySnapshot` and the move-only `FileLease` RAII wrapper.
+任何重构代码提交前必须对照本清单自查：
 
-`FileLease` is generic infrastructure. Policies such as “lease CS2 `vpk.signatures` while the app is active” belong in Application.
+### 职责归属
+* [ ] 修改的每个函数均归属于正确的层级。
+* [ ] UI 类中无 Domain 业务编排。
+* [ ] Application 类中无本应属于更底层的具体 Domain 转换逻辑。
+* [ ] Domain / Core 类绝不感知 Application / UI。
 
-### `Core::Process`
+### 依赖关系图
+* [ ] 未引入任何向上逆向 include。
+* [ ] CMake 中未引入向上的反向依赖。
+* [ ] UI 模块未为访问底层细节而链接 Domain / Core。
+* [ ] Workflow 不依赖 Application / UI。
 
-```cpp
-Core::Process::ProcessOptions options;
-options.timeout = 60000;
-options.workingDirectory = workingDirectory;
+### 运行时表现
+* [ ] 阻塞性 I/O 绝不在 UI 线程执行。
+* [ ] Worker 回调具备生命周期安全防护，并通过排队连接安全回到 UI 线程。
+* [ ] 取消操作显式、协作且确定。
 
-const auto result =
-    Core::Process::ProcessRunner::run(executable, arguments, options);
-```
+### 集成边界
+* [ ] `Domain::Tool` + `Core::Process` 之外无直接 `QProcess` / Shell 调用。
+* [ ] Application / UI 弹窗桥接之外无直接模态对话框调用。
+* [ ] 未引入全局静态日志器。
+* [ ] 未引入新的全局可变状态。
 
-### `Core::Temp`
+### API 规范
+* [ ] UI 接收 Application 契约对象，而非 Domain AST / 底层设施对象。
+* [ ] Domain API 使用强领域类型。
+* [ ] 错误处理结构化并保留诊断上下文。
+* [ ] 未重复编写已有 Core 基础设施的功能。
 
-`TempFile` and `TempDirectory` are move-only RAII wrappers for temporary resources.
-
-### `Core::Error`
-
-`Core::Error::ErrorCode`, `Core::Error::Error`, and `Core::Error::Exception` are generic infrastructure and application error primitives. `ProcessResult` converts cleanly to `Core::Error::Error` via `.toError()`. `Result<T>` natively carries `Core::Error::Error`. `ImportErrorCode` and `ImportException` are retained as backward compatibility aliases. Prefer structured error codes and `Result<T>` over throwing exceptions or dropping error reasons via `std::optional` in migrated code.
+### 测试覆盖
+* [ ] 新增的 Domain / Core 逻辑具备隔离的单元测试覆盖。
+* [ ] 涉及的 Application 服务有编排测试。
+* [ ] UI 测试关注状态与信号，而非重复测试 Domain 内部细节。
 
 ---
 
-## 18. Domain API Reference
-
-`src/Domain/CMakeLists.txt` builds `cs2importer_domain` and depends on Core.
-
-### `Domain::Asset`
-
-`AssetPath` represents a validated asset-relative path. `AssetTypeDetector` classifies model/particle/material/map assets. Domain code may resolve an `AssetPath` against a host filesystem base path using Core path infrastructure.
-
-### `Domain::Game`
-
-Important domain types include:
-
-* `GameType`, `EngineType`;
-* `GameDefinition`, `GameRegistry`;
-* `GameInfo`, `GameInfoParser`;
-* `SearchTarget`, `SearchPathResolver`;
-* `GameValidator`.
-
-These types own Source/Valve semantics. They must remain independent from Application and UI.
-
-Example:
-
-```cpp
-Core::Path::FilesystemPath path(
-    QStringLiteral("C:/game/cstrike/gameinfo.txt"));
-
-auto info = Domain::Game::GameInfoParser::parse(
-    path,
-    Domain::Game::EngineType::Source1);
-```
-
-Adding a new supported game should normally be declaration/metadata driven through `GameDefinition` / `GameRegistry`, not by duplicating detection branches throughout Application/UI.
-
----
-
-## 19. Application API Reference
-
-Current Application environment responsibilities include:
-
-* `SteamService`: Steam install/library discovery and app manifest reading;
-* `GameInstallation`: application-level representation of a detected game installation;
-* `GameDetectService`: detection/validation orchestration;
-* `VpkSignatureLeaseService`: application policy for exclusive leasing of CS2 `vpk.signatures`.
-
-These services should evolve toward cohesive, instance-based Application services as the migration proceeds.
-
-### Application-facing result design
-
-Application should return result objects suitable for UI consumption, for example:
-
-```cpp
-struct ValidationResult {
-    bool valid = false;
-    QString gameId;
-    QString displayName;
-    QString path;
-    QString userMessage;
-};
-```
-
-The exact type can vary, but do not expose Domain ASTs or Core implementation objects to QML as the normal UI API.
-
----
-
-## 20. Refactor Roadmap
-
-The roadmap is staged. **Do not merge stages merely to make a shortcut compile.**
-
-1. **Stage 1 — Core extraction**
-
-   * Completed.
-
-2. **Stage 2 — Domain foundations**
-
-   * Game model/parser/registry/validator;
-   * Tool wrappers under `Domain::Tool`;
-   * Package/VPK extraction under `Domain::Package`.
-
-3. **Stage 3 — Importer/domain migrations**
-
-   * ModelImporter → `Workflow::Model`;
-   * ParticleImporter → `Workflow::Particle`;
-   * MaterialFix → `Domain::Material`;
-   * VmfBspProcess → `Domain::Vmf` + `Domain::Bsp`.
-
-4. **Stage 4 — Application orchestration**
-
-   * WorkflowRunner;
-   * ConfigService;
-   * UpdateService;
-   * complete task/cancellation/logging routing.
-
-5. **Stage 5 — MapImporter and UI slimming**
-
-   * MapImporter → `Workflow::Map`;
-   * reduce UI to presentation + Application calls only.
-
-### Migration rule
-
-When migrating one component:
-
-* preserve existing behavior unless the task explicitly changes it;
-* replace legacy utilities with the target layer's abstraction;
-* do not introduce a temporary upward dependency “just for this migration”;
-* if a temporary bridge is unavoidable, isolate it, document it, and create a clear removal path;
-* do not combine unrelated refactor stages.
-
----
-
-## 21. Architecture Change Procedure — MUST FOLLOW
-
-Before changing code, an agent must answer these questions:
-
-1. **What layer owns this behavior?**
-2. **What is the lowest layer that can implement it without violating the dependency graph?**
-3. **Who should orchestrate it?**
-4. **What is the public contract crossing the layer boundary?**
-5. **Does the proposed header include anything above the current layer?**
-6. **Will the CMake target dependency graph remain one-way?**
-7. **Does the operation block the UI thread?**
-8. **Does the change introduce global state, global logging, direct QProcess usage, or UI coupling?**
-
-If any answer reveals a boundary violation, redesign before implementation.
-
-### Required implementation order
-
-Prefer this sequence:
-
-```text
-1. Define/adjust lower-layer contract
-2. Implement Domain/Core behavior
-3. Add Application orchestration/facade
-4. Connect UI to Application contract
-5. Add/adjust tests
-6. Verify include + CMake dependency direction
-```
-
-Do not start by putting business logic into a ViewModel and promise to “move it later”.
-
----
-
-## 22. Mandatory Architecture Review Checklist
-
-After every non-trivial refactor, review the diff against this checklist.
-
-### Layer ownership
-
-* [ ] Every changed function belongs to the correct layer.
-* [ ] No UI class contains Domain orchestration.
-* [ ] No Application class contains concrete Domain transformation logic that belongs below it.
-* [ ] No Domain/Core class knows about Application/UI.
-
-### Dependency graph
-
-* [ ] No new upward include.
-* [ ] No new CMake dependency that points upward.
-* [ ] UI does not add direct Domain/Core linkage to access implementation details.
-* [ ] Workflow does not depend on Application/UI.
-
-### Runtime behavior
-
-* [ ] Blocking I/O does not execute on the UI thread.
-* [ ] Worker callbacks are lifetime-safe and return to UI with queued delivery.
-* [ ] Cancellation is explicit and deterministic.
-
-### Integration boundaries
-
-* [ ] No direct `QProcess`/shell execution outside `Domain::Tool` + `Core::Process`.
-* [ ] No direct modal dialogs outside the Application/UI prompt bridge.
-* [ ] No global/static logger introduced.
-* [ ] No new global mutable application state.
-
-### API quality
-
-* [ ] UI receives Application contracts, not Domain ASTs/implementation objects.
-* [ ] Domain APIs use strong Domain types.
-* [ ] Errors are structured and preserve useful diagnostic context.
-* [ ] New helpers do not duplicate existing Core facilities.
-
-### Tests
-
-* [ ] New Domain/Core logic has isolated unit coverage where practical.
-* [ ] Application routing is tested for the affected service.
-* [ ] UI tests cover state/signals rather than re-testing Domain internals.
-
----
-
-## 23. Architecture Smells That Require a Redesign
-
-Treat these as review blockers unless the task explicitly targets legacy migration code:
+## 23. 架构红线异味（必须重构）
 
 ```text
 UI/ViewModel → Domain::GameValidator
 UI/ViewModel → Core::FileSystem
 UI/ViewModel → Core::KeyValues
 UI/ViewModel → Core::Process
-UI/ViewModel → Steam registry/library scanning
+UI/ViewModel → Steam 注册表 / 库扫描
 
-Application → QML object manipulation
+Application → 直接操作 QML 控件
 Domain → Application
 Domain → UI
 Domain → QMessageBox / QWidget / QQml...
 Workflow → UI
 Workflow → Application
 
-Any business file → QProcess / system() / shell
-Any business file → global Logger::info/error/warning
+任何业务文件 → QProcess / system() / Shell
+任何业务文件 → 全局 Logger::info/error/warning
 
-Massive static Application service with unrelated responsibilities
-Temporary cross-layer include with no removal plan
+承担众多杂项职责的庞大静态 Application 服务
+无明确移除计划的临时跨层 include
 ```
 
-If an existing legacy path already contains one of these smells, do not copy the pattern into new code. Migrate it toward the target boundary.
+---
+
+## 24. C++ 编码规范
+
+* 采用 C++17 标准、适度使用 Qt 类型、遵循 RAII 原则、明确所有权与 `const` 正确性。
+* 类名与枚举采用 `PascalCase`；函数、方法、局部变量与成员变量采用 `camelCase`。
+* 保持头文件轻量且自包含。
+* 明确 include 所需的标准库头文件，严禁依赖传递性间接包含。
+* 涉及策略、状态、日志或异步操作的服务优先采用依赖注入。
 
 ---
 
-## 24. C++ and Coding Conventions
+## 25. CMake 规范
 
-* Use C++17, Qt types where appropriate, RAII, deterministic ownership and `const` correctness.
-* Use `PascalCase` for classes/enums and `camelCase` for functions, methods, locals and members.
-* Keep headers lightweight and self-contained.
-* Include every standard library header directly required by a translation unit; do not rely on transitive includes.
-* Preserve behavior unless the task explicitly requests a behavior change.
-* Do not duplicate Core facilities in newly migrated code.
-* Prefer `std::optional`, typed result objects and explicit ownership over sentinel values when appropriate.
-* Prefer dependency injection for services with policies, state, logging or asynchronous work.
-
----
-
-## 25. CMake Rules
-
-* Require CMake 3.28+ and Qt 6.8+.
-* Use `qt_standard_project_setup()` where appropriate.
-* Use `qt_add_executable()` for the application.
-* Use `qt_add_library()` for Core/Domain/Workflow/Application/UI libraries as appropriate.
-* Use `qt_add_qml_module()` for QML modules.
-* Use `qt_add_resources()` only for non-QML resources.
-* Prefer target-based configuration with explicit `PRIVATE`, `PUBLIC`, or `INTERFACE` visibility.
-* Do not use global include paths when target-specific configuration is sufficient.
-* Do not manually list generated MOC/RCC/QML compiler outputs.
-* Do not use Qt 5 CMake APIs, `Qt5::` targets, qmake syntax, or plain `add_executable()` for the main Qt application.
-* Do not put QML files in `qt_add_resources()`.
+* 要求 CMake 3.28+ 与 Qt 6.8+。
+* 适时使用 `qt_standard_project_setup()`。
+* 可执行程序使用 `qt_add_executable()`。
+* 模块库按需使用 `qt_add_library()`。
+* QML 模块使用 `qt_add_qml_module()`。
+* 仅非 QML 资源使用 `qt_add_resources()`。
+* 显式声明 `PRIVATE`、`PUBLIC` 或 `INTERFACE` 目标可见性。
+* 严禁使用 Qt 5 CMake API、`Qt5::` 目标或 qmake 语法。
 
 ---
 
-## 26. Build and Tests
+## 26. 构建与测试指令
 
-### Main application build
+### 主程序构建
 
 ```bash
 cmake -B build -S .
 cmake --build build
 ```
 
-Or with presets when configured:
+或使用预设（Preset）：
 
 ```bash
 cmake --preset windows-debug
 cmake --build --preset windows-debug
 ```
 
-### Tests
+### 运行测试
 
 ```bash
 cmake --preset windows-debug
@@ -1154,85 +966,60 @@ cmake --build --preset windows-debug
 ctest --test-dir build/local-debug --output-on-failure
 ```
 
-Or:
+---
 
-```bash
-cmake -B build-tests -S tests
-cmake --build build-tests
-ctest --test-dir build-tests --output-on-failure
-```
+## 27. 测试架构与依赖规则
 
-When changing a layer, prefer tests appropriate to that layer rather than exercising the entire GUI for every low-level change.
+测试依赖规则与生产代码一致：
+* Domain 测试可依赖 Domain + Core。
+* Workflow 测试可依赖 Workflow + Domain + Core。
+* Application 测试可依赖 Application 及下层模块。
+* UI 测试可依赖 UI + Application 契约与服务。
+* 测试代码严禁为访问内部实现细节而破坏分层原则。
 
 ---
 
-## 27. Test Structure & Test Dependency Rules
+## 28. 技能规范自动加载参照
 
-Typical test suites include:
+在进行相关修改前，需查阅对应 Skill：
 
-* `TestLogManager.cpp`: logging, `FaultBarrier`, `LogManager`;
-* `LoggingStressTest.cpp`: concurrent logging;
-* `TestKeyValues.cpp`: KeyValues parsing/token/serialization;
-* `TestGameInfo.cpp`: GameInfo, SearchPathResolver, GameValidator;
-* `TestAsset.cpp`: AssetPath and AssetTypeDetector;
-* `TestEnvironment.cpp`: SteamService/GameDetectService;
-* `TestUiViewModels.cpp`: GameViewModel/LogViewModel/MainController;
-* `TestFileLease.cpp`: FileLease and VpkSignatureLeaseService.
-
-Test dependency rules mirror production:
-
-* Domain tests may depend on Domain + Core.
-* Workflow tests may depend on Workflow + Domain + Core.
-* Application tests may depend on Application + its lower layers.
-* UI tests may depend on UI + Application contracts/services as needed.
-* Tests must not justify a production-layer violation merely to reach an implementation detail.
-
----
-
-## 28. Skills — Auto-Load Rules
-
-Before making changes, read the relevant skill:
-
-| Task                | Skill                              |
+| 任务类型            | Skill 路径                         |
 | ------------------- | ---------------------------------- |
-| C++ implementation  | `skills/qt-cmake-project/SKILL.md` |
-| CMake/build changes | `skills/qt-cmake-project/SKILL.md` |
-| QML implementation  | `skills/qt-qml/SKILL.md`           |
-| C++ review          | `skills/qt-cpp-review/SKILL.md`    |
-| QML review          | `skills/qt-qml-review/SKILL.md`    |
-| UI/UX decisions     | `skills/qt-ui-design/SKILL.md`     |
-
-For architecture refactors, read the relevant C++ review/project skill **before editing code**, then run the architecture review checklist above after the change.
+| C++ 代码实现        | `skills/qt-cmake-project/SKILL.md` |
+| CMake / 构建变更    | `skills/qt-cmake-project/SKILL.md` |
+| QML 界面实现        | `skills/qt-qml/SKILL.md`           |
+| C++ 代码审查        | `skills/qt-cpp-review/SKILL.md`    |
+| QML 代码审查        | `skills/qt-qml-review/SKILL.md`    |
+| UI / UX 设计决策    | `skills/qt-ui-design/SKILL.md`     |
 
 ---
 
-## 29. Do NOT
+## 29. 绝对禁止事项
 
-* Do not make Core depend on Domain/Application/Workflow/UI/QML.
-* Do not make Domain depend on Application/Workflow/UI/QML.
-* Do not make Workflow depend on Application/UI.
-* Do not make UI call Domain/Core directly for application behavior.
-* Do not add direct Domain/Core linkage to `cs2importer_ui` as a shortcut.
-* Do not put game detection, Steam scanning, file validation, import logic or external tool execution into ViewModels/Controllers.
-* Do not add new global static variables for options, services, cancellation or loggers.
-* Do not call `QProcess`, `system()`, shell commands or Windows process APIs directly from UI/Application business code when a `Domain::Tool`/`Core::Process` abstraction is required.
-* Do not show dialogs from Domain/Workflow.
-* Do not migrate MapImporter as part of another importer's migration.
-* Do not perform unrelated refactoring during a focused migration.
-* Do not add compatibility APIs solely for legacy code.
-* Do not hide a layer violation behind `static` functions, convenience helpers, friend declarations, broad include paths, or transitive CMake linkage.
-* Do not treat passing compilation as proof that the architecture is correct.
+* 严禁 Core 依赖 Domain / Application / Workflow / UI / QML。
+* 严禁 Domain 依赖 Application / Workflow / UI / QML。
+* 严禁 Workflow 依赖 Application / UI。
+* 严禁 UI 为执行业务直接调用 Domain / Core。
+* 严禁在 `cs2importer_ui` 中添加对 Domain / Core 的直接链接。
+* 严禁将游戏检测、Steam 扫描、文件校验、导入逻辑或外部工具调用写入 ViewModel / Controller。
+* 严禁为配置项、服务、取消标志或日志器添加全局静态变量。
+* 严禁在 UI / Application 业务代码中直接调用 `QProcess`、`system()` 或 Shell 命令。
+* 严禁从 Domain / Workflow 中弹出对话框。
+* 严禁将 MapImporter 迁移与其他导入器的迁移混在同一阶段。
+* 严禁在专项迁移中顺带进行无关重构。
+* 严禁通过 `static` 函数、便捷辅助类、友元声明或 CMake 传递链接掩盖分层违规。
+* 严禁将“通过编译”等同于“架构设计正确”。
 
 ---
 
-## 30. Final Rule
+## 30. 终极准则
 
-When in doubt, choose the design that makes the dependency graph **more obvious, more one-directional, more testable, and harder to violate accidentally**.
+当存在疑问时，务必选择能让依赖关系图**更清晰、更单向、更易测、且更难以被意外破坏**的设计方案。
 
-The correct question is not:
+正确的思考出发点不是：
 
-> “Where can I put this code so the current build works?”
+> “这段代码写在哪里能让当前的构建通过？”
 
-It is:
+而是：
 
-> “Which layer owns this responsibility, what contract crosses the boundary, and how do I implement it without making any layer aware of layers above it?”
+> “哪个分层拥有该职责？跨越该边界的公开契约是什么？如何在不让任何层感知其上层的前提下优雅实现它？”

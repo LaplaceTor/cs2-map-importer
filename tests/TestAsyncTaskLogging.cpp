@@ -599,11 +599,12 @@ void TestAsyncTaskLogging::testNullContextAndEmptyCallbackExecution()
     // 1. Run without context or callback (fire-and-forget background task)
     AsyncTaskRunner::runBackground(
         QStringLiteral("Headless Background Task"),
-        [&workerRan](std::shared_ptr<TaskLoggingContext> ctx) {
+        [&workerRan](std::shared_ptr<TaskLoggingContext> ctx) -> Result<void> {
             if (ctx) {
                 ctx->info("Headless task working in background");
             }
             workerRan.store(true);
+            return Result<void>::success();
         });
 
     QTRY_VERIFY_WITH_TIMEOUT(workerRan.load(), 3000);
@@ -1028,13 +1029,14 @@ void TestAsyncTaskLogging::testRunBackgroundApi()
     auto logVm = std::make_shared<LogViewModel>();
     logVm->registerWithLogManager();
 
-    // 1. runBackground with void return (normal success)
+    // 1. runBackground with Result<void> return (normal success)
     AsyncTaskRunner::runBackground(
-        QStringLiteral("Background Void Test"),
-        [](std::shared_ptr<TaskLoggingContext> ctx) {
+        QStringLiteral("Background Result Success Test"),
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<void> {
             if (ctx) {
-                ctx->info("Executing void background work...");
+                ctx->info("Executing background work...");
             }
+            return Result<void>::success();
         });
 
     QTRY_COMPARE_WITH_TIMEOUT(logVm->taskCount(), 1, 3000);
@@ -1056,7 +1058,7 @@ void TestAsyncTaskLogging::testRunBackgroundApi()
     // 3. runBackground with Exception throw (structured error)
     AsyncTaskRunner::runBackground(
         QStringLiteral("Background Exception Test"),
-        [](std::shared_ptr<TaskLoggingContext> ctx) {
+        [](std::shared_ptr<TaskLoggingContext> ctx) -> Result<void> {
             if (ctx) {
                 ctx->info("About to throw exception in background...");
             }
