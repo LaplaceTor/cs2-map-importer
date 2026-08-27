@@ -52,6 +52,8 @@ enum class ResultStatus {
 template <typename T = void>
 class Result {
 public:
+    using value_type = T;
+
     Result() = default;
 
     /**
@@ -170,6 +172,8 @@ private:
 template <>
 class Result<void> {
 public:
+    using value_type = void;
+
     Result() = default;
 
     /**

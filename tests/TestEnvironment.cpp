@@ -13,7 +13,9 @@
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Path/PathUtils.h"
 #include "Core/FileSystem/FileSystem.h"
+#include "Core/Error/Exception.h"
 #include "Core/Result/Result.h"
+#include "Application/Execution/ExecutionGuard.h"
 
 using namespace Application::Environment;
 using namespace Domain::Game;
@@ -467,6 +469,75 @@ private slots:
 
         QVERIFY(!envService.isVpkLeaseHeld());
         QCOMPARE(envService.vpkLeaseStatus(), Application::Environment::VpkSignatureLeaseStatus::Inactive);
+    }
+
+    void testExecutionGuardExceptionTranslation() {
+        using namespace Application::Execution;
+
+        // 1. Translating Core::Error::Exception preserves structured error and code
+        auto res1 = ExecutionGuard::guard<int>([]() -> Result<int> {
+            throw Core::Error::Exception(Core::Error::ErrorCode::FileNotFound, QStringLiteral("Missing required asset file"), QStringLiteral("C:/test/file.txt"));
+        }, QStringLiteral("Asset load failed"));
+
+        QVERIFY(res1.isFailure());
+        QCOMPARE(res1.errorCode(), Core::Error::ErrorCode::FileNotFound);
+        QCOMPARE(res1.message(), QStringLiteral("Asset load failed"));
+        QCOMPARE(res1.error().message(), QStringLiteral("Missing required asset file"));
+        QCOMPARE(res1.details(), QStringLiteral("C:/test/file.txt"));
+
+        // 2. Translating std::runtime_error
+        auto res2 = ExecutionGuard::guard<QString>([]() -> Result<QString> {
+            throw std::runtime_error("Standard runtime exception occurred");
+        }, QStringLiteral("Operation failed"));
+
+        QVERIFY(res2.isFailure());
+        QCOMPARE(res2.errorCode(), Core::Error::ErrorCode::Unknown);
+        QCOMPARE(res2.message(), QStringLiteral("Operation failed"));
+        QCOMPARE(res2.details(), QStringLiteral("Standard runtime exception occurred"));
+
+        // 3. Translating unknown exception (catch (...))
+        auto res3 = ExecutionGuard::guard<int>([]() -> Result<int> {
+            throw int(42);
+        }, QStringLiteral("Unknown crash avoided"));
+
+        QVERIFY(res3.isFailure());
+        QCOMPARE(res3.errorCode(), Core::Error::ErrorCode::Unknown);
+        QCOMPARE(res3.message(), QStringLiteral("Unknown crash avoided"));
+
+        // 4. Void overload
+        auto res4 = ExecutionGuard::guard<void>([]() -> Result<void> {
+            throw Core::Error::Exception(Core::Error::ErrorCode::PermissionDenied, QStringLiteral("Access denied"));
+        }, QStringLiteral("Void operation failed"));
+
+        QVERIFY(res4.isFailure());
+        QCOMPARE(res4.errorCode(), Core::Error::ErrorCode::PermissionDenied);
+        QCOMPARE(res4.message(), QStringLiteral("Void operation failed"));
+
+        // 5. Automatic return type deduction
+        auto res5 = ExecutionGuard::guard([]() -> Result<int> {
+            return Result<int>::success(123);
+        });
+        QVERIFY(res5.isSuccess());
+        QCOMPARE(res5.value(), 123);
+    }
+
+    void testSynchronousApiExceptionSafety() {
+        GameEnvironmentService envService;
+
+        // Synchronous calls with invalid or non-existent paths must return structured Failure without throwing
+        auto resS1 = envService.validateSource1Folder(QStringLiteral("CSGO"), QStringLiteral("Z:/NonExistent/Directory/Path/That/Cannot/Exist"));
+        QVERIFY(resS1.isFailure());
+        QVERIFY(resS1.errorCode() != Core::Error::ErrorCode::Success);
+
+        auto resS2 = envService.validateSource2Folder(QStringLiteral("Z:/NonExistent/Directory/Path/That/Cannot/Exist"));
+        QVERIFY(resS2.isFailure());
+        QVERIFY(resS2.errorCode() != Core::Error::ErrorCode::Success);
+
+        auto resSteam = envService.validateGameInSteam(QStringLiteral("NonExistentGameType12345"));
+        QVERIFY(resSteam.isFailure());
+
+        auto resLease = envService.updateVpkLease(QStringLiteral("Z:/NonExistent/Path"));
+        QVERIFY(resLease.isFailure());
     }
 };
 

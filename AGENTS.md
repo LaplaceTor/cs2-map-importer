@@ -333,11 +333,15 @@ UI 属性/信号
 
 ##### 三层诊断分层规范 (Tripartite Diagnostic Contract)
 
+`Result::failure(error, message)` 同时保存底层 `Error` 与高层操作摘要 `message`。访问 `result.message()` 时，优先返回显式设置的操作摘要；未设置时自动回退为底层 `error().message()`。
+
+三层字符串职责分工与调用约定如下：
+
 | 诊断层级 | 访问接口 | 归属层级 | 语义职责 | 示例 |
 | :--- | :--- | :--- | :--- | :--- |
-| **操作总结 (Operation Summary)** | `Result::message()` | Workflow / Application | 面向用户/任务的全局高层概括，说明*哪个宏观操作失败或成功*。 | `"地图 'de_dust2' 导入失败"`, `"CS2 环境验证失败"` |
-| **失败原因 (Failure Reason)** | `Error::message()` | Domain / Core | 具体领域或系统原因，说明*为何发生失败*。 | `"gameinfo.gi 未找到"`, `"实体解析语法错误"` |
-| **技术诊断 (Technical Diagnostics)** | `Error::details()` / `Result::details()` | Domain / Core / Process | 供排查问题的低层诊断数据（绝对路径、stderr、AST 行号、CLI 参数等）。 | `"C:/Steam/steamapps/common/CS2/game/csgo/gameinfo.gi"`, 编译器 stderr 输出 |
+| **操作总结 (Operation Summary)** | `Result::message()` | Workflow / Application | 面向用户/任务的全局高层概括，说明**哪个宏观操作失败或成功**。 | `"地图 'de_dust2' 导入失败"`, `"CS2 环境验证失败"`, `"Steam 探测失败"` |
+| **失败原因 (Failure Reason)** | `Error::message()` | Domain / Core | 具体领域或底层系统原因，说明**为何发生失败**。 | `"gameinfo.gi 未找到"`, `"实体解析语法错误"`, `"file missing"` |
+| **技术诊断 (Technical Diagnostics)** | `Error::details()` / `Result::details()` | Domain / Core / Process | 供排查问题的底层技术诊断数据（绝对路径、stderr 输出、AST 行号、CLI 参数、退出码等）。 | `"C:/Steam/steamapps/common/CS2/game/csgo/gameinfo.gi"`, 编译器 stderr 输出 |
 
 ##### 构造反模式与规范模式
 
@@ -351,17 +355,24 @@ UI 属性/信号
   // 错误：污染 UI 错误文案，破坏错误分类归纳
   return Result<void>::failure(ErrorCode::FileNotFound, "gameinfo.gi 未在 C:/Games/CS2/gameinfo.gi 找到");
   ```
-* ✅ **规范模式 1：多层结构化失败封装**
+* ❌ **反模式 3：三层字符串职责混乱与重复**
   ```cpp
-  // 正确：Error 记录具体原因与技术路径，Result 包装宏观操作总结
-  auto err = Core::Error::Error::fileNotFound(
-      QStringLiteral("gameinfo.gi not found"), // Error.message: 具体失败原因
-      gamePath.toQString()                     // Error.details: 技术诊断细节（绝对路径）
-  );
+  // 错误：error.message 塞了操作总结，result.message 塞了另一个错误原因，details 塞了重复文本
+  auto err = Core::Error::Error(ErrorCode::FileNotFound, "Steam 探测失败", "找不到 gameinfo.gi 路径");
+  return Result<void>::failure(err, "gameinfo.gi 文件缺失"); // 三层互相重复且颠倒
+  ```
+* ✅ **规范模式 1：多层结构化失败封装（推荐）**
+  ```cpp
+  // 正确：Error 记录具体原因与技术细节，Result 包装宏观操作总结
+  auto err = Domain::Game::GameErrors::gameInfoNotFound("file missing", gamePath.toQString());
   return Result<void>::failure(
       err,
-      QStringLiteral("CS2 游戏目录校验失败")     // Result.message: 操作层总结
+      QStringLiteral("Steam 游戏探测失败") // Result.message: 操作总结
   );
+  // 最终：
+  // error.message()  = "file missing" (具体失败原因)
+  // result.message() = "Steam 游戏探测失败" (宏观操作总结)
+  // result.details() = "C:/Steam/..." (技术诊断细节)
   ```
 * ✅ **规范模式 2：带技术细节的便捷重载**
   ```cpp
@@ -579,7 +590,45 @@ Domain::Tool
 Core::Process::ProcessRunner
 ```
 
-工具包装器统一返回结构化 `Core::Process::ProcessResult` 或包含它的领域结果类型。
+### 8.1 进程机械结果 (`ProcessResult`) 与业务错误模型契约
+
+`Core::Process::ProcessResult` 描述的是外部进程执行的**底层机械结果**（包括 `ProcessStatus`、退出码、`stdOut`、`stdErr` 与系统级报错），并非抽象的领域业务结果。
+
+因此：
+1. **保留机械结果结构体**：`ProcessResult` 保留为纯粹的机械状态载体，不直接重构为 `Result<T>`。
+2. **严禁上层直接消费 `ProcessStatus` 分支**：Workflow 与 Domain 工具包装器严禁随处自行 `switch (procResult.status)` 或各自手写分支判断，避免形成第三套散落的业务错误体系。
+3. **统一转译为 `Core::Error` / `Result<T>`**：外部工具包装层或消费方必须通过统一转译规则将 `ProcessResult` 转换为 `Core::Error::Error` 或 `Core::Result<T>`。
+
+#### 标准转换映射规则
+
+| 机械状态 (`ProcessStatus`) | 标准错误码 (`ErrorCode`) | 说明 |
+| :--- | :--- | :--- |
+| `ProcessStatus::Success` | `ErrorCode::Success` | 进程正常退出且退出码为 0 |
+| `ProcessStatus::FailedToStart` | `ErrorCode::ProcessFailed` (或 `ProcessNotFound`) | 可执行文件缺失、权限不足或启动失败 |
+| `ProcessStatus::TimedOut` | `ErrorCode::ProcessTimeout` | 进程执行超时被主动终止 |
+| `ProcessStatus::Crashed` | `ErrorCode::ProcessFailed` (底层映射为 `ProcessCrashed`) | 进程异常崩溃或收到致命信号 |
+| `ProcessStatus::NonZeroExit` | `ErrorCode::ProcessFailed` | 进程非零异常退出 |
+
+#### 诊断字段组装规范
+
+* **`Error.message()`**：机械错误说明（如 `"Process execution failed with exit code 1"` 或 `procResult.errorMessage`）。
+* **`Error.details()`**：技术诊断输出（优先包含 `stdErr.trimmed()`，为空时使用 `stdOut.trimmed()`）。
+* **`Result.message()`**：当前上层宏观操作摘要（如 `"BSPSRC 反编译地图失败"`）。
+
+#### 规范调用示例
+
+```cpp
+// 外部工具封装层或 Workflow 执行外部进程
+Core::Process::ProcessResult procResult = processRunner.run(cmd, args, options);
+
+if (!procResult.isSuccess()) {
+    // 转换为标准 Core::Error 并附加宏观操作总结
+    return Result<void>::failure(
+        procResult.toError(),
+        QStringLiteral("BSPSRC 地图反编译执行失败") // Result.message: 操作总结
+    );
+}
+```
 
 ---
 

@@ -1,4 +1,5 @@
 #include "Application/Environment/VpkSignatureLeaseService.h"
+#include "Application/Execution/ExecutionGuard.h"
 #include "Domain/Game/GameType.h"
 #include <QDir>
 #include <QFileInfo>
@@ -32,30 +33,34 @@ void VpkSignatureLeaseService::setLoggingContext(std::shared_ptr<Core::Logging::
 
 Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallation(const GameInstallation& s2Installation)
 {
-    m_activeInstallation = s2Installation;
+    return Application::Execution::ExecutionGuard::guard<VpkSignatureLeaseResult>([&]() -> Core::Result<VpkSignatureLeaseResult> {
+        m_activeInstallation = s2Installation;
 
-    if (m_activeInstallation.isValid() && m_activeInstallation.type() == Domain::Game::GameType::CS2) {
-        return acquireLeaseInternal(m_activeInstallation.baseDirectory());
-    }
+        if (m_activeInstallation.isValid() && m_activeInstallation.type() == Domain::Game::GameType::CS2) {
+            return acquireLeaseInternal(m_activeInstallation.baseDirectory());
+        }
 
-    releaseLease();
-    m_lastStatus = VpkSignatureLeaseStatus::Inactive;
-    emit leaseStatusChanged(m_lastStatus, QString(), QString());
-    VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QString(), QString()};
-    return Core::Result<VpkSignatureLeaseResult>::success(res);
+        releaseLease();
+        m_lastStatus = VpkSignatureLeaseStatus::Inactive;
+        emit leaseStatusChanged(m_lastStatus, QString(), QString());
+        VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QString(), QString()};
+        return Core::Result<VpkSignatureLeaseResult>::success(res);
+    }, QStringLiteral("Failed to update VPK signature lease"));
 }
 
 Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallation(const GameInstallationInfo& s2Info)
 {
-    if (s2Info.isValid && (s2Info.gameId == QStringLiteral("cs2") || s2Info.gameTitle == QStringLiteral("Counter-Strike 2") || s2Info.displayName == QStringLiteral("Counter-Strike 2"))) {
-        return acquireLease(s2Info.basePath);
-    }
+    return Application::Execution::ExecutionGuard::guard<VpkSignatureLeaseResult>([&]() -> Core::Result<VpkSignatureLeaseResult> {
+        if (s2Info.isValid && (s2Info.gameId == QStringLiteral("cs2") || s2Info.gameTitle == QStringLiteral("Counter-Strike 2") || s2Info.displayName == QStringLiteral("Counter-Strike 2"))) {
+            return acquireLease(s2Info.basePath);
+        }
 
-    releaseLease();
-    m_lastStatus = VpkSignatureLeaseStatus::Inactive;
-    emit leaseStatusChanged(m_lastStatus, QString(), QString());
-    VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QString(), QString()};
-    return Core::Result<VpkSignatureLeaseResult>::success(res);
+        releaseLease();
+        m_lastStatus = VpkSignatureLeaseStatus::Inactive;
+        emit leaseStatusChanged(m_lastStatus, QString(), QString());
+        VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QString(), QString()};
+        return Core::Result<VpkSignatureLeaseResult>::success(res);
+    }, QStringLiteral("Failed to update VPK signature lease"));
 }
 
 Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLease(const Core::Path::FilesystemPath& cs2BasePath)
@@ -70,31 +75,34 @@ Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLease(con
 
 Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::retryLease()
 {
-    if (m_activeInstallation.isValid() && m_activeInstallation.type() == Domain::Game::GameType::CS2) {
-        return acquireLeaseInternal(m_activeInstallation.baseDirectory());
-    }
-    VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("No active CS2 installation to retry leasing"), QString()};
-    return Core::Result<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidArgument, res.systemMessage, QString(), res);
+    return Application::Execution::ExecutionGuard::guard<VpkSignatureLeaseResult>([&]() -> Core::Result<VpkSignatureLeaseResult> {
+        if (m_activeInstallation.isValid() && m_activeInstallation.type() == Domain::Game::GameType::CS2) {
+            return acquireLeaseInternal(m_activeInstallation.baseDirectory());
+        }
+        VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("No active CS2 installation to retry leasing"), QString()};
+        return Core::Result<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidArgument, res.systemMessage, QString(), res);
+    }, QStringLiteral("VPK signature lease retry failed"));
 }
 
 Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLeaseInternal(const Core::Path::FilesystemPath& cs2BasePath)
 {
-    VpkSignatureLeaseResult result;
+    return Application::Execution::ExecutionGuard::guard<VpkSignatureLeaseResult>([&]() -> Core::Result<VpkSignatureLeaseResult> {
+        VpkSignatureLeaseResult result;
 
-    if (cs2BasePath.isEmpty() || !cs2BasePath.exists() || !cs2BasePath.isDirectory()) {
-        result.status = VpkSignatureLeaseStatus::NotFound;
-        result.systemMessage = QStringLiteral("CS2 base directory is invalid or does not exist");
-        m_lastStatus = result.status;
-        if (m_loggingContext) {
-            m_loggingContext->warning(QStringLiteral("CS2 base directory is invalid or does not exist: %1").arg(cs2BasePath.toString()));
+        if (cs2BasePath.isEmpty() || !cs2BasePath.exists() || !cs2BasePath.isDirectory()) {
+            result.status = VpkSignatureLeaseStatus::NotFound;
+            result.systemMessage = QStringLiteral("CS2 base directory is invalid or does not exist");
+            m_lastStatus = result.status;
+            if (m_loggingContext) {
+                m_loggingContext->warning(QStringLiteral("CS2 base directory is invalid or does not exist: %1").arg(cs2BasePath.toString()));
+            }
+            emit leaseStatusChanged(result.status, QString(), result.systemMessage);
+            return Core::Result<VpkSignatureLeaseResult>::failure(
+                Core::Error::ErrorCode::DirectoryNotFound,
+                result.systemMessage,
+                cs2BasePath.toString(),
+                result);
         }
-        emit leaseStatusChanged(result.status, QString(), result.systemMessage);
-        return Core::Result<VpkSignatureLeaseResult>::failure(
-            Core::Error::ErrorCode::DirectoryNotFound,
-            result.systemMessage,
-            cs2BasePath.toString(),
-            result);
-    }
 
     // Target is strictly: <cs2BasePath>/game/bin/win64/vpk.signatures
     const QString targetPath = QDir(cs2BasePath.toString()).filePath(QStringLiteral("game/bin/win64/vpk.signatures"));
@@ -188,6 +196,7 @@ Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLeaseInte
     emit leaseStateChanged(true, m_lease.filePath());
     emit leaseStatusChanged(result.status, m_lease.filePath(), QString());
     return Core::Result<VpkSignatureLeaseResult>::success(result);
+    }, QStringLiteral("Failed to acquire VPK signature lease"));
 }
 
 void VpkSignatureLeaseService::releaseLease() noexcept

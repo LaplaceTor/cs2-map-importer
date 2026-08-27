@@ -1,5 +1,6 @@
 qt_add_library(cs2importer_application STATIC
     Async/AsyncTaskRunner.h
+    Execution/ExecutionGuard.h
     Environment/GameInstallationInfo.h
     Environment/GameInstallation.h
     Environment/GameInstallationValidator.h

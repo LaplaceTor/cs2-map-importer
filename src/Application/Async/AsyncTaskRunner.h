@@ -18,6 +18,7 @@
 #include "Core/Error/Error.h"
 #include "Core/Error/ErrorCode.h"
 #include "Core/Error/Exception.h"
+#include "Application/Execution/ExecutionGuard.h"
 
 namespace Application::Async {
 
@@ -196,26 +197,21 @@ private:
                             .arg(static_cast<int>(ex.errorCode()))
                             .arg(detailInfo));
                     }
-                    result = Result<T>::failure(
-                        ex.error(),
-                        QStringLiteral("Task '%1' failed").arg(taskName));
+                    result = Execution::ExecutionGuard::handleException<T>(
+                        ex, QStringLiteral("Task '%1' failed").arg(taskName));
                 } catch (const std::exception& ex) {
                     threwException = true;
                     if (taskContext) {
                         taskContext->error(QStringLiteral("Unhandled standard exception: %1").arg(QString::fromUtf8(ex.what())));
                     }
-                    result = Result<T>::failure(
-                        Core::Error::Error::unknown(
-                            QStringLiteral("Unhandled standard exception"),
-                            QString::fromUtf8(ex.what())),
-                        QStringLiteral("Task '%1' failed").arg(taskName));
+                    result = Execution::ExecutionGuard::handleException<T>(
+                        ex, QStringLiteral("Task '%1' failed").arg(taskName));
                 } catch (...) {
                     threwException = true;
                     if (taskContext) {
                         taskContext->error(QStringLiteral("Unhandled unknown exception in task"));
                     }
-                    result = Result<T>::failure(
-                        Core::Error::Error::unknown(QStringLiteral("Unhandled unknown exception")),
+                    result = Execution::ExecutionGuard::handleUnknownException<T>(
                         QStringLiteral("Task '%1' failed").arg(taskName));
                 }
 
