@@ -318,15 +318,11 @@ Core::Result<void> GameEnvironmentService::validateGameInSteam(const QString& ty
 
 QStringList GameEnvironmentService::listSource2Addons(const QString& s2BasePath) const
 {
-    try {
-        if (s2BasePath.isEmpty()) {
-            return QStringList();
-        }
-        Core::Path::FilesystemPath fsPath(cleanPath(s2BasePath));
-        return Domain::Game::GameInstallationResolver::listSource2Addons(fsPath);
-    } catch (...) {
+    if (s2BasePath.isEmpty()) {
         return QStringList();
     }
+    Core::Path::FilesystemPath fsPath(cleanPath(s2BasePath));
+    return Domain::Game::GameInstallationResolver::listSource2Addons(fsPath);
 }
 
 QStringList GameEnvironmentService::listSource2Addons(const GameInstallationInfo& s2Installation) const

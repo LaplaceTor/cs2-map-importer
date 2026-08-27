@@ -539,6 +539,32 @@ private slots:
         auto resLease = envService.updateVpkLease(QStringLiteral("Z:/NonExistent/Path"));
         QVERIFY(resLease.isFailure());
     }
+
+    void testApplicationHelperExceptionBubbling() {
+        // 1. SteamService helpers with empty/invalid inputs return default values through normal control flow
+        auto emptyLibs = SteamService::detectLibraries(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/SteamRoot")));
+        QVERIFY(emptyLibs.empty());
+
+        auto emptyParse = SteamService::parseLibraryFolders(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/libraryfolders.vdf")));
+        QVERIFY(emptyParse.empty());
+
+        auto emptyAppDir = SteamService::readAppInstallDir(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/Lib")), 730);
+        QVERIFY(emptyAppDir.isEmpty());
+
+        auto emptyAppName = SteamService::readAppName(Core::Path::FilesystemPath(QStringLiteral("Z:/NonExistent/Lib")), 730);
+        QVERIFY(emptyAppName.isEmpty());
+
+        // 2. Exception bubbling from helper to ExecutionGuard
+        auto res = Application::Execution::ExecutionGuard::guard<int>([]() -> Core::Result<int> {
+            // Helper throws Core::Error::Exception
+            throw Core::Error::Exception(Core::Error::ErrorCode::InvalidFile, QStringLiteral("Corrupted library VDF"));
+        }, QStringLiteral("Steam library discovery failed"));
+
+        QVERIFY(res.isFailure());
+        QCOMPARE(res.errorCode(), Core::Error::ErrorCode::InvalidFile);
+        QCOMPARE(res.message(), QStringLiteral("Steam library discovery failed"));
+        QCOMPARE(res.error().message(), QStringLiteral("Corrupted library VDF"));
+    }
 };
 
 QTEST_MAIN(TestEnvironment)

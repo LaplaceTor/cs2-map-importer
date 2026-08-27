@@ -398,7 +398,7 @@ UI 属性/信号
 * **`std::exception`**：标准库与第三方库异常兜底。
 * **`catch (...)`**：未知系统异常最终防线。
 
-在异步调度入口（`AsyncTaskRunner`）或服务边界处统一转译为 `Result<T>::failure`：
+在异步调度入口（`AsyncTaskRunner`）或服务边界处通过 `ExecutionGuard` 统一转译为 `Result<T>::failure`：
 ```cpp
 try {
     return executeOperation();
@@ -410,6 +410,18 @@ try {
     return Result<T>::failure(Core::Error::ErrorCode::Unknown, QStringLiteral("Unknown runtime exception caught"));
 }
 ```
+
+##### 异常捕获与转译边界契约 (Exception Boundary & Handling Contract)
+
+> **异常只能在明确的异常边界被捕获。Application API 边界必须将异常转换为 `Core::Result<T>`；Application 内部 helper 默认不得通过 `catch (...)` 将异常静默转换为空值、空容器、`false` 或 `nullptr`。若异常确实代表合法的 best-effort fallback，必须在注释中说明该 fallback 语义，并确保不会掩盖业务失败。**
+
+* **Application Public Operation**：
+  * 必须返回 `Core::Result<T>`；
+  * 必须通过 `Application::Execution::ExecutionGuard` 或 `AsyncTaskRunner` 统一守卫异常边界，将 `Core::Error::Exception`、`std::exception` 与未知异常转译为单层结构化 `Result<T>::failure`。
+* **Application Internal Helper**：
+  * 可以返回普通值类型（如 `FilesystemPath`、`std::vector<T>`、`QString`、`std::optional<T>` 等）；
+  * 默认**不得**通过 `catch (...)` 静默吞没异常并返回空值；
+  * 异常应当自然向上冒泡到调用它的 Public Operation 或 Task Worker 统一转译处理，避免掩盖底层真实错误与技术诊断。
 
 ##### 强类型 Domain 错误码扩展规范
 
@@ -805,7 +817,7 @@ Domain API **严禁**：
 * 优先使用结构化 `Core::Error` 与类型安全结果对象，避免字符串型控制流。
 * 保留足够的诊断上下文，以便向 Application 与 UI 层清晰反馈失败原因。
 * Domain 错误应准确描述领域/系统故障事实，而非 UI 文案。
-* 严禁无理由使用 `catch (...) {}` 吞没错误。
+* 严禁在 Application 内部 helper 或业务逻辑中无理由使用 `catch (...) {}` 吞没异常并伪造空值、空容器或成功状态。
 * 严禁仅因操作跳过而返回 `true`（除非契约明确将跳过定义为成功/空操作）。
 
 ---
@@ -1054,6 +1066,7 @@ ctest --test-dir build/local-debug --output-on-failure
 * 严禁为配置项、服务、取消标志或日志器添加全局静态变量。
 * 严禁在 UI / Application 业务代码中直接调用 `QProcess`、`system()` 或 Shell 命令。
 * 严禁从 Domain / Workflow 中弹出对话框。
+* 严禁在 Application 内部 helper 中使用 `catch (...)` 吞没异常并返回空值/空容器/`false`/`nullptr`。
 * 严禁将 MapImporter 迁移与其他导入器的迁移混在同一阶段。
 * 严禁在专项迁移中顺带进行无关重构。
 * 严禁通过 `static` 函数、便捷辅助类、友元声明或 CMake 传递链接掩盖分层违规。

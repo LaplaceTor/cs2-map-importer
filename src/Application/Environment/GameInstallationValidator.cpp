@@ -7,36 +7,32 @@ namespace Application::Environment {
 std::optional<GameInstallation> GameInstallationValidator::createInstallationFromResolved(
     const Domain::Game::ResolvedGameInstallation& resolved)
 {
-    try {
-        if (!resolved.isValid) {
-            return std::nullopt;
-        }
-
-        GameInstallation inst;
-        inst.setType(resolved.type);
-        inst.setGameId(Domain::Game::GameRegistry::gameTypeToString(resolved.type));
-
-        const auto* def = Domain::Game::GameRegistry::findByType(resolved.type);
-        if (def && resolved.type != Domain::Game::GameType::Custom && resolved.type != Domain::Game::GameType::Unknown) {
-            inst.setDisplayName(def->displayName);
-            inst.setSource2(def->isSource2());
-            inst.setAppId(resolved.gameInfo.steamAppId() > 0 ? resolved.gameInfo.steamAppId() : def->primaryAppId);
-        } else {
-            inst.setDisplayName(resolved.gameInfo.game().isEmpty() ? resolved.gameInfo.title() : resolved.gameInfo.game());
-            inst.setSource2(resolved.isSource2);
-            inst.setAppId(resolved.gameInfo.steamAppId());
-        }
-
-        inst.setGameTitle(resolved.gameInfo.game().isEmpty() ? resolved.gameInfo.title() : resolved.gameInfo.game());
-        inst.setBaseDirectory(resolved.baseDirectory);
-        inst.setGameInfoPath(resolved.gameInfoPath);
-        inst.setValid(true);
-        inst.setGameInfo(resolved.gameInfo);
-
-        return inst;
-    } catch (...) {
+    if (!resolved.isValid) {
         return std::nullopt;
     }
+
+    GameInstallation inst;
+    inst.setType(resolved.type);
+    inst.setGameId(Domain::Game::GameRegistry::gameTypeToString(resolved.type));
+
+    const auto* def = Domain::Game::GameRegistry::findByType(resolved.type);
+    if (def && resolved.type != Domain::Game::GameType::Custom && resolved.type != Domain::Game::GameType::Unknown) {
+        inst.setDisplayName(def->displayName);
+        inst.setSource2(def->isSource2());
+        inst.setAppId(resolved.gameInfo.steamAppId() > 0 ? resolved.gameInfo.steamAppId() : def->primaryAppId);
+    } else {
+        inst.setDisplayName(resolved.gameInfo.game().isEmpty() ? resolved.gameInfo.title() : resolved.gameInfo.game());
+        inst.setSource2(resolved.isSource2);
+        inst.setAppId(resolved.gameInfo.steamAppId());
+    }
+
+    inst.setGameTitle(resolved.gameInfo.game().isEmpty() ? resolved.gameInfo.title() : resolved.gameInfo.game());
+    inst.setBaseDirectory(resolved.baseDirectory);
+    inst.setGameInfoPath(resolved.gameInfoPath);
+    inst.setValid(true);
+    inst.setGameInfo(resolved.gameInfo);
+
+    return inst;
 }
 
 std::optional<GameInstallation> GameInstallationValidator::createInstallationFromGameInfo(
@@ -44,15 +40,11 @@ std::optional<GameInstallation> GameInstallationValidator::createInstallationFro
     const Core::Path::FilesystemPath& baseDir,
     const Domain::Game::GameInfo& info)
 {
-    try {
-        auto optResolved = Domain::Game::GameInstallationResolver::createResolved(type, baseDir, info);
-        if (!optResolved.has_value()) {
-            return std::nullopt;
-        }
-        return createInstallationFromResolved(*optResolved);
-    } catch (...) {
+    auto optResolved = Domain::Game::GameInstallationResolver::createResolved(type, baseDir, info);
+    if (!optResolved.has_value()) {
         return std::nullopt;
     }
+    return createInstallationFromResolved(*optResolved);
 }
 
 Core::Result<GameInstallation> GameInstallationValidator::validateSource1(
