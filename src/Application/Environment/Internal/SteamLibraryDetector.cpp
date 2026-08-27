@@ -1,4 +1,4 @@
-#include "Application/Environment/SteamLibraryDetector.h"
+#include "Application/Environment/Internal/SteamLibraryDetector.h"
 #include "Application/Execution/ExecutionGuard.h"
 #include "Core/KeyValues/KeyValuesDocument.h"
 #include "Core/Path/PathUtils.h"
@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <utility>
 
-namespace Application::Environment {
+namespace Application::Environment::Internal {
 
 Core::Result<Core::Path::FilesystemPath> SteamLibraryDetector::detectSteamInstallPath(
     std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
@@ -364,5 +364,5 @@ Core::Result<QString> SteamLibraryDetector::readAppName(const Core::Path::Filesy
     }, QStringLiteral("Read app name failed"));
 }
 
-} // namespace Application::Environment
+} // namespace Application::Environment::Internal
 

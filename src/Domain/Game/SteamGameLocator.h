@@ -18,6 +18,7 @@ namespace Domain::Game {
 class SteamGameLocator {
 public:
     using InstallDirReaderFn = std::function<Core::Result<QString>(const Core::Path::FilesystemPath& libraryPath, int appId)>;
+    using DiagnosticFn = std::function<void(const QString& warning)>;
 
     /**
      * @brief Resolves candidate game root paths in a Steam library for an AppId.
@@ -33,7 +34,8 @@ public:
     static std::vector<ResolvedGameInstallation> resolveGamesInLibrary(
         const Core::Path::FilesystemPath& libraryPath,
         const std::vector<int>& installedAppIds,
-        const InstallDirReaderFn& installDirReader = nullptr);
+        const InstallDirReaderFn& installDirReader = nullptr,
+        const DiagnosticFn& diagnosticHandler = nullptr);
 
     /**
      * @brief Resolves a specific game type within a Steam library.
@@ -41,7 +43,8 @@ public:
     static std::optional<ResolvedGameInstallation> resolveGameInLibrary(
         const Core::Path::FilesystemPath& libraryPath,
         GameType type,
-        const InstallDirReaderFn& installDirReader = nullptr);
+        const InstallDirReaderFn& installDirReader = nullptr,
+        const DiagnosticFn& diagnosticHandler = nullptr);
 };
 
 } // namespace Domain::Game

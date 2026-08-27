@@ -37,7 +37,8 @@ std::vector<Core::Path::FilesystemPath> SteamGameLocator::locateCandidateDirecto
 std::vector<ResolvedGameInstallation> SteamGameLocator::resolveGamesInLibrary(
     const Core::Path::FilesystemPath& libraryPath,
     const std::vector<int>& installedAppIds,
-    const InstallDirReaderFn& installDirReader)
+    const InstallDirReaderFn& installDirReader,
+    const DiagnosticFn& diagnosticHandler)
 {
     std::vector<ResolvedGameInstallation> results;
     if (!libraryPath.isValid() || !libraryPath.exists()) {
@@ -57,6 +58,9 @@ std::vector<ResolvedGameInstallation> SteamGameLocator::resolveGamesInLibrary(
             auto dirRes = installDirReader(libraryPath, appId);
             if (dirRes.isSuccess()) {
                 installDirName = dirRes.value();
+            } else if (diagnosticHandler) {
+                diagnosticHandler(QStringLiteral("Failed to read manifest for AppID %1 in %2: %3 (falling back to default heuristics)")
+                    .arg(QString::number(appId), libraryPath.toString(), dirRes.message()));
             }
         }
         auto candidateDirs = locateCandidateDirectories(libraryPath, appId, installDirName);
@@ -93,7 +97,8 @@ std::vector<ResolvedGameInstallation> SteamGameLocator::resolveGamesInLibrary(
 std::optional<ResolvedGameInstallation> SteamGameLocator::resolveGameInLibrary(
     const Core::Path::FilesystemPath& libraryPath,
     GameType type,
-    const InstallDirReaderFn& installDirReader)
+    const InstallDirReaderFn& installDirReader,
+    const DiagnosticFn& diagnosticHandler)
 {
     if (type == GameType::Unknown || type == GameType::Custom) {
         return std::nullopt;
@@ -110,6 +115,9 @@ std::optional<ResolvedGameInstallation> SteamGameLocator::resolveGameInLibrary(
             auto dirRes = installDirReader(libraryPath, appId);
             if (dirRes.isSuccess()) {
                 installDirName = dirRes.value();
+            } else if (diagnosticHandler) {
+                diagnosticHandler(QStringLiteral("Failed to read manifest for AppID %1 in %2: %3 (falling back to default heuristics)")
+                    .arg(QString::number(appId), libraryPath.toString(), dirRes.message()));
             }
         }
         auto candidateDirs = locateCandidateDirectories(libraryPath, appId, installDirName);

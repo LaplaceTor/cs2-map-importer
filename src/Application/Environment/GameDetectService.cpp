@@ -50,7 +50,7 @@ Core::Result<DetectionResult> GameDetectService::detectEnvironment(
 {
     return Application::Execution::ExecutionGuard::guard<DetectionResult>([&]() -> Core::Result<DetectionResult> {
         DetectionResult result;
-        auto libRes = SteamLibraryDetector::detectLibraries(customSteamPath, logCtx);
+        auto libRes = Internal::SteamLibraryDetector::detectLibraries(customSteamPath, logCtx);
         if (!libRes.isSuccess()) {
             // 1. Explicit customSteamPath was provided but failed -> Fatal Failure
             if (customSteamPath.isValid()) {
@@ -63,23 +63,24 @@ Core::Result<DetectionResult> GameDetectService::detectEnvironment(
                     QStringLiteral("Invalid custom Steam path"));
             }
 
-            // 2. Corrupted Steam configuration on host -> Fatal Failure
-            if (libRes.errorCode() != Core::Error::ErrorCode::DirectoryNotFound) {
+            // 2. Steam cleanly not found on host during auto-detection -> Success with warning (benign empty result)
+            if (libRes.errorCode() == Core::Error::ErrorCode::DirectoryNotFound) {
+                QString warnMsg = QStringLiteral("No Steam installation detected on this system.");
                 if (logCtx) {
-                    logCtx->error(QStringLiteral("Fatal Steam configuration error: %1").arg(libRes.message()));
+                    logCtx->warning(warnMsg);
                 }
-                return Core::Result<DetectionResult>::failure(
-                    libRes.error(),
-                    QStringLiteral("Steam configuration corrupted"));
+                result.warnings.append(warnMsg);
+                return Core::Result<DetectionResult>::success(std::move(result));
             }
 
-            // 3. Steam cleanly not found on host during auto-detection -> Success with warning (benign empty result)
-            QString warnMsg = QStringLiteral("No Steam installation detected on this system.");
+            // 3. Fatal Steam configuration or filesystem failure -> Return structured failure preserving original message & details
             if (logCtx) {
-                logCtx->warning(warnMsg);
+                logCtx->error(QStringLiteral("Fatal Steam library discovery error: %1 (%2)")
+                    .arg(libRes.message(), libRes.details()));
             }
-            result.warnings.append(warnMsg);
-            return Core::Result<DetectionResult>::success(std::move(result));
+            return Core::Result<DetectionResult>::failure(
+                libRes.error(),
+                libRes.message());
         }
 
         const auto& libraries = libRes.value();
@@ -117,7 +118,13 @@ Core::Result<DetectionResult> GameDetectService::detectEnvironment(
                 lib.path,
                 lib.installedAppIds,
                 [](const Core::Path::FilesystemPath& lPath, int appId) {
-                    return SteamLibraryDetector::readAppInstallDir(lPath, appId);
+                    return Internal::SteamLibraryDetector::readAppInstallDir(lPath, appId);
+                },
+                [&](const QString& warn) {
+                    if (logCtx) {
+                        logCtx->warning(warn);
+                    }
+                    result.warnings.append(warn);
                 });
 
             for (const auto& resolved : resolvedList) {
@@ -163,7 +170,7 @@ Core::Result<GameInstallation> GameDetectService::detectGame(
                 QStringLiteral("Cannot detect games with Unknown or Custom type in Steam libraries"));
         }
 
-        auto libRes = SteamLibraryDetector::detectLibraries(customSteamPath, logCtx);
+        auto libRes = Internal::SteamLibraryDetector::detectLibraries(customSteamPath, logCtx);
         if (!libRes.isSuccess()) {
             return Core::Result<GameInstallation>::failure(
                 libRes.error(),
@@ -186,7 +193,12 @@ Core::Result<GameInstallation> GameDetectService::detectGame(
                 lib.path,
                 type,
                 [](const Core::Path::FilesystemPath& lPath, int appId) {
-                    return SteamLibraryDetector::readAppInstallDir(lPath, appId);
+                    return Internal::SteamLibraryDetector::readAppInstallDir(lPath, appId);
+                },
+                [&](const QString& warn) {
+                    if (logCtx) {
+                        logCtx->warning(warn);
+                    }
                 });
 
             if (optResolved.has_value()) {

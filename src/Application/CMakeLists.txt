@@ -5,8 +5,8 @@ qt_add_library(cs2importer_application STATIC
     Environment/GameInstallation.h
     Environment/GameInstallationValidator.h
     Environment/GameInstallationValidator.cpp
-    Environment/SteamLibraryDetector.h
-    Environment/SteamLibraryDetector.cpp
+    Environment/Internal/SteamLibraryDetector.h
+    Environment/Internal/SteamLibraryDetector.cpp
     Environment/SteamService.h
     Environment/SteamService.cpp
     Environment/GameDetectService.h

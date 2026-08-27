@@ -3,7 +3,7 @@
 #include <QTemporaryDir>
 #include <QFile>
 #include "Application/Environment/SteamService.h"
-#include "Application/Environment/SteamLibraryDetector.h"
+#include "Application/Environment/Internal/SteamLibraryDetector.h"
 #include "Application/Environment/GameDetectService.h"
 #include "Application/Environment/GameInstallationValidator.h"
 #include "Application/Environment/GameEnvironmentService.h"
@@ -11,6 +11,7 @@
 #include "Domain/Game/GameType.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Domain/Game/GameInstallationResolver.h"
+#include "Domain/Game/SteamGameLocator.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Path/PathUtils.h"
 #include "Core/FileSystem/FileSystem.h"
@@ -19,6 +20,7 @@
 #include "Application/Execution/ExecutionGuard.h"
 
 using namespace Application::Environment;
+using namespace Application::Environment::Internal;
 using namespace Domain::Game;
 using Core::Result;
 using Core::ResultStatus;
@@ -342,6 +344,41 @@ private slots:
         auto validEmptyRes = SteamLibraryDetector::detectLibraries(Core::Path::FilesystemPath(tempSteamDir.path()));
         QVERIFY(validEmptyRes.isSuccess());
         QVERIFY(validEmptyRes.value().empty());
+    }
+
+    void testManifestReaderDiagnosticRecording() {
+        QTemporaryDir tempSteamDir;
+        QVERIFY(tempSteamDir.isValid());
+
+        QString steamappsDir = tempSteamDir.filePath(QStringLiteral("steamapps"));
+        QVERIFY(QDir().mkpath(steamappsDir));
+
+        // Create a mock CSS game directory inside steamapps/common/Counter-Strike Source
+        QString commonDir = QDir(steamappsDir).filePath(QStringLiteral("common/Counter-Strike Source/cstrike"));
+        QVERIFY(QDir().mkpath(commonDir));
+        QString giPath = QDir(commonDir).filePath(QStringLiteral("gameinfo.txt"));
+        QFile giFile(giPath);
+        QVERIFY(giFile.open(QIODevice::WriteOnly | QIODevice::Text));
+        giFile.write("\"GameInfo\" { game \"Counter-Strike Source\" title \"Counter-Strike Source\" FileSystem { SearchPaths { Game cstrike } } }");
+        giFile.close();
+
+        // 1. When manifest reader fails (e.g. invalid ACF), diagnosticHandler must receive a warning
+        // but locator should still fall back to candidate heuristics and successfully resolve the game
+        QString receivedWarning;
+        auto results = SteamGameLocator::resolveGamesInLibrary(
+            Core::Path::FilesystemPath(tempSteamDir.path()),
+            {240}, // AppID 240 = CSS
+            [](const Core::Path::FilesystemPath&, int) -> Core::Result<QString> {
+                return Core::Result<QString>::failure(Core::Error::ErrorCode::InvalidFile, QStringLiteral("Corrupted ACF syntax"));
+            },
+            [&](const QString& warn) {
+                receivedWarning = warn;
+            });
+
+        QVERIFY(!receivedWarning.isEmpty());
+        QVERIFY(receivedWarning.contains(QStringLiteral("Corrupted ACF syntax")));
+        QCOMPARE(results.size(), static_cast<size_t>(1));
+        QCOMPARE(results[0].type, GameType::CSS);
     }
 
     void testGameInstallationSource2Paths() {

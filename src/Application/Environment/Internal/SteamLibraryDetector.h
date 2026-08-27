@@ -7,7 +7,7 @@
 #include <memory>
 #include <vector>
 
-namespace Application::Environment {
+namespace Application::Environment::Internal {
 
 struct SteamLibrary {
     Core::Path::FilesystemPath path;
@@ -15,7 +15,7 @@ struct SteamLibrary {
 };
 
 /**
- * @brief Internal Application helper responsible for Steam installation discovery,
+ * @brief Internal Application infrastructure adapter responsible for Steam installation discovery,
  * library folder resolution, and ACF manifest reading.
  */
 class SteamLibraryDetector {
@@ -45,5 +45,5 @@ public:
         int appId);
 };
 
-} // namespace Application::Environment
+} // namespace Application::Environment::Internal
 

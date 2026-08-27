@@ -4,7 +4,6 @@
 #include "Application/Environment/GameInstallationValidator.h"
 #include "Application/Environment/SteamService.h"
 #include "Application/Async/AsyncTaskRunner.h"
-#include "Application/Execution/ExecutionGuard.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Domain/Game/GameType.h"
 #include "Domain/Game/GameInstallationResolver.h"
@@ -223,26 +222,24 @@ Core::Result<GameInstallationInfo> GameEnvironmentService::validateSource1Folder
     const QString& typeName,
     const QString& pathOrUrl)
 {
-    return Application::Execution::ExecutionGuard::guard<GameInstallationInfo>([&]() -> Core::Result<GameInstallationInfo> {
-        QString normalizedPath = cleanPath(pathOrUrl);
-        if (normalizedPath.isEmpty()) {
-            return Core::Result<GameInstallationInfo>::failure(Core::Error::ErrorCode::InvalidArgument, QStringLiteral("Target path is empty"));
-        }
+    QString normalizedPath = cleanPath(pathOrUrl);
+    if (normalizedPath.isEmpty()) {
+        return Core::Result<GameInstallationInfo>::failure(Core::Error::ErrorCode::InvalidArgument, QStringLiteral("Target path is empty"));
+    }
 
-        Core::Path::FilesystemPath fsPath(normalizedPath);
-        Domain::Game::GameType type = resolveGameTypeFromName(typeName);
-        Core::Result<GameInstallation> instResult;
-        if (type == Domain::Game::GameType::Custom) {
-            instResult = GameInstallationValidator::inspectGameInfo(fsPath);
-        } else {
-            instResult = GameInstallationValidator::validateSource1(type, fsPath);
-        }
+    Core::Path::FilesystemPath fsPath(normalizedPath);
+    Domain::Game::GameType type = resolveGameTypeFromName(typeName);
+    Core::Result<GameInstallation> instResult;
+    if (type == Domain::Game::GameType::Custom) {
+        instResult = GameInstallationValidator::inspectGameInfo(fsPath);
+    } else {
+        instResult = GameInstallationValidator::validateSource1(type, fsPath);
+    }
 
-        if (!instResult.isSuccess()) {
-            return Core::Result<GameInstallationInfo>::failure(instResult.error(), instResult.message());
-        }
-        return Core::Result<GameInstallationInfo>::success(instResult.value().toInfo());
-    }, QStringLiteral("Source 1 validation failed"));
+    if (!instResult.isSuccess()) {
+        return Core::Result<GameInstallationInfo>::failure(instResult.error(), QStringLiteral("Source 1 validation failed"));
+    }
+    return Core::Result<GameInstallationInfo>::success(instResult.value().toInfo());
 }
 
 void GameEnvironmentService::validateSource2FolderAsync(
@@ -287,19 +284,17 @@ void GameEnvironmentService::validateSource2FolderAsync(
 Core::Result<GameInstallationInfo> GameEnvironmentService::validateSource2Folder(
     const QString& pathOrUrl)
 {
-    return Application::Execution::ExecutionGuard::guard<GameInstallationInfo>([&]() -> Core::Result<GameInstallationInfo> {
-        QString normalizedPath = cleanPath(pathOrUrl);
-        if (normalizedPath.isEmpty()) {
-            return Core::Result<GameInstallationInfo>::failure(Core::Error::ErrorCode::InvalidArgument, QStringLiteral("Target path is empty"));
-        }
+    QString normalizedPath = cleanPath(pathOrUrl);
+    if (normalizedPath.isEmpty()) {
+        return Core::Result<GameInstallationInfo>::failure(Core::Error::ErrorCode::InvalidArgument, QStringLiteral("Target path is empty"));
+    }
 
-        Core::Path::FilesystemPath fsPath(normalizedPath);
-        auto instResult = GameInstallationValidator::validateSource2(fsPath);
-        if (!instResult.isSuccess()) {
-            return Core::Result<GameInstallationInfo>::failure(instResult.error(), instResult.message());
-        }
-        return Core::Result<GameInstallationInfo>::success(instResult.value().toInfo());
-    }, QStringLiteral("Source 2 validation failed"));
+    Core::Path::FilesystemPath fsPath(normalizedPath);
+    auto instResult = GameInstallationValidator::validateSource2(fsPath);
+    if (!instResult.isSuccess()) {
+        return Core::Result<GameInstallationInfo>::failure(instResult.error(), QStringLiteral("Source 2 validation failed"));
+    }
+    return Core::Result<GameInstallationInfo>::success(instResult.value().toInfo());
 }
 
 Core::Result<void> GameEnvironmentService::validateGameInSteam(const QString& typeName)
