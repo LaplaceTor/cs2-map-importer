@@ -17,10 +17,23 @@ Rectangle {
     property bool hasSubTasks: (typeof model !== "undefined" && model && model.hasSubTasks !== undefined) ? model.hasSubTasks : false
     property var messagesModel: (typeof model !== "undefined" && model && model.messagesModel !== undefined) ? model.messagesModel : null
     property var subTasksModel: (typeof model !== "undefined" && model && model.subTasksModel !== undefined) ? model.subTasksModel : null
+
+    width: parent ? parent.width : 0
+    color: cardDepth > 0 ? "#1C1C1C" : "#212121"
+    border.color: expanded ? (cardDepth > 0 ? "#383838" : "#424242") : "#282828"
+    border.width: 1
+    radius: 4
+
+    implicitHeight: cardContent.implicitHeight + 12
+    height: implicitHeight
+
+    ColumnLayout {
         id: cardContent
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
+        anchors.margins: 6
+        spacing: 6
 
         // Task Header
         Rectangle {
@@ -49,6 +62,7 @@ Rectangle {
 
                 // State Badge
                 Rectangle {
+                    implicitWidth: stateText.implicitWidth + 10
                     implicitHeight: 18
                     radius: 3
                     Layout.alignment: Qt.AlignVCenter
@@ -59,6 +73,8 @@ Rectangle {
                         if (s === "COMPLETED") return "#2E7D32"
                         if (s === "FAILED") return "#C62828"
                         if (s === "CANCELLED") return "#E65100"
+                        if (s === "SKIPPED") return "#546E7A"
+                        return "#424242"
                     }
 
                     Text {
@@ -129,6 +145,7 @@ Rectangle {
                     Layout.fillWidth: true
                     source: "LogTaskCard.qml"
 
+                    required property int index
                     required property int depth
                     required property string taskName
                     required property string stateString
@@ -147,12 +164,12 @@ Rectangle {
                     }
                     Binding {
                         target: subTaskLoader.item
-                        property: "index"
+                        property: "cardIndex"
                         value: subTaskLoader.index
                     }
                     Binding {
                         target: subTaskLoader.item
-                        property: "depth"
+                        property: "cardDepth"
                         value: subTaskLoader.depth
                     }
                     Binding {
