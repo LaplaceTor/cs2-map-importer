@@ -1,10 +1,12 @@
 #include "UI/ViewModels/GameViewModel.h"
+#include <QQmlEngine>
 
 namespace UI::ViewModels {
 
 GameViewModel::GameViewModel(Application::Environment::GameEnvironmentService* envService, QObject* parent)
     : QObject(parent)
 {
+    QQmlEngine::setObjectOwnership(this, QQmlEngine::CppOwnership);
     setEnvironmentService(envService);
 }
 

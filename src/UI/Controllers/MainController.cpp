@@ -1,6 +1,7 @@
 #include "UI/Controllers/MainController.h"
 #include "UI/ViewModels/LogViewModel.h"
 #include <QGuiApplication>
+#include <QQmlEngine>
 #include <QStyleHints>
 
 #ifndef APP_VERSION
@@ -13,6 +14,7 @@ MainController::MainController(UI::ViewModels::LogViewModel* logViewModel, QObje
     : QObject(parent)
     , m_logViewModel(logViewModel)
 {
+    QQmlEngine::setObjectOwnership(this, QQmlEngine::CppOwnership);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     if (QGuiApplication::styleHints()) {
         connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this](Qt::ColorScheme) {

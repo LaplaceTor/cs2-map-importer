@@ -3,6 +3,7 @@
 #include <QHash>
 #include <QObject>
 #include <QString>
+#include <atomic>
 #include <memory>
 
 #include "Core/Logging/LogBlock.h"
@@ -44,6 +45,7 @@ public:
     int totalMessageCount() const;
     bool autoScroll() const noexcept { return m_autoScroll; }
     void setAutoScroll(bool enabled);
+    quint64 viewGeneration() const noexcept { return m_viewGeneration.load(std::memory_order_relaxed); }
 
 public slots:
     /**
@@ -70,8 +72,8 @@ private:
     quint64 m_activeTaskId = 0;
     quint64 m_lastTaskId = 0;
     int m_totalMessages = 0;
-    bool m_autoScroll = true;
     quint64 m_registeredSinkId = 0;
+    std::atomic<quint64> m_viewGeneration{0};
 };
 
 } // namespace UI::ViewModels

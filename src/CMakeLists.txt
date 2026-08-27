@@ -8,10 +8,6 @@ set(APP_SOURCES
     Main.cpp
 )
 
-if(WIN32)
-    list(APPEND APP_SOURCES ${CMAKE_SOURCE_DIR}/icons/cs2importer.rc)
-endif()
-
 qt_add_executable(cs2importer MANUAL_FINALIZATION ${APP_SOURCES})
 
 set_property(TARGET cs2importer PROPERTY WIN32_EXECUTABLE TRUE)
@@ -45,19 +41,16 @@ target_compile_definitions(cs2importer PRIVATE "APP_VERSION=\"${APP_VERSION}\"")
 qt_import_qml_plugins(cs2importer)
 qt_finalize_executable(cs2importer)
 
-if(WIN32 AND CS2IMPORTER_DEPLOY_QT_RUNTIME)
-    get_filename_component(QT_INSTALL_PREFIX "${Qt6_DIR}/../../.." ABSOLUTE)
-    find_program(WINDEPLOYQT_EXECUTABLE
-        NAMES windeployqt windeployqt.exe
-        HINTS "${QT_INSTALL_PREFIX}/bin"
-        REQUIRED
-    )
+install(TARGETS cs2importer
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION .
+)
 
-    add_custom_command(TARGET cs2importer POST_BUILD
-        COMMAND "${WINDEPLOYQT_EXECUTABLE}"
-            --qmldir "${CMAKE_CURRENT_SOURCE_DIR}/qml"
-            --no-translations
-            "$<TARGET_FILE:cs2importer>"
-        VERBATIM
-    )
+if(CS2IMPORTER_DEPLOY_QT_RUNTIME)
+    set(QT_DEPLOY_BIN_DIR ".")
+    qt_generate_deploy_qml_app_script(
+        TARGET cs2importer
+        OUTPUT_SCRIPT deploy_script
+
+    install(SCRIPT ${deploy_script})
 endif()

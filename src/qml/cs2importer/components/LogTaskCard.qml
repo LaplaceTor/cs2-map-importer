@@ -17,6 +17,7 @@ Rectangle {
     property bool hasSubTasks: (typeof model !== "undefined" && model && model.hasSubTasks !== undefined) ? model.hasSubTasks : false
     property var messagesModel: (typeof model !== "undefined" && model && model.messagesModel !== undefined) ? model.messagesModel : null
     property var subTasksModel: (typeof model !== "undefined" && model && model.subTasksModel !== undefined) ? model.subTasksModel : null
+    property bool autoScroll: true
 
     width: parent ? parent.width : 0
     color: cardDepth > 0 ? "#1C1C1C" : "#212121"
@@ -26,6 +27,24 @@ Rectangle {
 
     implicitHeight: cardContent.implicitHeight + 12
     height: implicitHeight
+
+    function scrollToBottom() {
+        if (autoScroll && messageListView && messageListView.count > 0) {
+            messageListView.positionViewAtEnd()
+        }
+    }
+
+    onExpandedChanged: {
+        if (expanded && autoScroll) {
+            Qt.callLater(scrollToBottom)
+        }
+    }
+
+    onAutoScrollChanged: {
+        if (autoScroll && expanded) {
+            Qt.callLater(scrollToBottom)
+        }
+    }
 
     ColumnLayout {
         id: cardContent
@@ -38,10 +57,14 @@ Rectangle {
         // Task Header
         Rectangle {
             Layout.fillWidth: true
+            implicitHeight: 28
             color: headerMouseArea.containsMouse ? "#2A2A2A" : "transparent"
             radius: 3
 
             RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 6 + rootCard.cardDepth * 12
+                anchors.rightMargin: 6
                 spacing: 8
 
                 // Expand / Collapse Chevron
@@ -55,6 +78,7 @@ Rectangle {
                 // Task Name
                 Text {
                     text: rootCard.taskName
+                    color: "#ECEFF1"
                     font.bold: rootCard.cardDepth === 0
                     font.pixelSize: rootCard.cardDepth === 0 ? 13 : 12
                     Layout.alignment: Qt.AlignVCenter
@@ -217,6 +241,11 @@ Rectangle {
                         property: "subTasksModel"
                         value: subTaskLoader.subTasksModel
                     }
+                    Binding {
+                        target: subTaskLoader.item
+                        property: "autoScroll"
+                        value: rootCard.autoScroll
+                    }
                 }
             }
         }
@@ -243,6 +272,18 @@ Rectangle {
 
                 ScrollBar.vertical: ScrollBar {
                     active: messageListView.contentHeight > messageListView.height
+                }
+
+                onCountChanged: {
+                    if (rootCard.expanded && rootCard.autoScroll) {
+                        Qt.callLater(messageListView.positionViewAtEnd)
+                    }
+                }
+
+                Component.onCompleted: {
+                    if (rootCard.expanded && rootCard.autoScroll) {
+                        Qt.callLater(messageListView.positionViewAtEnd)
+                    }
                 }
 
                 delegate: RowLayout {

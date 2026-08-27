@@ -7,12 +7,10 @@
 #include <QMutex>
 #include <QMutexLocker>
 
-#ifdef Q_OS_WIN
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
-#endif
 
 namespace Core::Logging {
 
@@ -169,10 +167,8 @@ void ApplicationLogger::log(LogLevel level, const QString& message)
         s_appLogSink->writeEntry(level, message);
     }
 
-#ifdef Q_OS_WIN
     const QString debugMsg = QStringLiteral("[%1] [Application] %2\n").arg(logLevelToString(level), message);
     OutputDebugStringW(reinterpret_cast<LPCWSTR>(debugMsg.utf16()));
-#endif
 }
 
 } // namespace Core::Logging

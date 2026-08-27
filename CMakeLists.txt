@@ -14,8 +14,7 @@ qt_standard_project_setup(REQUIRES 6.8)
 
 include(CTest)
 
-option(CS2IMPORTER_DEPLOY_QT_RUNTIME "Deploy Qt runtime using windeployqt on Windows" ON)
-
+option(CS2IMPORTER_DEPLOY_QT_RUNTIME "Deploy Qt runtime using Qt CMake deployment API on Windows" ON)
 add_subdirectory(src)
 
 if(BUILD_TESTING)

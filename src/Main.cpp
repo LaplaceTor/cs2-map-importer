@@ -16,6 +16,7 @@
 #include "UI/Controllers/MainController.h"
 
 #include <QDateTime>
+#include <QThreadPool>
 
 Q_IMPORT_PLUGIN(cs2importerPlugin)
 
@@ -65,7 +66,16 @@ int main(int argc, char *argv[])
     // Trigger non-blocking asynchronous game detection in the background
     gameViewModel->autoDetect();
 
+    QObject::connect(&app, &QGuiApplication::aboutToQuit, []() {
+        QThreadPool::globalInstance()->clear();
+        QThreadPool::globalInstance()->waitForDone(3000);
+    });
+
     const int exitCode = app.exec();
+
+    // Ensure all asynchronous background tasks finish before tearing down services & sinks
+    QThreadPool::globalInstance()->clear();
+    QThreadPool::globalInstance()->waitForDone();
 
     // Flush workflow logs and shut down application logger cleanly
     Core::Logging::LogManager::instance().flushAll();

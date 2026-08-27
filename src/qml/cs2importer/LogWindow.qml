@@ -104,9 +104,24 @@ ApplicationWindow {
                 delegate: LogTaskCard {
                     width: taskListView.width - (vScrollBar.visible ? vScrollBar.width + 4 : 0)
                     owningModel: root.logViewModel
+                    autoScroll: root.logViewModel ? root.logViewModel.autoScroll : true
                 }
 
                 onCountChanged: {
+                    if (root.logViewModel && root.logViewModel.autoScroll) {
+                        Qt.callLater(taskListView.positionViewAtEnd)
+                    }
+                }
+            }
+
+            Connections {
+                target: root.logViewModel
+                function onTotalMessageCountChanged() {
+                    if (root.logViewModel && root.logViewModel.autoScroll) {
+                        Qt.callLater(taskListView.positionViewAtEnd)
+                    }
+                }
+                function onAutoScrollChanged() {
                     if (root.logViewModel && root.logViewModel.autoScroll) {
                         Qt.callLater(taskListView.positionViewAtEnd)
                     }

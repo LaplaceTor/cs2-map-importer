@@ -1,4 +1,5 @@
 #include "UI/ViewModels/LogTaskModel.h"
+#include <QQmlEngine>
 
 namespace UI::ViewModels {
 
@@ -6,6 +7,7 @@ LogTaskModel::LogTaskModel(int depth, QObject* parent)
     : QAbstractListModel(parent)
     , m_depth(depth)
 {
+    QQmlEngine::setObjectOwnership(this, QQmlEngine::CppOwnership);
 }
 
 int LogTaskModel::rowCount(const QModelIndex& parent) const
@@ -55,8 +57,14 @@ QVariant LogTaskModel::data(const QModelIndex& index, int role) const
     case HasSubTasksRole:
         return task.subTasksModel ? (task.subTasksModel->taskCount() > 0) : false;
     case MessagesModelRole:
+        if (task.messagesModel) {
+            QQmlEngine::setObjectOwnership(task.messagesModel.get(), QQmlEngine::CppOwnership);
+        }
         return QVariant::fromValue(task.messagesModel.get());
     case SubTasksModelRole:
+        if (task.subTasksModel) {
+            QQmlEngine::setObjectOwnership(task.subTasksModel.get(), QQmlEngine::CppOwnership);
+        }
         return QVariant::fromValue(task.subTasksModel.get());
     case MessagesRole: {
         QVariantList list;
@@ -129,6 +137,11 @@ QHash<int, QByteArray> LogTaskModel::roleNames() const
     return roles;
 }
 
+void LogTaskModel::setAutoScroll(bool enabled)
+{
+    m_autoScroll = enabled;
+}
+
 int LogTaskModel::taskCount() const
 {
     return m_tasks.size();
@@ -153,6 +166,7 @@ bool LogTaskModel::updateTaskMetadata(int row, Core::Logging::TaskState state, d
         return false;
     }
     auto& task = m_tasks[row];
+    const auto previousState = task.state;
     task.state = state;
     task.progress = progress;
     task.currentMessage = currentMessage;
@@ -160,8 +174,7 @@ bool LogTaskModel::updateTaskMetadata(int row, Core::Logging::TaskState state, d
         task.taskName = taskName.trimmed();
     }
 
-    QModelIndex idx = index(row, 0);
-    emit dataChanged(idx, idx, {
+    QVector<int> changedRoles = {
         TaskNameRole,
         StateRole,
         StateStringRole,
@@ -170,7 +183,15 @@ bool LogTaskModel::updateTaskMetadata(int row, Core::Logging::TaskState state, d
         MessageCountRole,
         SubTasksCountRole,
         HasSubTasksRole
-    });
+    };
+
+    if (m_autoScroll && previousState != Core::Logging::TaskState::Completed && state == Core::Logging::TaskState::Completed) {
+        task.expanded = false;
+        changedRoles.append(ExpandedRole);
+    }
+
+    QModelIndex idx = index(row, 0);
+    emit dataChanged(idx, idx, changedRoles);
     return true;
 }
 
@@ -206,12 +227,18 @@ int LogTaskModel::findRowByTaskId(quint64 taskId) const
 LogMessageListModel* LogTaskModel::getTaskMessagesModel(int row) const
 {
     auto ptr = taskMessagesModel(row);
+    if (ptr) {
+        QQmlEngine::setObjectOwnership(ptr.get(), QQmlEngine::CppOwnership);
+    }
     return ptr.get();
 }
 
 LogTaskModel* LogTaskModel::getTaskSubTasksModel(int row) const
 {
     auto ptr = taskSubTasksModel(row);
+    if (ptr) {
+        QQmlEngine::setObjectOwnership(ptr.get(), QQmlEngine::CppOwnership);
+    }
     return ptr.get();
 }
 

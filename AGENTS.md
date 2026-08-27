@@ -29,7 +29,7 @@
 * **开发语言：** C++17
 * **技术框架：** Qt 6.8+
 * **构建系统：** 现代 CMake
-* **目标平台：** 仅限 Windows（程序仅供 Windows 构建与运行）
+* **目标平台：** **仅限 Windows**（程序仅支持 Windows 平台构建、编译与运行；代码库严禁保留或新增对 Linux / macOS 等非 Windows 平台的兼容代码、多平台宏守卫或条件分支）
 * **UI 技术：** QML / Qt Quick Controls 2
 * **QML 样式：** Fusion
 
@@ -993,6 +993,7 @@ Workflow → Application
 ## 25. CMake 规范
 
 * 要求 CMake 3.28+ 与 Qt 6.8+。
+* **仅限 Windows 平台：** 根目录 `CMakeLists.txt` 统一执行 `if(NOT WIN32) message(FATAL_ERROR ...)` 守卫，子模块 CMake 脚本中无需且严禁编写冗余的 `if(WIN32)` 分支。
 * 适时使用 `qt_standard_project_setup()`。
 * 可执行程序使用 `qt_add_executable()`。
 * 模块库按需使用 `qt_add_library()`。
@@ -1069,6 +1070,7 @@ ctest --test-dir build/local-debug --output-on-failure
 * 严禁在 Application 内部 helper 中使用 `catch (...)` 吞没异常并返回空值/空容器/`false`/`nullptr`。
 * 严禁将 MapImporter 迁移与其他导入器的迁移混在同一阶段。
 * 严禁在专项迁移中顺带进行无关重构。
+* 严禁添加或保留对 Linux / macOS 等非 Windows 平台的条件编译（如 `#ifdef Q_OS_WIN`、`#ifdef _WIN32`）或多平台 CMake 分支；本项目仅支持 Windows 平台构建与运行。
 * 严禁通过 `static` 函数、便捷辅助类、友元声明或 CMake 传递链接掩盖分层违规。
 * 严禁将“通过编译”等同于“架构设计正确”。
 

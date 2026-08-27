@@ -100,15 +100,7 @@ jobs:
     - name: Prepare Release Artifacts
       shell: pwsh
       run: |
-        mkdir release
-        # The built executable is usually in build\Release\ on Windows MSVC
-        Copy-Item build\Release\cs2importer.exe release\
-        # Deploy Qt dependencies next to the executable
-        windeployqt --qmldir src/qml release\cs2importer.exe
-
-        # Remove unused Qt folders
-        Remove-Item -Path release\translations -Recurse -Force -ErrorAction SilentlyContinue
-
+        cmake --install build --config Release --prefix "$PWD/release"
         Copy-Item -Path bin -Destination release\bin -Recurse
         cd release
         7z a cs2importer.zip *

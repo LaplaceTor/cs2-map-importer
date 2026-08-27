@@ -98,9 +98,7 @@ jobs:
     - name: Prepare Artifacts
       shell: pwsh
       run: |
-        mkdir release
-        Copy-Item build\Release\cs2importer.exe release\
-        windeployqt --qmldir src/qml release\cs2importer.exe
+        cmake --install build --config Release --prefix "$PWD/release"
         Copy-Item -Path bin -Destination release\bin -Recurse
 
     - name: Upload Artifact

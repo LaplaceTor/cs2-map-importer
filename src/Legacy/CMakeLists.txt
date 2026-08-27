@@ -18,11 +18,8 @@ set(LEGACY_SOURCES
     FileExtractFromVPK.h
     MaterialFix.cpp
     MaterialFix.h
+    ${CMAKE_SOURCE_DIR}/icons/cs2importer.rc
 )
-
-if(WIN32)
-    list(APPEND LEGACY_SOURCES ${CMAKE_SOURCE_DIR}/icons/cs2importer.rc)
-endif()
 
 qt_add_executable(cs2importerlegacy MANUAL_FINALIZATION ${LEGACY_SOURCES})
 
@@ -58,19 +55,17 @@ target_compile_definitions(cs2importerlegacy PRIVATE "APP_VERSION=\"${APP_VERSIO
 qt_import_qml_plugins(cs2importerlegacy)
 qt_finalize_executable(cs2importerlegacy)
 
-if(WIN32 AND CS2IMPORTER_DEPLOY_QT_RUNTIME)
-    get_filename_component(QT_INSTALL_PREFIX "${Qt6_DIR}/../../.." ABSOLUTE)
-    find_program(WINDEPLOYQT_EXECUTABLE
-        NAMES windeployqt windeployqt.exe
-        HINTS "${QT_INSTALL_PREFIX}/bin"
-        REQUIRED
+install(TARGETS cs2importerlegacy
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION .
+)
+
+if(CS2IMPORTER_DEPLOY_QT_RUNTIME)
+    set(QT_DEPLOY_BIN_DIR ".")
+    qt_generate_deploy_qml_app_script(
+        TARGET cs2importerlegacy
+        OUTPUT_SCRIPT deploy_script_legacy
     )
 
-    add_custom_command(TARGET cs2importerlegacy POST_BUILD
-        COMMAND "${WINDEPLOYQT_EXECUTABLE}"
-            --qmldir "${CMAKE_SOURCE_DIR}/src/qml"
-            --no-translations
-            "$<TARGET_FILE:cs2importerlegacy>"
-        VERBATIM
-    )
+    install(SCRIPT ${deploy_script_legacy})
 endif()

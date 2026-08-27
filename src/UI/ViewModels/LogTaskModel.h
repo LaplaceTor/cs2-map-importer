@@ -71,6 +71,8 @@ public:
 
     int taskCount() const;
     int depth() const noexcept { return m_depth; }
+    bool autoScroll() const noexcept { return m_autoScroll; }
+    void setAutoScroll(bool enabled);
 
     int appendTask(const LogTaskItem& task);
     bool updateTaskMetadata(int row, Core::Logging::TaskState state, double progress, const QString& currentMessage, const QString& taskName = QString());
@@ -99,6 +101,7 @@ signals:
 
 protected:
     int m_depth = 0;
+    bool m_autoScroll = true;
     QVector<LogTaskItem> m_tasks;
     QHash<quint64, int> m_taskIdToRow;
 };

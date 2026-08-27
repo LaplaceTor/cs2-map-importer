@@ -9,6 +9,7 @@
 #include <QGuiApplication>
 #include <QMetaObject>
 #include <QPointer>
+#include <QQmlEngine>
 #include <QUrl>
 
 namespace UI::ViewModels {
@@ -27,10 +28,16 @@ public:
         if (!m_target) {
             return false;
         }
-        QMetaObject::invokeMethod(m_target.data(), [target = m_target, block, taskName]() {
-            if (target) {
-                target->processIncomingBlock(block, taskName);
+        const quint64 generation = m_target->viewGeneration();
+        QMetaObject::invokeMethod(m_target.data(), [target = m_target, block, taskName, generation]() {
+            if (!target) {
+                return;
             }
+            if (generation != target->viewGeneration()) {
+                // Stale queued log block from a prior generation (e.g. before resetView was called)
+                return;
+            }
+            target->processIncomingBlock(block, taskName);
         }, Qt::QueuedConnection);
         return true;
     }
@@ -49,6 +56,7 @@ private:
 LogViewModel::LogViewModel(QObject* parent)
     : LogTaskModel(0, parent)
 {
+    QQmlEngine::setObjectOwnership(this, QQmlEngine::CppOwnership);
 }
 
 LogViewModel::~LogViewModel()
@@ -83,6 +91,11 @@ void LogViewModel::setAutoScroll(bool enabled)
 {
     if (m_autoScroll != enabled) {
         m_autoScroll = enabled;
+        for (const auto& entry : m_taskRegistry) {
+            if (entry.subTasksModel) {
+                entry.subTasksModel->setAutoScroll(enabled);
+            }
+        }
         emit autoScrollChanged();
     }
 }
@@ -124,9 +137,12 @@ TaskRegistryEntry LogViewModel::ensureTaskRegistered(quint64 taskId, const QStri
     newTask.state = context ? context->state() : Core::Logging::TaskState::Running;
     newTask.progress = context ? context->progress() : 0.0;
     newTask.currentMessage = context ? context->currentMessage() : QString();
-    newTask.expanded = true;
+    newTask.expanded = (!m_autoScroll || newTask.state != Core::Logging::TaskState::Completed);
     newTask.messagesModel = std::make_shared<LogMessageListModel>();
+    QQmlEngine::setObjectOwnership(newTask.messagesModel.get(), QQmlEngine::CppOwnership);
     newTask.subTasksModel = std::make_shared<LogTaskModel>(taskDepth + 1);
+    newTask.subTasksModel->setAutoScroll(m_autoScroll);
+    QQmlEngine::setObjectOwnership(newTask.subTasksModel.get(), QQmlEngine::CppOwnership);
 
     targetModel->appendTask(newTask);
 
@@ -196,6 +212,8 @@ void LogViewModel::processIncomingBlock(const Core::Logging::LogBlock& block, co
 
 void LogViewModel::resetView()
 {
+    m_viewGeneration.fetch_add(1, std::memory_order_relaxed);
+
     LogTaskModel::clear();
     m_taskRegistry.clear();
     m_taskLogFiles.clear();

@@ -451,18 +451,26 @@ void TestAsyncTaskLogging::testExpandCollapseState()
     auto task = LogManager::instance().createTask("Test Expand State");
     task->start();
     task->info("Step 1");
-    LogManager::instance().finishTask(task->taskId(), "Done");
+    LogManager::instance().flushTask(task->taskId());
 
+    // While running, task is expanded
     QTRY_COMPARE(logVm.taskCount(), 1);
-
     QModelIndex idx = logVm.index(0, 0);
     QCOMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), true);
 
+    // On completion, task automatically collapses
+    LogManager::instance().finishTask(task->taskId(), "Done");
+    QTRY_COMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), false);
+
+    // User can manually re-expand
+    logVm.toggleTaskExpanded(0);
+    QCOMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), true);
+
+    // User can manually collapse again
     logVm.toggleTaskExpanded(0);
     QCOMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), false);
 
-    logVm.toggleTaskExpanded(0);
-    QCOMPARE(logVm.data(idx, LogTaskModel::ExpandedRole).toBool(), true);
+    logVm.unregisterFromLogManager();
 }
 
 void TestAsyncTaskLogging::testHierarchicalSubModelGranularity()

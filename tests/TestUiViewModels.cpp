@@ -11,6 +11,7 @@
 #include "UI/Controllers/MainController.h"
 #include "Application/Environment/GameEnvironmentService.h"
 #include "Application/Environment/VpkSignatureLeaseService.h"
+#include "Core/Logging/LogManager.h"
 
 using namespace UI::ViewModels;
 using namespace UI::Controllers;
@@ -367,9 +368,154 @@ private slots:
         auto idx = logVm.index(0, 0);
         QCOMPARE(logVm.data(idx, LogTaskModel::TaskNameRole).toString(), QStringLiteral("General"));
         QCOMPARE(logVm.data(idx, LogTaskModel::MessageCountRole).toInt(), 2);
-        QVERIFY(logVm.data(idx, LogTaskModel::MessagesModelRole).value<LogMessageListModel*>() != nullptr);
+        auto* msgModel = logVm.data(idx, LogTaskModel::MessagesModelRole).value<LogMessageListModel*>();
+        QVERIFY(msgModel != nullptr);
+        QCOMPARE(QQmlEngine::objectOwnership(msgModel), QQmlEngine::CppOwnership);
 
         delete rootObj;
+        engine.collectGarbage();
+    }
+
+    void testLogViewModelGenerationDropsStaleQueuedLogs() {
+        LogViewModel logVm;
+        logVm.registerWithLogManager();
+
+        quint64 initialGen = logVm.viewGeneration();
+
+        // 1. Task A produces logs via LogManager
+        auto taskA = Core::Logging::LogManager::instance().createTask(QStringLiteral("Workflow A Task"));
+        taskA->start();
+        taskA->info(QStringLiteral("Workflow A log 1"));
+        taskA->info(QStringLiteral("Workflow A log 2"));
+        Core::Logging::LogManager::instance().flushTask(taskA->taskId());
+
+        // Note: writeBlock queued invocations for Task A into Qt event queue with generation = initialGen
+
+        // 2. Immediate resetView BEFORE event loop drains queued callbacks
+        logVm.resetView();
+        QCOMPARE(logVm.viewGeneration(), initialGen + 1);
+        QCOMPARE(logVm.totalMessageCount(), 0);
+        QCOMPARE(logVm.taskCount(), 0);
+
+        // 3. Process events -> Task A callbacks execute, but generation mismatch (initialGen != initialGen + 1) discards them
+        QCoreApplication::processEvents();
+
+        // Must remain 0 because Task A logs were discarded
+        QCOMPARE(logVm.totalMessageCount(), 0);
+        QCOMPARE(logVm.taskCount(), 0);
+
+        // 4. Task B produces logs under new generation
+        auto taskB = Core::Logging::LogManager::instance().createTask(QStringLiteral("Workflow B Task"));
+        taskB->start();
+        taskB->info(QStringLiteral("Workflow B log 1"));
+        Core::Logging::LogManager::instance().flushTask(taskB->taskId());
+
+        // Process events for Task B
+        QCoreApplication::processEvents();
+
+        QCOMPARE(logVm.taskCount(), 1);
+        QCOMPARE(logVm.totalMessageCount(), 1);
+        QVERIFY(logVm.getFullLogText().contains(QStringLiteral("Workflow B log 1")));
+        QVERIFY(!logVm.getFullLogText().contains(QStringLiteral("Workflow A")));
+
+        logVm.unregisterFromLogManager();
+    }
+
+    void testSubtaskCompletionAutoCollapse() {
+        LogViewModel logVm;
+        logVm.registerWithLogManager();
+
+        // 1. Create parent task and child subtask
+        auto parentTask = Core::Logging::LogManager::instance().createTask(QStringLiteral("Parent Task"));
+        parentTask->start();
+        auto childTask = Core::Logging::LogManager::instance().createChildTask(parentTask->taskId(), QStringLiteral("Child Subtask"));
+        childTask->start();
+        childTask->info(QStringLiteral("Working on child subtask..."));
+        Core::Logging::LogManager::instance().flushTask(childTask->taskId());
+
+        QCoreApplication::processEvents();
+
+        QCOMPARE(logVm.taskCount(), 1);
+        QModelIndex parentIdx = logVm.index(0, 0);
+        auto* subTasksModel = logVm.data(parentIdx, LogTaskModel::SubTasksModelRole).value<LogTaskModel*>();
+        QVERIFY(subTasksModel != nullptr);
+        QCOMPARE(subTasksModel->taskCount(), 1);
+
+        QModelIndex childIdx = subTasksModel->index(0, 0);
+        // Initially while running, child task is expanded
+        QCOMPARE(subTasksModel->data(childIdx, LogTaskModel::ExpandedRole).toBool(), true);
+
+        // 2. Finish child subtask -> should auto-collapse
+        Core::Logging::LogManager::instance().finishTask(childTask->taskId(), QStringLiteral("Child subtask finished"));
+        QCoreApplication::processEvents();
+
+        QCOMPARE(subTasksModel->data(childIdx, LogTaskModel::ExpandedRole).toBool(), false);
+
+        // 3. User can manually re-expand child subtask
+        subTasksModel->toggleTaskExpanded(0);
+        QCOMPARE(subTasksModel->data(childIdx, LogTaskModel::ExpandedRole).toBool(), true);
+
+        // 4. Finish parent task -> should also auto-collapse
+        Core::Logging::LogManager::instance().finishTask(parentTask->taskId(), QStringLiteral("Parent finished"));
+        QCoreApplication::processEvents();
+        QCOMPARE(logVm.data(parentIdx, LogTaskModel::ExpandedRole).toBool(), false);
+
+        logVm.unregisterFromLogManager();
+    }
+
+    void testDisabledAutoScrollDoesNotAutoCollapse() {
+        LogViewModel logVm;
+        logVm.registerWithLogManager();
+        logVm.setAutoScroll(false);
+
+        // 1. Create parent task and child subtask with autoScroll disabled
+        auto parentTask = Core::Logging::LogManager::instance().createTask(QStringLiteral("Parent Task No AutoScroll"));
+        parentTask->start();
+        auto childTask = Core::Logging::LogManager::instance().createChildTask(parentTask->taskId(), QStringLiteral("Child Subtask No AutoScroll"));
+        childTask->start();
+        childTask->info(QStringLiteral("Working on child subtask without autoscroll..."));
+        Core::Logging::LogManager::instance().flushTask(childTask->taskId());
+
+        QCoreApplication::processEvents();
+
+        QCOMPARE(logVm.taskCount(), 1);
+        QModelIndex parentIdx = logVm.index(0, 0);
+        auto* subTasksModel = logVm.data(parentIdx, LogTaskModel::SubTasksModelRole).value<LogTaskModel*>();
+        QVERIFY(subTasksModel != nullptr);
+        QCOMPARE(subTasksModel->taskCount(), 1);
+
+        QModelIndex childIdx = subTasksModel->index(0, 0);
+        QCOMPARE(subTasksModel->data(childIdx, LogTaskModel::ExpandedRole).toBool(), true);
+
+        // 2. Finish child subtask with autoScroll=false -> MUST REMAIN EXPANDED (no auto-collapse)
+        Core::Logging::LogManager::instance().finishTask(childTask->taskId(), QStringLiteral("Child subtask finished"));
+        QCoreApplication::processEvents();
+
+        QCOMPARE(subTasksModel->data(childIdx, LogTaskModel::ExpandedRole).toBool(), true);
+
+        // 3. Finish parent task with autoScroll=false -> MUST REMAIN EXPANDED
+        Core::Logging::LogManager::instance().finishTask(parentTask->taskId(), QStringLiteral("Parent finished"));
+        QCoreApplication::processEvents();
+
+        QCOMPARE(logVm.data(parentIdx, LogTaskModel::ExpandedRole).toBool(), true);
+
+        // 4. Re-enable autoScroll -> next completing task will auto-collapse
+        logVm.setAutoScroll(true);
+        auto taskAuto = Core::Logging::LogManager::instance().createTask(QStringLiteral("Auto Task"));
+        taskAuto->start();
+        taskAuto->info(QStringLiteral("Auto task running"));
+        Core::Logging::LogManager::instance().flushTask(taskAuto->taskId());
+        QCoreApplication::processEvents();
+
+        QCOMPARE(logVm.taskCount(), 2);
+        QModelIndex autoIdx = logVm.index(1, 0);
+        QCOMPARE(logVm.data(autoIdx, LogTaskModel::ExpandedRole).toBool(), true);
+
+        Core::Logging::LogManager::instance().finishTask(taskAuto->taskId(), QStringLiteral("Auto task finished"));
+        QCoreApplication::processEvents();
+        QCOMPARE(logVm.data(autoIdx, LogTaskModel::ExpandedRole).toBool(), false);
+
+        logVm.unregisterFromLogManager();
     }
 };
 

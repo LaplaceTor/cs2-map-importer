@@ -1,10 +1,12 @@
 #include "UI/ViewModels/LogMessageListModel.h"
+#include <QQmlEngine>
 
 namespace UI::ViewModels {
 
 LogMessageListModel::LogMessageListModel(QObject* parent)
     : QAbstractListModel(parent)
 {
+    QQmlEngine::setObjectOwnership(this, QQmlEngine::CppOwnership);
 }
 
 int LogMessageListModel::rowCount(const QModelIndex& parent) const
