@@ -15,10 +15,16 @@ class ApplicationLogger {
 public:
     /**
      * @brief Initializes the application logging subsystem.
+     * @param startupTimestamp Unix epoch millisecond timestamp recorded at application entry.
      * @param customLogFilePath Optional explicit log file path (useful for testing).
      * @return true if initialized and log file opened successfully, false otherwise.
      */
-    static bool initialize(const QString& customLogFilePath = QString());
+    static bool initialize(qint64 startupTimestamp = 0, const QString& customLogFilePath = QString());
+
+    /**
+     * @brief Initializes the application logging subsystem with an explicit log file path.
+     */
+    static bool initialize(const QString& customLogFilePath);
 
     /**
      * @brief Flushes and closes the application log file.

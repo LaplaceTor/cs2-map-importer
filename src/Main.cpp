@@ -15,17 +15,21 @@
 #include "UI/ViewModels/LogViewModel.h"
 #include "UI/Controllers/MainController.h"
 
+#include <QDateTime>
+
 Q_IMPORT_PLUGIN(cs2importerPlugin)
 
 int main(int argc, char *argv[])
 {
+    const qint64 startupTimestamp = QDateTime::currentMSecsSinceEpoch();
+
     QGuiApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("CS2 Importer"));
     app.setOrganizationName(QStringLiteral("LaplaceTor"));
     app.setWindowIcon(QIcon(QStringLiteral(":/icons/icon.png")));
 
-    // Initialize application-level logging immediately after app setup
-    Core::Logging::ApplicationLogger::initialize();
+    // Initialize application-level logging immediately with application startup timestamp
+    Core::Logging::ApplicationLogger::initialize(startupTimestamp);
     Core::Logging::ApplicationLogger::info(QStringLiteral("CS2 Importer starting up..."));
 
     // Register file sink for workflow tasks

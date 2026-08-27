@@ -18,8 +18,7 @@ bool s_initialized = false;
 
 } // namespace
 
-bool ApplicationLogger::initialize(const QString& customLogFilePath)
-{
+bool ApplicationLogger::initialize(qint64 startupTimestamp, const QString& customLogFilePath)
     QMutexLocker locker(&s_appLoggerMutex);
     if (s_initialized && s_appLogSink && s_appLogSink->isOpen()) {
         return true;
@@ -27,11 +26,10 @@ bool ApplicationLogger::initialize(const QString& customLogFilePath)
 
     LogFileManager::ensureLogsDirectoryExists();
 
-    const QString targetPath = !customLogFilePath.isEmpty()
+    const qint64 time = (startupTimestamp > 0) ? startupTimestamp : QDateTime::currentMSecsSinceEpoch();
         ? customLogFilePath
-        : LogFileManager::generateApplicationLogFilePath(QDateTime::currentMSecsSinceEpoch());
+        : LogFileManager::generateApplicationLogFilePath(time);
 
-    auto sink = std::make_unique<ApplicationLogSink>();
     if (!sink->open(targetPath)) {
         qWarning().noquote() << QStringLiteral("[ApplicationLogger] Failed to open log file: %1").arg(targetPath);
         return false;
@@ -41,13 +39,12 @@ bool ApplicationLogger::initialize(const QString& customLogFilePath)
     s_appLogSink = std::move(sink);
     s_initialized = true;
 
-    s_appLogSink->writeEntry(LogLevel::Info, QStringLiteral("Application log initialized"));
+    s_appLogSink->writeEntry(LogLevel::Info, QStringLiteral("Application log initialized"), time);
     return true;
 }
-
-void ApplicationLogger::shutdown()
+bool ApplicationLogger::initialize(const QString& customLogFilePath)
 {
-    QMutexLocker locker(&s_appLoggerMutex);
+    return initialize(0, customLogFilePath);
     if (s_appLogSink && s_appLogSink->isOpen()) {
         s_appLogSink->writeEntry(LogLevel::Info, QStringLiteral("Application log shutdown"));
         s_appLogSink->flush();
