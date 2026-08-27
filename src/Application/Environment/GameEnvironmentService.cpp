@@ -171,9 +171,7 @@ void GameEnvironmentService::detectEnvironmentAsync(
 Core::Result<DetectionResult> GameEnvironmentService::detectEnvironment(
     const QString& customSteamPath)
 {
-    return Application::Execution::ExecutionGuard::guard<DetectionResult>([&]() {
-        return GameDetectService::detectEnvironment(customSteamPath);
-    }, QStringLiteral("Environment detection failed"));
+    return GameDetectService::detectEnvironment(customSteamPath);
 }
 
 void GameEnvironmentService::validateSource1FolderAsync(
@@ -310,10 +308,8 @@ Core::Result<GameInstallationInfo> GameEnvironmentService::validateSource2Folder
 
 Core::Result<void> GameEnvironmentService::validateGameInSteam(const QString& typeName)
 {
-    return Application::Execution::ExecutionGuard::guard<void>([&]() -> Core::Result<void> {
-        Domain::Game::GameType type = resolveGameTypeFromName(typeName);
-        return SteamService::validateGameFiles(type);
-    }, QStringLiteral("Steam validation failed"));
+    Domain::Game::GameType type = resolveGameTypeFromName(typeName);
+    return SteamService::validateGameFiles(type);
 }
 
 QStringList GameEnvironmentService::listSource2Addons(const QString& s2BasePath) const
@@ -332,35 +328,29 @@ QStringList GameEnvironmentService::listSource2Addons(const GameInstallationInfo
 
 Core::Result<VpkSignatureLeaseResult> GameEnvironmentService::updateVpkLease(const QString& s2BasePath)
 {
-    return Application::Execution::ExecutionGuard::guard<VpkSignatureLeaseResult>([&]() -> Core::Result<VpkSignatureLeaseResult> {
-        if (!m_leaseService) {
-            VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("VPK signature lease service is unavailable"), QString()};
-            return Core::Result<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidState, res.systemMessage, QString(), res);
-        }
-        return m_leaseService->acquireLease(cleanPath(s2BasePath));
-    }, QStringLiteral("VPK signature lease update failed"));
+    if (!m_leaseService) {
+        VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("VPK signature lease service is unavailable"), QString()};
+        return Core::Result<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidState, res.systemMessage, QString(), res);
+    }
+    return m_leaseService->acquireLease(cleanPath(s2BasePath));
 }
 
 Core::Result<VpkSignatureLeaseResult> GameEnvironmentService::updateVpkLease(const GameInstallationInfo& s2Installation)
 {
-    return Application::Execution::ExecutionGuard::guard<VpkSignatureLeaseResult>([&]() -> Core::Result<VpkSignatureLeaseResult> {
-        if (!m_leaseService) {
-            VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("VPK signature lease service is unavailable"), QString()};
-            return Core::Result<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidState, res.systemMessage, QString(), res);
-        }
-        return m_leaseService->updateInstallation(s2Installation);
-    }, QStringLiteral("VPK signature lease update failed"));
+    if (!m_leaseService) {
+        VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("VPK signature lease service is unavailable"), QString()};
+        return Core::Result<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidState, res.systemMessage, QString(), res);
+    }
+    return m_leaseService->updateInstallation(s2Installation);
 }
 
 Core::Result<VpkSignatureLeaseResult> GameEnvironmentService::retryVpkLease()
 {
-    return Application::Execution::ExecutionGuard::guard<VpkSignatureLeaseResult>([&]() -> Core::Result<VpkSignatureLeaseResult> {
-        if (!m_leaseService) {
-            VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("VPK signature lease service is unavailable"), QString()};
-            return Core::Result<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidState, res.systemMessage, QString(), res);
-        }
-        return m_leaseService->retryLease();
-    }, QStringLiteral("VPK signature lease retry failed"));
+    if (!m_leaseService) {
+        VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("VPK signature lease service is unavailable"), QString()};
+        return Core::Result<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidState, res.systemMessage, QString(), res);
+    }
+    return m_leaseService->retryLease();
 }
 
 } // namespace Application::Environment

@@ -84,6 +84,9 @@ public:
 
     /**
      * @brief Releases the active file lease, making vpk.signatures accessible again.
+     *
+     * @note This is a noexcept best-effort cleanup / RAII teardown operation, not a business
+     * command requiring an asynchronous TaskResult or Result<T>.
      */
     void releaseLease() noexcept;
 
@@ -107,10 +110,10 @@ signals:
     void leaseStatusChanged(Application::Environment::VpkSignatureLeaseStatus status, const QString& filePath, const QString& systemMessage);
 
 private:
-    Core::Result<VpkSignatureLeaseResult> updateInstallationRaw(const GameInstallation& s2Installation);
-    Core::Result<VpkSignatureLeaseResult> updateInstallationRaw(const GameInstallationInfo& s2Info);
-    Core::Result<VpkSignatureLeaseResult> acquireLeaseRaw(const Core::Path::FilesystemPath& cs2BasePath);
-    Core::Result<VpkSignatureLeaseResult> retryLeaseRaw();
+    Core::Result<VpkSignatureLeaseResult> updateInstallationInternal(const GameInstallation& s2Installation);
+    Core::Result<VpkSignatureLeaseResult> updateInstallationInternal(const GameInstallationInfo& s2Info);
+    Core::Result<VpkSignatureLeaseResult> acquireLeaseInternal(const Core::Path::FilesystemPath& cs2BasePath);
+    Core::Result<VpkSignatureLeaseResult> retryLeaseInternal();
 
     std::shared_ptr<Core::Logging::TaskLoggingContext> m_loggingContext;
     Core::FileSystem::FileLease m_lease;

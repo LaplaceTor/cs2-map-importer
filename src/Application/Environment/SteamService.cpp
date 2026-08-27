@@ -138,12 +138,15 @@ Core::Result<std::vector<SteamLibrary>> SteamService::detectLibraries(
                 }
                 return parseRes;
             }
+            if (logCtx) {
+                logCtx->debug(QStringLiteral("libraryfolders.vdf contains no libraries, falling back to Steam root: %1").arg(resolvedSteamPath.toString()));
+            }
+        } else {
+            if (logCtx) {
+                logCtx->debug(QStringLiteral("libraryfolders.vdf not found, falling back to Steam root: %1").arg(resolvedSteamPath.toString()));
+            }
         }
 
-        // Fallback: If libraryfolders.vdf is not found or empty, treat the Steam install directory as the single library
-        if (logCtx) {
-            logCtx->debug(QStringLiteral("libraryfolders.vdf not found or empty, falling back to Steam root: %1").arg(resolvedSteamPath.toString()));
-        }
         SteamLibrary defaultLib;
         defaultLib.path = resolvedSteamPath;
 

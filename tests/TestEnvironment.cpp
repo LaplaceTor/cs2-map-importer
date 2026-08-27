@@ -298,6 +298,43 @@ private slots:
         QCOMPARE(libraries[0].installedAppIds[1], 240);
     }
 
+    void testCorruptedLibraryFoldersVdf() {
+        QTemporaryDir tempSteamDir;
+        QVERIFY(tempSteamDir.isValid());
+
+        QString steamappsDir = tempSteamDir.filePath(QStringLiteral("steamapps"));
+        QVERIFY(QDir().mkpath(steamappsDir));
+
+        QString vdfPath = QDir(steamappsDir).filePath(QStringLiteral("libraryfolders.vdf"));
+        QFile vdfFile(vdfPath);
+        QVERIFY(vdfFile.open(QIODevice::WriteOnly | QIODevice::Text));
+        // Write corrupted / invalid syntax VDF
+        vdfFile.write("\"libraryfolders\" { \"unclosed_quote_and_syntax_error");
+        vdfFile.close();
+
+        // 1. parseLibraryFolders directly on corrupted file must return Failure
+        auto parseRes = SteamService::parseLibraryFolders(Core::Path::FilesystemPath(vdfPath));
+        QVERIFY(parseRes.isFailure());
+        QCOMPARE(parseRes.message(), QStringLiteral("Failed to parse libraryfolders.vdf"));
+
+        // 2. detectLibraries on directory containing corrupted VDF must NOT silently fall back, but fail
+        auto detectRes = SteamService::detectLibraries(Core::Path::FilesystemPath(tempSteamDir.path()));
+        QVERIFY(detectRes.isFailure());
+        QCOMPARE(detectRes.message(), QStringLiteral("Failed to parse Steam library configuration"));
+
+        // 3. detectEnvironment with custom path containing corrupted VDF must return fatal Failure
+        auto envRes = GameDetectService::detectEnvironment(tempSteamDir.path());
+        QVERIFY(envRes.isFailure());
+        QCOMPARE(envRes.message(), QStringLiteral("Invalid custom Steam path"));
+
+        // 4. In contrast, when libraryfolders.vdf does not exist at all, detectLibraries falls back to root
+        QVERIFY(QFile::remove(vdfPath));
+        auto fallbackRes = SteamService::detectLibraries(Core::Path::FilesystemPath(tempSteamDir.path()));
+        QVERIFY(fallbackRes.isSuccess());
+        QCOMPARE(fallbackRes.value().size(), static_cast<size_t>(1));
+        QCOMPARE(fallbackRes.value()[0].path.toString(), Core::Path::PathUtils::normalize(tempSteamDir.path()));
+    }
+
     void testGameInstallationSource2Paths() {
         ResolvedGameInstallation res;
         res.type = GameType::CS2;

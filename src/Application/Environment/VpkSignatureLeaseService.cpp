@@ -34,21 +34,21 @@ void VpkSignatureLeaseService::setLoggingContext(std::shared_ptr<Core::Logging::
 Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallation(const GameInstallation& s2Installation)
 {
     return Application::Execution::ExecutionGuard::guard<VpkSignatureLeaseResult>([&]() {
-        return updateInstallationRaw(s2Installation);
+        return updateInstallationInternal(s2Installation);
     }, QStringLiteral("Failed to update VPK signature lease"));
 }
 
 Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallation(const GameInstallationInfo& s2Info)
 {
     return Application::Execution::ExecutionGuard::guard<VpkSignatureLeaseResult>([&]() {
-        return updateInstallationRaw(s2Info);
+        return updateInstallationInternal(s2Info);
     }, QStringLiteral("Failed to update VPK signature lease"));
 }
 
 Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLease(const Core::Path::FilesystemPath& cs2BasePath)
 {
     return Application::Execution::ExecutionGuard::guard<VpkSignatureLeaseResult>([&]() {
-        return acquireLeaseRaw(cs2BasePath);
+        return acquireLeaseInternal(cs2BasePath);
     }, QStringLiteral("Failed to acquire VPK signature lease"));
 }
 
@@ -60,16 +60,16 @@ Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLease(con
 Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::retryLease()
 {
     return Application::Execution::ExecutionGuard::guard<VpkSignatureLeaseResult>([&]() {
-        return retryLeaseRaw();
+        return retryLeaseInternal();
     }, QStringLiteral("VPK signature lease retry failed"));
 }
 
-Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallationRaw(const GameInstallation& s2Installation)
+Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallationInternal(const GameInstallation& s2Installation)
 {
     m_activeInstallation = s2Installation;
 
     if (m_activeInstallation.isValid() && m_activeInstallation.type() == Domain::Game::GameType::CS2) {
-        return acquireLeaseRaw(m_activeInstallation.baseDirectory());
+        return acquireLeaseInternal(m_activeInstallation.baseDirectory());
     }
 
     releaseLease();
@@ -79,10 +79,10 @@ Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallati
     return Core::Result<VpkSignatureLeaseResult>::success(res);
 }
 
-Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallationRaw(const GameInstallationInfo& s2Info)
+Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallationInternal(const GameInstallationInfo& s2Info)
 {
     if (s2Info.isValid && (s2Info.gameId == QStringLiteral("cs2") || s2Info.gameTitle == QStringLiteral("Counter-Strike 2") || s2Info.displayName == QStringLiteral("Counter-Strike 2"))) {
-        return acquireLeaseRaw(Core::Path::FilesystemPath(s2Info.basePath));
+        return acquireLeaseInternal(Core::Path::FilesystemPath(s2Info.basePath));
     }
 
     releaseLease();
@@ -92,16 +92,16 @@ Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallati
     return Core::Result<VpkSignatureLeaseResult>::success(res);
 }
 
-Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::retryLeaseRaw()
+Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::retryLeaseInternal()
 {
     if (m_activeInstallation.isValid() && m_activeInstallation.type() == Domain::Game::GameType::CS2) {
-        return acquireLeaseRaw(m_activeInstallation.baseDirectory());
+        return acquireLeaseInternal(m_activeInstallation.baseDirectory());
     }
     VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("No active CS2 installation to retry leasing"), QString()};
     return Core::Result<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidArgument, res.systemMessage, QString(), res);
 }
 
-Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLeaseRaw(const Core::Path::FilesystemPath& cs2BasePath)
+Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLeaseInternal(const Core::Path::FilesystemPath& cs2BasePath)
 {
     VpkSignatureLeaseResult result;
 
