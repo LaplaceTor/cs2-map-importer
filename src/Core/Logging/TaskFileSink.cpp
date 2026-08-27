@@ -20,7 +20,7 @@ TaskFileSink::~TaskFileSink()
     closeAll();
 }
 
-void TaskFileSink::onTaskCreated(quint64 taskId, const QString& taskName, qint64 startTimestamp, const QString& logFilePath)
+bool TaskFileSink::onTaskCreated(quint64 taskId, const QString& taskName, qint64 startTimestamp, const QString& logFilePath)
 {
     QMutexLocker locker(&m_mutex);
     if (!logFilePath.isEmpty()) {
@@ -31,6 +31,17 @@ void TaskFileSink::onTaskCreated(quint64 taskId, const QString& taskName, qint64
         ApplicationLogger::error(QStringLiteral("TaskFileSink: Failed to create or open log file for task [%1] '%2' at path '%3'")
             .arg(QString::number(taskId), taskName, m_taskFilePaths.value(taskId)));
     }
+    return ok;
+}
+
+bool TaskFileSink::isTaskFileOpen(quint64 taskId) const
+{
+    QMutexLocker locker(&m_mutex);
+    if (m_taskFiles.contains(taskId)) {
+        const auto handle = m_taskFiles.value(taskId);
+        return handle && handle->file && handle->file->isOpen();
+    }
+    return false;
 }
 
 void TaskFileSink::onTaskTerminated(quint64 taskId, TaskState state)

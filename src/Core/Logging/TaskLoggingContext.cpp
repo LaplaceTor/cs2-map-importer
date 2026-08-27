@@ -63,6 +63,18 @@ void TaskLoggingContext::setLogFilePath(const QString& path)
     m_logFilePath = path;
 }
 
+bool TaskLoggingContext::isLogFileReady() const noexcept
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    return m_logFileReady;
+}
+
+void TaskLoggingContext::setLogFileReady(bool ready) noexcept
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    m_logFileReady = ready;
+}
+
 QString TaskLoggingContext::taskName() const
 {
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);

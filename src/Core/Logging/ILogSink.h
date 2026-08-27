@@ -29,13 +29,12 @@ public:
     /**
      * @brief Lifecycle callback invoked when a new task is created.
      */
-    virtual void onTaskCreated(quint64 taskId, const QString& taskName, qint64 startTimestamp, const QString& logFilePath)
-    {
+    virtual bool onTaskCreated(quint64 taskId, const QString& taskName, qint64 startTimestamp, const QString& logFilePath)
         Q_UNUSED(taskId);
         Q_UNUSED(taskName);
         Q_UNUSED(startTimestamp);
         Q_UNUSED(logFilePath);
-    }
+        return true;
 
     /**
      * @brief Lifecycle callback invoked when a task reaches a terminal state (Completed, Failed, Cancelled, Skipped).

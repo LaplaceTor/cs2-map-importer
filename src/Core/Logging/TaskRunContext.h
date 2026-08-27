@@ -13,6 +13,7 @@ struct TaskRunContext {
     QString taskName;
     qint64 startTimestamp = 0;
     QString logFilePath;
+    bool logFileReady = true;
 };
 
 } // namespace Core::Logging

@@ -31,7 +31,12 @@ public:
     /**
      * @brief Creates and opens the log file immediately upon task creation.
      */
-    void onTaskCreated(quint64 taskId, const QString& taskName, qint64 startTimestamp, const QString& logFilePath) override;
+    bool onTaskCreated(quint64 taskId, const QString& taskName, qint64 startTimestamp, const QString& logFilePath) override;
+
+    /**
+     * @brief Checks if the log file handle for a given task is open and ready.
+     */
+    bool isTaskFileOpen(quint64 taskId) const;
 
     /**
      * @brief Flushes and closes the task log file upon task completion/failure/cancellation.

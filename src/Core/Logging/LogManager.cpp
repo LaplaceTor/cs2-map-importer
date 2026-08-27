@@ -76,11 +76,15 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskNa
         sinks = m_sinks;
     }
 
+    bool allSinksReady = true;
     for (const auto& sink : sinks) {
         if (sink) {
-            sink->onTaskCreated(id, taskName, context->startTimestamp(), logPath);
+            if (!sink->onTaskCreated(id, taskName, context->startTimestamp(), logPath)) {
+                allSinksReady = false;
+            }
         }
     }
+    context->setLogFileReady(allSinksReady);
     return context;
 }
 
@@ -114,11 +118,15 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const
         sinks = m_sinks;
     }
 
+    bool allSinksReady = true;
     for (const auto& sink : sinks) {
         if (sink) {
-            sink->onTaskCreated(taskId, taskName, context->startTimestamp(), logPath);
+            if (!sink->onTaskCreated(taskId, taskName, context->startTimestamp(), logPath)) {
+                allSinksReady = false;
+            }
         }
     }
+    context->setLogFileReady(allSinksReady);
 
     return context;
 }
@@ -270,7 +278,7 @@ void LogManager::addSink(std::shared_ptr<ILogSink> sink)
     }
 
     for (const auto& task : tasks) {
-        if (task) {
+        if (task && !TaskLoggingContext::isTerminalState(task->state())) {
             sink->onTaskCreated(task->taskId(), task->taskName(), task->startTimestamp(), task->logFilePath());
         }
     }

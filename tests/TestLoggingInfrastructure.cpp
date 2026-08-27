@@ -34,6 +34,7 @@ private slots:
     void testTaskCompletionFlushesToFile();
     void testTaskFileClosedOnCompletion();
     void testLogManagerClearClosesTaskFiles();
+    void testDynamicAddSinkSkipsCompletedTasks();
     void testTaskFailureRecordsError();
     void testTaskCancellationRecordsWarning();
     void testExternalToolLogIsolation();
@@ -198,19 +199,27 @@ void TestLoggingInfrastructure::testTaskFileClosedOnCompletion()
 
     const QString taskPath = taskSink->taskLogFilePath(task->taskId());
     QVERIFY(QFile::exists(taskPath));
+    QVERIFY(taskSink->isTaskFileOpen(task->taskId()));
 
     // Finish task through LogManager
     LogManager::instance().finishTask(task->taskId(), QStringLiteral("Task completed"));
 
-    // Verify file can be removed or renamed without file-lock issues
-    // Path remains queryable
-    QCOMPARE(taskSink->taskLogFilePath(task->taskId()), taskPath);
+    // Verify handle is closed
+    QVERIFY(!taskSink->isTaskFileOpen(task->taskId()));
 
+    // Verify file can be read
     QFile file(taskPath);
     QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
     QString content = QString::fromUtf8(file.readAll());
     QVERIFY(content.contains(QStringLiteral("Task completed")));
     file.close();
+
+    // Verify on Windows that file handle is closed by successfully renaming and deleting it
+    const QString renamedPath = taskPath + QStringLiteral(".renamed");
+    QVERIFY(QFile::rename(taskPath, renamedPath));
+    QVERIFY(QFile::exists(renamedPath));
+    QVERIFY(QFile::remove(renamedPath));
+    QVERIFY(!QFile::exists(renamedPath));
 
     LogManager::instance().removeSink(taskSink);
 }
@@ -229,22 +238,41 @@ void TestLoggingInfrastructure::testLogManagerClearClosesTaskFiles()
     const QString path2 = taskSink->taskLogFilePath(task2->taskId());
     QVERIFY(QFile::exists(path1));
     QVERIFY(QFile::exists(path2));
+    QVERIFY(taskSink->isTaskFileOpen(task1->taskId()));
+    QVERIFY(taskSink->isTaskFileOpen(task2->taskId()));
 
     // Calling clear() must flush and close all files cleanly
     LogManager::instance().clear();
 
-    // Verify files can be read/inspected cleanly
-    QFile file1(path1);
-    QVERIFY(file1.open(QIODevice::ReadOnly | QIODevice::Text));
-    QString content1 = QString::fromUtf8(file1.readAll());
-    QVERIFY(content1.contains(QStringLiteral("Running 1")));
-    file1.close();
+    // Verify file handles are closed by successfully renaming and removing them
+    const QString renamed1 = path1 + QStringLiteral(".renamed");
+    QVERIFY(QFile::rename(path1, renamed1));
+    QVERIFY(QFile::remove(renamed1));
 
-    QFile file2(path2);
-    QVERIFY(file2.open(QIODevice::ReadOnly | QIODevice::Text));
-    QString content2 = QString::fromUtf8(file2.readAll());
-    QVERIFY(content2.contains(QStringLiteral("Running 2")));
-    file2.close();
+    const QString renamed2 = path2 + QStringLiteral(".renamed");
+    QVERIFY(QFile::rename(path2, renamed2));
+    QVERIFY(QFile::remove(renamed2));
+}
+
+void TestLoggingInfrastructure::testDynamicAddSinkSkipsCompletedTasks()
+{
+    auto initialSink = std::make_shared<TaskFileSink>();
+    LogManager::instance().addSink(initialSink);
+
+    auto task = LogManager::instance().createTask(QStringLiteral("Dynamic Sink Test Task"));
+    task->start();
+    task->info(QStringLiteral("Task finished"));
+    LogManager::instance().finishTask(task->taskId(), QStringLiteral("Done"));
+
+    // Task is now Completed. Add a new TaskFileSink dynamically
+    auto lateSink = std::make_shared<TaskFileSink>();
+    LogManager::instance().addSink(lateSink);
+
+    // lateSink should NOT open a file handle for completed task
+    QVERIFY(!lateSink->isTaskFileOpen(task->taskId()));
+
+    LogManager::instance().removeSink(initialSink);
+    LogManager::instance().removeSink(lateSink);
 }
 
 void TestLoggingInfrastructure::testTaskFailureRecordsError()

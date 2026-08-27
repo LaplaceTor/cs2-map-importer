@@ -36,6 +36,9 @@ public:
     QString logFilePath() const;
     void setLogFilePath(const QString& path);
 
+    bool isLogFileReady() const noexcept;
+    void setLogFileReady(bool ready) noexcept;
+
     TaskSnapshot snapshot() const;
 
     void setFaultBarrier(std::shared_ptr<FaultBarrier> barrier);
@@ -163,6 +166,7 @@ private:
     quint64 m_creationSequence = 0;
     qint64 m_startTimestamp = 0;
     QString m_logFilePath;
+    bool m_logFileReady = true;
     mutable QRecursiveMutex m_mutex;
     std::shared_ptr<FaultBarrier> m_faultBarrier;
     mutable QMutex m_flushMutex;
