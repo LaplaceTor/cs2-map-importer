@@ -101,7 +101,7 @@ jobs:
       shell: pwsh
       run: |
         cmake --install build --config Release --prefix "$PWD/release"
-        Copy-Item -Path bin -Destination release\bin -Recurse
+        if (Test-Path bin) { Copy-Item -Path bin -Destination release\bin -Recurse -Force }
         cd release
         7z a cs2importer.zip *
 

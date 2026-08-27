@@ -57,14 +57,14 @@ qt_finalize_executable(cs2importerlegacy)
 
 install(TARGETS cs2importerlegacy
     BUNDLE DESTINATION .
-    RUNTIME DESTINATION .
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 if(CS2IMPORTER_DEPLOY_QT_RUNTIME)
-    set(QT_DEPLOY_BIN_DIR ".")
     qt_generate_deploy_qml_app_script(
         TARGET cs2importerlegacy
         OUTPUT_SCRIPT deploy_script_legacy
+        NO_TRANSLATIONS
     )
 
     install(SCRIPT ${deploy_script_legacy})

@@ -8,9 +8,18 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+include(GNUInstallDirs)
+set(CMAKE_INSTALL_BINDIR ".")
+set(CMAKE_INSTALL_LIBDIR ".")
+
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network)
 
 qt_standard_project_setup(REQUIRES 6.8)
+
+set(QT_DEPLOY_BIN_DIR ".")
+set(QT_DEPLOY_LIB_DIR ".")
+set(QT_DEPLOY_PLUGINS_DIR "plugins")
+set(QT_DEPLOY_QML_DIR "qml")
 
 include(CTest)
 

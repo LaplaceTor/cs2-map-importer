@@ -44,14 +44,14 @@ qt_finalize_executable(cs2importer)
 
 install(TARGETS cs2importer
     BUNDLE DESTINATION .
-    RUNTIME DESTINATION .
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 if(CS2IMPORTER_DEPLOY_QT_RUNTIME)
-    set(QT_DEPLOY_BIN_DIR ".")
     qt_generate_deploy_qml_app_script(
         TARGET cs2importer
         OUTPUT_SCRIPT deploy_script
+        NO_TRANSLATIONS
     )
 
     install(SCRIPT ${deploy_script})
