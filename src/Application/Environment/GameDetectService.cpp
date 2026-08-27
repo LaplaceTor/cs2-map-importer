@@ -53,15 +53,24 @@ Core::Result<DetectionResult> GameDetectService::detectEnvironment(
         DetectionResult result;
         auto libRes = Internal::SteamLibraryDetector::detectLibraries(customSteamPath, logCtx);
         if (!libRes.isSuccess()) {
-            // 1. Explicit customSteamPath was provided but failed -> Fatal Failure
+            // 1. Explicit customSteamPath was provided:
             if (customSteamPath.isValid()) {
+                if (libRes.errorCode() == Core::Error::ErrorCode::DirectoryNotFound) {
+                    if (logCtx) {
+                        logCtx->error(QStringLiteral("Custom Steam path not found: %1").arg(customSteamPath.toString()));
+                    }
+                    return Core::Result<DetectionResult>::failure(
+                        libRes.error(),
+                        QStringLiteral("Invalid custom Steam path"));
+                }
+                // Custom path exists, but internal error (e.g. corrupted libraryfolders.vdf, unreadable config)
                 if (logCtx) {
                     logCtx->error(QStringLiteral("Failed to detect Steam libraries with custom path: %1 (%2)")
                         .arg(customSteamPath.toString(), libRes.message()));
                 }
                 return Core::Result<DetectionResult>::failure(
                     libRes.error(),
-                    QStringLiteral("Invalid custom Steam path"));
+                    libRes.message());
             }
 
             // 2. Steam cleanly not found on host during auto-detection -> Success with warning (benign empty result)

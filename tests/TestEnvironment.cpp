@@ -325,10 +325,16 @@ private slots:
         QVERIFY(detectRes.isFailure());
         QCOMPARE(detectRes.message(), QStringLiteral("Failed to parse Steam library configuration"));
 
-        // 3. detectEnvironment with custom path containing corrupted VDF must return fatal Failure
+        // 3. detectEnvironment with custom path containing corrupted VDF must return fatal Failure with configuration parse error (not "Invalid custom Steam path")
         auto envRes = GameDetectService::detectEnvironment(tempSteamDir.path());
         QVERIFY(envRes.isFailure());
-        QCOMPARE(envRes.message(), QStringLiteral("Invalid custom Steam path"));
+        QCOMPARE(envRes.message(), QStringLiteral("Failed to parse Steam library configuration"));
+        QVERIFY(envRes.errorCode() != Core::Error::ErrorCode::Success);
+
+        // 3b. In contrast, non-existent custom path must return "Invalid custom Steam path"
+        auto nonExistentEnvRes = GameDetectService::detectEnvironment(QStringLiteral("Z:/NonExistent/SteamDirectory12345"));
+        QVERIFY(nonExistentEnvRes.isFailure());
+        QCOMPARE(nonExistentEnvRes.message(), QStringLiteral("Invalid custom Steam path"));
 
         // 4. In contrast, when libraryfolders.vdf does not exist at all, detectLibraries falls back to root
         QVERIFY(QFile::remove(vdfPath));
