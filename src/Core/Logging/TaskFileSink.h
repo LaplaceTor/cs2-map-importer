@@ -13,6 +13,12 @@
 
 namespace Core::Logging {
 
+struct TaskFileHandle {
+    QString filePath;
+    std::unique_ptr<QFile> file;
+    std::unique_ptr<QTextStream> stream;
+};
+
 /**
  * @brief Log sink that writes sealed log blocks to task-specific log files.
  * Automatically manages task file creation, naming (<task_name>_<start_timestamp>.log),
@@ -87,12 +93,6 @@ public:
                                LogLevel level, const QString& message);
 
 private:
-    struct TaskFileHandle {
-        QString filePath;
-        std::unique_ptr<QFile> file;
-        std::unique_ptr<QTextStream> stream;
-    };
-
     bool ensureTaskFileOpenLocked(quint64 taskId, const QString& taskName, qint64 startTimestamp);
 
     mutable QMutex m_mutex;

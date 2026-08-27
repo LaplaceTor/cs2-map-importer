@@ -154,8 +154,8 @@ bool TaskFileSink::flush()
 {
     QMutexLocker locker(&m_mutex);
     bool allSuccess = true;
-    for (auto it = m_taskFiles.constBegin(); it != m_taskFiles.constEnd(); ++it) {
-        const auto& handle = it.value();
+    for (auto it = m_taskFiles.begin(); it != m_taskFiles.end(); ++it) {
+        auto handle = it.value();
         if (handle) {
             if (handle->stream) {
                 handle->stream->flush();
@@ -191,8 +191,8 @@ void TaskFileSink::closeTask(quint64 taskId)
 void TaskFileSink::closeAll()
 {
     QMutexLocker locker(&m_mutex);
-    for (auto it = m_taskFiles.constBegin(); it != m_taskFiles.constEnd(); ++it) {
-        const auto& handle = it.value();
+    for (auto it = m_taskFiles.begin(); it != m_taskFiles.end(); ++it) {
+        auto handle = it.value();
         if (handle) {
             if (handle->stream) {
                 handle->stream->flush();
