@@ -21,6 +21,11 @@ public:
     static Core::Result<void> validateGameFiles(
         Domain::Game::GameType type,
         std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
+
+private:
+    static Core::Result<void> validateGameFilesInternal(
+        int appId,
+        std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
 };
 
 } // namespace Application::Environment

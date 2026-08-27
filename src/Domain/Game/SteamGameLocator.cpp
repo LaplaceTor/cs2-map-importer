@@ -58,9 +58,15 @@ std::vector<ResolvedGameInstallation> SteamGameLocator::resolveGamesInLibrary(
             auto dirRes = installDirReader(libraryPath, appId);
             if (dirRes.isSuccess()) {
                 installDirName = dirRes.value();
-            } else if (diagnosticHandler) {
-                diagnosticHandler(QStringLiteral("Failed to read manifest for AppID %1 in %2: %3 (falling back to default heuristics)")
-                    .arg(QString::number(appId), libraryPath.toString(), dirRes.message()));
+            } else {
+                // Scheme A (Best-effort heuristic fallback):
+                // 'installdir' in appmanifest_<appId>.acf is an optional hint pointing to custom install folder names.
+                // If manifest reading fails (file corrupt, permission denied, or missing key), we preserve diagnostics
+                // by notifying diagnosticHandler, then intentionally fall back to registry/default folder heuristics.
+                if (diagnosticHandler) {
+                    diagnosticHandler(QStringLiteral("Failed to read manifest for AppID %1 in %2: %3 (falling back to default heuristics)")
+                        .arg(QString::number(appId), libraryPath.toString(), dirRes.message()));
+                }
             }
         }
         auto candidateDirs = locateCandidateDirectories(libraryPath, appId, installDirName);
@@ -115,9 +121,14 @@ std::optional<ResolvedGameInstallation> SteamGameLocator::resolveGameInLibrary(
             auto dirRes = installDirReader(libraryPath, appId);
             if (dirRes.isSuccess()) {
                 installDirName = dirRes.value();
-            } else if (diagnosticHandler) {
-                diagnosticHandler(QStringLiteral("Failed to read manifest for AppID %1 in %2: %3 (falling back to default heuristics)")
-                    .arg(QString::number(appId), libraryPath.toString(), dirRes.message()));
+            } else {
+                // Scheme A (Best-effort heuristic fallback):
+                // 'installdir' in appmanifest_<appId>.acf is an optional hint pointing to custom install folder names.
+                // If manifest reading fails, notify diagnosticHandler and intentionally fall back to registry/default folder heuristics.
+                if (diagnosticHandler) {
+                    diagnosticHandler(QStringLiteral("Failed to read manifest for AppID %1 in %2: %3 (falling back to default heuristics)")
+                        .arg(QString::number(appId), libraryPath.toString(), dirRes.message()));
+                }
             }
         }
         auto candidateDirs = locateCandidateDirectories(libraryPath, appId, installDirName);
