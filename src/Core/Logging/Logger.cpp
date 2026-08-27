@@ -1,27 +1,26 @@
 #include "Logger.h"
-
-#include <QDebug>
+#include "ApplicationLogger.h"
 
 namespace Core::Logging {
 
 void Logger::debug(const QString& message)
 {
-    qDebug().noquote() << message;
+    ApplicationLogger::debug(message);
 }
 
 void Logger::info(const QString& message)
 {
-    qInfo().noquote() << message;
+    ApplicationLogger::info(message);
 }
 
 void Logger::warning(const QString& message)
 {
-    qWarning().noquote() << message;
+    ApplicationLogger::warning(message);
 }
 
 void Logger::error(const QString& message)
 {
-    qCritical().noquote() << message;
+    ApplicationLogger::error(message);
 }
 
 } // namespace Core::Logging

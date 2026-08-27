@@ -8,6 +8,7 @@
 
 #include "Core/Logging/ApplicationLogger.h"
 #include "Core/Logging/LogFileManager.h"
+#include "Core/Logging/Logger.h"
 #include "Core/Logging/LogManager.h"
 #include "Core/Logging/LogSource.h"
 #include "Core/Logging/TaskFileSink.h"
@@ -32,10 +33,12 @@ private slots:
     void testTaskFileCreatedImmediatelyAtTaskCreation();
     void testTaskCompletionFlushesToFile();
     void testTaskFileClosedOnCompletion();
+    void testLogManagerClearClosesTaskFiles();
     void testTaskFailureRecordsError();
     void testTaskCancellationRecordsWarning();
     void testExternalToolLogIsolation();
     void testApplicationLogIsolation();
+    void testLegacyLoggerRedirectsToApplicationLog();
     void testOpenLogFileSelectionHierarchy();
 
 private:
@@ -212,6 +215,38 @@ void TestLoggingInfrastructure::testTaskFileClosedOnCompletion()
     LogManager::instance().removeSink(taskSink);
 }
 
+void TestLoggingInfrastructure::testLogManagerClearClosesTaskFiles()
+{
+    auto taskSink = std::make_shared<TaskFileSink>();
+    LogManager::instance().addSink(taskSink);
+
+    auto task1 = LogManager::instance().createTask(QStringLiteral("Clear Test Task 1"));
+    auto task2 = LogManager::instance().createTask(QStringLiteral("Clear Test Task 2"));
+    task1->info(QStringLiteral("Running 1"));
+    task2->info(QStringLiteral("Running 2"));
+
+    const QString path1 = taskSink->taskLogFilePath(task1->taskId());
+    const QString path2 = taskSink->taskLogFilePath(task2->taskId());
+    QVERIFY(QFile::exists(path1));
+    QVERIFY(QFile::exists(path2));
+
+    // Calling clear() must flush and close all files cleanly
+    LogManager::instance().clear();
+
+    // Verify files can be read/inspected cleanly
+    QFile file1(path1);
+    QVERIFY(file1.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString content1 = QString::fromUtf8(file1.readAll());
+    QVERIFY(content1.contains(QStringLiteral("Running 1")));
+    file1.close();
+
+    QFile file2(path2);
+    QVERIFY(file2.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString content2 = QString::fromUtf8(file2.readAll());
+    QVERIFY(content2.contains(QStringLiteral("Running 2")));
+    file2.close();
+}
+
 void TestLoggingInfrastructure::testTaskFailureRecordsError()
 {
     auto taskSink = std::make_shared<TaskFileSink>();
@@ -328,6 +363,28 @@ void TestLoggingInfrastructure::testApplicationLogIsolation()
     QVERIFY(!appContent.contains(QStringLiteral("Task-specific internal message")));
 
     LogManager::instance().removeSink(taskSink);
+}
+
+void TestLoggingInfrastructure::testLegacyLoggerRedirectsToApplicationLog()
+{
+    const qint64 appTime = 1700000002000;
+    const QString appLogPath = LogFileManager::generateApplicationLogFilePath(appTime);
+    ApplicationLogger::initialize(appTime, appLogPath);
+
+    // Call legacy Logger APIs
+    Core::Logging::Logger::info(QStringLiteral("Legacy logger info message"));
+    Core::Logging::Logger::warning(QStringLiteral("Legacy logger warning message"));
+    Core::Logging::Logger::error(QStringLiteral("Legacy logger error message"));
+
+    ApplicationLogger::shutdown();
+
+    QVERIFY(QFile::exists(appLogPath));
+    QFile file(appLogPath);
+    QVERIFY(file.open(QIODevice::ReadOnly | QIODevice::Text));
+    QString content = QString::fromUtf8(file.readAll());
+    QVERIFY(content.contains(QStringLiteral("[INFO] Legacy logger info message")));
+    QVERIFY(content.contains(QStringLiteral("[WARNING] Legacy logger warning message")));
+    QVERIFY(content.contains(QStringLiteral("[ERROR] Legacy logger error message")));
 }
 
 void TestLoggingInfrastructure::testOpenLogFileSelectionHierarchy()

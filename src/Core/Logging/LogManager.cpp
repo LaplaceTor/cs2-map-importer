@@ -54,22 +54,29 @@ bool LogManager::terminateAfterFault()
 
 std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskName, quint64 parentTaskId)
 {
-    QMutexLocker locker(&m_mutex);
-    if (parentTaskId != 0 && !m_tasks.contains(parentTaskId)) {
-        return nullptr;
+    std::shared_ptr<TaskLoggingContext> context;
+    QVector<std::shared_ptr<ILogSink>> sinks;
+    QString logPath;
+    quint64 id = 0;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (parentTaskId != 0 && !m_tasks.contains(parentTaskId)) {
+            return nullptr;
+        }
+
+        while (m_tasks.contains(m_nextTaskId) || m_nextTaskId == 0) {
+            m_nextTaskId++;
+        }
+        id = m_nextTaskId++;
+        context = std::make_shared<TaskLoggingContext>(
+            id, taskName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++, parentTaskId);
+        logPath = LogFileManager::generateTaskLogFilePath(taskName, context->startTimestamp(), id);
+        context->setLogFilePath(logPath);
+        m_tasks.insert(id, context);
+        sinks = m_sinks;
     }
 
-    while (m_tasks.contains(m_nextTaskId) || m_nextTaskId == 0) {
-        m_nextTaskId++;
-    }
-    quint64 id = m_nextTaskId++;
-    auto context = std::make_shared<TaskLoggingContext>(
-        id, taskName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++, parentTaskId);
-    const QString logPath = LogFileManager::generateTaskLogFilePath(taskName, context->startTimestamp());
-    context->setLogFilePath(logPath);
-    m_tasks.insert(id, context);
-
-    for (const auto& sink : m_sinks) {
+    for (const auto& sink : sinks) {
         if (sink) {
             sink->onTaskCreated(id, taskName, context->startTimestamp(), logPath);
         }
@@ -83,25 +90,31 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const
         return nullptr;
     }
 
-    QMutexLocker locker(&m_mutex);
-    if (m_tasks.contains(taskId)) {
-        return nullptr;
-    }
-    if (parentTaskId != 0 && !m_tasks.contains(parentTaskId)) {
-        return nullptr;
+    std::shared_ptr<TaskLoggingContext> context;
+    QVector<std::shared_ptr<ILogSink>> sinks;
+    QString logPath;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (m_tasks.contains(taskId)) {
+            return nullptr;
+        }
+        if (parentTaskId != 0 && !m_tasks.contains(parentTaskId)) {
+            return nullptr;
+        }
+
+        context = std::make_shared<TaskLoggingContext>(
+            taskId, taskName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++, parentTaskId);
+        logPath = LogFileManager::generateTaskLogFilePath(taskName, context->startTimestamp(), taskId);
+        context->setLogFilePath(logPath);
+        m_tasks.insert(taskId, context);
+
+        if (taskId >= m_nextTaskId && taskId != (std::numeric_limits<quint64>::max)()) {
+            m_nextTaskId = taskId + 1;
+        }
+        sinks = m_sinks;
     }
 
-    auto context = std::make_shared<TaskLoggingContext>(
-        taskId, taskName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++, parentTaskId);
-    const QString logPath = LogFileManager::generateTaskLogFilePath(taskName, context->startTimestamp());
-    context->setLogFilePath(logPath);
-    m_tasks.insert(taskId, context);
-
-    if (taskId >= m_nextTaskId && taskId != (std::numeric_limits<quint64>::max)()) {
-        m_nextTaskId = taskId + 1;
-    }
-
-    for (const auto& sink : m_sinks) {
+    for (const auto& sink : sinks) {
         if (sink) {
             sink->onTaskCreated(taskId, taskName, context->startTimestamp(), logPath);
         }
@@ -241,16 +254,24 @@ void LogManager::addSink(std::shared_ptr<ILogSink> sink)
     if (!sink) {
         return;
     }
-    QMutexLocker locker(&m_mutex);
-    if (!m_sinks.contains(sink)) {
-        m_sinks.append(sink);
-        m_sinkCursors.insert(sink->sinkId(), QHash<quint64, SinkCursor>());
-        m_sinkGenerations.insert(sink->sinkId(), m_nextSinkGeneration++);
+    QVector<std::shared_ptr<TaskLoggingContext>> tasks;
+    {
+        QMutexLocker locker(&m_mutex);
+        if (!m_sinks.contains(sink)) {
+            m_sinks.append(sink);
+            m_sinkCursors.insert(sink->sinkId(), QHash<quint64, SinkCursor>());
+            m_sinkGenerations.insert(sink->sinkId(), m_nextSinkGeneration++);
 
-        for (const auto& task : m_tasks) {
-            if (task) {
-                sink->onTaskCreated(task->taskId(), task->taskName(), task->startTimestamp(), task->logFilePath());
+            tasks.reserve(m_tasks.size());
+            for (auto it = m_tasks.constBegin(); it != m_tasks.constEnd(); ++it) {
+                tasks.append(it.value());
             }
+        }
+    }
+
+    for (const auto& task : tasks) {
+        if (task) {
+            sink->onTaskCreated(task->taskId(), task->taskName(), task->startTimestamp(), task->logFilePath());
         }
     }
 }
@@ -574,18 +595,49 @@ qsizetype LogManager::taskCount() const
 
 void LogManager::clear()
 {
-    QMutexLocker locker(&m_mutex);
-    for (auto it = m_tasks.constBegin(); it != m_tasks.constEnd(); ++it) {
-        it.value()->invalidateSession();
+    // 1. Flush all tasks first so pending sealed blocks reach sinks
+    flushAll();
+
+    // 2. Snapshot sinks and tasks without holding lock during notifications
+    QVector<std::shared_ptr<TaskLoggingContext>> tasks;
+    QVector<std::shared_ptr<ILogSink>> sinks;
+    {
+        QMutexLocker locker(&m_mutex);
+        tasks.reserve(m_tasks.size());
+        for (auto it = m_tasks.constBegin(); it != m_tasks.constEnd(); ++it) {
+            tasks.append(it.value());
+        }
+        sinks = m_sinks;
     }
 
-    m_tasks.clear();
-    m_sinks.clear();
-    m_sinkCursors.clear();
-    m_sinkGenerations.clear();
-    m_faultBarrier = std::make_shared<FaultBarrier>();
-    m_nextTaskId = 1;
-    m_nextCreationSequence = 1;
+    // 3. Notify sinks of task termination outside of mutex lock
+    for (const auto& task : tasks) {
+        if (task) {
+            for (const auto& sink : sinks) {
+                if (sink) {
+                    sink->onTaskTerminated(task->taskId(), task->state());
+                }
+            }
+        }
+    }
+
+    // 4. Invalidate sessions and clear internal state under lock
+    {
+        QMutexLocker locker(&m_mutex);
+        for (const auto& task : tasks) {
+            if (task) {
+                task->invalidateSession();
+            }
+        }
+
+        m_tasks.clear();
+        m_sinks.clear();
+        m_sinkCursors.clear();
+        m_sinkGenerations.clear();
+        m_faultBarrier = std::make_shared<FaultBarrier>();
+        m_nextTaskId = 1;
+        m_nextCreationSequence = 1;
+    }
 }
 
 } // namespace Core::Logging

@@ -146,7 +146,7 @@ TaskRegistryEntry LogViewModel::ensureTaskRegistered(quint64 taskId, const QStri
             taskFilePath = context->logFilePath();
         } else {
             const qint64 startTimestamp = context ? context->startTimestamp() : 0;
-            taskFilePath = Core::Logging::LogFileManager::generateTaskLogFilePath(newTask.taskName, startTimestamp);
+            taskFilePath = Core::Logging::LogFileManager::generateTaskLogFilePath(newTask.taskName, startTimestamp, taskId);
         }
         m_taskLogFiles.insert(taskId, taskFilePath);
     }

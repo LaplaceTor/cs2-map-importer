@@ -39,14 +39,15 @@ public:
     static QString sanitizeFileName(const QString& name);
 
     /**
-     * @brief Generates a task log filename formatted as: <sanitized_task_name>_<yyyyMMdd_HHmmss_zzz>.log.
+     * @brief Generates a task log filename formatted as: <sanitized_task_name>_<yyyyMMdd_HHmmss_zzz>_<taskId>.log
+     * or <sanitized_task_name>_<yyyyMMdd_HHmmss_zzz>.log if taskId is 0.
      */
-    static QString generateTaskLogFileName(const QString& taskName, qint64 startTimestamp = 0);
+    static QString generateTaskLogFileName(const QString& taskName, qint64 startTimestamp = 0, quint64 taskId = 0);
 
     /**
      * @brief Generates the full file path for a task log.
      */
-    static QString generateTaskLogFilePath(const QString& taskName, qint64 startTimestamp = 0);
+    static QString generateTaskLogFilePath(const QString& taskName, qint64 startTimestamp = 0, quint64 taskId = 0);
 
     /**
      * @brief Generates an application log filename formatted as: application_<yyyyMMdd_HHmmss_zzz>.log.

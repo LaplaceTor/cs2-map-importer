@@ -101,16 +101,19 @@ QString LogFileManager::formatTimestamp(qint64 timestamp)
     return dt.toString(QStringLiteral("yyyyMMdd_HHmmss_zzz"));
 }
 
-QString LogFileManager::generateTaskLogFileName(const QString& taskName, qint64 startTimestamp)
+QString LogFileManager::generateTaskLogFileName(const QString& taskName, qint64 startTimestamp, quint64 taskId)
 {
     const QString safeName = sanitizeFileName(taskName);
     const QString timeStr = formatTimestamp(startTimestamp);
+    if (taskId > 0) {
+        return QStringLiteral("%1_%2_%3.log").arg(safeName, timeStr, QString::number(taskId));
+    }
     return QStringLiteral("%1_%2.log").arg(safeName, timeStr);
 }
 
-QString LogFileManager::generateTaskLogFilePath(const QString& taskName, qint64 startTimestamp)
+QString LogFileManager::generateTaskLogFilePath(const QString& taskName, qint64 startTimestamp, quint64 taskId)
 {
-    const QString fileName = generateTaskLogFileName(taskName, startTimestamp);
+    const QString fileName = generateTaskLogFileName(taskName, startTimestamp, taskId);
     return QDir(logsDirectory()).filePath(fileName);
 }
 

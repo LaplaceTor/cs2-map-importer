@@ -1,15 +1,19 @@
 #include "TaskFileSink.h"
+#include "ApplicationLogger.h"
 #include "LogFileManager.h"
+#include "LogSource.h"
 
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
 #include <QMutexLocker>
-#include <QTimeZone>
 
 namespace Core::Logging {
 
-TaskFileSink::TaskFileSink() = default;
+TaskFileSink::TaskFileSink()
+    : ILogSink()
+{
+}
 
 TaskFileSink::~TaskFileSink()
 {
@@ -22,7 +26,11 @@ void TaskFileSink::onTaskCreated(quint64 taskId, const QString& taskName, qint64
     if (!logFilePath.isEmpty()) {
         m_taskFilePaths.insert(taskId, logFilePath);
     }
-    ensureTaskFileOpenLocked(taskId, taskName, startTimestamp);
+    const bool ok = ensureTaskFileOpenLocked(taskId, taskName, startTimestamp);
+    if (!ok) {
+        ApplicationLogger::error(QStringLiteral("TaskFileSink: Failed to create or open log file for task [%1] '%2' at path '%3'")
+            .arg(QString::number(taskId), taskName, m_taskFilePaths.value(taskId)));
+    }
 }
 
 void TaskFileSink::onTaskTerminated(quint64 taskId, TaskState state)
@@ -47,7 +55,7 @@ bool TaskFileSink::ensureTaskFileOpenLocked(quint64 taskId, const QString& taskN
         filePath = m_taskFilePaths.value(taskId);
     } else {
         const qint64 time = (startTimestamp > 0) ? startTimestamp : QDateTime::currentMSecsSinceEpoch();
-        filePath = LogFileManager::generateTaskLogFilePath(taskName, time);
+        filePath = LogFileManager::generateTaskLogFilePath(taskName, time, taskId);
         m_taskFilePaths.insert(taskId, filePath);
     }
 
