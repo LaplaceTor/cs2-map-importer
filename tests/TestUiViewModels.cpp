@@ -150,12 +150,6 @@ private slots:
         logVm.resetView();
         QCOMPARE(logVm.totalMessageCount(), 0);
         QCOMPARE(logVm.taskCount(), 0);
-
-        logVm.appendLog(QStringLiteral("Another entry"), 1);
-        QCOMPARE(logVm.totalMessageCount(), 1);
-        logVm.clearView();
-        QCOMPARE(logVm.totalMessageCount(), 0);
-        QCOMPARE(logVm.taskCount(), 0);
     }
 
     void testMainControllerProperties() {

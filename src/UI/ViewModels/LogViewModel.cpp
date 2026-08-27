@@ -206,11 +206,6 @@ void LogViewModel::resetView()
     emit totalMessageCountChanged();
 }
 
-void LogViewModel::clearView()
-{
-    resetView();
-}
-
 QString LogViewModel::getFullLogText() const
 {
     return exportToPlainText(0);

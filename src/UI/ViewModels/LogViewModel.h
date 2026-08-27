@@ -51,7 +51,6 @@ public slots:
      * Does not affect LogManager tasks, task log files, sinks, or workflow execution.
      */
     Q_INVOKABLE void resetView();
-    Q_INVOKABLE void clearView();
     Q_INVOKABLE bool openLogFile();
     QString getFullLogText() const;
     QString activeTaskLogFilePath() const;
