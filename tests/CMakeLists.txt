@@ -24,6 +24,7 @@ if(NOT TARGET cs2importer_ui)
 endif()
 
 set(GAMEINFO_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../gameinfotestfile")
+set(SOUNDSCRIPTS_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../source1soundscripts")
 
 qt_add_executable(test_logmanager
     TestLogManager.cpp
@@ -232,6 +233,45 @@ target_include_directories(test_logging_infrastructure PRIVATE
 )
 
 add_test(NAME test_logging_infrastructure COMMAND test_logging_infrastructure)
+
+qt_add_executable(test_soundscape_domain
+    TestSoundscapeDomain.cpp
+)
+
+target_link_libraries(test_soundscape_domain PRIVATE
+    cs2importer_domain
+    cs2importer_core
+    Qt6::Core
+    Qt6::Test
+)
+
+target_include_directories(test_soundscape_domain PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_compile_definitions(test_soundscape_domain PRIVATE
+    "SOUNDSCRIPTS_TEST_DIR=\"${SOUNDSCRIPTS_TEST_DIR}\""
+)
+
+add_test(NAME test_soundscape_domain COMMAND test_soundscape_domain)
+
+qt_add_executable(test_soundscape_application
+    TestSoundscapeApplication.cpp
+)
+
+target_link_libraries(test_soundscape_application PRIVATE
+    cs2importer_application
+    cs2importer_domain
+    cs2importer_core
+    Qt6::Core
+    Qt6::Test
+)
+
+target_include_directories(test_soundscape_application PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+add_test(NAME test_soundscape_application COMMAND test_soundscape_application)
 
 
 

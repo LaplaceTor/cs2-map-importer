@@ -16,3 +16,5 @@ cmake_build/
 .qtcreator/
 .aider*
 gameinfotestfile/
+source1soundscripts/
+source2soundscripts/

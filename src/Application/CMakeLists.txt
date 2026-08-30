@@ -15,6 +15,9 @@ qt_add_library(cs2importer_application STATIC
     Environment/VpkSignatureLeaseService.cpp
     Environment/GameEnvironmentService.h
     Environment/GameEnvironmentService.cpp
+    Soundscape/SoundscapeConvertDTOs.h
+    Soundscape/SoundscapeConvertService.h
+    Soundscape/SoundscapeConvertService.cpp
 )
 
 target_link_libraries(cs2importer_application PUBLIC

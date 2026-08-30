@@ -21,6 +21,19 @@ qt_add_library(cs2importer_domain STATIC
     Game/GameInstallationResolver.cpp
     Game/SteamGameLocator.h
     Game/SteamGameLocator.cpp
+    Audio/Range.h
+    Audio/DspPresetRegistry.h
+    Audio/DspPresetRegistry.cpp
+    Audio/SoundLevelMapper.h
+    Audio/SoundLevelMapper.cpp
+    Audio/SoundscapeDefinition.h
+    Audio/SoundEvent.h
+    Audio/SoundscapeParser.h
+    Audio/SoundscapeParser.cpp
+    Audio/SoundscapeToSoundEventConverter.h
+    Audio/SoundscapeToSoundEventConverter.cpp
+    Audio/SoundEventKv3Writer.h
+    Audio/SoundEventKv3Writer.cpp
 )
 
 target_link_libraries(cs2importer_domain PUBLIC
