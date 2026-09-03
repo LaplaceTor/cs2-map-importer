@@ -10,8 +10,6 @@ namespace Domain::Audio {
 
 struct ConversionOptions {
     QString mixgroup;                     ///< Custom mixgroup (e.g. map name). Defaults to "Amb_Common".
-    QString fallbackNullVsnd = QStringLiteral("sounds/common/null.vsnd");
-    bool generateNullVsndOnMaster = true; ///< CS2 master events typically reference null.vsnd
 };
 
 struct ConversionResult {

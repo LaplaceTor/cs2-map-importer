@@ -84,12 +84,6 @@ ConversionResult SoundscapeToSoundEventConverter::convert(const SoundscapeDefini
     if (def.origin.has_value() && !def.origin->isZero()) {
         master.setChildPosition = true;
         master.position = *def.origin;
-    } else {
-        master.setChildPosition = false;
-    }
-
-    if (options.generateNullVsndOnMaster && !options.fallbackNullVsnd.isEmpty()) {
-        master.vsndFiles.append(options.fallbackNullVsnd);
     }
 
     // 2. Build Child SoundEvents
@@ -135,6 +129,10 @@ ConversionResult SoundscapeToSoundEventConverter::convert(const SoundscapeDefini
                 child.position = *looping.origin;
                 child.useWorldPosition = true;
                 child.positionRelativeToPlayer = false;
+            } else if (!looping.position.trimmed().isEmpty() || looping.positionOverride.has_value()) {
+                child.positionRelativeToPlayer = false;
+                child.position = Vector3(0.0, 0.0, 0.0);
+                child.useWorldPosition = false;
             } else {
                 child.positionRelativeToPlayer = true;
                 child.position = Vector3(0.0, 0.0, 0.0);
@@ -202,6 +200,10 @@ ConversionResult SoundscapeToSoundEventConverter::convert(const SoundscapeDefini
                 child.position = *randomElem.origin;
                 child.useWorldPosition = true;
                 child.positionRelativeToPlayer = false;
+            } else if (!randomElem.position.trimmed().isEmpty() || randomElem.positionOverride.has_value()) {
+                child.positionRelativeToPlayer = false;
+                child.position = Vector3(0.0, 0.0, 0.0);
+                child.useWorldPosition = false;
             } else {
                 child.positionRelativeToPlayer = true;
                 child.position = Vector3(0.0, 0.0, 0.0);
@@ -232,6 +234,36 @@ ConversionResult SoundscapeToSoundEventConverter::convert(const SoundscapeDefini
                 master.childEvents.append(scape.targetSoundscape.trimmed());
             }
         }
+    }
+
+    // If this soundscape produced exactly 1 child event and has no additional playsoundscape references,
+    // the child directly becomes the soundscape event itself (e.g. Birds instead of Birds.part1).
+    if (result.soundEvents.size() == 1 && master.childEvents.size() == 1) {
+        auto& singleChild = result.soundEvents.front();
+        singleChild.name = def.name;
+
+        // Inherit DSP and Reverb preset from the parent soundscape definition
+        if (!master.dspPreset.isEmpty()) {
+            singleChild.dspPreset = master.dspPreset;
+            singleChild.overrideDspPreset = master.overrideDspPreset;
+            singleChild.reverbWet = master.reverbWet;
+        }
+
+        // Inherit Fade/Time volume mapping curves from definition
+        if (master.useTimeVolumeMappingCurve) {
+            singleChild.useTimeVolumeMappingCurve = true;
+            singleChild.timeVolumeMappingCurve = master.timeVolumeMappingCurve;
+            singleChild.fadetimeVolumeMappingCurve = master.fadetimeVolumeMappingCurve;
+        }
+
+        // Inherit world position / origin if child does not specify its own
+        if (master.setChildPosition && !singleChild.useWorldPosition) {
+            singleChild.position = master.position;
+            singleChild.useWorldPosition = true;
+            singleChild.positionRelativeToPlayer = false;
+        }
+
+        return result;
     }
 
     // Insert master at the beginning of this soundscape's event list

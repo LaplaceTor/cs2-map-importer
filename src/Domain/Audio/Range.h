@@ -130,15 +130,22 @@ public:
             return Range<T>(val);
         }
 
-        if (parts.size() == 2) {
-            bool ok1 = false, ok2 = false;
-            T minVal = parseValue(parts[0], &ok1);
-            T maxVal = parseValue(parts[1], &ok2);
-            if (!ok1 || !ok2) {
+        if (parts.size() >= 2) {
+            bool ok = false;
+            T minVal = parseValue(parts[0], &ok);
+            if (!ok) {
                 return std::nullopt;
             }
-            if (minVal > maxVal) {
-                std::swap(minVal, maxVal);
+            T maxVal = minVal;
+
+            for (int i = 1; i < parts.size(); ++i) {
+                bool okPart = false;
+                T val = parseValue(parts[i], &okPart);
+                if (!okPart) {
+                    return std::nullopt;
+                }
+                if (val < minVal) minVal = val;
+                if (val > maxVal) maxVal = val;
             }
             return Range<T>(minVal, maxVal);
         }

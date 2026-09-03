@@ -124,21 +124,22 @@ Token KeyValuesLexer::readQuotedString() {
         }
 
         if (c == QChar('\\')) {
-            advanceChar(); // Consume '\\'
-            if (m_pos < m_source.size()) {
-                const QChar esc = advanceChar();
-                switch (esc.toLatin1()) {
-                    case '"': result.append(QChar('"')); break;
-                    case '\\': result.append(QChar('\\')); break;
-                    case 'n': result.append(QChar('\n')); break;
-                    case 't': result.append(QChar('\t')); break;
-                    case 'r': result.append(QChar('\r')); break;
-                    default:
-                        result.append(QChar('\\'));
-                        result.append(esc);
-                        break;
-                }
+            const QChar next = peekChar(1);
+            if (next == QChar('"')) {
+                advanceChar(); // Consume '\\'
+                advanceChar(); // Consume '"'
+                result.append(QChar('"'));
+                continue;
             }
+            if (next == QChar('\\')) {
+                advanceChar(); // Consume '\\'
+                advanceChar(); // Consume second '\\'
+                result.append(QChar('\\'));
+                continue;
+            }
+            // For Windows file paths in Valve VDF (e.g. \tools, \nature, \tree),
+            // preserve backslash literally rather than treating \t or \n as escape sequences.
+            result.append(advanceChar());
             continue;
         }
 

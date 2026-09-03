@@ -202,10 +202,10 @@ void TestSoundscapeDomain::testSoundscapeConverterPitchMath() {
     def.elements.push_back(randElem);
 
     auto result = SoundscapeToSoundEventConverter::convert(def);
-    QCOMPARE(static_cast<int>(result.soundEvents.size()), 2); // 1 master + 1 child
+    QCOMPARE(static_cast<int>(result.soundEvents.size()), 1); // Single child directly becomes the soundscape event
 
-    const auto& child = result.soundEvents[1];
-    QCOMPARE(child.name, QStringLiteral("test.pitch.part1"));
+    const auto& child = result.soundEvents[0];
+    QCOMPARE(child.name, QStringLiteral("test.pitch"));
     QCOMPARE(child.pitch, 1.0);
     QVERIFY(child.pitchRandomMin.has_value());
     QVERIFY(child.pitchRandomMax.has_value());
