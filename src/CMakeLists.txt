@@ -1,5 +1,6 @@
 add_subdirectory(Core)
 add_subdirectory(Domain)
+add_subdirectory(Workflow)
 add_subdirectory(Application)
 add_subdirectory(UI)
 add_subdirectory(qml/cs2importer)

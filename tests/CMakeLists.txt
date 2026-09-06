@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
 project(cs2importer_tests VERSION 1.0.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network Test)
@@ -15,6 +15,9 @@ if(NOT TARGET cs2importer_core)
 endif()
 if(NOT TARGET cs2importer_domain)
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src/Domain ${CMAKE_CURRENT_BINARY_DIR}/src/Domain)
+endif()
+if(NOT TARGET cs2importer_workflow)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src/Workflow ${CMAKE_CURRENT_BINARY_DIR}/src/Workflow)
 endif()
 if(NOT TARGET cs2importer_application)
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../src/Application ${CMAKE_CURRENT_BINARY_DIR}/src/Application)
@@ -273,6 +276,79 @@ target_include_directories(test_soundscape_application PRIVATE
 
 add_test(NAME test_soundscape_application COMMAND test_soundscape_application)
 
+qt_add_executable(test_packarchive
+    TestPackArchive.cpp
+)
 
+target_link_libraries(test_packarchive PRIVATE
+    cs2importer_domain
+    cs2importer_core
+    sourcepp::vpkpp
+    sourcepp::bsppp
+    Qt6::Core
+    Qt6::Test
+)
 
+target_include_directories(test_packarchive PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
 
+add_test(NAME test_packarchive COMMAND test_packarchive)
+
+qt_add_executable(test_vtfconverter
+    TestVtfConverter.cpp
+)
+
+target_link_libraries(test_vtfconverter PRIVATE
+    cs2importer_domain
+    cs2importer_core
+    sourcepp::vtfpp
+    Qt6::Core
+    Qt6::Test
+)
+
+target_include_directories(test_vtfconverter PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+add_test(NAME test_vtfconverter COMMAND test_vtfconverter)
+
+qt_add_executable(test_assetextractor
+    TestAssetExtractor.cpp
+)
+
+target_link_libraries(test_assetextractor PRIVATE
+    cs2importer_workflow
+    cs2importer_domain
+    cs2importer_core
+    sourcepp::vpkpp
+    sourcepp::bsppp
+    Qt6::Core
+    Qt6::Test
+)
+
+target_include_directories(test_assetextractor PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+add_test(NAME test_assetextractor COMMAND test_assetextractor)
+
+qt_add_executable(test_bspembeddedextractor
+    TestBspEmbeddedExtractor.cpp
+)
+
+target_link_libraries(test_bspembeddedextractor PRIVATE
+    cs2importer_workflow
+    cs2importer_domain
+    cs2importer_core
+    sourcepp::vpkpp
+    sourcepp::bsppp
+    Qt6::Core
+    Qt6::Test
+)
+
+target_include_directories(test_bspembeddedextractor PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+add_test(NAME test_bspembeddedextractor COMMAND test_bspembeddedextractor)

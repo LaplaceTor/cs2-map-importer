@@ -26,7 +26,7 @@
 
 用于将 Source 1 游戏资产（地图、模型、粒子等）导入至 Counter-Strike 2 的 Windows 桌面 GUI 应用程序。
 
-* **开发语言：** C++17
+* **开发语言：** C++20
 * **技术框架：** Qt 6.8+
 * **构建系统：** 现代 CMake
 * **目标平台：** **仅限 Windows**（程序仅支持 Windows 平台构建、编译与运行；代码库严禁保留或新增对 Linux / macOS 等非 Windows 平台的兼容代码、多平台宏守卫或条件分支）
@@ -859,11 +859,24 @@ task->complete(QStringLiteral("处理完成"));
 `src/Domain/CMakeLists.txt` 构建 `cs2importer_domain`，依赖 Core。
 
 * **`Domain::Asset`**：`AssetPath`（资产相对路径）、`AssetTypeDetector`（资产类型判别）。
+* **`Domain::Package`**：`PackArchive`（vpkpp/bsppp 包装）：统一读取 VPK 与 BSP 嵌入包（打开、枚举、按条目读取/提取、整体提取），sourcepp 严禁出现在公共头文件中。
+* **`Domain::Material`**：`VtfConverter`（vtfpp 包装）：VTF 解码并导出多种图像格式（`ImageFileFormat`：PNG、TGA、JPG、BMP、HDR，支持缓冲区与落盘），第三方枚举严禁暴露至公共头。
 * **`Domain::Game`**：`GameType`, `EngineType`, `GameDefinition`, `GameRegistry`, `GameInfo`, `GameInfoParser`, `SearchTarget`, `SearchPathResolver`, `GameValidator`。封装 Source/Valve 核心业务语义，彻底与 Application/UI 解耦。新增支持的游戏应通过 `GameDefinition` / `GameRegistry` 元数据驱动。
 
 ---
 
-## 19. Application API 参考
+## 19. Workflow API 参考
+
+`src/Workflow/CMakeLists.txt` 构建 `cs2importer_workflow`，链接 Domain 与 Core。
+
+* **`Workflow::Common`**：具体导入用例的公共落点。
+  * `CancellationToken`：协作式取消令牌，显式按参数传递，严禁全局取消标志。
+  * `AssetExtractor`：按 `SearchTarget` 列表定位并提取资产（目录松散文件 → 目标 `pak01_dir.vpk` → VPK 目标），支持模型伴随文件提取；全部目标未命中返回 `Skipped` 而非 `Failure`。
+  * `BspEmbeddedExtractor`：经 `Domain::Package::PackArchive` 枚举并提取 BSP 嵌入包文件（取代 vpkeditcli `--file-tree` 文本解析）。
+  * `VtfExtractor`：组合 `AssetExtractor` 与 `Domain::Material::VtfConverter`，按调用方指定的 `ImageFileFormat`（默认 PNG，亦可指定 TGA、JPG、BMP、HDR）提取 VTF 并转换为目标图片格式落盘，中间产物存放于 RAII 临时目录。
+* 用例必须通过显式参数接收全部输入（搜索目标、目标路径、取消令牌、可选 `TaskLoggingContext`），严禁访问全局配置、全局取消标志或感知 UI。
+
+## 20. Application API 参考
 
 核心环境服务：
 * `SteamService`：Steam 安装目录/库探测与 App Manifest 读取；
@@ -875,7 +888,7 @@ task->complete(QStringLiteral("处理完成"));
 
 ---
 
-## 20. 重构演进路线图
+## 21. 重构演进路线图
 
 重构按阶段逐步推进，**严禁为了让临时代码通过编译而跨阶段混杂实现**。
 
@@ -887,7 +900,7 @@ task->complete(QStringLiteral("处理完成"));
 
 ---
 
-## 21. 架构变更必须执行的准则
+## 22. 架构变更必须执行的准则
 
 在修改代码前，Agent 必须明确回答以下问题：
 
@@ -915,7 +928,7 @@ task->complete(QStringLiteral("处理完成"));
 
 ---
 
-## 22. 强制架构审查清单 (Architecture Review Checklist)
+## 23. 强制架构审查清单 (Architecture Review Checklist)
 
 任何重构代码提交前必须对照本清单自查：
 
@@ -955,7 +968,7 @@ task->complete(QStringLiteral("处理完成"));
 
 ---
 
-## 23. 架构红线异味（必须重构）
+## 24. 架构红线异味（必须重构）
 
 ```text
 UI/ViewModel → Domain::GameValidator
@@ -980,9 +993,9 @@ Workflow → Application
 
 ---
 
-## 24. C++ 编码规范
+## 25. C++ 编码规范
 
-* 采用 C++17 标准、适度使用 Qt 类型、遵循 RAII 原则、明确所有权与 `const` 正确性。
+* 采用 C++20 标准、适度使用 Qt 类型、遵循 RAII 原则、明确所有权与 `const` 正确性。
 * 类名与枚举采用 `PascalCase`；函数、方法、局部变量与成员变量采用 `camelCase`。
 * 保持头文件轻量且自包含。
 * 明确 include 所需的标准库头文件，严禁依赖传递性间接包含。
@@ -990,9 +1003,10 @@ Workflow → Application
 
 ---
 
-## 25. CMake 规范
+## 26. CMake 规范
 
 * 要求 CMake 3.28+ 与 Qt 6.8+。
+* **第三方依赖：** 统一以 git submodule 置于 `third_party/`，由实际消费该库的最底层模块（当前为 Domain）的 CMakeLists 通过 `add_subdirectory` 引入并 `PRIVATE` 链接；第三方类型严禁出现在本项目的公共头文件中，严禁上层模块为绕过分层而直接链接第三方库。
 * **仅限 Windows 平台：** 根目录 `CMakeLists.txt` 统一执行 `if(NOT WIN32) message(FATAL_ERROR ...)` 守卫，子模块 CMake 脚本中无需且严禁编写冗余的 `if(WIN32)` 分支。
 * 适时使用 `qt_standard_project_setup()`。
 * 可执行程序使用 `qt_add_executable()`。
@@ -1004,7 +1018,7 @@ Workflow → Application
 
 ---
 
-## 26. 构建与测试指令
+## 27. 构建与测试指令
 
 ### 主程序构建
 
@@ -1030,7 +1044,7 @@ ctest --test-dir build/local-debug --output-on-failure
 
 ---
 
-## 27. 测试架构与依赖规则
+## 28. 测试架构与依赖规则
 
 测试依赖规则与生产代码一致：
 * Domain 测试可依赖 Domain + Core。
@@ -1041,7 +1055,7 @@ ctest --test-dir build/local-debug --output-on-failure
 
 ---
 
-## 28. 技能规范自动加载参照
+## 29. 技能规范自动加载参照
 
 在进行相关修改前，需查阅对应 Skill：
 
@@ -1056,7 +1070,7 @@ ctest --test-dir build/local-debug --output-on-failure
 
 ---
 
-## 29. 绝对禁止事项
+## 30. 绝对禁止事项
 
 * 严禁 Core 依赖 Domain / Application / Workflow / UI / QML。
 * 严禁 Domain 依赖 Application / Workflow / UI / QML。
@@ -1076,7 +1090,7 @@ ctest --test-dir build/local-debug --output-on-failure
 
 ---
 
-## 30. 终极准则
+## 31. 终极准则
 
 当存在疑问时，务必选择能让依赖关系图**更清晰、更单向、更易测、且更难以被意外破坏**的设计方案。
 

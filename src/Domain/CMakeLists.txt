@@ -1,3 +1,33 @@
+# Third-party: sourcepp (vpkpp / bsppp / vtfpp) via git submodule under third_party/.
+# Note: sourcepp pulls a few pinned-commit dependencies (bufferstream, cryptopp, hat-trie,
+# miniz, minizip-ng) at configure time via FetchContent; the first configure needs network.
+if(NOT TARGET sourcepp::vpkpp)
+    set(SOURCEPP_LIBS_START_ENABLED OFF CACHE BOOL "" FORCE)
+    set(SOURCEPP_USE_VPKPP ON CACHE BOOL "" FORCE)
+    set(SOURCEPP_USE_BSPPP ON CACHE BOOL "" FORCE)
+    set(SOURCEPP_USE_VTFPP ON CACHE BOOL "" FORCE)
+    set(SOURCEPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(SOURCEPP_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+    set(SOURCEPP_VTFPP_SUPPORT_EXR OFF CACHE BOOL "" FORCE)
+    set(SOURCEPP_VTFPP_SUPPORT_QOI OFF CACHE BOOL "" FORCE)
+    set(SOURCEPP_VTFPP_SUPPORT_WEBP OFF CACHE BOOL "" FORCE)
+    set(SOURCEPP_VTFPP_BUILD_WITH_COMPRESSONATOR OFF CACHE BOOL "" FORCE)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/sourcepp sourcepp-build)
+endif()
+
+# MSVC 14.5x (VS 2026) removed stdext::checked/unchecked_array_iterator from the
+# STL while the cryptopp sources pinned by sourcepp still use them; force-include
+# a shim restoring them as pass-throughs into the affected third-party targets.
+get_filename_component(cs2importer_compat_dir
+    "${CMAKE_CURRENT_LIST_DIR}/../../third_party/compat" ABSOLUTE)
+foreach(cryptopp_compat_target cryptopp cryptopp-pem)
+    if(TARGET ${cryptopp_compat_target})
+        target_compile_options(${cryptopp_compat_target} PRIVATE
+            "/FI${cs2importer_compat_dir}/msvc_stdext_iterator_shim.h"
+        )
+    endif()
+endforeach()
+
 qt_add_library(cs2importer_domain STATIC
     Asset/AssetType.h
     Asset/AssetPath.h
@@ -34,11 +64,22 @@ qt_add_library(cs2importer_domain STATIC
     Audio/SoundscapeToSoundEventConverter.cpp
     Audio/SoundEventKv3Writer.h
     Audio/SoundEventKv3Writer.cpp
+    Material/VtfConverter.h
+    Material/VtfConverter.cpp
+    Package/PackArchive.h
+    Package/PackArchive.cpp
 )
 
 target_link_libraries(cs2importer_domain PUBLIC
     cs2importer_core
     Qt6::Core
+)
+
+# sourcepp stays an implementation detail: no sourcepp types in Domain public headers.
+target_link_libraries(cs2importer_domain PRIVATE
+    sourcepp::vpkpp
+    sourcepp::bsppp
+    sourcepp::vtfpp
 )
 
 target_include_directories(cs2importer_domain PUBLIC
