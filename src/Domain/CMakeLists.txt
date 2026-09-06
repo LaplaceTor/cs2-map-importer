@@ -15,18 +15,43 @@ if(NOT TARGET sourcepp::vpkpp)
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/sourcepp sourcepp-build)
 endif()
 
-# MSVC 14.5x (VS 2026) removed stdext::checked/unchecked_array_iterator from the
-# STL while the cryptopp sources pinned by sourcepp still use them; force-include
-# a shim restoring them as pass-throughs into the affected third-party targets.
-get_filename_component(cs2importer_compat_dir
-    "${CMAKE_CURRENT_LIST_DIR}/../../third_party/compat" ABSOLUTE)
-foreach(cryptopp_compat_target cryptopp cryptopp-pem)
-    if(TARGET ${cryptopp_compat_target})
-        target_compile_options(${cryptopp_compat_target} PRIVATE
-            "/FI${cs2importer_compat_dir}/msvc_stdext_iterator_shim.h"
-        )
-    endif()
-endforeach()
+# C++20 and modern MSVC (>= 19.38 / VS 2022 17.8+ / VS 2026) removed non-standard
+# stdext::make_checked_array_iterator / make_unchecked_array_iterator.
+# Refactor the fetched cryptopp sources in place if pinned legacy sources are present,
+# adapting them directly to C++20 and modern MSVC standards without /FI shims.
+function(cs2importer_modernize_cryptopp_sources)
+    set(candidate_dirs
+        "${CMAKE_BINARY_DIR}/_deps/cryptopp-cmake-build/cryptopp"
+        "${CMAKE_BINARY_DIR}/sourcepp-build/ext/cryptopp"
+        "${cryptopp_SOURCE_DIR}"
+    )
+    foreach(candidate ${candidate_dirs})
+        if(EXISTS "${candidate}/integer.cpp")
+            file(READ "${candidate}/integer.cpp" integer_content)
+            if(integer_content MATCHES "CRYPTOPP_MSC_VERSION >= 1500" AND NOT integer_content MATCHES "CRYPTOPP_MSC_VERSION < 1938")
+                string(REPLACE
+                    "CRYPTOPP_MSC_VERSION >= 1500)"
+                    "(CRYPTOPP_MSC_VERSION >= 1500) && (CRYPTOPP_MSC_VERSION < 1938)"
+                    integer_content "${integer_content}"
+                )
+                file(WRITE "${candidate}/integer.cpp" "${integer_content}")
+            endif()
+        endif()
+
+        if(EXISTS "${candidate}/zdeflate.cpp")
+            file(READ "${candidate}/zdeflate.cpp" zdeflate_content)
+            if(zdeflate_content MATCHES "CRYPTOPP_MSC_VERSION >= 1600" AND NOT zdeflate_content MATCHES "CRYPTOPP_MSC_VERSION < 1938")
+                string(REPLACE
+                    "CRYPTOPP_MSC_VERSION >= 1600"
+                    "(CRYPTOPP_MSC_VERSION >= 1600) && (CRYPTOPP_MSC_VERSION < 1938)"
+                    zdeflate_content "${zdeflate_content}"
+                )
+                file(WRITE "${candidate}/zdeflate.cpp" "${zdeflate_content}")
+            endif()
+        endif()
+    endforeach()
+endfunction()
+cs2importer_modernize_cryptopp_sources()
 
 qt_add_library(cs2importer_domain STATIC
     Asset/AssetType.h
