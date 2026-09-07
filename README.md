@@ -1,6 +1,7 @@
 # CS2 Map Importer
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/R5S426JG8P)
+[![爱发电](https://img.shields.io/badge/爱发电-赞助支持-946ce6?style=for-the-badge&logo=afdian&logoColor=white)](https://afdian.com/a/laplacetor)
 
 A user-friendly tool with a Graphical User Interface (GUI) to import maps from Source 1 Game into Counter-Strike 2 (Source 2). The tools provided by Valve for importing maps aren't very user-friendly, so this program was created to streamline the process.
 
