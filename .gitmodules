@@ -1,3 +1,4 @@
 [submodule "third_party/sourcepp"]
 	path = third_party/sourcepp
-	url = https://github.com/craftablescience/sourcepp.git
+	url = https://github.com/LaplaceTor/sourcepp.git
+	branch = cs2importer-vendor
