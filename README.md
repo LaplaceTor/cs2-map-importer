@@ -1,5 +1,7 @@
 # CS2 Map Importer
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/R5S426JG8P)
+
 A user-friendly tool with a Graphical User Interface (GUI) to import maps from Source 1 Game into Counter-Strike 2 (Source 2). The tools provided by Valve for importing maps aren't very user-friendly, so this program was created to streamline the process.
 
 This project was previously a Python program (forked from sarim's importer) but has now been fully rewritten as a standalone C++ application with a modern QML-based UI.
