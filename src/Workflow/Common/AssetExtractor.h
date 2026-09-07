@@ -11,6 +11,10 @@
 #include "Domain/Game/SearchTarget.h"
 #include "Workflow/Common/CancellationToken.h"
 
+namespace Domain::Package {
+class PackArchivePool;
+}
+
 namespace Workflow::Common {
 
 /**
@@ -33,6 +37,12 @@ struct AssetExtractOptions {
      *        failing companions are logged as warnings, never failures.
      */
     std::vector<QString> companionExtensions;
+
+    /**
+     * @brief Optional archive pool for session-wide reuse of open pack files (VPKs).
+     *        If nullptr, a call-scoped pool is used.
+     */
+    Domain::Package::PackArchivePool* archivePool = nullptr;
 };
 
 /**

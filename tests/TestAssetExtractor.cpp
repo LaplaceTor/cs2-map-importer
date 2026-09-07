@@ -7,6 +7,7 @@
 #include "Core/Error/ErrorCode.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Domain/Game/SearchTarget.h"
+#include "Domain/Package/PackArchivePool.h"
 #include "Workflow/Common/AssetExtractor.h"
 #include "Workflow/Common/CancellationToken.h"
 
@@ -51,6 +52,7 @@ private slots:
     void missingAssetIsSkipped();
     void cancelledTokenStopsExtraction();
     void extractsCompanionFiles();
+    void reusesArchivePoolAcrossExtractions();
     void emptyPathFails();
 
 private:
@@ -193,6 +195,43 @@ void TestAssetExtractor::extractsCompanionFiles() {
              QByteArrayLiteral("packed vvd data"));
     QCOMPARE(readFileBytes(destDir.filePath(QStringLiteral("models/packed.sw.vtx"))),
              QByteArrayLiteral("packed vtx data"));
+}
+
+void TestAssetExtractor::reusesArchivePoolAcrossExtractions() {
+    QTemporaryDir destDir;
+    QVERIFY(destDir.isValid());
+
+    const std::vector<Domain::Game::SearchTarget> targets = {
+        Domain::Game::SearchTarget::makeVpk(FilesystemPath(m_vpkPath)),
+    };
+
+    Domain::Package::PackArchivePool sharedPool;
+    QCOMPARE(sharedPool.size(), static_cast<std::size_t>(0));
+
+    AssetExtractOptions options;
+    options.archivePool = &sharedPool;
+
+    // Extract first asset - opens and caches the VPK in sharedPool
+    auto res1 = AssetExtractor::extract(targets,
+        QStringLiteral("models/packed.mdl"), FilesystemPath(destDir.path()), options);
+    QVERIFY(res1.isSuccess());
+    QVERIFY(res1.value().fromPack);
+    QCOMPARE(sharedPool.size(), static_cast<std::size_t>(1));
+
+    // Extract second asset using same pool - hits cached archive handle
+    auto res2 = AssetExtractor::extract(targets,
+        QStringLiteral("models/packed.vvd"), FilesystemPath(destDir.path()), options);
+    QVERIFY(res2.isSuccess());
+    QVERIFY(res2.value().fromPack);
+    QCOMPARE(sharedPool.size(), static_cast<std::size_t>(1));
+
+    // Multiple rapid on-demand extractions using the same cached archive
+    for (int i = 0; i < 20; ++i) {
+        auto resLoop = AssetExtractor::extract(targets,
+            QStringLiteral("models/packed.sw.vtx"), FilesystemPath(destDir.path()), options);
+        QVERIFY(resLoop.isSuccess());
+    }
+    QCOMPARE(sharedPool.size(), static_cast<std::size_t>(1));
 }
 
 void TestAssetExtractor::emptyPathFails() {

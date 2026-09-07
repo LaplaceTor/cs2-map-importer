@@ -73,8 +73,12 @@ qt_add_library(cs2importer_domain STATIC
     Audio/SoundEventKv3Writer.cpp
     Material/VtfConverter.h
     Material/VtfConverter.cpp
+    Package/BspPackExtractor.h
+    Package/BspPackExtractor.cpp
     Package/PackArchive.h
     Package/PackArchive.cpp
+    Package/PackArchivePool.h
+    Package/PackArchivePool.cpp
 )
 
 target_link_libraries(cs2importer_domain PUBLIC
@@ -87,6 +91,7 @@ target_link_libraries(cs2importer_domain PRIVATE
     sourcepp::vpkpp
     sourcepp::bsppp
     sourcepp::vtfpp
+    MINIZIP::minizip
 )
 
 target_include_directories(cs2importer_domain PUBLIC

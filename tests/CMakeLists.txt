@@ -295,6 +295,25 @@ target_include_directories(test_packarchive PRIVATE
 
 add_test(NAME test_packarchive COMMAND test_packarchive)
 
+qt_add_executable(test_packarchivepool
+    TestPackArchivePool.cpp
+)
+
+target_link_libraries(test_packarchivepool PRIVATE
+    cs2importer_domain
+    cs2importer_core
+    sourcepp::vpkpp
+    sourcepp::bsppp
+    Qt6::Core
+    Qt6::Test
+)
+
+target_include_directories(test_packarchivepool PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+add_test(NAME test_packarchivepool COMMAND test_packarchivepool)
+
 qt_add_executable(test_vtfconverter
     TestVtfConverter.cpp
 )

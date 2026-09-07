@@ -8,6 +8,7 @@
 #include "Core/Error/Exception.h"
 #include "Core/FileSystem/FileSystem.h"
 #include "Domain/Package/PackArchive.h"
+#include "Domain/Package/PackArchivePool.h"
 
 namespace {
 
@@ -39,24 +40,25 @@ QString normalizeRelativePath(const QString& relativePath) {
 }
 
 /**
- * @brief Extracts one entry from a pack archive into destFile.
+ * @brief Extracts one entry from a pack archive into destFile using the provided pool.
  * A missing archive file counts as a benign miss; a present but unparseable
  * archive is a real failure and is surfaced.
  */
-Core::Result<LookupHit> extractEntryFromPack(const Core::Path::FilesystemPath& packPath, const QString& entryPath, const Core::Path::FilesystemPath& destFile) {
+Core::Result<LookupHit> extractEntryFromPack(Domain::Package::PackArchivePool& pool, const Core::Path::FilesystemPath& packPath, const QString& entryPath, const Core::Path::FilesystemPath& destFile) {
     if (!packPath.exists()) {
         return Core::Result<LookupHit>::success({});
     }
 
-    auto archive = Domain::Package::PackArchive::open(packPath);
-    if (archive.isFailure()) {
-        return Core::Result<LookupHit>::failure(archive.error());
+    auto archiveRes = pool.getOrOpen(packPath);
+    if (archiveRes.isFailure()) {
+        return Core::Result<LookupHit>::failure(archiveRes.error());
     }
-    if (!archive.value().hasEntry(entryPath)) {
+    auto archive = archiveRes.value();
+    if (!archive->hasEntry(entryPath)) {
         return Core::Result<LookupHit>::success({});
     }
 
-    auto extracted = archive.value().extractEntryToFile(entryPath, destFile);
+    auto extracted = archive->extractEntryToFile(entryPath, destFile);
     if (extracted.isFailure()) {
         return Core::Result<LookupHit>::failure(extracted.error());
     }
@@ -67,7 +69,7 @@ Core::Result<LookupHit> extractEntryFromPack(const Core::Path::FilesystemPath& p
  * @brief Searches a single directory target for the entry: loose file first,
  *        then the target's own pak01_dir.vpk.
  */
-Core::Result<LookupHit> extractFromDirectoryTarget(const Domain::Game::SearchTarget& target, const QString& entryPath, const Core::Path::FilesystemPath& destFile) {
+Core::Result<LookupHit> extractFromDirectoryTarget(Domain::Package::PackArchivePool& pool, const Domain::Game::SearchTarget& target, const QString& entryPath, const Core::Path::FilesystemPath& destFile) {
     const Core::Path::FilesystemPath looseFile = target.path() / entryPath;
     if (looseFile.exists()) {
         try {
@@ -82,14 +84,14 @@ Core::Result<LookupHit> extractFromDirectoryTarget(const Domain::Game::SearchTar
         return Core::Result<LookupHit>::success(LookupHit{true, false});
     }
 
-    return extractEntryFromPack(target.path() / QStringLiteral("pak01_dir.vpk"), entryPath, destFile);
+    return extractEntryFromPack(pool, target.path() / QStringLiteral("pak01_dir.vpk"), entryPath, destFile);
 }
 
 /**
  * @brief Extracts companion files (e.g. model vertex data) from the winning
  *        target. Best-effort: misses and failures are logged, never fatal.
  */
-void extractCompanions(const Domain::Game::SearchTarget& winner, bool winnerFromPack, const QString& relativeAssetPath, const std::vector<QString>& companionExtensions, const Core::Path::FilesystemPath& destContentDir, const Workflow::Common::CancellationToken& token, Core::Logging::TaskLoggingContext* taskCtx) {
+void extractCompanions(Domain::Package::PackArchivePool& pool, const Domain::Game::SearchTarget& winner, bool winnerFromPack, const QString& relativeAssetPath, const std::vector<QString>& companionExtensions, const Core::Path::FilesystemPath& destContentDir, const Workflow::Common::CancellationToken& token, Core::Logging::TaskLoggingContext* taskCtx) {
     if (companionExtensions.empty()) {
         return;
     }
@@ -109,8 +111,8 @@ void extractCompanions(const Domain::Game::SearchTarget& winner, bool winnerFrom
 
         const Core::Path::FilesystemPath companionDest = destContentDir / companionRelative;
         Core::Result<LookupHit> outcome = winnerFromPack
-            ? extractEntryFromPack(winner.path(), companionRelative, companionDest)
-            : extractFromDirectoryTarget(winner, companionRelative, companionDest);
+            ? extractEntryFromPack(pool, winner.path(), companionRelative, companionDest)
+            : extractFromDirectoryTarget(pool, winner, companionRelative, companionDest);
 
         if (outcome.isFailure()) {
             if (taskCtx) {
@@ -149,6 +151,9 @@ Core::Result<AssetExtraction> AssetExtractor::extract(
                 QStringLiteral("destination content directory is empty or invalid"));
         }
 
+        Domain::Package::PackArchivePool localPool;
+        Domain::Package::PackArchivePool& pool = options.archivePool ? *options.archivePool : localPool;
+
         const QString entryPath = normalizeRelativePath(relativeAssetPath);
         const Core::Path::FilesystemPath destFile = destContentDir / entryPath;
 
@@ -159,8 +164,8 @@ Core::Result<AssetExtraction> AssetExtractor::extract(
             }
 
             Core::Result<LookupHit> outcome = target.isVpk()
-                ? extractEntryFromPack(target.path(), entryPath, destFile)
-                : extractFromDirectoryTarget(target, entryPath, destFile);
+                ? extractEntryFromPack(pool, target.path(), entryPath, destFile)
+                : extractFromDirectoryTarget(pool, target, entryPath, destFile);
 
             if (outcome.isFailure()) {
                 return Core::Result<AssetExtraction>::failure(
@@ -179,7 +184,7 @@ Core::Result<AssetExtraction> AssetExtractor::extract(
                 taskCtx->info(QStringLiteral("Extracted '%1' from '%2'")
                                   .arg(entryPath, target.pathString()));
             }
-            extractCompanions(target, outcome.value().fromPack, entryPath, options.companionExtensions, destContentDir, token, taskCtx);
+            extractCompanions(pool, target, outcome.value().fromPack, entryPath, options.companionExtensions, destContentDir, token, taskCtx);
 
             AssetExtraction extraction;
             extraction.extractedFilePath = destFile;
