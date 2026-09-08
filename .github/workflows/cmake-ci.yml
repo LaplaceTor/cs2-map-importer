@@ -53,6 +53,7 @@ jobs:
     - name: Build BSPSRC Native CLI with GraalVM
       shell: pwsh
       run: |
+        $ErrorActionPreference = "Stop"
         if (!(Test-Path bin)) { New-Item -ItemType Directory -Path bin }
         Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip" -OutFile "bspsrc.zip"
         Expand-Archive -Path bspsrc.zip -DestinationPath bspsrc-temp -Force
@@ -61,10 +62,11 @@ jobs:
         native-image `
           -cp $jarFile `
           info.ata4.bspsrc.cli.BspSourceCli `
-          -H:Name=bspsrc `
-          -Os `
+          -o bspsrc `
+          -O2 `
           -Djava.awt.headless=true `
           --no-fallback
+        if ($LASTEXITCODE -ne 0) { throw "native-image failed with exit code $LASTEXITCODE" }
 
         choco install upx --no-progress
         upx --best --lzma bspsrc.exe
