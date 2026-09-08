@@ -74,39 +74,6 @@ jobs:
         upx --best --lzma bspsrc.exe
         Move-Item bspsrc.exe bin/bspsrc.exe -Force
 
-    - name: Download VTFEdit
-      shell: pwsh
-      run: |
-        $client = [System.Net.Http.HttpClient]::new()
-        $response = $client.GetAsync("https://github.com/Sky-rym/VTFEdit-Reloaded/releases/latest").Result
-        $finalUrl = $response.RequestMessage.RequestUri.AbsoluteUri
-        $version = $finalUrl.Substring($finalUrl.LastIndexOf('/') + 1)
-        $vtfeditUrl = "https://github.com/Sky-rym/VTFEdit-Reloaded/releases/download/$version/VTFEdit_Reloaded_v$version.zip"
-        try {
-            Invoke-WebRequest -Uri $vtfeditUrl -OutFile "vtfedit_reloaded.zip" -ErrorAction Stop
-        } catch {
-            $vtfeditUrl = "https://github.com/Sky-rym/VTFEdit-Reloaded/releases/download/$version/VTFEdit_Reloaded_$version.zip"
-            Invoke-WebRequest -Uri $vtfeditUrl -OutFile "vtfedit_reloaded.zip"
-        }
-        Expand-Archive -Path vtfedit_reloaded.zip -DestinationPath vtfedit-temp -Force
-        if (!(Test-Path bin)) { New-Item -ItemType Directory -Path bin }
-        Get-ChildItem -Path vtfedit-temp -Filter "Devil.dll" -Recurse | Copy-Item -Destination bin -Force
-        Get-ChildItem -Path vtfedit-temp -Filter "vtfcmd.exe" -Recurse | Copy-Item -Destination bin -Force
-        Get-ChildItem -Path vtfedit-temp -Filter "vtflib.dll" -Recurse | Copy-Item -Destination bin -Force
-    
-    - name: Download vpkeditcli
-      shell: pwsh
-      run: |
-        Invoke-WebRequest -Uri "https://github.com/craftablescience/VPKEdit/releases/latest/download/VPKEdit-Windows-Standalone-Compatibility-msvc-Release.zip" -OutFile "vpkedit.zip"
-        Expand-Archive -Path vpkedit.zip -DestinationPath vpkedit
-        Copy-Item vpkedit\vpkeditcli.exe bin\
-
-    - name: Prepare Artifacts
-      shell: pwsh
-      run: |
-        cmake --install build --config Release --prefix "$PWD/release"
-        if (Test-Path bin) { Copy-Item -Path bin -Destination release\bin -Recurse -Force }
-
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
