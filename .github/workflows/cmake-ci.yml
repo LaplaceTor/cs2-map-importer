@@ -59,13 +59,15 @@ jobs:
         Expand-Archive -Path bspsrc.zip -DestinationPath bspsrc-temp -Force
         $jarFile = (Get-ChildItem -Path bspsrc-temp -Filter "bspsrc.jar" -Recurse | Select-Object -First 1).FullName
 
-        native-image `
-          -cp $jarFile `
-          -o bspsrc `
-          -O2 `
-          -Djava.awt.headless=true `
-          --no-fallback `
-          info.ata4.bspsrc.app.src.cli.BspSourceCli
+        $nativeArgs = @(
+            "-cp", $jarFile,
+            "-o", "bspsrc",
+            "-O2",
+            "-Djava.awt.headless=true",
+            "--no-fallback",
+            "info.ata4.bspsrc.app.src.cli.BspSourceCli"
+        )
+        & native-image @nativeArgs
         if ($LASTEXITCODE -ne 0) { throw "native-image failed with exit code $LASTEXITCODE" }
 
         choco install upx --no-progress
