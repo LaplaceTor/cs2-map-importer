@@ -43,19 +43,38 @@ jobs:
     - name: Build with CMake
       run: cmake --build build --config Release
 
+    - name: Set up JDK
+      uses: actions/setup-java@v5
     - name: Set up GraalVM
       uses: graalvm/setup-graalvm@v1
       with:
+        java-version: 24
+        distribution: 'oracle'
         java-version: '21'
         distribution: 'graalvm'
         github-token: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Build custom JRE using jlink
     - name: Build BSPSRC Native CLI with GraalVM
       shell: pwsh
       run: |
+        jlink `
+          --add-modules java.base,java.desktop,java.logging,java.xml,java.management,java.naming,java.scripting `
+          --strip-debug `
+          --no-man-pages `
+          --no-header-files `
+          --compress=2 `
+          --output jre
         if (!(Test-Path bin)) { New-Item -ItemType Directory -Path bin }
+        Copy-Item -Path jre/* -Destination bin -Recurse -Force
+
+    - name: Download bspsrc
+      shell: pwsh
+      run: |
         Invoke-WebRequest -Uri "https://github.com/ata4/bspsrc/releases/latest/download/bspsrc-jar-only.zip" -OutFile "bspsrc.zip"
         Expand-Archive -Path bspsrc.zip -DestinationPath bspsrc-temp -Force
+        if (!(Test-Path bin)) { New-Item -ItemType Directory -Path bin }
+        Get-ChildItem -Path bspsrc-temp -Filter "bspsrc.jar" -Recurse | Copy-Item -Destination bin -Force
         $jarFile = (Get-ChildItem -Path bspsrc-temp -Filter "bspsrc.jar" -Recurse | Select-Object -First 1).FullName
 
         native-image `
