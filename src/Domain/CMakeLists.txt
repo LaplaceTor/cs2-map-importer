@@ -79,6 +79,16 @@ qt_add_library(cs2importer_domain STATIC
     Package/PackArchive.cpp
     Package/PackArchivePool.h
     Package/PackArchivePool.cpp
+    Tool/Cs2PathLayout.h
+    Tool/ToolErrors.h
+    Tool/Source1ImportLogParser.h
+    Tool/Source1ImportLogParser.cpp
+    Tool/ResourceCompilerLogParser.h
+    Tool/ResourceCompilerLogParser.cpp
+    Tool/Source1ImportTool.h
+    Tool/Source1ImportTool.cpp
+    Tool/ResourceCompilerTool.h
+    Tool/ResourceCompilerTool.cpp
 )
 
 target_link_libraries(cs2importer_domain PUBLIC

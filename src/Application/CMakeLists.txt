@@ -1,6 +1,10 @@
 qt_add_library(cs2importer_application STATIC
     Async/AsyncTaskRunner.h
+    Async/TaskHandle.h
     Execution/ExecutionGuard.h
+    Common/BaseImportDTOs.h
+    Common/ImportPrerequisiteService.h
+    Common/ImportPrerequisiteService.cpp
     Environment/GameInstallationInfo.h
     Environment/GameInstallation.h
     Environment/GameInstallationValidator.h
@@ -15,12 +19,16 @@ qt_add_library(cs2importer_application STATIC
     Environment/VpkSignatureLeaseService.cpp
     Environment/GameEnvironmentService.h
     Environment/GameEnvironmentService.cpp
+    Particle/ParticleImportDTOs.h
+    Particle/ParticleImportService.h
+    Particle/ParticleImportService.cpp
     Soundscape/SoundscapeConvertDTOs.h
     Soundscape/SoundscapeConvertService.h
     Soundscape/SoundscapeConvertService.cpp
 )
 
 target_link_libraries(cs2importer_application PUBLIC
+    cs2importer_workflow
     cs2importer_domain
     cs2importer_core
     Qt6::Core

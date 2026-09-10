@@ -5,7 +5,7 @@
 #include "Core/Logging/TaskLoggingContext.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
-#include "Workflow/Common/CancellationToken.h"
+#include "Core/Async/CancellationToken.h"
 
 namespace Workflow::Common {
 
@@ -27,7 +27,7 @@ public:
     static Core::Result<std::size_t> extract(
         const Core::Path::FilesystemPath& bspPath,
         const Core::Path::FilesystemPath& destDir,
-        const CancellationToken& token = {},
+        const Core::Async::CancellationToken& token = {},
         Core::Logging::TaskLoggingContext* taskCtx = nullptr);
 };
 

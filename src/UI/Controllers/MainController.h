@@ -2,6 +2,10 @@
 
 #include <QObject>
 #include <QString>
+#include <memory>
+
+#include "Application/Particle/ParticleImportDTOs.h"
+#include "Application/Particle/ParticleImportService.h"
 
 namespace UI::ViewModels {
 class LogViewModel;
@@ -20,7 +24,7 @@ class MainController : public QObject {
 
 public:
     explicit MainController(UI::ViewModels::LogViewModel* logViewModel = nullptr, QObject* parent = nullptr);
-    ~MainController() override = default;
+    ~MainController() override;
 
     void setLogViewModel(UI::ViewModels::LogViewModel* logViewModel) noexcept { m_logViewModel = logViewModel; }
     UI::ViewModels::LogViewModel* logViewModel() const noexcept { return m_logViewModel; }
@@ -35,6 +39,23 @@ public:
 
     bool isProcessing() const noexcept { return m_isProcessing; }
     bool canStart() const noexcept { return m_canStart; }
+
+    Q_INVOKABLE void startParticleImport(
+        const QString& source1GameDir,
+        const QString& cs2BaseDir,
+        const QString& addonName,
+        const QString& sourcePcfPath,
+        bool allowDepthBlend,
+        bool disableDiffuse,
+        const QString& s1GameType = QString()
+    );
+
+    void setParticleImportService(std::unique_ptr<Application::Particle::ParticleImportService> service) noexcept {
+        m_particleImportService = std::move(service);
+    }
+    Application::Particle::ParticleImportService* particleImportService() const noexcept {
+        return m_particleImportService.get();
+    }
 
 public slots:
     void cycleTheme();
@@ -59,7 +80,7 @@ private:
     bool m_isProcessing = false;
     bool m_canStart = false;
     UI::ViewModels::LogViewModel* m_logViewModel = nullptr;
+    std::unique_ptr<Application::Particle::ParticleImportService> m_particleImportService;
 };
 
 } // namespace UI::Controllers
-

@@ -1,11 +1,14 @@
 qt_add_library(cs2importer_workflow STATIC
-    Common/CancellationToken.h
+    Common/ImportContext.h
     Common/AssetExtractor.h
     Common/AssetExtractor.cpp
     Common/BspEmbeddedExtractor.h
     Common/BspEmbeddedExtractor.cpp
     Common/VtfExtractor.h
     Common/VtfExtractor.cpp
+    Particle/ParticleImportOptions.h
+    Particle/ParticleImportWorkflow.h
+    Particle/ParticleImportWorkflow.cpp
 )
 
 target_link_libraries(cs2importer_workflow PUBLIC

@@ -10,6 +10,9 @@ Item {
     property QtObject mainController: null
     property string selectedPcfPath: ""
 
+    property alias allowDepthBlend: allowDepthBlendCheck.checked
+    property alias disableDiffuse: disableDiffuseCheck.checked
+
     signal requestBrowseS1()
     signal requestBrowseS2()
     signal requestBrowsePcf()
@@ -118,6 +121,7 @@ Item {
 
             ComboBox {
                 id: addonCombo
+                objectName: "addonCombo"
                 model: root.gameViewModel ? root.gameViewModel.s2AddonsList : []
                 currentIndex: Math.max(0, model && root.gameViewModel ? model.indexOf(root.gameViewModel.selectedAddon) : 0)
                 enabled: !(root.mainController && root.mainController.isProcessing)
@@ -154,6 +158,7 @@ Item {
         GroupBox {
             id: optionsBox
             title: qsTr("OPTIONS")
+            enabled: !(root.mainController && root.mainController.isProcessing)
             Layout.fillWidth: true
             Layout.fillHeight: true
 
@@ -172,6 +177,8 @@ Item {
                 spacing: 4
 
                 StyledCheckBox {
+                    id: allowDepthBlendCheck
+                    objectName: "allowDepthBlendCheck"
                     text: qsTr("Allow Depth Blend (-particle_allow_depth_blend)")
                     checked: false
                     ToolTip.text: qsTr("Respects $DEPTHBLEND in particle materials to smoothly feather and blend smoke, fire, and fog edges with surrounding world geometry.")
@@ -179,6 +186,8 @@ Item {
                 }
 
                 StyledCheckBox {
+                    id: disableDiffuseCheck
+                    objectName: "disableDiffuseCheck"
                     text: qsTr("Disable Diffuse Lighting (-particle_disable_diffuse)")
                     checked: false
                     ToolTip.text: qsTr("Prevents scene lighting from tinting or darkening particle sprites, preserving their intended self-luminous or vivid colors.")
@@ -201,6 +210,7 @@ Item {
 
             Button {
                 id: startBtn
+                objectName: "startBtn"
                 text: qsTr("START")
                 font.bold: true
                 enabled: !(root.mainController && root.mainController.isProcessing) &&
@@ -218,13 +228,22 @@ Item {
 
                 onClicked: {
                     if (root.mainController) {
-                        root.mainController.startImport()
+                        root.mainController.startParticleImport(
+                            root.gameViewModel ? root.gameViewModel.s1GamePath : "",
+                            root.gameViewModel ? root.gameViewModel.s2GamePath : "",
+                            addonCombo.currentText,
+                            root.selectedPcfPath,
+                            allowDepthBlendCheck.checked,
+                            disableDiffuseCheck.checked,
+                            root.gameViewModel ? root.gameViewModel.selectedS1Type : ""
+                        )
                     }
                 }
             }
 
             Button {
                 id: stopBtn
+                objectName: "stopBtn"
                 text: qsTr("STOP")
                 font.bold: true
                 enabled: root.mainController && root.mainController.isProcessing

@@ -371,3 +371,86 @@ target_include_directories(test_bspembeddedextractor PRIVATE
 )
 
 add_test(NAME test_bspembeddedextractor COMMAND test_bspembeddedextractor)
+
+qt_add_executable(test_tool_log_parsers
+    TestToolLogParsers.cpp
+)
+
+target_link_libraries(test_tool_log_parsers PRIVATE
+    cs2importer_domain
+    cs2importer_core
+    Qt6::Core
+    Qt6::Test
+)
+
+target_include_directories(test_tool_log_parsers PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+add_test(NAME test_tool_log_parsers COMMAND test_tool_log_parsers)
+
+qt_add_executable(test_particle_workflow
+    TestParticleWorkflow.cpp
+)
+
+target_link_libraries(test_particle_workflow PRIVATE
+    cs2importer_workflow
+    cs2importer_domain
+    cs2importer_core
+    Qt6::Core
+    Qt6::Test
+)
+
+target_include_directories(test_particle_workflow PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+add_test(NAME test_particle_workflow COMMAND test_particle_workflow)
+
+qt_add_executable(test_particle_service
+    TestParticleService.cpp
+)
+
+target_link_libraries(test_particle_service PRIVATE
+    cs2importer_application
+    cs2importer_workflow
+    cs2importer_domain
+    cs2importer_core
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Test
+)
+
+target_include_directories(test_particle_service PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+add_test(NAME test_particle_service COMMAND test_particle_service)
+
+qt_add_executable(test_particle_ui
+    TestParticleUI.cpp
+)
+
+target_link_libraries(test_particle_ui PRIVATE
+    cs2importer_ui
+    cs2importer_application
+    cs2importer_workflow
+    cs2importer_domain
+    cs2importer_core
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::Test
+)
+
+target_include_directories(test_particle_ui PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_compile_definitions(test_particle_ui PRIVATE
+    "PROJECT_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\""
+)
+
+add_test(NAME test_particle_ui COMMAND test_particle_ui)

@@ -1,4 +1,5 @@
 qt_add_library(cs2importer_core STATIC
+    Async/CancellationToken.h
     Result/Result.h
     Error/ErrorCode.h
     Error/Error.h

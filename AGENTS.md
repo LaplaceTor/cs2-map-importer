@@ -1057,16 +1057,16 @@ ctest --test-dir build/local-debug --output-on-failure
 
 ## 29. 技能规范自动加载参照
 
-在进行相关修改前，需查阅对应 Skill：
+在进行相关修改前，需查阅对应 Skill（位于 `third_party/agent-skills/skills/`）：
 
-| 任务类型            | Skill 路径                         |
-| ------------------- | ---------------------------------- |
-| C++ 代码实现        | `skills/qt-cmake-project/SKILL.md` |
-| CMake / 构建变更    | `skills/qt-cmake-project/SKILL.md` |
-| QML 界面实现        | `skills/qt-qml/SKILL.md`           |
-| C++ 代码审查        | `skills/qt-cpp-review/SKILL.md`    |
-| QML 代码审查        | `skills/qt-qml-review/SKILL.md`    |
-| UI / UX 设计决策    | `skills/qt-ui-design/SKILL.md`     |
+| 任务类型            | Skill 路径                                                |
+| ------------------- | --------------------------------------------------------- |
+| C++ 代码实现        | `third_party/agent-skills/skills/qt-cmake-project/SKILL.md` |
+| CMake / 构建变更    | `third_party/agent-skills/skills/qt-cmake-project/SKILL.md` |
+| QML 界面实现        | `third_party/agent-skills/skills/qt-qml/SKILL.md`           |
+| C++ 代码审查        | `third_party/agent-skills/skills/qt-cpp-review/SKILL.md`    |
+| QML 代码审查        | `third_party/agent-skills/skills/qt-qml-review/SKILL.md`    |
+| UI / UX 设计决策    | `third_party/agent-skills/skills/qt-ui-design/SKILL.md`     |
 
 ---
 

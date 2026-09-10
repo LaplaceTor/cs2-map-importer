@@ -9,7 +9,7 @@ namespace Workflow::Common {
 Core::Result<std::size_t> BspEmbeddedExtractor::extract(
     const Core::Path::FilesystemPath& bspPath,
     const Core::Path::FilesystemPath& destDir,
-    const CancellationToken& token,
+    const Core::Async::CancellationToken& token,
     Core::Logging::TaskLoggingContext* taskCtx) {
     if (bspPath.isEmpty() || !bspPath.isValid()) {
         return Core::Result<std::size_t>::failure(

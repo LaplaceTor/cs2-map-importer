@@ -9,7 +9,7 @@
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
 #include "Domain/Game/SearchTarget.h"
-#include "Workflow/Common/CancellationToken.h"
+#include "Core/Async/CancellationToken.h"
 
 namespace Domain::Package {
 class PackArchivePool;
@@ -65,7 +65,7 @@ public:
         const QString& relativeAssetPath,
         const Core::Path::FilesystemPath& destContentDir,
         const AssetExtractOptions& options = {},
-        const CancellationToken& token = {},
+        const Core::Async::CancellationToken& token = {},
         Core::Logging::TaskLoggingContext* taskCtx = nullptr);
 };
 

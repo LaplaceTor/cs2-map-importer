@@ -3,6 +3,7 @@
 #include <QString>
 #include <QStringList>
 #include <QProcessEnvironment>
+#include <QByteArray>
 
 namespace Core::Process {
 
@@ -11,6 +12,7 @@ struct ProcessOptions {
     QString workingDirectory;
     QProcessEnvironment environment;
     QStringList arguments;
+    QByteArray standardInput;
 };
 
 } // namespace Core::Process

@@ -51,6 +51,11 @@ ProcessResult ProcessRunner::execute(const QString& executable, const ProcessOpt
 
     process.start();
 
+    if (!options.standardInput.isEmpty()) {
+        process.write(options.standardInput);
+        process.closeWriteChannel();
+    }
+
     int startTimeout = options.timeout;
     if (!process.waitForStarted(startTimeout)) {
         result.exitCode = -1;

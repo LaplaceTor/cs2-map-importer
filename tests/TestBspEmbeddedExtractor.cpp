@@ -7,14 +7,14 @@
 #include "Core/Error/ErrorCode.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Workflow/Common/BspEmbeddedExtractor.h"
-#include "Workflow/Common/CancellationToken.h"
+#include "Core/Async/CancellationToken.h"
 
 #include "TestPackFixtures.h"
 
 using namespace TestPackFixtures;
 using Core::Path::FilesystemPath;
 using Workflow::Common::BspEmbeddedExtractor;
-using Workflow::Common::CancellationToken;
+using Core::Async::CancellationToken;
 
 namespace {
 

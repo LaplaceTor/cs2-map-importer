@@ -91,7 +91,7 @@ Core::Result<LookupHit> extractFromDirectoryTarget(Domain::Package::PackArchiveP
  * @brief Extracts companion files (e.g. model vertex data) from the winning
  *        target. Best-effort: misses and failures are logged, never fatal.
  */
-void extractCompanions(Domain::Package::PackArchivePool& pool, const Domain::Game::SearchTarget& winner, bool winnerFromPack, const QString& relativeAssetPath, const std::vector<QString>& companionExtensions, const Core::Path::FilesystemPath& destContentDir, const Workflow::Common::CancellationToken& token, Core::Logging::TaskLoggingContext* taskCtx) {
+void extractCompanions(Domain::Package::PackArchivePool& pool, const Domain::Game::SearchTarget& winner, bool winnerFromPack, const QString& relativeAssetPath, const std::vector<QString>& companionExtensions, const Core::Path::FilesystemPath& destContentDir, const Core::Async::CancellationToken& token, Core::Logging::TaskLoggingContext* taskCtx) {
     if (companionExtensions.empty()) {
         return;
     }
@@ -137,7 +137,7 @@ Core::Result<AssetExtraction> AssetExtractor::extract(
     const QString& relativeAssetPath,
     const Core::Path::FilesystemPath& destContentDir,
     const AssetExtractOptions& options,
-    const CancellationToken& token,
+    const Core::Async::CancellationToken& token,
     Core::Logging::TaskLoggingContext* taskCtx) {
     return runGuarded([&]() -> Core::Result<AssetExtraction> {
         if (relativeAssetPath.isEmpty()) {

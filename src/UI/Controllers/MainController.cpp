@@ -3,6 +3,9 @@
 #include <QGuiApplication>
 #include <QQmlEngine>
 #include <QStyleHints>
+#include <QUrl>
+#include <QMetaObject>
+#include <QPointer>
 
 #ifndef APP_VERSION
 #define APP_VERSION "1.0.0"
@@ -24,6 +27,13 @@ MainController::MainController(UI::ViewModels::LogViewModel* logViewModel, QObje
         });
     }
 #endif
+}
+
+MainController::~MainController() {
+    if (m_particleImportService && m_particleImportService->isImporting()) {
+        m_particleImportService->cancelCurrentImport();
+    }
+    m_particleImportService.reset();
 }
 
 void MainController::setActiveTab(int tab) {
@@ -64,7 +74,6 @@ QString MainController::appVersion() const {
 }
 
 void MainController::applyTheme(const QString& themeName) {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     if (auto* hints = QGuiApplication::styleHints()) {
         if (themeName == QStringLiteral("light")) {
             hints->setColorScheme(Qt::ColorScheme::Light);
@@ -74,9 +83,6 @@ void MainController::applyTheme(const QString& themeName) {
             hints->setColorScheme(Qt::ColorScheme::Unknown);
         }
     }
-#else
-    Q_UNUSED(themeName);
-#endif
 }
 
 void MainController::startImport() {
@@ -93,11 +99,105 @@ void MainController::startImport() {
     );
 }
 
-void MainController::stopImport() {
-    if (!m_isProcessing) {
+void MainController::startParticleImport(
+    const QString& source1GameDir,
+    const QString& cs2BaseDir,
+    const QString& addonName,
+    const QString& sourcePcfPath,
+    bool allowDepthBlend,
+    bool disableDiffuse,
+    const QString& s1GameType
+) {
+    if (m_isProcessing) {
         return;
     }
-    // Placeholder for cancellation in Stage 4
+
+    if (m_logViewModel) {
+        m_logViewModel->resetView();
+    }
+
+    const bool isCsgo = (s1GameType.compare(QStringLiteral("CSGO"), Qt::CaseInsensitive) == 0);
+
+    QString sanitizedPcfPath = sourcePcfPath;
+    if (sanitizedPcfPath.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)) {
+        // Normalize malformed Windows file URLs with only 2 slashes, e.g. file://C:/...
+        // where index 7 is the drive letter and index 8 is ':'.
+        // This avoids QUrl interpreting the drive letter as a hostname.
+        if (sanitizedPcfPath.size() >= 9 &&
+            (sanitizedPcfPath.at(5) == QLatin1Char('/') || sanitizedPcfPath.at(5) == QLatin1Char('\\')) &&
+            (sanitizedPcfPath.at(6) == QLatin1Char('/') || sanitizedPcfPath.at(6) == QLatin1Char('\\')) &&
+            sanitizedPcfPath.at(7).isLetter() &&
+            sanitizedPcfPath.at(8) == QLatin1Char(':')) {
+            sanitizedPcfPath = QStringLiteral("file:///") + sanitizedPcfPath.mid(7);
+        }
+
+        QUrl pcfUrl(sanitizedPcfPath);
+        QString local = pcfUrl.toLocalFile();
+        if (!local.isEmpty()) {
+            sanitizedPcfPath = local;
+        }
+    }
+
+    Application::Particle::ParticleImportRequest request;
+    request.source1GameDir = source1GameDir;
+    request.cs2BaseDir = cs2BaseDir;
+    request.addonName = addonName;
+    request.sourcePcfPath = sanitizedPcfPath;
+    request.allowDepthBlend = allowDepthBlend;
+    request.disableDiffuse = disableDiffuse;
+    request.isCsgo = isCsgo;
+
+    m_isProcessing = true;
+    emit isProcessingChanged();
+
+    if (!m_particleImportService) {
+        m_particleImportService = std::make_unique<Application::Particle::ParticleImportService>();
+    }
+
+    QPointer<MainController> self(this);
+    m_particleImportService->importParticlesAsync(
+        request,
+        nullptr,
+        [self](const Core::Result<Application::Particle::ParticleImportResult>& result) {
+            if (!self) {
+                return;
+            }
+            QMetaObject::invokeMethod(self, [self, result]() {
+                if (!self) {
+                    return;
+                }
+                self->m_isProcessing = false;
+                emit self->isProcessingChanged();
+
+                if (result.isSuccess()) {
+                    emit self->alertRequested(
+                        QStringLiteral("Particle Import Complete"),
+                        result.message().isEmpty()
+                            ? QStringLiteral("All particles were successfully imported and compiled.")
+                            : result.message()
+                    );
+                } else if (result.isCancelled()) {
+                    emit self->alertRequested(
+                        QStringLiteral("Import Cancelled"),
+                        QStringLiteral("Particle import was cancelled by user.")
+                    );
+                } else {
+                    emit self->alertRequested(
+                        QStringLiteral("Particle Import Failed"),
+                        result.message().isEmpty()
+                            ? QStringLiteral("An error occurred during particle import.")
+                            : result.message()
+                    );
+                }
+            }, Qt::QueuedConnection);
+        }
+    );
+}
+
+void MainController::stopImport() {
+    if (m_particleImportService && m_particleImportService->isImporting()) {
+        m_particleImportService->cancelCurrentImport();
+    }
 }
 
 void MainController::checkForUpdates() {

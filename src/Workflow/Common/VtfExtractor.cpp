@@ -32,7 +32,7 @@ Core::Result<AssetExtraction> VtfExtractor::extract(
     const QString& relativeVtfPath,
     const Core::Path::FilesystemPath& destImageDir,
     Domain::Material::ImageFileFormat targetFormat,
-    const CancellationToken& token,
+    const Core::Async::CancellationToken& token,
     Core::Logging::TaskLoggingContext* taskCtx) {
     return runGuarded([&]() -> Core::Result<AssetExtraction> {
         if (relativeVtfPath.isEmpty()) {

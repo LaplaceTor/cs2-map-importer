@@ -9,7 +9,7 @@
 #include "Domain/Game/SearchTarget.h"
 #include "Domain/Package/PackArchivePool.h"
 #include "Workflow/Common/AssetExtractor.h"
-#include "Workflow/Common/CancellationToken.h"
+#include "Core/Async/CancellationToken.h"
 
 #include "TestPackFixtures.h"
 
@@ -17,7 +17,7 @@ using namespace TestPackFixtures;
 using Core::Path::FilesystemPath;
 using Workflow::Common::AssetExtractOptions;
 using Workflow::Common::AssetExtractor;
-using Workflow::Common::CancellationToken;
+using Core::Async::CancellationToken;
 
 namespace {
 

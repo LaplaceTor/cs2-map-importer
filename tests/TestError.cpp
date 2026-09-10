@@ -9,6 +9,8 @@
 #include "Domain/Game/GameInfoParser.h"
 #include "Domain/Game/GameErrors.h"
 
+#include "Core/Async/CancellationToken.h"
+
 using namespace Core::Error;
 using Core::Result;
 using Core::ResultStatus;
@@ -30,6 +32,7 @@ private slots:
     void testResultValueOr();
     void testGameInfoParserStructuredError();
     void testTripartiteDiagnosticContract();
+    void testCancellationToken();
 };
 
 void TestError::testErrorCodeBasics()
@@ -383,6 +386,32 @@ void TestError::testTripartiteDiagnosticContract()
     QVERIFY(emptyCustom.is(GameErrorCode::EmptyCustomGameInfo));
     QCOMPARE(emptyCustom.message(), QStringLiteral("Custom GameInfo is empty and has no valid gameinfo file path"));
     QCOMPARE(emptyCustom.details(), QString());
+}
+
+void TestError::testCancellationToken()
+{
+    Core::Async::CancellationToken token;
+    QVERIFY(!token.isCancelled());
+
+    Core::Async::CancellationToken copy = token;
+    QVERIFY(!copy.isCancelled());
+
+    token.cancel();
+    QVERIFY(token.isCancelled());
+    QVERIFY(copy.isCancelled());
+
+    Core::Async::CancellationToken copyAfterCancel = token;
+    QVERIFY(copyAfterCancel.isCancelled());
+
+    // Moved-from token safety: isCancelled() should return false and cancel() should not crash
+    Core::Async::CancellationToken movedSource;
+    Core::Async::CancellationToken movedDest = std::move(movedSource);
+    QVERIFY(!movedSource.isCancelled());
+    movedSource.cancel();
+    QVERIFY(!movedSource.isCancelled());
+    QVERIFY(!movedDest.isCancelled());
+    movedDest.cancel();
+    QVERIFY(movedDest.isCancelled());
 }
 
 QTEST_MAIN(TestError)

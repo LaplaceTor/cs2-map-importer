@@ -10,7 +10,7 @@
 #include "Domain/Game/SearchTarget.h"
 #include "Domain/Material/VtfConverter.h"
 #include "Workflow/Common/AssetExtractor.h"
-#include "Workflow/Common/CancellationToken.h"
+#include "Core/Async/CancellationToken.h"
 
 namespace Workflow::Common {
 
@@ -32,7 +32,7 @@ public:
         const QString& relativeVtfPath,
         const Core::Path::FilesystemPath& destImageDir,
         Domain::Material::ImageFileFormat targetFormat = Domain::Material::ImageFileFormat::Png,
-        const CancellationToken& token = {},
+        const Core::Async::CancellationToken& token = {},
         Core::Logging::TaskLoggingContext* taskCtx = nullptr);
 };
 

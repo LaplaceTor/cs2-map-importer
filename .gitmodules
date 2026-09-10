@@ -2,3 +2,6 @@
 	path = third_party/sourcepp
 	url = https://github.com/LaplaceTor/sourcepp.git
 	branch = cs2importer-vendor
+[submodule "third_party/agent-skills"]
+	path = third_party/agent-skills
+	url = https://github.com/TheQtCompanyRnD/agent-skills.git

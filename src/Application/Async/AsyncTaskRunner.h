@@ -19,6 +19,7 @@
 #include "Core/Error/ErrorCode.h"
 #include "Core/Error/Exception.h"
 #include "Application/Execution/ExecutionGuard.h"
+#include "Application/Async/TaskHandle.h"
 
 namespace Application::Async {
 
@@ -70,7 +71,7 @@ public:
      * @param parentTaskId Optional parent task ID for hierarchical sub-tasks.
      */
     template <typename T = void, typename WorkerFn, typename CallbackFn = std::function<void(const Result<T>&)>>
-    static void runTask(
+    static TaskHandle runTask(
         const QString& taskName,
         QObject* context,
         WorkerFn&& worker,
@@ -78,7 +79,7 @@ public:
         QThreadPool* pool = QThreadPool::globalInstance(),
         quint64 parentTaskId = 0)
     {
-        runTaskInternal<T>(taskName, context, std::forward<WorkerFn>(worker), std::forward<CallbackFn>(callback), pool, parentTaskId);
+        return runTaskInternal<T>(taskName, context, std::forward<WorkerFn>(worker), std::forward<CallbackFn>(callback), pool, parentTaskId);
     }
 
     /**
@@ -88,12 +89,12 @@ public:
      * @param parentTaskId Parent task ID in LogManager.
      * @param taskName The name of the child sub-task.
      * @param context The Qt lifetime context object.
-     * @param worker Lambda taking std::shared_ptr<TaskLoggingContext> and returning Result<T>.
+     * @param worker Lambda taking std::shared_ptr<TaskLoggingContext> (and optional CancellationToken) and returning Result<T>.
      * @param callback Callback receiving const Result<T>&.
      * @param pool The QThreadPool to dispatch to.
      */
     template <typename T = void, typename WorkerFn, typename CallbackFn = std::function<void(const Result<T>&)>>
-    static void runChildTask(
+    static TaskHandle runChildTask(
         quint64 parentTaskId,
         const QString& taskName,
         QObject* context,
@@ -101,7 +102,7 @@ public:
         CallbackFn&& callback = CallbackFn{},
         QThreadPool* pool = QThreadPool::globalInstance())
     {
-        runTaskInternal<T>(taskName, context, std::forward<WorkerFn>(worker), std::forward<CallbackFn>(callback), pool, parentTaskId);
+        return runTaskInternal<T>(taskName, context, std::forward<WorkerFn>(worker), std::forward<CallbackFn>(callback), pool, parentTaskId);
     }
 
     /**
@@ -112,7 +113,7 @@ public:
      * Worker is strictly constrained to return Core::Result<void>.
      */
     template <typename WorkerFn>
-    static void runBackground(
+    static TaskHandle runBackground(
         const QString& taskName,
         WorkerFn&& worker,
         QThreadPool* pool = QThreadPool::globalInstance(),
@@ -120,9 +121,10 @@ public:
     {
         using DecayedWorker = std::decay_t<WorkerFn>;
         static_assert(
-            std::is_invocable_r_v<Result<void>, DecayedWorker, std::shared_ptr<Core::Logging::TaskLoggingContext>>,
+            std::is_invocable_r_v<Result<void>, DecayedWorker, std::shared_ptr<Core::Logging::TaskLoggingContext>> ||
+            std::is_invocable_r_v<Result<void>, DecayedWorker, std::shared_ptr<Core::Logging::TaskLoggingContext>, Core::Async::CancellationToken>,
             "AsyncTaskRunner::runBackground worker must return Core::Result<void>");
-        runTask<void>(taskName, nullptr, std::forward<WorkerFn>(worker), {}, pool, parentTaskId);
+        return runTask<void>(taskName, nullptr, std::forward<WorkerFn>(worker), {}, pool, parentTaskId);
     }
 
 private:
@@ -130,7 +132,7 @@ private:
      * @brief Internal engine executing a typed Result<T> async worker.
      */
     template <typename T, typename WorkerFn, typename CallbackFn>
-    static void runTaskInternal(
+    static TaskHandle runTaskInternal(
         const QString& taskName,
         QObject* context,
         WorkerFn&& worker,
@@ -167,18 +169,21 @@ private:
                     }
                 }
             }
-            return;
+            return TaskHandle{};
         }
 
         taskContext->start();
         QPointer<QObject> contextGuard(context);
         quint64 taskId = taskContext->taskId();
+        Core::Async::CancellationToken token;
+        TaskHandle handle(taskId, token);
+
         bool hasValidCallback = false;
         if constexpr (std::is_invocable_v<DecayedCallback, Result<T>>) {
             hasValidCallback = Detail::isCallableValid(callback);
         }
 
-        auto workerLambda = [taskContext, taskId, taskName, contextGuard, context, hasValidCallback,
+        auto workerLambda = [taskContext, taskId, taskName, contextGuard, context, hasValidCallback, token,
                              worker = DecayedWorker(std::forward<WorkerFn>(worker)),
                              callback = DecayedCallback(std::forward<CallbackFn>(callback))]() mutable {
             try {
@@ -186,7 +191,11 @@ private:
                 bool threwException = false;
 
                 try {
-                    result = worker(taskContext);
+                    if constexpr (std::is_invocable_v<DecayedWorker, std::shared_ptr<Core::Logging::TaskLoggingContext>, Core::Async::CancellationToken>) {
+                        result = worker(taskContext, token);
+                    } else {
+                        result = worker(taskContext);
+                    }
                 } catch (const Core::Error::Exception& ex) {
                     threwException = true;
                     if (taskContext) {
@@ -377,6 +386,7 @@ private:
         } else {
             QThreadPool::globalInstance()->start(runnable);
         }
+        return handle;
     }
 };
 
