@@ -65,7 +65,11 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::convertPcf(
             Core::Error::ErrorCode::InvalidPath,
             QStringLiteral("输入 PCF 文件路径无效"));
     }
-    if (!options.inputPcfPath.exists()) {
+    Core::Path::FilesystemPath effectiveCheckPath = options.inputPcfPath;
+    if (!effectiveCheckPath.isAbsolute() && !options.source1GameInfoDir.isEmpty()) {
+        effectiveCheckPath = options.source1GameInfoDir / options.inputPcfPath;
+    }
+    if (!effectiveCheckPath.exists()) {
         return Core::Result<Source1ImportToolResult>::failure(
             ToolErrors::noMatchingFiles(options.inputPcfPath.toString()),
             QStringLiteral("输入 PCF 文件不存在"));
@@ -147,9 +151,12 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::convertPcf(
         QString failureReason = logResult.errorMessages.isEmpty()
             ? QStringLiteral("source1import returned failure with exit code %1").arg(procResult.exitCode)
             : logResult.errorMessages.join(QStringLiteral("; "));
+        if (taskCtx) {
+            taskCtx->error(QStringLiteral("source1import failed: %1").arg(failureReason));
+        }
         return Core::Result<Source1ImportToolResult>::failure(
             ToolErrors::importFailed(failureReason, procResult.stdOut),
-            QStringLiteral("PCF 粒子转换失败"),
+            QStringLiteral("PCF 粒子转换失败: %1").arg(failureReason),
             toolResult);
     }
 

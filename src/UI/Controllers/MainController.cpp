@@ -90,7 +90,7 @@ void MainController::startImport() {
         return;
     }
     if (m_logViewModel) {
-        m_logViewModel->resetView();
+        m_logViewModel->collapseAll();
     }
     // Placeholder for WorkflowRunner integration in Stage 4
     emit alertRequested(
@@ -113,7 +113,7 @@ void MainController::startParticleImport(
     }
 
     if (m_logViewModel) {
-        m_logViewModel->resetView();
+        m_logViewModel->collapseAll();
     }
 
     const bool isCsgo = (s1GameType.compare(QStringLiteral("CSGO"), Qt::CaseInsensitive) == 0);

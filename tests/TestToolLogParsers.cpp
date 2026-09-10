@@ -28,6 +28,8 @@ private slots:
     void testSource1ImportLogParser_FailureImportError();
     void testSource1ImportLogParser_FailureNoMatchingFiles();
     void testSource1ImportLogParser_NonZeroExitCode();
+    void testSource1ImportLogParser_GameInfoNotFoundError();
+    void testSource1ImportLogParser_FailedToMakePathRelative();
     void testResourceCompilerLogParser_SuccessSingleCompile();
     void testResourceCompilerLogParser_SuccessSkipped();
     void testResourceCompilerLogParser_CompileErrors();
@@ -152,6 +154,39 @@ void TestToolLogParsers::testSource1ImportLogParser_NonZeroExitCode()
     QString stdOut = QStringLiteral("Some unexpected fatal output\n");
     auto result = Source1ImportLogParser::parse(stdOut, QString(), 2);
     QVERIFY(!result.success);
+    QVERIFY(!result.errorMessages.isEmpty());
+    QCOMPARE(result.errorMessages.first(), QStringLiteral("Some unexpected fatal output"));
+}
+
+void TestToolLogParsers::testSource1ImportLogParser_GameInfoNotFoundError()
+{
+    QString stdOut = QStringLiteral(
+        "Failed to map from d:/steamlibrary/steamapps/common/counter-strike source/ to game-path. Note this is ok for the dota localization import.\n"
+        "Unable to load source 1 mod gameinfo.txt! d:\\steamlibrary\\steamapps\\common\\counter-strike source\\gameinfo.txt\n"
+    );
+    auto result = Source1ImportLogParser::parse(stdOut, QString(), 1);
+    QVERIFY(!result.success);
+    QVERIFY(!result.errorMessages.isEmpty());
+    QVERIFY(result.errorMessages.first().contains(QStringLiteral("Unable to load source 1 mod gameinfo.txt")));
+}
+
+void TestToolLogParsers::testSource1ImportLogParser_FailedToMakePathRelative()
+{
+    QString stdOut = QStringLiteral(
+        "Importing 1 resources...\n"
+        "- (1/1) C:\\external\\particles\\custom.pcf\n"
+        "WARNING: Failed to make path 'C:\\external\\particles\\custom.pcf' relative!\n"
+        "-----------------------------------------------------------------\n"
+        "SKIPPED:\n"
+        " C:\\external\\particles\\custom.pcf\n"
+        "-----------------------------------------------------------------\n"
+        " OK: 0 imported, 0 failed, 1 skipped, 0 unknown, 0m:00s\n"
+    );
+    auto result = Source1ImportLogParser::parse(stdOut, QString(), 0);
+    QVERIFY(!result.success);
+    QVERIFY(!result.warnings.isEmpty());
+    QVERIFY(!result.errorMessages.isEmpty());
+    QVERIFY(result.errorMessages.first().contains(QStringLiteral("Failed to make path")));
 }
 
 void TestToolLogParsers::testResourceCompilerLogParser_SuccessSingleCompile()

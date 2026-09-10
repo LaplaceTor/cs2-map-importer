@@ -41,6 +41,10 @@ private slots:
     void testCancellation_PreCancelledToken();
     void testCancellation_CancelledDuringExecution();
 
+    // PCF Staging & Cleanup
+    void testStaging_LoosePcfStagedAndCleanedUp();
+    void testStaging_ExistingPcfPreserved();
+
     // End-to-End Execution Simulation & Tripartite Diagnostics
     void testEndToEnd_FullPipelineSuccess();
     void testEndToEnd_Source1ImportFails();
@@ -268,6 +272,104 @@ void TestParticleWorkflow::testCancellation_CancelledDuringExecution()
 
     QVERIFY(result.isCancelled());
 }
+
+// ---------------------------------------------------------------------------
+// PCF Staging & Cleanup Tests
+// ---------------------------------------------------------------------------
+
+void TestParticleWorkflow::testStaging_LoosePcfStagedAndCleanedUp()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+
+    const QString s1Dir = temp.filePath("s1");
+    const QString cs2Dir = temp.filePath("cs2");
+    setupDirs(s1Dir, cs2Dir);
+
+    const QString loosePcf = temp.filePath("external/loose.pcf");
+    createFile(loosePcf, "BINARY_DATA");
+
+    const QString s1Tool = temp.filePath("s1import.bat");
+    const QString rcTool = temp.filePath("rc.bat");
+    const QString generatedVpcf = temp.filePath("cs2/content/csgo_addons/test/particles/loose.vpcf");
+    const QString compiledVpcfC = temp.filePath("cs2/game/csgo_addons/test/particles/loose.vpcf_c");
+
+    createMockToolBat(s1Tool, {
+        QStringLiteral("echo Writing file \"%1\"").arg(generatedVpcf),
+        QStringLiteral("echo OK: 1 imported, 0 failed, 0 skipped, 0 unknown, 0m:00s")
+    });
+
+    createMockToolBat(rcTool, {
+        QStringLiteral("echo  - Wrote to: %1").arg(compiledVpcfC),
+        QStringLiteral("echo OK: 1 compiled, 0 failed, 0 skipped")
+    });
+
+    ParticleImportOptions options;
+    options.source1GameDir = FilesystemPath(s1Dir);
+    options.cs2BaseDir = FilesystemPath(cs2Dir);
+    options.addonName = QStringLiteral("test");
+    options.sourcePcfPath = FilesystemPath(loosePcf);
+    options.source1ImportExe = FilesystemPath(s1Tool);
+    options.resourceCompilerExe = FilesystemPath(rcTool);
+
+    ParticleImportWorkflow workflow;
+    auto result = workflow.execute(options);
+
+    QVERIFY2(result.isSuccess(), qPrintable(result.message()));
+
+    // Original loose PCF remains intact
+    QVERIFY(QFile::exists(loosePcf));
+
+    // Staged temporary copy under s1Dir/particles/loose.pcf has been cleaned up
+    const QString stagedPcf = temp.filePath("s1/particles/loose.pcf");
+    QVERIFY(!QFile::exists(stagedPcf));
+}
+
+void TestParticleWorkflow::testStaging_ExistingPcfPreserved()
+{
+    QTemporaryDir temp;
+    QVERIFY(temp.isValid());
+
+    const QString s1Dir = temp.filePath("s1");
+    const QString cs2Dir = temp.filePath("cs2");
+    setupDirs(s1Dir, cs2Dir);
+
+    // Native PCF already in <s1Dir>/particles/native.pcf
+    const QString nativePcf = temp.filePath("s1/particles/native.pcf");
+    createFile(nativePcf, "NATIVE_DATA");
+
+    const QString s1Tool = temp.filePath("s1import.bat");
+    const QString rcTool = temp.filePath("rc.bat");
+    const QString generatedVpcf = temp.filePath("cs2/content/csgo_addons/test/particles/native.vpcf");
+    const QString compiledVpcfC = temp.filePath("cs2/game/csgo_addons/test/particles/native.vpcf_c");
+
+    createMockToolBat(s1Tool, {
+        QStringLiteral("echo Writing file \"%1\"").arg(generatedVpcf),
+        QStringLiteral("echo OK: 1 imported, 0 failed, 0 skipped, 0 unknown, 0m:00s")
+    });
+
+    createMockToolBat(rcTool, {
+        QStringLiteral("echo  - Wrote to: %1").arg(compiledVpcfC),
+        QStringLiteral("echo OK: 1 compiled, 0 failed, 0 skipped")
+    });
+
+    ParticleImportOptions options;
+    options.source1GameDir = FilesystemPath(s1Dir);
+    options.cs2BaseDir = FilesystemPath(cs2Dir);
+    options.addonName = QStringLiteral("test");
+    options.sourcePcfPath = FilesystemPath(nativePcf);
+    options.source1ImportExe = FilesystemPath(s1Tool);
+    options.resourceCompilerExe = FilesystemPath(rcTool);
+
+    ParticleImportWorkflow workflow;
+    auto result = workflow.execute(options);
+
+    QVERIFY2(result.isSuccess(), qPrintable(result.message()));
+
+    // Existing native PCF in s1/particles/ must NOT be deleted by cleanup!
+    QVERIFY(QFile::exists(nativePcf));
+}
+
 // ---------------------------------------------------------------------------
 // End-to-End Execution Simulation & Tripartite Diagnostics
 // ---------------------------------------------------------------------------

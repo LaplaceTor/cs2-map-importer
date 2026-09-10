@@ -57,6 +57,7 @@ public:
         info.gameTitle = m_gameTitle;
         info.basePath = m_baseDirectory.toString();
         info.gameInfoPath = m_gameInfoPath.toString();
+        info.gameInfoDir = m_gameInfoPath.parentPath().toString();
         info.isValid = m_isValid;
         info.isSource2 = m_isSource2;
         return info;

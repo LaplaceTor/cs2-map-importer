@@ -12,6 +12,7 @@ struct BaseImportRequest {
     QString source1GameDir;
     QString cs2BaseDir;
     QString addonName;
+    QString s1GameInfoDir;
 
     bool operator==(const BaseImportRequest& other) const = default;
 };
@@ -23,6 +24,7 @@ struct BaseImportRequest {
  */
 struct ValidatedBaseImport {
     QString source1GameDir;
+    QString s1GameInfoDir;
     QString cs2BaseDir;
     QString addonName;
     Core::Path::FilesystemPath source1ImportExe;

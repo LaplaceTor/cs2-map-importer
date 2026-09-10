@@ -18,6 +18,7 @@ struct GameInstallationInfo {
     QString gameTitle;
     QString basePath;
     QString gameInfoPath;
+    QString gameInfoDir;
     bool isValid = false;
     bool isSource2 = false;
 };

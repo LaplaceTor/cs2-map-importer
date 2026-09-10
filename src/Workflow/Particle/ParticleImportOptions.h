@@ -11,6 +11,7 @@ namespace Workflow::Particle {
  */
 struct ParticleImportOptions {
     Core::Path::FilesystemPath source1GameDir;
+    Core::Path::FilesystemPath s1GameInfoDir;
     Core::Path::FilesystemPath cs2BaseDir;
     QString addonName;
     Core::Path::FilesystemPath sourcePcfPath;

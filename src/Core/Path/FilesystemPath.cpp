@@ -41,6 +41,20 @@ bool FilesystemPath::isDirectory() const {
     return QFileInfo(m_path).isDir();
 }
 
+bool FilesystemPath::isAbsolute() const {
+    if (m_path.isEmpty()) {
+        return false;
+    }
+    return QFileInfo(m_path).isAbsolute();
+}
+
+bool FilesystemPath::isRelative() const {
+    if (m_path.isEmpty()) {
+        return false;
+    }
+    return QFileInfo(m_path).isRelative();
+}
+
 QString FilesystemPath::fileName() const {
     if (m_path.isEmpty()) {
         return QString();

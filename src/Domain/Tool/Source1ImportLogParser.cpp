@@ -103,12 +103,20 @@ Source1ImportLogResult Source1ImportLogParser::parse(
         // Warning tracking
         if (trimmed.startsWith(QStringLiteral("WARNING:"), Qt::CaseInsensitive)) {
             result.warnings.append(trimmed);
+            if (trimmed.contains(QStringLiteral("Failed to make path"), Qt::CaseInsensitive)) {
+                result.errorMessages.append(trimmed);
+            }
         }
 
         // Error tracking
         if (trimmed.contains(QStringLiteral("*** Error"), Qt::CaseInsensitive) ||
             trimmed.startsWith(QStringLiteral("FATAL ERROR:"), Qt::CaseInsensitive) ||
-            trimmed.startsWith(QStringLiteral("FAILED:"), Qt::CaseInsensitive)) {
+            trimmed.startsWith(QStringLiteral("FAILED:"), Qt::CaseInsensitive) ||
+            trimmed.startsWith(QStringLiteral("Error:"), Qt::CaseInsensitive) ||
+            trimmed.startsWith(QStringLiteral("Unable to load"), Qt::CaseInsensitive) ||
+            trimmed.contains(QStringLiteral("Unable to load source 1 mod gameinfo"), Qt::CaseInsensitive) ||
+            (trimmed.startsWith(QStringLiteral("Failed to "), Qt::CaseInsensitive) &&
+             !trimmed.contains(QStringLiteral("Note this is ok"), Qt::CaseInsensitive))) {
             result.errorMessages.append(trimmed);
         }
     }
@@ -129,11 +137,24 @@ Source1ImportLogResult Source1ImportLogParser::parse(
         }
     }
 
+    // If non-zero exit code but no explicit error messages matched, extract last meaningful output line
+    if (exitCode != 0 && result.errorMessages.isEmpty()) {
+        for (auto it = outLines.crbegin(); it != outLines.crend(); ++it) {
+            QString trimmed = it->trimmed();
+            if (!trimmed.isEmpty() &&
+                !trimmed.startsWith(QLatin1Char('-')) &&
+                !trimmed.startsWith(QLatin1Char('='))) {
+                result.errorMessages.append(trimmed);
+                break;
+            }
+        }
+    }
+
     // Determine success
-    if (result.hasNoMatchingFiles || exitCode != 0 || hasErrorBanner || result.failedCount > 0) {
+    if (result.hasNoMatchingFiles || exitCode != 0 || hasErrorBanner || result.failedCount > 0 || !result.errorMessages.isEmpty()) {
         result.success = false;
     } else if (hasOkBanner) {
-        result.success = (result.failedCount == 0 && (result.importedCount > 0 || result.skippedCount > 0));
+        result.success = (result.failedCount == 0 && result.importedCount > 0);
     } else {
         // Fallback: no banner, but exitCode == 0, produced files, and no missing files detected
         result.success = (exitCode == 0 && !result.generatedVpcfPaths.isEmpty() && !result.hasNoMatchingFiles);

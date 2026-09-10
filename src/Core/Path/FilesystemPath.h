@@ -14,6 +14,8 @@ public:
     bool exists() const;
     bool isFile() const;
     bool isDirectory() const;
+    bool isAbsolute() const;
+    bool isRelative() const;
 
     QString fileName() const;
     QString extension() const;

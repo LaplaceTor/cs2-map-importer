@@ -2,6 +2,7 @@
 
 #include <QDir>
 #include "Application/Environment/VpkSignatureLeaseService.h"
+#include "Domain/Game/GameInstallationResolver.h"
 #include "Domain/Tool/Cs2PathLayout.h"
 #include "Core/Error/ErrorCode.h"
 
@@ -50,6 +51,25 @@ Core::Result<ValidatedBaseImport> ImportPrerequisiteService::prepare(
             trimmedS1Dir);
     }
 
+    // Resolve Source 1 gameinfo directory
+    QString resolvedS1GameInfoDir;
+    const QString trimmedReqGiDir = request.s1GameInfoDir.trimmed();
+    if (!trimmedReqGiDir.isEmpty() && QDir(trimmedReqGiDir).exists()) {
+        resolvedS1GameInfoDir = trimmedReqGiDir;
+    } else {
+        const Core::Path::FilesystemPath s1Path(trimmedS1Dir);
+        if ((s1Path / QStringLiteral("gameinfo.txt")).exists()) {
+            resolvedS1GameInfoDir = trimmedS1Dir;
+        } else {
+            auto inspectRes = Domain::Game::GameInstallationResolver::inspectGameInfo(s1Path);
+            if (inspectRes.isSuccess() && inspectRes.value().modDirectory().isValid() && inspectRes.value().modDirectory().exists()) {
+                resolvedS1GameInfoDir = inspectRes.value().modDirectory().toString();
+            } else {
+                resolvedS1GameInfoDir = trimmedS1Dir;
+            }
+        }
+    }
+
     // Step 3: Validate CS2 base directory
     const QString trimmedCs2Dir = request.cs2BaseDir.trimmed();
     if (trimmedCs2Dir.isEmpty()) {
@@ -94,7 +114,7 @@ Core::Result<ValidatedBaseImport> ImportPrerequisiteService::prepare(
     const Core::Path::FilesystemPath rcExe = Domain::Tool::Cs2PathLayout::resourceCompilerExecutable(cs2Path);
 
     return Core::Result<ValidatedBaseImport>::success(
-        ValidatedBaseImport{trimmedS1Dir, trimmedCs2Dir, trimmedAddon, s1ImportExe, rcExe});
+        ValidatedBaseImport{trimmedS1Dir, resolvedS1GameInfoDir, trimmedCs2Dir, trimmedAddon, s1ImportExe, rcExe});
 }
 
 } // namespace Application::Common
