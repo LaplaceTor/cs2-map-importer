@@ -19,3 +19,7 @@ gameinfotestfile/
 source1soundscripts/
 source2soundscripts/
 .agents/
+build_package.ps1
+release_test/
+dist/
+*.zip
