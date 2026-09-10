@@ -19,14 +19,14 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
         0.5,
         [&]() -> Core::Result<Domain::Tool::Source1ImportToolResult> {
             Domain::Tool::Source1ImportOptions s1Options;
-            s1Options.source1GameInfoDir = options.source1GameDir;
+            s1Options.source1GameInfoDir = options.s1GameInfoDir;
             s1Options.addonName = trimmedAddon;
-            s1Options.inputPcfPath = options.sourcePcfPath;
+            s1Options.inputFilePath = options.sourcePcfPath;
             s1Options.allowDepthBlend = options.allowDepthBlend;
             s1Options.disableDiffuse = options.disableDiffuse;
             s1Options.isCsgo = options.isCsgo;
 
-            auto s1Result = Domain::Tool::Source1ImportTool::convertPcf(
+            auto s1Result = Domain::Tool::Source1ImportTool::importAsset(
                 options.source1ImportExe, s1Options, context.loggingContext());
             if (s1Result.isFailure()) {
                 return Core::Result<Domain::Tool::Source1ImportToolResult>::failure(

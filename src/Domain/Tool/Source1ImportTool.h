@@ -14,7 +14,7 @@ namespace Domain::Tool {
 struct Source1ImportOptions {
     Core::Path::FilesystemPath source1GameInfoDir;
     QString addonName;
-    Core::Path::FilesystemPath inputPcfPath;
+    Core::Path::FilesystemPath inputFilePath;
     bool allowDepthBlend = false;
     bool disableDiffuse = false;
     bool isCsgo = false;
@@ -44,16 +44,19 @@ public:
 
     static QStringList buildArguments(const Source1ImportOptions& options);
 
-    static Core::Result<Source1ImportToolResult> convertPcf(
+    /**
+     * @brief Generic import method for any asset supported by source1import.exe.
+     */
+    static Core::Result<Source1ImportToolResult> importAsset(
         const Core::Path::FilesystemPath& toolBinaryPath,
         const Source1ImportOptions& options,
         Core::Logging::TaskLoggingContext* taskCtx = nullptr);
 
-    Core::Result<Source1ImportToolResult> convertPcf(
+    Core::Result<Source1ImportToolResult> importAsset(
         const Source1ImportOptions& options,
         Core::Logging::TaskLoggingContext* taskCtx = nullptr) const
     {
-        return convertPcf(m_toolBinaryPath, options, taskCtx);
+        return importAsset(m_toolBinaryPath, options, taskCtx);
     }
 
     const Core::Path::FilesystemPath& toolBinaryPath() const noexcept { return m_toolBinaryPath; }

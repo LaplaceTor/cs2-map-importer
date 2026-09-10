@@ -17,6 +17,7 @@ class GameViewModel : public QObject {
     Q_PROPERTY(QStringList s1GameTypes READ s1GameTypes CONSTANT)
     Q_PROPERTY(QString selectedS1Type READ selectedS1Type WRITE setSelectedS1Type NOTIFY selectedS1TypeChanged)
     Q_PROPERTY(QString s1GamePath READ s1GamePath NOTIFY s1GamePathChanged)
+    Q_PROPERTY(QString s1GameInfoDir READ s1GameInfoDir NOTIFY s1GameInfoDirChanged)
     Q_PROPERTY(QString s1GameTitle READ s1GameTitle NOTIFY s1GameTitleChanged)
     Q_PROPERTY(bool isS1Valid READ isS1Valid NOTIFY s1ValidityChanged)
 
@@ -42,6 +43,7 @@ public:
     QStringList s1GameTypes() const;
     QString selectedS1Type() const noexcept { return m_selectedS1Type; }
     QString s1GamePath() const noexcept { return m_s1GamePath; }
+    QString s1GameInfoDir() const noexcept { return m_s1Installation.gameInfoDir; }
     QString s1GameTitle() const noexcept { return m_s1GameTitle; }
     bool isS1Valid() const noexcept { return m_isS1Valid; }
 
@@ -75,6 +77,7 @@ public slots:
 signals:
     void selectedS1TypeChanged();
     void s1GamePathChanged();
+    void s1GameInfoDirChanged();
     void s1GameTitleChanged();
     void s1ValidityChanged();
 

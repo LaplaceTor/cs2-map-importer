@@ -56,6 +56,7 @@ void GameViewModel::applyS1Installation(const Application::Environment::GameInst
     m_isS1Valid = inst.isValid;
 
     emit s1GamePathChanged();
+    emit s1GameInfoDirChanged();
     emit s1GameTitleChanged();
     emit s1ValidityChanged();
 }
@@ -203,6 +204,7 @@ void GameViewModel::setSelectedS1Type(const QString& typeId) {
         m_isS1Valid = false;
 
         emit s1GamePathChanged();
+        emit s1GameInfoDirChanged();
         emit s1GameTitleChanged();
         emit s1ValidityChanged();
     }

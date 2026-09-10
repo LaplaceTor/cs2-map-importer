@@ -20,7 +20,7 @@ Workflow::Particle::ParticleImportOptions toWorkflowOptions(
 {
     Workflow::Particle::ParticleImportOptions options;
     options.source1GameDir = Core::Path::FilesystemPath(base.source1GameDir);
-    options.s1GameInfoDir = Core::Path::FilesystemPath(base.s1GameInfoDir.isEmpty() ? base.source1GameDir : base.s1GameInfoDir);
+    options.s1GameInfoDir = Core::Path::FilesystemPath(base.s1GameInfoDir);
     options.cs2BaseDir = Core::Path::FilesystemPath(base.cs2BaseDir);
     options.addonName = base.addonName;
     options.sourcePcfPath = Core::Path::FilesystemPath(trimmedPcfPath);

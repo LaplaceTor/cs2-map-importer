@@ -47,7 +47,8 @@ public:
         const QString& sourcePcfPath,
         bool allowDepthBlend,
         bool disableDiffuse,
-        const QString& s1GameType = QString()
+        const QString& s1GameType = QString(),
+        const QString& s1GameInfoDir = QString()
     );
 
     void setParticleImportService(std::unique_ptr<Application::Particle::ParticleImportService> service) noexcept {

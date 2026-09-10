@@ -235,7 +235,8 @@ Item {
                             root.selectedPcfPath,
                             allowDepthBlendCheck.checked,
                             disableDiffuseCheck.checked,
-                            root.gameViewModel ? root.gameViewModel.selectedS1Type : ""
+                            root.gameViewModel ? root.gameViewModel.selectedS1Type : "",
+                            root.gameViewModel ? root.gameViewModel.s1GameInfoDir : ""
                         )
                     }
                 }

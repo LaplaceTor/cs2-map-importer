@@ -14,14 +14,8 @@ QStringList Source1ImportTool::buildArguments(const Source1ImportOptions& option
     args << QStringLiteral("-retail");
     args << QStringLiteral("-nop4");
     args << QStringLiteral("-nop4sync");
-    if (!options.source1GameInfoDir.isEmpty()) {
-        args << QStringLiteral("-src1gameinfodir");
-        args << options.source1GameInfoDir.toString();
-    }
-    if (!options.addonName.isEmpty()) {
-        args << QStringLiteral("-s2addon");
-        args << options.addonName;
-    }
+    args << QStringLiteral("-src1gameinfodir") << options.source1GameInfoDir.toString();
+    args << QStringLiteral("-s2addon") << options.addonName;
     args << QStringLiteral("-game") << QStringLiteral("csgo");
     if (options.allowDepthBlend) {
         args << QStringLiteral("-particle_allow_depth_blend");
@@ -29,13 +23,11 @@ QStringList Source1ImportTool::buildArguments(const Source1ImportOptions& option
     if (options.disableDiffuse) {
         args << QStringLiteral("-particle_disable_diffuse");
     }
-    if (!options.inputPcfPath.isEmpty()) {
-        args << options.inputPcfPath.toString();
-    }
+    args << options.inputFilePath.toString();
     return args;
 }
 
-Core::Result<Source1ImportToolResult> Source1ImportTool::convertPcf(
+Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
     const Core::Path::FilesystemPath& toolBinaryPath,
     const Source1ImportOptions& options,
     Core::Logging::TaskLoggingContext* taskCtx)
@@ -49,30 +41,6 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::convertPcf(
         return Core::Result<Source1ImportToolResult>::failure(
             ToolErrors::executableNotFound(toolBinaryPath.toString()),
             QStringLiteral("Source 1 导入工具不存在"));
-    }
-    if (options.source1GameInfoDir.isEmpty()) {
-        return Core::Result<Source1ImportToolResult>::failure(
-            Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("Source 1 gameinfo 目录不能为空"));
-    }
-    if (options.addonName.trimmed().isEmpty()) {
-        return Core::Result<Source1ImportToolResult>::failure(
-            Core::Error::ErrorCode::InvalidArgument,
-            QStringLiteral("目标 Addon 名称不能为空"));
-    }
-    if (options.inputPcfPath.isEmpty() || !options.inputPcfPath.isValid()) {
-        return Core::Result<Source1ImportToolResult>::failure(
-            Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("输入 PCF 文件路径无效"));
-    }
-    Core::Path::FilesystemPath effectiveCheckPath = options.inputPcfPath;
-    if (!effectiveCheckPath.isAbsolute() && !options.source1GameInfoDir.isEmpty()) {
-        effectiveCheckPath = options.source1GameInfoDir / options.inputPcfPath;
-    }
-    if (!effectiveCheckPath.exists()) {
-        return Core::Result<Source1ImportToolResult>::failure(
-            ToolErrors::noMatchingFiles(options.inputPcfPath.toString()),
-            QStringLiteral("输入 PCF 文件不存在"));
     }
 
     QStringList args = buildArguments(options);
@@ -142,7 +110,7 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::convertPcf(
 
     if (logResult.hasNoMatchingFiles) {
         return Core::Result<Source1ImportToolResult>::failure(
-            ToolErrors::noMatchingFiles(options.inputPcfPath.toString(), procResult.stdOut),
+            ToolErrors::noMatchingFiles(options.inputFilePath.toString(), procResult.stdOut),
             QStringLiteral("未找到与规格匹配的文件"),
             toolResult);
     }
@@ -156,13 +124,13 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::convertPcf(
         }
         return Core::Result<Source1ImportToolResult>::failure(
             ToolErrors::importFailed(failureReason, procResult.stdOut),
-            QStringLiteral("PCF 粒子转换失败: %1").arg(failureReason),
+            QStringLiteral("资源导入失败: %1").arg(failureReason),
             toolResult);
     }
 
     return Core::Result<Source1ImportToolResult>::success(
         toolResult,
-        QStringLiteral("成功导入 %1 个粒子系统").arg(toolResult.importedCount));
+        QStringLiteral("成功导入 %1 个资产").arg(toolResult.importedCount));
 }
 
 } // namespace Domain::Tool

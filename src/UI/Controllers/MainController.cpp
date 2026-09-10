@@ -106,7 +106,8 @@ void MainController::startParticleImport(
     const QString& sourcePcfPath,
     bool allowDepthBlend,
     bool disableDiffuse,
-    const QString& s1GameType
+    const QString& s1GameType,
+    const QString& s1GameInfoDir
 ) {
     if (m_isProcessing) {
         return;
@@ -140,6 +141,7 @@ void MainController::startParticleImport(
 
     Application::Particle::ParticleImportRequest request;
     request.source1GameDir = source1GameDir;
+    request.s1GameInfoDir = s1GameInfoDir;
     request.cs2BaseDir = cs2BaseDir;
     request.addonName = addonName;
     request.sourcePcfPath = sanitizedPcfPath;

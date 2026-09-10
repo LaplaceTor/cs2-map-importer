@@ -103,9 +103,6 @@ Source1ImportLogResult Source1ImportLogParser::parse(
         // Warning tracking
         if (trimmed.startsWith(QStringLiteral("WARNING:"), Qt::CaseInsensitive)) {
             result.warnings.append(trimmed);
-            if (trimmed.contains(QStringLiteral("Failed to make path"), Qt::CaseInsensitive)) {
-                result.errorMessages.append(trimmed);
-            }
         }
 
         // Error tracking
@@ -115,6 +112,7 @@ Source1ImportLogResult Source1ImportLogParser::parse(
             trimmed.startsWith(QStringLiteral("Error:"), Qt::CaseInsensitive) ||
             trimmed.startsWith(QStringLiteral("Unable to load"), Qt::CaseInsensitive) ||
             trimmed.contains(QStringLiteral("Unable to load source 1 mod gameinfo"), Qt::CaseInsensitive) ||
+            trimmed.contains(QStringLiteral("Failed to make path"), Qt::CaseInsensitive) ||
             (trimmed.startsWith(QStringLiteral("Failed to "), Qt::CaseInsensitive) &&
              !trimmed.contains(QStringLiteral("Note this is ok"), Qt::CaseInsensitive))) {
             result.errorMessages.append(trimmed);
@@ -131,6 +129,9 @@ Source1ImportLogResult Source1ImportLogParser::parse(
             }
             if (trimmed.startsWith(QStringLiteral("WARNING:"), Qt::CaseInsensitive)) {
                 result.warnings.append(trimmed);
+                if (trimmed.contains(QStringLiteral("Failed to make path"), Qt::CaseInsensitive)) {
+                    result.errorMessages.append(trimmed);
+                }
             } else {
                 result.errorMessages.append(trimmed);
             }
@@ -150,7 +151,12 @@ Source1ImportLogResult Source1ImportLogParser::parse(
         }
     }
 
-    // Determine success
+    // If 0 files imported and everything was skipped, mark as failure if no error message was extracted
+    if (hasOkBanner && result.importedCount == 0 && result.skippedCount > 0 && result.errorMessages.isEmpty()) {
+        result.errorMessages.append(QStringLiteral("No assets imported; %1 asset(s) skipped").arg(result.skippedCount));
+    }
+
+    // Determine success: must not have failed count or errors, and must have imported at least one asset
     if (result.hasNoMatchingFiles || exitCode != 0 || hasErrorBanner || result.failedCount > 0 || !result.errorMessages.isEmpty()) {
         result.success = false;
     } else if (hasOkBanner) {
