@@ -67,6 +67,47 @@ private slots:
         QVERIFY(spyS1Valid.size() >= 1);
     }
 
+    void testGameViewModelSwitchTypeWhenGameNotDetectedResetsWithoutValidatingOldPath() {
+        GameViewModel vm;
+        QSignalSpy spyAlert(&vm, &GameViewModel::alertRequested);
+
+        // 1. Select and validate a game (e.g. CS: Source)
+        vm.setSelectedS1Type(QStringLiteral("CS: Source"));
+        QString cssDir = QDir(m_testFilesRoot).filePath(QStringLiteral("Counter-Strike Source"));
+        vm.selectS1Folder(cssDir);
+
+        QTRY_VERIFY(vm.isS1Valid());
+        QCOMPARE(vm.s1GamePath(), cssDir);
+
+        // 2. Switch to another game type that is NOT detected / not installed
+        // It must NOT validate the previous CSS folder against the new game type,
+        // and must immediately reset the path, title, and validity state.
+        QSignalSpy spyS1Path(&vm, &GameViewModel::s1GamePathChanged);
+        QSignalSpy spyS1Valid(&vm, &GameViewModel::s1ValidityChanged);
+
+        vm.setSelectedS1Type(QStringLiteral("Team Fortress 2"));
+        QCOMPARE(vm.selectedS1Type(), QStringLiteral("Team Fortress 2"));
+        QCOMPARE(vm.s1GamePath(), QString());
+        QCOMPARE(vm.s1GameTitle(), QString());
+        QVERIFY(!vm.isS1Valid());
+        QVERIFY(spyS1Path.size() >= 1);
+        QVERIFY(spyS1Valid.size() >= 1);
+
+        // Allow any pending events to process and verify no alert or task was triggered
+        QTest::qWait(200);
+
+        // Path must still be empty, validity false, and no alert triggered
+        QCOMPARE(vm.s1GamePath(), QString());
+        QVERIFY(!vm.isS1Valid());
+        QCOMPARE(spyAlert.size(), 0);
+
+        // 3. Switch back to "CS: Source" -> should restore from detected cache
+        vm.setSelectedS1Type(QStringLiteral("CS: Source"));
+        QCOMPARE(vm.selectedS1Type(), QStringLiteral("CS: Source"));
+        QCOMPARE(vm.s1GamePath(), cssDir);
+        QVERIFY(vm.isS1Valid());
+    }
+
     void testGameViewModelCustomSource1Selection() {
         GameViewModel vm;
         vm.setSelectedS1Type(QStringLiteral("Custom"));

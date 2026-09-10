@@ -1,4 +1,14 @@
 cmake_minimum_required(VERSION 3.28)
+
+if(POLICY CMP0177)
+    cmake_policy(SET CMP0177 NEW)
+    set(CMAKE_POLICY_DEFAULT_CMP0177 NEW)
+endif()
+if(POLICY CMP0194)
+    cmake_policy(SET CMP0194 NEW)
+    set(CMAKE_POLICY_DEFAULT_CMP0194 NEW)
+endif()
+
 project(cs2importer VERSION 1.0.0 LANGUAGES CXX)
 
 if(NOT WIN32)

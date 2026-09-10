@@ -195,45 +195,17 @@ void GameViewModel::setSelectedS1Type(const QString& typeId) {
     auto it = m_detectedGames.find(key);
     if (it != m_detectedGames.end()) {
         applyS1Installation(it.value());
-        return;
+    } else {
+        // Reset validation for newly selected game if not found in detected games
+        m_s1Installation = Application::Environment::GameInstallationInfo();
+        m_s1GamePath.clear();
+        m_s1GameTitle.clear();
+        m_isS1Valid = false;
+
+        emit s1GamePathChanged();
+        emit s1GameTitleChanged();
+        emit s1ValidityChanged();
     }
-
-    // Check if existing path is valid for this newly selected type asynchronously off UI thread
-    if (!m_s1GamePath.isEmpty() && key != QStringLiteral("custom") && m_envService) {
-        const QString currentPath = m_s1GamePath;
-        const QString requestedType = typeId;
-        m_envService->validateSource1FolderAsync(
-            requestedType,
-            currentPath,
-            this,
-            [this, requestedType, key](const Core::Result<Application::Environment::GameInstallationInfo>& validated) {
-                if (m_selectedS1Type == requestedType && validated.isSuccess() && validated.value().isValid) {
-                    m_detectedGames.insert(key, validated.value());
-                    applyS1Installation(validated.value());
-                } else if (m_selectedS1Type == requestedType) {
-                    m_s1Installation = Application::Environment::GameInstallationInfo();
-                    m_s1GamePath.clear();
-                    m_s1GameTitle.clear();
-                    m_isS1Valid = false;
-
-                    emit s1GamePathChanged();
-                    emit s1GameTitleChanged();
-                    emit s1ValidityChanged();
-                }
-            }
-        );
-        return;
-    }
-
-    // Reset validation for newly selected game
-    m_s1Installation = Application::Environment::GameInstallationInfo();
-    m_s1GamePath.clear();
-    m_s1GameTitle.clear();
-    m_isS1Valid = false;
-
-    emit s1GamePathChanged();
-    emit s1GameTitleChanged();
-    emit s1ValidityChanged();
 }
 
 void GameViewModel::setSelectedS2Type(const QString& typeId) {
