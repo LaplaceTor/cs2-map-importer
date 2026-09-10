@@ -38,10 +38,10 @@ jobs:
         echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
     - name: Configure CMake
-      run: cmake -B build -S . -DAPP_VERSION=${{ steps.vars.outputs.sha_short }}
+      run: cmake -B build -S . -DAPP_VERSION=${{ steps.vars.outputs.sha_short }} -DCS2IMPORTER_BUILD_TESTS=OFF
 
     - name: Build with CMake
-      run: cmake --build build --config Release
+      run: cmake --build build --config Release --target cs2importer
 
     - name: Set up GraalVM
       uses: graalvm/setup-graalvm@v1
