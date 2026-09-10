@@ -74,8 +74,15 @@ jobs:
         upx --best --lzma bspsrc.exe
         Move-Item bspsrc.exe bin/bspsrc.exe -Force
 
+    - name: Prepare Artifacts
+      shell: pwsh
+      run: |
+        cmake --install build --config Release --prefix "$PWD/release"
+        if (Test-Path bin) { Copy-Item -Path bin -Destination release\bin -Recurse -Force }
+
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: CS2-Importer-Dev-${{ steps.vars.outputs.sha_short }}
         path: release
+
