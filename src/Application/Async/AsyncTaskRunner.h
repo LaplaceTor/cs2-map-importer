@@ -83,6 +83,29 @@ public:
     }
 
     /**
+     * @brief Runs an async workflow task with a dedicated log directory.
+     *
+     * @tparam T The business payload type.
+     * @param workflowName The name of the workflow task.
+     * @param assetBaseName The primary asset base name (used for tool log naming).
+     * @param context The Qt lifetime context object.
+     * @param worker Lambda taking std::shared_ptr<TaskLoggingContext> and returning Result<T>.
+     * @param callback Callback receiving const Result<T>&.
+     * @param pool The QThreadPool to dispatch to.
+     */
+    template <typename T = void, typename WorkerFn, typename CallbackFn = std::function<void(const Result<T>&)>>
+    static TaskHandle runWorkflowTask(
+        const QString& workflowName,
+        const QString& assetBaseName,
+        QObject* context,
+        WorkerFn&& worker,
+        CallbackFn&& callback = CallbackFn{},
+        QThreadPool* pool = QThreadPool::globalInstance())
+    {
+        return runTaskInternal<T>(workflowName, context, std::forward<WorkerFn>(worker), std::forward<CallbackFn>(callback), pool, 0, true, assetBaseName);
+    }
+
+    /**
      * @brief Primary API: Runs an async child sub-task whose business outcome is Result<T>.
      *
      * @tparam T The business payload type (e.g. GameInstallationInfo, DetectionResult, or void).
@@ -127,6 +150,17 @@ public:
         return runTask<void>(taskName, nullptr, std::forward<WorkerFn>(worker), {}, pool, parentTaskId);
     }
 
+    template <typename WorkerFn>
+    static TaskHandle runTask(
+        const QString& taskName,
+        QObject* context,
+        WorkerFn&& worker,
+        QThreadPool* pool = QThreadPool::globalInstance(),
+        quint64 parentTaskId = 0)
+    {
+        return runTaskInternal<void>(taskName, context, std::forward<WorkerFn>(worker), std::function<void(const Result<void>&)>{}, pool, parentTaskId);
+    }
+
 private:
     /**
      * @brief Internal engine executing a typed Result<T> async worker.
@@ -138,12 +172,16 @@ private:
         WorkerFn&& worker,
         CallbackFn&& callback,
         QThreadPool* pool,
-        quint64 parentTaskId)
+        quint64 parentTaskId,
+        bool isWorkflow = false,
+        const QString& workflowAssetBaseName = QString())
     {
         using DecayedWorker = std::decay_t<WorkerFn>;
         using DecayedCallback = std::decay_t<CallbackFn>;
 
-        auto taskContext = Core::Logging::LogManager::instance().createTask(taskName, parentTaskId);
+        auto taskContext = isWorkflow
+            ? Core::Logging::LogManager::instance().createWorkflowTask(taskName, workflowAssetBaseName)
+            : Core::Logging::LogManager::instance().createTask(taskName, parentTaskId);
         if (!taskContext) {
             // Task creation rejected (e.g. invalid parentTaskId). Do NOT dispatch worker.
             // Safely deliver explicit Result<T>::failure to callback.

@@ -303,7 +303,17 @@ void LogTaskModel::collapseAll()
 void LogTaskModel::toggleTaskExpanded(int index)
 {
     if (index >= 0 && index < m_tasks.size()) {
-        m_tasks[index].expanded = !m_tasks[index].expanded;
+        const bool willExpand = !m_tasks[index].expanded;
+        if (m_depth > 0 && willExpand) {
+            for (int i = 0; i < m_tasks.size(); ++i) {
+                if (i != index && m_tasks[i].expanded) {
+                    m_tasks[i].expanded = false;
+                    QModelIndex siblingIdx = this->index(i, 0);
+                    emit dataChanged(siblingIdx, siblingIdx, {ExpandedRole});
+                }
+            }
+        }
+        m_tasks[index].expanded = willExpand;
         QModelIndex modelIdx = this->index(index, 0);
         emit dataChanged(modelIdx, modelIdx, {ExpandedRole});
     }
@@ -313,6 +323,15 @@ void LogTaskModel::setTaskExpanded(int index, bool expanded)
 {
     if (index >= 0 && index < m_tasks.size()) {
         if (m_tasks[index].expanded != expanded) {
+            if (m_depth > 0 && expanded) {
+                for (int i = 0; i < m_tasks.size(); ++i) {
+                    if (i != index && m_tasks[i].expanded) {
+                        m_tasks[i].expanded = false;
+                        QModelIndex siblingIdx = this->index(i, 0);
+                        emit dataChanged(siblingIdx, siblingIdx, {ExpandedRole});
+                    }
+                }
+            }
             m_tasks[index].expanded = expanded;
             QModelIndex modelIdx = this->index(index, 0);
             emit dataChanged(modelIdx, modelIdx, {ExpandedRole});

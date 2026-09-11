@@ -25,6 +25,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
             s1Options.allowDepthBlend = options.allowDepthBlend;
             s1Options.disableDiffuse = options.disableDiffuse;
             s1Options.isCsgo = options.isCsgo;
+            s1Options.cancellationToken = context.token();
 
             auto s1Result = Domain::Tool::Source1ImportTool::importAsset(
                 options.source1ImportExe, s1Options, context.loggingContext());
@@ -68,6 +69,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
             rcOptions.inputFiles = workflowResult.generatedVpcfFiles;
             rcOptions.forceCompile = true;
             rcOptions.verbose = true;
+            rcOptions.cancellationToken = context.token();
 
             auto rcResult = Domain::Tool::ResourceCompilerTool::compileResources(
                 options.resourceCompilerExe, rcOptions, context.loggingContext());

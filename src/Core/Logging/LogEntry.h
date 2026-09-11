@@ -20,6 +20,7 @@ struct LogEntry {
     LogLevel level = LogLevel::Info;
     LogSource source = LogSource::Workflow;
     QString message;
+    quint64 toolTaskId = 0; // Associated external tool taskId (0 if not an external tool command)
 
     // Estimated memory footprint in bytes for size management / flush decisions
     qsizetype estimatedByteSize() const noexcept

@@ -63,6 +63,66 @@ void TaskLoggingContext::setLogFilePath(const QString& path)
     m_logFilePath = path;
 }
 
+QString TaskLoggingContext::workflowDirectory() const
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    return m_workflowDirectory;
+}
+
+void TaskLoggingContext::setWorkflowDirectory(const QString& dir)
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    m_workflowDirectory = dir;
+}
+
+QString TaskLoggingContext::taskDirectory() const
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    return m_taskDirectory;
+}
+
+void TaskLoggingContext::setTaskDirectory(const QString& dir)
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    m_taskDirectory = dir;
+}
+
+QString TaskLoggingContext::assetBaseName() const
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    return m_assetBaseName;
+}
+
+void TaskLoggingContext::setAssetBaseName(const QString& name)
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    m_assetBaseName = name;
+}
+
+bool TaskLoggingContext::isWorkflow() const noexcept
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    return m_isWorkflow;
+}
+
+void TaskLoggingContext::setIsWorkflow(bool isWf) noexcept
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    m_isWorkflow = isWf;
+}
+
+bool TaskLoggingContext::isToolTask() const noexcept
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    return m_isToolTask;
+}
+
+void TaskLoggingContext::setIsToolTask(bool isTool) noexcept
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    m_isToolTask = isTool;
+}
+
 bool TaskLoggingContext::isLogFileReady() const noexcept
 {
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
@@ -131,6 +191,28 @@ void TaskLoggingContext::setBlockSizeThreshold(qsizetype bytes)
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     m_blockSizeThreshold = std::max<qsizetype>(0, bytes);
     checkAndFlushActiveBlockLocked();
+}
+
+void TaskLoggingContext::setFlushCallback(FlushCallback callback)
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    m_flushCallback = std::move(callback);
+}
+
+void TaskLoggingContext::flush()
+{
+    FlushCallback cb;
+    quint64 id = 0;
+    {
+        QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+        cb = m_flushCallback;
+        id = m_taskId;
+    }
+    if (cb) {
+        cb(id);
+    } else {
+        flushActiveBlock();
+    }
 }
 
 void TaskLoggingContext::flushActiveBlock()
@@ -253,7 +335,12 @@ bool TaskLoggingContext::error(const QString& message)
     return log(LogLevel::Error, message);
 }
 
-bool TaskLoggingContext::log(LogLevel level, const QString& message, LogSource source)
+bool TaskLoggingContext::command(const QString& commandLine, quint64 toolTaskId)
+{
+    return log(LogLevel::Info, QStringLiteral("[EXEC] %1").arg(commandLine), LogSource::Workflow, toolTaskId);
+}
+
+bool TaskLoggingContext::log(LogLevel level, const QString& message, LogSource source, quint64 toolTaskId)
 {
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
     if (!m_sessionValid || isTerminalState(m_state)) {
@@ -273,6 +360,7 @@ bool TaskLoggingContext::log(LogLevel level, const QString& message, LogSource s
     entry.level = level;
     entry.source = source;
     entry.message = message;
+    entry.toolTaskId = toolTaskId;
 
     if (!m_activeBlock.append(std::move(entry))) {
         return false;

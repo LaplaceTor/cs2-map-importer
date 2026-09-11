@@ -69,7 +69,7 @@ public:
     bool setData(const QModelIndex& index, const QVariant& value, int role = Qt::EditRole) override;
     QHash<int, QByteArray> roleNames() const override;
 
-    int taskCount() const;
+    virtual int taskCount() const;
     int depth() const noexcept { return m_depth; }
     bool autoScroll() const noexcept { return m_autoScroll; }
     void setAutoScroll(bool enabled);
@@ -78,23 +78,23 @@ public:
     bool updateTaskMetadata(int row, Core::Logging::TaskState state, double progress, const QString& currentMessage, const QString& taskName = QString());
 
     std::optional<LogTaskItem> taskSnapshot(int row) const;
-    std::shared_ptr<LogMessageListModel> taskMessagesModel(int row) const;
-    std::shared_ptr<LogTaskModel> taskSubTasksModel(int row) const;
-    int findRowByTaskId(quint64 taskId) const;
+    virtual std::shared_ptr<LogMessageListModel> taskMessagesModel(int row) const;
+    virtual std::shared_ptr<LogTaskModel> taskSubTasksModel(int row) const;
+    virtual int findRowByTaskId(quint64 taskId) const;
 
-    Q_INVOKABLE UI::ViewModels::LogMessageListModel* getTaskMessagesModel(int row) const;
-    Q_INVOKABLE UI::ViewModels::LogTaskModel* getTaskSubTasksModel(int row) const;
+    Q_INVOKABLE virtual UI::ViewModels::LogMessageListModel* getTaskMessagesModel(int row) const;
+    Q_INVOKABLE virtual UI::ViewModels::LogTaskModel* getTaskSubTasksModel(int row) const;
 
-    Q_INVOKABLE void clear();
-    Q_INVOKABLE void expandAll();
-    Q_INVOKABLE void collapseAll();
-    Q_INVOKABLE void toggleTaskExpanded(int index);
-    Q_INVOKABLE void setTaskExpanded(int index, bool expanded);
+    Q_INVOKABLE virtual void clear();
+    Q_INVOKABLE virtual void expandAll();
+    Q_INVOKABLE virtual void collapseAll();
+    Q_INVOKABLE virtual void toggleTaskExpanded(int index);
+    Q_INVOKABLE virtual void setTaskExpanded(int index, bool expanded);
 
     // =========================================================================
     // Diagnostic & Clipboard Export API (Export-only; does NOT participate in UI rendering)
     // =========================================================================
-    QString exportToPlainText(int indentLevel = 0) const;
+    virtual QString exportToPlainText(int indentLevel = 0) const;
 
 signals:
     void taskCountChanged();

@@ -4,6 +4,8 @@
 #include <QStringList>
 #include <QProcessEnvironment>
 #include <QByteArray>
+#include <functional>
+#include "Core/Async/CancellationToken.h"
 
 namespace Core::Process {
 
@@ -13,6 +15,10 @@ struct ProcessOptions {
     QProcessEnvironment environment;
     QStringList arguments;
     QByteArray standardInput;
+
+    std::function<void(const QString& line)> onStdOutLine;
+    std::function<void(const QString& line)> onStdErrLine;
+    Core::Async::CancellationToken cancellationToken;
 };
 
 } // namespace Core::Process

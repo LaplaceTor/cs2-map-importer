@@ -11,7 +11,8 @@ enum class ProcessStatus {
     FailedToStart,
     Crashed,
     TimedOut,
-    NonZeroExit
+    NonZeroExit,
+    Cancelled
 };
 
 struct ProcessResult {
@@ -25,6 +26,10 @@ struct ProcessResult {
         return status == ProcessStatus::Success;
     }
 
+    bool isCancelled() const {
+        return status == ProcessStatus::Cancelled;
+    }
+
     Core::Error::ErrorCode toErrorCode() const {
         switch (status) {
             case ProcessStatus::Success:
@@ -33,6 +38,8 @@ struct ProcessResult {
                 return Core::Error::ErrorCode::ProcessTimeout;
             case ProcessStatus::Crashed:
                 return Core::Error::ErrorCode::ProcessCrashed;
+            case ProcessStatus::Cancelled:
+                return Core::Error::ErrorCode::Cancelled;
             case ProcessStatus::FailedToStart:
             case ProcessStatus::NonZeroExit:
             default:

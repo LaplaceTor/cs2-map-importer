@@ -6,6 +6,7 @@ qt_add_qml_module(cs2importer_qml
     QML_FILES
         Main.qml
         LogWindow.qml
+        ToolLogWindow.qml
         components/GameSelectorBox.qml
         components/StyledCheckBox.qml
         components/LogTaskCard.qml

@@ -60,6 +60,26 @@ public:
     static QString generateApplicationLogFilePath(qint64 startupTimestamp = 0);
 
     /**
+     * @brief Generates the directory path for a workflow log folder formatted as: <logsDir>/<sanitized_workflow_name>_<yyyyMMdd_HHmmss_zzz>
+     */
+    static QString generateWorkflowDirectoryPath(const QString& workflowName, qint64 startTimestamp = 0);
+
+    /**
+     * @brief Generates the full file path for the main workflow log: <workflowDir>/workflow.log.
+     */
+    static QString generateWorkflowLogFilePath(const QString& workflowDir);
+
+    /**
+     * @brief Generates a tool log filename formatted as: <sanitized_asset_name>_<sanitized_tool_name>_<yyyyMMdd_HHmmss_zzz>.log.
+     */
+    static QString generateToolLogFileName(const QString& assetBaseName, const QString& toolName, qint64 timestamp = 0);
+
+    /**
+     * @brief Generates the full file path for an external tool log inside the workflow directory.
+     */
+    static QString generateToolLogFilePath(const QString& workflowDir, const QString& assetBaseName, const QString& toolName, qint64 timestamp = 0);
+
+    /**
      * @brief Formats a timestamp into yyyyMMdd_HHmmss_zzz string.
      */
     static QString formatTimestamp(qint64 timestamp = 0);

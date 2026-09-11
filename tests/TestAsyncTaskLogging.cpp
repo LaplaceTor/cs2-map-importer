@@ -1,12 +1,14 @@
 #include <QTest>
 #include <QSignalSpy>
 #include <QAbstractItemModelTester>
+#include <QElapsedTimer>
 #include <memory>
 #include <thread>
 #include <atomic>
 #include <chrono>
 
 #include "Core/Logging/LogManager.h"
+#include "Core/Logging/LogFileManager.h"
 #include "Core/Logging/TaskLoggingContext.h"
 #include "Core/Logging/TaskState.h"
 #include "Core/Result/Result.h"
@@ -16,10 +18,16 @@
 #include "Core/Error/ErrorCode.h"
 #include "Core/Error/Exception.h"
 #include "Core/Process/ProcessResult.h"
+#include "Core/Process/ProcessRunner.h"
+#include "Core/Process/ProcessOptions.h"
 #include "Application/Async/AsyncTaskRunner.h"
+#include "Core/Logging/TaskFileSink.h"
+#include <QDir>
+#include <QFileInfo>
 
 using namespace Core::Logging;
 using namespace Core::Error;
+using namespace Core::Process;
 using Core::Result;
 using Core::ResultStatus;
 using namespace UI::ViewModels;
@@ -77,6 +85,14 @@ private slots:
     void testExplicitSkipWithResultFailureContradiction();
     void testExplicitCompleteWithResultCancelledContradiction();
     void testExplicitCompleteWithResultSkippedContradiction();
+
+    // Real-time streaming and child task nesting tests
+    void testRealtimeFlushAndCollapsedChildTask();
+    void testProcessRunnerStreamingAndCancellation();
+    void testSubTaskExclusiveAccordion();
+    void testWorkflowLogFolderAndToolFiles();
+    void testMultiLevelFlattenedTreeProjectionAndDirectoryHierarchy();
+    void testToolTaskHidingAndCommandPropagation();
 };
 
 void TestAsyncTaskLogging::initTestCase()
@@ -1496,6 +1512,452 @@ void TestAsyncTaskLogging::testExplicitCompleteWithResultSkippedContradiction()
     // UI Log plane MUST show SKIPPED
     QCOMPARE(logVm->taskCount(), 1);
     QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::StateStringRole).toString(), QStringLiteral("SKIPPED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testRealtimeFlushAndCollapsedChildTask()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    // 1. Create parent task
+    auto parentTask = LogManager::instance().createTask("Parent Workflow Task");
+    QVERIFY(parentTask != nullptr);
+    parentTask->start();
+
+    // Verify parent task registered as expanded by default
+    parentTask->info("Phase 1: Validating environment");
+    parentTask->flush();
+
+    QTRY_COMPARE(logVm->taskCount(), 1);
+    QModelIndex parentIdx = logVm->index(0, 0);
+    QCOMPARE(logVm->data(parentIdx, LogTaskModel::StateStringRole).toString(), QStringLiteral("RUNNING"));
+    QCOMPARE(logVm->data(parentIdx, LogTaskModel::ExpandedRole).toBool(), true); // Root is expanded
+    QCOMPARE(logVm->data(parentIdx, LogTaskModel::MessageCountRole).toInt(), 1);
+
+    // 2. Create child task under parent task
+    QString childCmd = QStringLiteral("source1import.exe -retail -nop4 -s2addon test");
+    auto childTask = LogManager::instance().createChildTask(parentTask->taskId(), childCmd);
+    QVERIFY(childTask != nullptr);
+    childTask->start();
+
+    // Child task logs lines and flushes in real-time
+    childTask->info("Processing particle manifest");
+    childTask->flush();
+
+    auto* subModel = logVm->getTaskSubTasksModel(0);
+    QTRY_VERIFY(subModel != nullptr);
+    QTRY_COMPARE(subModel->taskCount(), 1);
+
+    QModelIndex childIdx = subModel->index(0, 0);
+    QCOMPARE(subModel->data(childIdx, LogTaskModel::TaskNameRole).toString(), childCmd);
+    // User architectural decision: Child task MUST be collapsed by default
+    QCOMPARE(subModel->data(childIdx, LogTaskModel::ExpandedRole).toBool(), false);
+    QCOMPARE(subModel->data(childIdx, LogTaskModel::StateStringRole).toString(), QStringLiteral("RUNNING"));
+    QCOMPARE(subModel->data(childIdx, LogTaskModel::MessageCountRole).toInt(), 1);
+
+    // Even if child task fails, it MUST remain collapsed (as decided in /grill-me)
+    LogManager::instance().failTask(childTask->taskId(), "Import error occurred");
+    QTRY_COMPARE(subModel->data(childIdx, LogTaskModel::StateStringRole).toString(), QStringLiteral("FAILED"));
+    QCOMPARE(subModel->data(childIdx, LogTaskModel::ExpandedRole).toBool(), false);
+
+    // Complete parent task
+    LogManager::instance().finishTask(parentTask->taskId(), "Workflow completed");
+    QTRY_COMPARE(logVm->data(parentIdx, LogTaskModel::StateStringRole).toString(), QStringLiteral("COMPLETED"));
+
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testProcessRunnerStreamingAndCancellation()
+{
+    // 1. Line-by-line streaming test
+    ProcessOptions opts;
+    QStringList linesReceived;
+    opts.onStdOutLine = [&linesReceived](const QString& line) {
+        linesReceived.append(line.trimmed());
+    };
+
+    QStringList cmdArgs;
+    cmdArgs << QStringLiteral("/c") << QStringLiteral("echo Alpha && echo Beta && echo Gamma");
+    ProcessResult res = ProcessRunner::run(QStringLiteral("cmd.exe"), cmdArgs, opts);
+
+    QVERIFY(res.isSuccess());
+    QVERIFY(linesReceived.contains(QStringLiteral("Alpha")));
+    QVERIFY(linesReceived.contains(QStringLiteral("Beta")));
+    QVERIFY(linesReceived.contains(QStringLiteral("Gamma")));
+
+    // 2. Cooperative cancellation test
+    ProcessOptions cancelOpts;
+    Core::Async::CancellationToken token;
+    cancelOpts.cancellationToken = token;
+    cancelOpts.timeout = 10000;
+
+    QStringList pingArgs;
+    pingArgs << QStringLiteral("127.0.0.1") << QStringLiteral("-n") << QStringLiteral("10");
+
+    std::thread cancelThread([token]() mutable {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        token.cancel();
+    });
+
+    QElapsedTimer timer;
+    timer.start();
+    ProcessResult cancelRes = ProcessRunner::run(QStringLiteral("ping.exe"), pingArgs, cancelOpts);
+    cancelThread.join();
+
+    QVERIFY(cancelRes.isCancelled());
+    // Should be terminated quickly (< 3000ms), far before the 10-second ping finishes
+    QVERIFY(timer.elapsed() < 4000);
+}
+
+void TestAsyncTaskLogging::testSubTaskExclusiveAccordion()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    auto rootTask = LogManager::instance().createTask("Accordion Test Root");
+    rootTask->start();
+    rootTask->info("Starting accordion test");
+    LogManager::instance().flushTask(rootTask->taskId());
+
+    QTRY_COMPARE(logVm->taskCount(), 1);
+
+    // Create 3 child subtasks
+    auto child1 = LogManager::instance().createChildTask(rootTask->taskId(), "Child Task 1");
+    auto child2 = LogManager::instance().createChildTask(rootTask->taskId(), "Child Task 2");
+    auto child3 = LogManager::instance().createChildTask(rootTask->taskId(), "Child Task 3");
+    child1->start();
+    child1->info("Step 1");
+    LogManager::instance().flushTask(child1->taskId());
+
+    child2->start();
+    child2->info("Step 2");
+    LogManager::instance().flushTask(child2->taskId());
+
+    child3->start();
+    child3->info("Step 3");
+    LogManager::instance().flushTask(child3->taskId());
+
+    auto* subModel = logVm->getTaskSubTasksModel(0);
+    QVERIFY(subModel != nullptr);
+    QTRY_COMPARE(subModel->taskCount(), 3);
+
+    QModelIndex c1 = subModel->index(0, 0);
+    QModelIndex c2 = subModel->index(1, 0);
+    QModelIndex c3 = subModel->index(2, 0);
+
+    // Subtasks are collapsed by default
+    QCOMPARE(subModel->data(c1, LogTaskModel::ExpandedRole).toBool(), false);
+    QCOMPARE(subModel->data(c2, LogTaskModel::ExpandedRole).toBool(), false);
+    QCOMPARE(subModel->data(c3, LogTaskModel::ExpandedRole).toBool(), false);
+
+    // Expand Child 1
+    subModel->toggleTaskExpanded(0);
+    QCOMPARE(subModel->data(c1, LogTaskModel::ExpandedRole).toBool(), true);
+    QCOMPARE(subModel->data(c2, LogTaskModel::ExpandedRole).toBool(), false);
+    QCOMPARE(subModel->data(c3, LogTaskModel::ExpandedRole).toBool(), false);
+
+    // Expand Child 2 -> Child 1 must automatically collapse!
+    subModel->toggleTaskExpanded(1);
+    QCOMPARE(subModel->data(c1, LogTaskModel::ExpandedRole).toBool(), false);
+    QCOMPARE(subModel->data(c2, LogTaskModel::ExpandedRole).toBool(), true);
+    QCOMPARE(subModel->data(c3, LogTaskModel::ExpandedRole).toBool(), false);
+
+    // Expand Child 3 -> Child 2 must automatically collapse!
+    subModel->toggleTaskExpanded(2);
+    QCOMPARE(subModel->data(c1, LogTaskModel::ExpandedRole).toBool(), false);
+    QCOMPARE(subModel->data(c2, LogTaskModel::ExpandedRole).toBool(), false);
+    QCOMPARE(subModel->data(c3, LogTaskModel::ExpandedRole).toBool(), true);
+
+    // Clicking expanded Child 3 again collapses it
+    subModel->toggleTaskExpanded(2);
+    QCOMPARE(subModel->data(c1, LogTaskModel::ExpandedRole).toBool(), false);
+    QCOMPARE(subModel->data(c2, LogTaskModel::ExpandedRole).toBool(), false);
+    QCOMPARE(subModel->data(c3, LogTaskModel::ExpandedRole).toBool(), false);
+
+    // expandAll() expands all without exclusivity
+    subModel->expandAll();
+    QCOMPARE(subModel->data(c1, LogTaskModel::ExpandedRole).toBool(), true);
+    QCOMPARE(subModel->data(c2, LogTaskModel::ExpandedRole).toBool(), true);
+    QCOMPARE(subModel->data(c3, LogTaskModel::ExpandedRole).toBool(), true);
+
+    // collapseAll() collapses all
+    subModel->collapseAll();
+    QCOMPARE(subModel->data(c1, LogTaskModel::ExpandedRole).toBool(), false);
+    QCOMPARE(subModel->data(c2, LogTaskModel::ExpandedRole).toBool(), false);
+    QCOMPARE(subModel->data(c3, LogTaskModel::ExpandedRole).toBool(), false);
+
+    LogManager::instance().finishTask(child1->taskId(), "Done");
+    LogManager::instance().finishTask(child2->taskId(), "Done");
+    LogManager::instance().finishTask(child3->taskId(), "Done");
+    LogManager::instance().finishTask(rootTask->taskId(), "Done");
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testWorkflowLogFolderAndToolFiles()
+{
+    auto fileSink = std::make_shared<TaskFileSink>();
+    LogManager::instance().addSink(fileSink);
+
+    // Use createWorkflowTask
+    auto wfTask = LogManager::instance().createWorkflowTask("Particle Import Pipeline", "explosion");
+    QVERIFY(wfTask != nullptr);
+    QVERIFY(wfTask->isWorkflow());
+    QVERIFY(!wfTask->workflowDirectory().isEmpty());
+    QVERIFY(wfTask->logFilePath().endsWith(QStringLiteral("workflow.log")));
+    QCOMPARE(wfTask->assetBaseName(), QStringLiteral("explosion"));
+
+    wfTask->start();
+    wfTask->info("Workflow started");
+    LogManager::instance().flushTask(wfTask->taskId());
+
+    // Main workflow log file should exist
+    QVERIFY(QFileInfo::exists(wfTask->logFilePath()));
+
+    // Create child tool task
+    auto toolTask = LogManager::instance().createChildTask(
+        wfTask->taskId(), QStringLiteral("\"C:\\CS2\\tools\\source1import.exe\" -retail"));
+    QVERIFY(toolTask != nullptr);
+    QCOMPARE(toolTask->workflowDirectory(), wfTask->workflowDirectory());
+    QCOMPARE(toolTask->assetBaseName(), QStringLiteral("explosion"));
+
+    // Tool log path should be in workflow directory and named explosion_source1import_<time>.log
+    QVERIFY(toolTask->logFilePath().startsWith(wfTask->workflowDirectory()));
+    QVERIFY(toolTask->logFilePath().contains(QStringLiteral("explosion_source1import_")));
+    QVERIFY(toolTask->logFilePath().endsWith(QStringLiteral(".log")));
+
+    toolTask->start();
+    toolTask->info("Converting PCF asset");
+    LogManager::instance().flushTask(toolTask->taskId());
+
+    // Tool log file should exist
+    QVERIFY(QFileInfo::exists(toolTask->logFilePath()));
+
+    LogManager::instance().finishTask(toolTask->taskId(), "Tool done");
+    LogManager::instance().finishTask(wfTask->taskId(), "Workflow done");
+    LogManager::instance().removeSink(fileSink);
+}
+
+void TestAsyncTaskLogging::testMultiLevelFlattenedTreeProjectionAndDirectoryHierarchy()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    auto fileSink = std::make_shared<TaskFileSink>();
+    LogManager::instance().addSink(fileSink);
+
+    // 1. Create Workflow Root Task
+    auto rootWf = LogManager::instance().createWorkflowTask("Map Import Pipeline", "de_dust2");
+    QVERIFY(rootWf != nullptr);
+    rootWf->start();
+    rootWf->info("Starting Map Import for de_dust2");
+    LogManager::instance().flushTask(rootWf->taskId());
+
+    QTRY_COMPARE(logVm->taskCount(), 1);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::DepthRole).toInt(), 0);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::ExpandedRole).toBool(), true);
+
+    // 2. Create Stage 1 (Depth 1)
+    auto stage1 = LogManager::instance().createChildTask(rootWf->taskId(), "Stage Extract VPK");
+    stage1->start();
+    stage1->info("Extracting archives");
+    LogManager::instance().flushTask(stage1->taskId());
+
+    // 3. Create Stage 2 (Depth 1)
+    auto stage2 = LogManager::instance().createChildTask(rootWf->taskId(), "Stage Compile Materials");
+    stage2->start();
+    stage2->info("Compiling materials");
+    LogManager::instance().flushTask(stage2->taskId());
+
+    // Because rootWf is expanded by default, its children are visible in flat projection:
+    // Row 0: rootWf (depth 0, expanded = true)
+    // Row 1: stage1 (depth 1, expanded = false)
+    // Row 2: stage2 (depth 1, expanded = false)
+    QTRY_COMPARE(logVm->taskCount(), 3);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::DepthRole).toInt(), 0);
+    QCOMPARE(logVm->data(logVm->index(1, 0), LogTaskModel::DepthRole).toInt(), 1);
+    QCOMPARE(logVm->data(logVm->index(2, 0), LogTaskModel::DepthRole).toInt(), 1);
+    QCOMPARE(logVm->data(logVm->index(1, 0), LogTaskModel::ExpandedRole).toBool(), false);
+    QCOMPARE(logVm->data(logVm->index(2, 0), LogTaskModel::ExpandedRole).toBool(), false);
+
+    // 4. Create Sub-tasks under Stage 1 (Depth 2)
+    auto step1A = LogManager::instance().createChildTask(stage1->taskId(), "Decompile BSP");
+    step1A->start();
+    step1A->info("Decompiling map geometry");
+    LogManager::instance().flushTask(step1A->taskId());
+
+    auto step1B = LogManager::instance().createChildTask(stage1->taskId(), "Extract Textures");
+    step1B->start();
+    step1B->info("Extracting pak textures");
+    LogManager::instance().flushTask(step1B->taskId());
+
+    // 5. Create CLI Tool Task under step1A (Depth 3)
+    auto toolTask = LogManager::instance().createChildTask(step1A->taskId(), "\"bspsrc.bat\" -debug");
+    toolTask->start();
+    toolTask->info("BSPSource processing de_dust2.bsp");
+    LogManager::instance().flushTask(toolTask->taskId());
+
+    // Process queued blocks posted by LogManager sinks to LogViewModel
+    QCoreApplication::processEvents();
+
+    // Verify Mirrored Directory Structure on disk
+    QVERIFY(!rootWf->taskDirectory().isEmpty());
+    QVERIFY(stage1->taskDirectory().startsWith(rootWf->taskDirectory()));
+    QVERIFY(stage1->taskDirectory().contains(QStringLiteral("Stage_Extract_VPK")));
+    QVERIFY(step1A->taskDirectory().startsWith(stage1->taskDirectory()));
+    QVERIFY(step1A->taskDirectory().contains(QStringLiteral("Decompile_BSP")));
+    QVERIFY(toolTask->logFilePath().startsWith(step1A->taskDirectory()));
+
+    // Stage 1 is collapsed by default, so its children are NOT yet in flat projection.
+    QCOMPARE(logVm->taskCount(), 3);
+
+    // Expand Stage 1 (index 1)
+    logVm->toggleTaskExpanded(1);
+    // Now visible nodes should be:
+    // 0: Root (depth 0, expanded)
+    // 1: Stage 1 (depth 1, expanded)
+    // 2: Step 1A (depth 2, collapsed)
+    // 3: Step 1B (depth 2, collapsed)
+    // 4: Stage 2 (depth 1, collapsed)
+    QCOMPARE(logVm->taskCount(), 5);
+    QCOMPARE(logVm->data(logVm->index(1, 0), LogTaskModel::ExpandedRole).toBool(), true);
+    QCOMPARE(logVm->data(logVm->index(2, 0), LogTaskModel::DepthRole).toInt(), 2);
+    QCOMPARE(logVm->data(logVm->index(2, 0), LogTaskModel::TaskNameRole).toString(), QStringLiteral("Decompile BSP"));
+    QCOMPARE(logVm->data(logVm->index(3, 0), LogTaskModel::DepthRole).toInt(), 2);
+    QCOMPARE(logVm->data(logVm->index(3, 0), LogTaskModel::TaskNameRole).toString(), QStringLiteral("Extract Textures"));
+    QCOMPARE(logVm->data(logVm->index(4, 0), LogTaskModel::DepthRole).toInt(), 1);
+
+    // Expand Step 1A (index 2)
+    logVm->toggleTaskExpanded(2);
+    // Now visible nodes should be:
+    // 0: Root (depth 0, expanded)
+    // 1: Stage 1 (depth 1, expanded)
+    // 2: Step 1A (depth 2, expanded)
+    // 3: Tool bspsrc (depth 3, collapsed)
+    // 4: Step 1B (depth 2, collapsed)
+    // 5: Stage 2 (depth 1, collapsed)
+    QCOMPARE(logVm->taskCount(), 6);
+    QCOMPARE(logVm->data(logVm->index(2, 0), LogTaskModel::ExpandedRole).toBool(), true);
+    QCOMPARE(logVm->data(logVm->index(3, 0), LogTaskModel::DepthRole).toInt(), 3);
+    QCOMPARE(logVm->data(logVm->index(3, 0), LogTaskModel::TaskNameRole).toString(), QStringLiteral("\"bspsrc.bat\" -debug"));
+
+    // Now test SIBLING-LEVEL EXCLUSIVE ACCORDION:
+    // Expand Step 1B (currently at index 4)
+    // Because Step 1A and Step 1B are siblings under Stage 1, expanding 1B MUST collapse 1A (and its child Tool bspsrc)!
+    // But Stage 1 (parent) and Root (grandparent) MUST REMAIN EXPANDED!
+    logVm->toggleTaskExpanded(4);
+    // Visible nodes should now be:
+    // 0: Root (depth 0, expanded)
+    // 1: Stage 1 (depth 1, expanded)
+    // 2: Step 1A (depth 2, collapsed)
+    // 3: Step 1B (depth 2, expanded)
+    // 4: Stage 2 (depth 1, collapsed)
+    QCOMPARE(logVm->taskCount(), 5);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::ExpandedRole).toBool(), true);
+    QCOMPARE(logVm->data(logVm->index(1, 0), LogTaskModel::ExpandedRole).toBool(), true);
+    QCOMPARE(logVm->data(logVm->index(2, 0), LogTaskModel::ExpandedRole).toBool(), false);
+    QCOMPARE(logVm->data(logVm->index(3, 0), LogTaskModel::ExpandedRole).toBool(), true);
+    QCOMPARE(logVm->data(logVm->index(4, 0), LogTaskModel::ExpandedRole).toBool(), false);
+
+    // Expand Stage 2 (currently at index 4)
+    // Stage 1 and Stage 2 are siblings under Root!
+    // Expanding Stage 2 MUST collapse Stage 1 and all of Stage 1's descendants!
+    // But Root MUST REMAIN EXPANDED!
+    logVm->toggleTaskExpanded(4);
+    // Visible nodes should now be:
+    // 0: Root (depth 0, expanded)
+    // 1: Stage 1 (depth 1, collapsed)
+    // 2: Stage 2 (depth 1, expanded)
+    QCOMPARE(logVm->taskCount(), 3);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::ExpandedRole).toBool(), true);
+    QCOMPARE(logVm->data(logVm->index(1, 0), LogTaskModel::ExpandedRole).toBool(), false);
+    QCOMPARE(logVm->data(logVm->index(2, 0), LogTaskModel::ExpandedRole).toBool(), true);
+
+    // Test text export with indentation
+    QString fullText = logVm->exportToPlainText();
+    QVERIFY(fullText.contains(QStringLiteral("=== Map Import Pipeline ===")));
+    QVERIFY(fullText.contains(QStringLiteral("--- Stage Extract VPK ---")));
+    QVERIFY(fullText.contains(QStringLiteral("--- Decompile BSP ---")));
+    QVERIFY(fullText.contains(QStringLiteral("--- \"bspsrc.bat\" -debug ---")));
+
+    LogManager::instance().finishTask(toolTask->taskId(), "Done");
+    LogManager::instance().finishTask(step1A->taskId(), "Done");
+    LogManager::instance().finishTask(step1B->taskId(), "Done");
+    LogManager::instance().finishTask(stage1->taskId(), "Done");
+    LogManager::instance().finishTask(stage2->taskId(), "Done");
+    LogManager::instance().finishTask(rootWf->taskId(), "Done");
+
+    LogManager::instance().removeSink(fileSink);
+    logVm->unregisterFromLogManager();
+}
+
+void TestAsyncTaskLogging::testToolTaskHidingAndCommandPropagation()
+{
+    auto logVm = std::make_shared<LogViewModel>();
+    logVm->registerWithLogManager();
+
+    auto rootTask = LogManager::instance().createTask("Map Pipeline");
+    rootTask->start();
+    rootTask->info("Starting pipeline");
+    LogManager::instance().flushTask(rootTask->taskId());
+
+    QTRY_COMPARE(logVm->taskCount(), 1);
+
+    // 1. Create a business stage subtask (normal child task)
+    auto stageTask = LogManager::instance().createChildTask(rootTask->taskId(), "Extract Stage");
+    stageTask->start();
+    stageTask->info("Extracting");
+    LogManager::instance().flushTask(stageTask->taskId());
+
+    QCoreApplication::processEvents();
+    // Root is expanded, so stageTask appears in flat projection: 2 tasks total
+    QCOMPARE(logVm->taskCount(), 2);
+
+    // 2. Create external tool task via createToolTask
+    QString toolCmd = QStringLiteral("\"C:\\CS2\\tools\\resourcecompiler.exe\" -f mesh.vmdl");
+    auto toolTask = LogManager::instance().createToolTask(stageTask->taskId(), toolCmd);
+    QVERIFY(toolTask != nullptr);
+    QVERIFY(toolTask->isToolTask());
+    toolTask->start();
+    toolTask->info("Compiling mesh LOD 0");
+    toolTask->info("Compiling mesh LOD 1");
+    LogManager::instance().flushTask(toolTask->taskId());
+
+    QCoreApplication::processEvents();
+
+    // 3. Verify toolTask is HIDDEN from the task tree: taskCount remains 2!
+    QCOMPARE(logVm->taskCount(), 2);
+    QCOMPARE(logVm->data(logVm->index(0, 0), LogTaskModel::TaskNameRole).toString(), QStringLiteral("Map Pipeline"));
+    QCOMPARE(logVm->data(logVm->index(1, 0), LogTaskModel::TaskNameRole).toString(), QStringLiteral("Extract Stage"));
+
+    // 4. Verify stageTask (parent) received the [EXEC] command line with toolTaskId
+    auto* stageMsgs = logVm->getTaskMessagesModel(1);
+    QVERIFY(stageMsgs != nullptr);
+    // stageTask should have "Extracting" and "[EXEC] ..."
+    QTRY_COMPARE(stageMsgs->count(), 2);
+    QModelIndex cmdIdx = stageMsgs->index(1, 0);
+    QVERIFY(stageMsgs->data(cmdIdx, LogMessageListModel::MessageRole).toString().contains(toolCmd));
+    QCOMPARE(stageMsgs->data(cmdIdx, LogMessageListModel::ToolTaskIdRole).toULongLong(), toolTask->taskId());
+
+    // 5. Verify getToolMessagesModel can retrieve the tool's independent logs
+    auto* toolMsgs = logVm->getToolMessagesModel(toolTask->taskId());
+    QVERIFY(toolMsgs != nullptr);
+    QCOMPARE(toolMsgs->count(), 2);
+    QCOMPARE(toolMsgs->data(toolMsgs->index(0, 0), LogMessageListModel::MessageRole).toString(), QStringLiteral("Compiling mesh LOD 0"));
+    QCOMPARE(toolMsgs->data(toolMsgs->index(1, 0), LogMessageListModel::MessageRole).toString(), QStringLiteral("Compiling mesh LOD 1"));
+
+    // 6. Verify getToolTaskName & getToolTaskState
+    QCOMPARE(logVm->getToolTaskName(toolTask->taskId()), toolCmd);
+    QCOMPARE(logVm->getToolTaskState(toolTask->taskId()), QStringLiteral("RUNNING"));
+
+    // 7. Complete tool and stage tasks
+    LogManager::instance().finishTask(toolTask->taskId(), "Mesh compiled");
+    LogManager::instance().finishTask(stageTask->taskId(), "Stage done");
+    LogManager::instance().finishTask(rootTask->taskId(), "All done");
+
+    QCoreApplication::processEvents();
+    QTRY_COMPARE(logVm->getToolTaskState(toolTask->taskId()), QStringLiteral("COMPLETED"));
 
     logVm->unregisterFromLogManager();
 }

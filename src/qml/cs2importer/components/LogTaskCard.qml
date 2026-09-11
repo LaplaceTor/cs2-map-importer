@@ -7,21 +7,25 @@ Rectangle {
 
     property var owningModel: null
     property int cardIndex: (typeof index !== "undefined") ? index : 0
-    property int cardDepth: (typeof model !== "undefined" && model && model.depth !== undefined) ? model.depth : 0
+    property int cardDepth: (typeof depth !== "undefined") ? depth : ((typeof model !== "undefined" && model && model.depth !== undefined) ? model.depth : 0)
     property string taskName: (typeof model !== "undefined" && model && model.taskName !== undefined) ? model.taskName : ""
     property string stateString: (typeof model !== "undefined" && model && model.stateString !== undefined) ? model.stateString : ""
     property double progress: (typeof model !== "undefined" && model && model.progress !== undefined) ? model.progress : 0.0
     property bool expanded: (typeof model !== "undefined" && model && model.expanded !== undefined) ? model.expanded : true
     property int messageCount: (typeof model !== "undefined" && model && model.messageCount !== undefined) ? model.messageCount : 0
     property int subTasksCount: (typeof model !== "undefined" && model && model.subTasksCount !== undefined) ? model.subTasksCount : 0
-    property bool hasSubTasks: (typeof model !== "undefined" && model && model.hasSubTasks !== undefined) ? model.hasSubTasks : false
+    property bool hasSubTasks: (typeof model !== "undefined" && model && model.hasSubTasks !== undefined ? model.hasSubTasks : false)
     property var messagesModel: (typeof model !== "undefined" && model && model.messagesModel !== undefined) ? model.messagesModel : null
     property var subTasksModel: (typeof model !== "undefined" && model && model.subTasksModel !== undefined) ? model.subTasksModel : null
     property bool autoScroll: true
+    property var taskView: null
+    property var logWindow: null
 
-    width: parent ? parent.width : 0
-    color: cardDepth > 0 ? "#1C1C1C" : "#212121"
-    border.color: expanded ? (cardDepth > 0 ? "#383838" : "#424242") : "#282828"
+    x: cardDepth * 16
+    width: (taskView ? taskView.width - 12 : (parent ? parent.width : 0)) - (cardDepth * 16)
+    clip: true
+    color: cardDepth === 0 ? "#212121" : (cardDepth === 1 ? "#1A1A1A" : "#141414")
+    border.color: expanded ? (cardDepth === 0 ? "#4A4A4A" : (cardDepth === 1 ? "#3D3D3D" : "#333333")) : (cardDepth === 0 ? "#2E2E2E" : "#252525")
     border.width: 1
     radius: 4
 
@@ -63,8 +67,8 @@ Rectangle {
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 6 + rootCard.cardDepth * 12
-                anchors.rightMargin: 6
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
                 spacing: 8
 
                 // Expand / Collapse Chevron
@@ -75,13 +79,29 @@ Rectangle {
                     Layout.alignment: Qt.AlignVCenter
                 }
 
-                // Task Name
+                // Task Name (with text elide and tooltip for full command)
                 Text {
+                    id: taskNameText
                     text: rootCard.taskName
                     color: "#ECEFF1"
                     font.bold: rootCard.cardDepth === 0
-                    font.pixelSize: rootCard.cardDepth === 0 ? 13 : 12
+                    font.pixelSize: rootCard.cardDepth === 0 ? 13 : 11
+                    font.family: rootCard.cardDepth > 0 ? "Consolas, 'Courier New', monospace" : "Segoe UI, sans-serif"
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 40
+                    elide: Text.ElideRight
                     Layout.alignment: Qt.AlignVCenter
+
+                    ToolTip.text: rootCard.taskName
+                    ToolTip.visible: taskNameHoverArea.containsMouse && rootCard.taskName.length > 30
+                    ToolTip.delay: 300
+
+                    MouseArea {
+                        id: taskNameHoverArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        acceptedButtons: Qt.NoButton
+                    }
                 }
 
                 // State Badge
@@ -120,10 +140,6 @@ Rectangle {
                     Layout.alignment: Qt.AlignVCenter
                 }
 
-                Item {
-                    Layout.fillWidth: true
-                }
-
                 // Subtasks tag
                 Text {
                     visible: rootCard.hasSubTasks
@@ -151,100 +167,13 @@ Rectangle {
                 onClicked: {
                     if (rootCard.owningModel && typeof rootCard.owningModel.toggleTaskExpanded === "function") {
                         rootCard.owningModel.toggleTaskExpanded(rootCard.cardIndex)
-                    }
-                }
-            }
-        }
-
-        // Child Sub-Tasks Area (Visible when expanded)
-        ColumnLayout {
-            Layout.fillWidth: true
-            visible: rootCard.expanded && rootCard.hasSubTasks
-            spacing: 6
-
-            Repeater {
-                model: rootCard.subTasksModel
-                delegate: Loader {
-                    id: subTaskLoader
-                    Layout.fillWidth: true
-                    source: "LogTaskCard.qml"
-
-                    required property int index
-                    required property int depth
-                    required property string taskName
-                    required property string stateString
-                    required property double progress
-                    required property bool expanded
-                    required property int messageCount
-                    required property int subTasksCount
-                    required property bool hasSubTasks
-                    required property var messagesModel
-                    required property var subTasksModel
-
-                    Binding {
-                        target: subTaskLoader.item
-                        property: "owningModel"
-                        value: rootCard.subTasksModel
-                    }
-                    Binding {
-                        target: subTaskLoader.item
-                        property: "cardIndex"
-                        value: subTaskLoader.index
-                    }
-                    Binding {
-                        target: subTaskLoader.item
-                        property: "cardDepth"
-                        value: subTaskLoader.depth
-                    }
-                    Binding {
-                        target: subTaskLoader.item
-                        property: "taskName"
-                        value: subTaskLoader.taskName
-                    }
-                    Binding {
-                        target: subTaskLoader.item
-                        property: "stateString"
-                        value: subTaskLoader.stateString
-                    }
-                    Binding {
-                        target: subTaskLoader.item
-                        property: "progress"
-                        value: subTaskLoader.progress
-                    }
-                    Binding {
-                        target: subTaskLoader.item
-                        property: "expanded"
-                        value: subTaskLoader.expanded
-                    }
-                    Binding {
-                        target: subTaskLoader.item
-                        property: "messageCount"
-                        value: subTaskLoader.messageCount
-                    }
-                    Binding {
-                        target: subTaskLoader.item
-                        property: "subTasksCount"
-                        value: subTaskLoader.subTasksCount
-                    }
-                    Binding {
-                        target: subTaskLoader.item
-                        property: "hasSubTasks"
-                        value: subTaskLoader.hasSubTasks
-                    }
-                    Binding {
-                        target: subTaskLoader.item
-                        property: "messagesModel"
-                        value: subTaskLoader.messagesModel
-                    }
-                    Binding {
-                        target: subTaskLoader.item
-                        property: "subTasksModel"
-                        value: subTaskLoader.subTasksModel
-                    }
-                    Binding {
-                        target: subTaskLoader.item
-                        property: "autoScroll"
-                        value: rootCard.autoScroll
+                        if (rootCard.taskView) {
+                            Qt.callLater(function() {
+                                if (rootCard.taskView) {
+                                    rootCard.taskView.positionViewAtIndex(rootCard.cardIndex, ListView.Contain)
+                                }
+                            })
+                        }
                     }
                 }
             }
@@ -255,7 +184,15 @@ Rectangle {
             id: messageArea
             Layout.fillWidth: true
             visible: rootCard.expanded && (rootCard.messageCount > 0)
-            implicitHeight: visible ? Math.min(280, Math.max(30, messageListView.contentHeight + 12)) : 0
+            implicitHeight: {
+                if (!visible) return 0;
+                if (rootCard.cardDepth === 0) {
+                    var viewH = rootCard.taskView ? rootCard.taskView.height : 400;
+                    var otherH = (rootCard.taskView && rootCard.taskView.count > 1) ? (rootCard.taskView.count - 1) * 44 : 0;
+                    return Math.max(180, viewH - 60 - otherH);
+                }
+                return Math.min(260, Math.max(30, messageListView.contentHeight + 12));
+            }
             color: "#141414"
             radius: 3
             border.color: "#2C2C2C"
@@ -293,6 +230,7 @@ Rectangle {
                     required property string timestampString
                     required property string levelString
                     required property string message
+                    required property var toolTaskId
 
                     Text {
                         text: "[" + (timestampString || "00:00:00") + "]"
@@ -328,6 +266,49 @@ Rectangle {
                             color: "#FFFFFF"
                             font.bold: true
                             font.pixelSize: 9
+                        }
+                    }
+
+                    // Detail Log Button for Tool Executions
+                    Rectangle {
+                        id: toolDetailBtn
+                        visible: Number(toolTaskId) > 0
+                        implicitWidth: toolBtnRow.implicitWidth + 10
+                        implicitHeight: 18
+                        radius: 2
+                        color: toolBtnMouseArea.containsMouse ? "#1976D2" : "#0D47A1"
+                        border.color: "#64B5F6"
+                        border.width: 1
+                        Layout.alignment: Qt.AlignTop
+
+                        RowLayout {
+                            id: toolBtnRow
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            Text {
+                                text: "📄"
+                                font.pixelSize: 10
+                            }
+
+                            Text {
+                                text: qsTr("详细日志")
+                                color: "#FFFFFF"
+                                font.pixelSize: 10
+                                font.bold: true
+                            }
+                        }
+
+                        MouseArea {
+                            id: toolBtnMouseArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (rootCard.logWindow && typeof rootCard.logWindow.openToolLogWindow === "function") {
+                                    rootCard.logWindow.openToolLogWindow(toolTaskId, message)
+                                }
+                            }
                         }
                     }
 

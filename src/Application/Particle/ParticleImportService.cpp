@@ -74,6 +74,9 @@ Async::TaskHandle ParticleImportService::importParticlesAsync(
     const QString pcfFileName = request.sourcePcfPath.trimmed().isEmpty()
         ? QStringLiteral("PCF")
         : QFileInfo(request.sourcePcfPath.trimmed()).fileName();
+    const QString pcfBaseName = request.sourcePcfPath.trimmed().isEmpty()
+        ? QStringLiteral("pcf")
+        : QFileInfo(request.sourcePcfPath.trimmed()).completeBaseName();
     const QString taskName = QStringLiteral("Import Particle: %1").arg(pcfFileName);
     const quint64 parentTaskId = loggingCtx ? loggingCtx->taskId() : 0;
 
@@ -96,13 +99,24 @@ Async::TaskHandle ParticleImportService::importParticlesAsync(
         }
     };
 
-    Async::TaskHandle handle = Async::AsyncTaskRunner::runTask<ParticleImportResult>(
-        taskName,
-        this,
-        std::move(worker),
-        std::move(completionCallback),
-        QThreadPool::globalInstance(),
-        parentTaskId);
+    Async::TaskHandle handle;
+    if (parentTaskId != 0) {
+        handle = Async::AsyncTaskRunner::runTask<ParticleImportResult>(
+            taskName,
+            this,
+            std::move(worker),
+            std::move(completionCallback),
+            QThreadPool::globalInstance(),
+            parentTaskId);
+    } else {
+        handle = Async::AsyncTaskRunner::runWorkflowTask<ParticleImportResult>(
+            taskName,
+            pcfBaseName,
+            this,
+            std::move(worker),
+            std::move(completionCallback),
+            QThreadPool::globalInstance());
+    }
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);

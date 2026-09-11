@@ -7,6 +7,57 @@ ApplicationWindow {
     id: root
 
     property QtObject logViewModel: null
+    property var toolWindows: ({})
+
+    function openToolLogWindow(toolTaskId, commandLine) {
+        if (!toolTaskId) return;
+        var key = String(toolTaskId);
+        if (toolWindows[key]) {
+            try {
+                toolWindows[key].show();
+                toolWindows[key].raise();
+                toolWindows[key].requestActivate();
+                return;
+            } catch (e) {
+                delete toolWindows[key];
+            }
+        }
+
+        var cleanCmd = (commandLine || ("Task " + toolTaskId)).trim();
+        if (cleanCmd.startsWith("[EXEC] ")) {
+            cleanCmd = cleanCmd.substring(7).trim();
+        }
+
+        var component = Qt.createComponent("ToolLogWindow.qml");
+        var createWin = function() {
+            var win = component.createObject(null, {
+                "logViewModel": root.logViewModel,
+                "toolTaskId": toolTaskId,
+                "toolName": cleanCmd
+            });
+            if (win) {
+                toolWindows[key] = win;
+                win.windowClosed.connect(function(closedId) {
+                    delete toolWindows[String(closedId)];
+                });
+                win.show();
+                win.raise();
+                win.requestActivate();
+            }
+        };
+
+        if (component.status === Component.Ready) {
+            createWin();
+        } else if (component.status === Component.Loading) {
+            component.statusChanged.connect(function() {
+                if (component.status === Component.Ready) {
+                    createWin();
+                }
+            });
+        } else if (component.status === Component.Error) {
+            console.error("Failed to create ToolLogWindow:", component.errorString());
+        }
+    }
 
     width: 880
     height: 580
@@ -28,10 +79,10 @@ ApplicationWindow {
             spacing: 8
 
             Button {
-                text: qsTr("Open log file")
+                text: qsTr("Open log folder")
                 onClicked: {
                     if (root.logViewModel) {
-                        root.logViewModel.openLogFile()
+                        root.logViewModel.openLogFolder()
                     }
                 }
             }
@@ -102,9 +153,10 @@ ApplicationWindow {
                 }
 
                 delegate: LogTaskCard {
-                    width: taskListView.width - (vScrollBar.visible ? vScrollBar.width + 4 : 0)
                     owningModel: root.logViewModel
                     autoScroll: root.logViewModel ? root.logViewModel.autoScroll : true
+                    taskView: taskListView
+                    logWindow: root
                 }
 
                 onCountChanged: {
@@ -116,11 +168,6 @@ ApplicationWindow {
 
             Connections {
                 target: root.logViewModel
-                function onTotalMessageCountChanged() {
-                    if (root.logViewModel && root.logViewModel.autoScroll) {
-                        Qt.callLater(taskListView.positionViewAtEnd)
-                    }
-                }
                 function onAutoScrollChanged() {
                     if (root.logViewModel && root.logViewModel.autoScroll) {
                         Qt.callLater(taskListView.positionViewAtEnd)

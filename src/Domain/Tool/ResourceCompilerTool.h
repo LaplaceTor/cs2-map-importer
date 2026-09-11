@@ -6,6 +6,8 @@
 #include <QString>
 #include <QStringList>
 
+#include "Core/Async/CancellationToken.h"
+
 namespace Domain::Tool {
 
 /**
@@ -17,6 +19,7 @@ struct ResourceCompilerOptions {
     bool forceCompile = true;
     bool verbose = true;
     int timeoutMs = 120000;
+    Core::Async::CancellationToken cancellationToken;
 };
 
 /**

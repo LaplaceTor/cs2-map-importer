@@ -70,41 +70,103 @@ ProcessResult ProcessRunner::execute(const QString& executable, const ProcessOpt
         return result;
     }
 
-    int remainingTimeout = -1;
-    if (options.timeout >= 0) {
-        qint64 elapsed = timer.elapsed();
-        qint64 rem = static_cast<qint64>(options.timeout) - elapsed;
-        if (rem < 0) {
-            rem = 0;
-        }
-        remainingTimeout = static_cast<int>(rem);
-    }
+    QString fullStdOut;
+    QString fullStdErr;
+    QString pendingStdOutLine;
+    QString pendingStdErrLine;
 
-    if (!process.waitForFinished(remainingTimeout)) {
-        if (process.error() == QProcess::Timedout) {
-            result.status = ProcessStatus::TimedOut;
-            result.errorMessage = QString("Process execution timed out after %1 ms.").arg(options.timeout);
-        } else if (process.exitStatus() == QProcess::CrashExit) {
-            result.status = ProcessStatus::Crashed;
-            result.errorMessage = QString("Process crashed during execution: %1").arg(process.errorString());
-        } else {
-            result.status = ProcessStatus::FailedToStart;
-            result.errorMessage = QString("Process execution failed: %1").arg(process.errorString());
+    auto drainStream = [](QProcess& proc, bool isError, QString& pendingLine, QString& fullOutput, const std::function<void(const QString&)>& lineCallback) {
+        QByteArray data = isError ? proc.readAllStandardError() : proc.readAllStandardOutput();
+        if (data.isEmpty()) {
+            return;
         }
+        QString text = QString::fromUtf8(data);
+        fullOutput += text;
 
-        if (process.state() == QProcess::Running) {
+        if (lineCallback) {
+            text = pendingLine + text;
+            pendingLine.clear();
+
+            int start = 0;
+            int newlineIdx = -1;
+            while ((newlineIdx = text.indexOf(QLatin1Char('\n'), start)) != -1) {
+                QString line = text.mid(start, newlineIdx - start);
+                if (line.endsWith(QLatin1Char('\r'))) {
+                    line.chop(1);
+                }
+                lineCallback(line);
+                start = newlineIdx + 1;
+            }
+            if (start < text.length()) {
+                pendingLine = text.mid(start);
+            }
+        }
+    };
+
+    while (process.state() == QProcess::Running) {
+        if (options.cancellationToken.isCancelled()) {
             process.kill();
             process.waitForFinished(1000);
+            drainStream(process, false, pendingStdOutLine, fullStdOut, options.onStdOutLine);
+            drainStream(process, true, pendingStdErrLine, fullStdErr, options.onStdErrLine);
+            if (!pendingStdOutLine.isEmpty() && options.onStdOutLine) {
+                options.onStdOutLine(pendingStdOutLine);
+            }
+            if (!pendingStdErrLine.isEmpty() && options.onStdErrLine) {
+                options.onStdErrLine(pendingStdErrLine);
+            }
+            result.status = ProcessStatus::Cancelled;
+            result.exitCode = -1;
+            result.errorMessage = QStringLiteral("Process was cancelled by user.");
+            result.stdOut = fullStdOut;
+            result.stdErr = fullStdErr;
+            return result;
         }
 
+        if (options.timeout >= 0 && timer.elapsed() >= options.timeout) {
+            process.kill();
+            process.waitForFinished(1000);
+            drainStream(process, false, pendingStdOutLine, fullStdOut, options.onStdOutLine);
+            drainStream(process, true, pendingStdErrLine, fullStdErr, options.onStdErrLine);
+            if (!pendingStdOutLine.isEmpty() && options.onStdOutLine) {
+                options.onStdOutLine(pendingStdOutLine);
+            }
+            if (!pendingStdErrLine.isEmpty() && options.onStdErrLine) {
+                options.onStdErrLine(pendingStdErrLine);
+            }
+            result.status = ProcessStatus::TimedOut;
+            result.exitCode = -1;
+            result.errorMessage = QString("Process execution timed out after %1 ms.").arg(options.timeout);
+            result.stdOut = fullStdOut;
+            result.stdErr = fullStdErr;
+            return result;
+        }
+
+        process.waitForReadyRead(50);
+        drainStream(process, false, pendingStdOutLine, fullStdOut, options.onStdOutLine);
+        drainStream(process, true, pendingStdErrLine, fullStdErr, options.onStdErrLine);
+    }
+
+    drainStream(process, false, pendingStdOutLine, fullStdOut, options.onStdOutLine);
+    drainStream(process, true, pendingStdErrLine, fullStdErr, options.onStdErrLine);
+    if (!pendingStdOutLine.isEmpty() && options.onStdOutLine) {
+        options.onStdOutLine(pendingStdOutLine);
+    }
+    if (!pendingStdErrLine.isEmpty() && options.onStdErrLine) {
+        options.onStdErrLine(pendingStdErrLine);
+    }
+
+    if (options.cancellationToken.isCancelled()) {
+        result.status = ProcessStatus::Cancelled;
         result.exitCode = -1;
-        result.stdOut = QString::fromUtf8(process.readAllStandardOutput());
-        result.stdErr = QString::fromUtf8(process.readAllStandardError());
+        result.errorMessage = QStringLiteral("Process was cancelled by user.");
+        result.stdOut = fullStdOut;
+        result.stdErr = fullStdErr;
         return result;
     }
 
-    result.stdOut = QString::fromUtf8(process.readAllStandardOutput());
-    result.stdErr = QString::fromUtf8(process.readAllStandardError());
+    result.stdOut = fullStdOut;
+    result.stdErr = fullStdErr;
     result.exitCode = process.exitCode();
 
     if (process.exitStatus() == QProcess::CrashExit) {

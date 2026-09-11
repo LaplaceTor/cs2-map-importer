@@ -6,6 +6,8 @@
 #include <QString>
 #include <QStringList>
 
+#include "Core/Async/CancellationToken.h"
+
 namespace Domain::Tool {
 
 /**
@@ -19,6 +21,7 @@ struct Source1ImportOptions {
     bool disableDiffuse = false;
     bool isCsgo = false;
     int timeoutMs = 120000;
+    Core::Async::CancellationToken cancellationToken;
 };
 
 /**

@@ -41,6 +41,13 @@ public:
     std::shared_ptr<TaskLoggingContext> createTask(const QString& taskName = QString(), quint64 parentTaskId = 0);
 
     /**
+     * @brief Create a workflow root task with a dedicated log directory: logs/<workflowName>_<timestamp>/workflow.log
+     * @param workflowName The descriptive workflow name
+     * @param assetBaseName The primary asset base name (e.g. PCF name without extension) to use for naming child tool logs
+     */
+    std::shared_ptr<TaskLoggingContext> createWorkflowTask(const QString& workflowName, const QString& assetBaseName = QString());
+
+    /**
      * @brief Create a task with an explicitly provided taskId.
      * @return std::shared_ptr<TaskLoggingContext> if successful, or nullptr if taskId already exists.
      */
@@ -50,6 +57,13 @@ public:
      * @brief Create a child task attached to a parent task.
      */
     std::shared_ptr<TaskLoggingContext> createChildTask(quint64 parentTaskId, const QString& taskName = QString());
+
+    /**
+     * @brief Create an external tool execution child task attached to a parent task.
+     * Marks the child task as a tool task and injects a command execution log into the parent task.
+     */
+    std::shared_ptr<TaskLoggingContext> createToolTask(
+        quint64 parentTaskId, const QString& commandLine, const QString& assetBaseName = QString());
 
     std::shared_ptr<TaskLoggingContext> findTask(quint64 taskId) const;
 

@@ -46,6 +46,8 @@ QVariant LogMessageListModel::data(const QModelIndex& index, int role) const
     case MessageRole:
     case Qt::DisplayRole:
         return item.message;
+    case ToolTaskIdRole:
+        return QVariant::fromValue(item.toolTaskId);
     default:
         return QVariant();
     }
@@ -60,6 +62,7 @@ QHash<int, QByteArray> LogMessageListModel::roleNames() const
     roles[LevelRole] = "level";
     roles[LevelStringRole] = "levelString";
     roles[MessageRole] = "message";
+    roles[ToolTaskIdRole] = "toolTaskId";
     return roles;
 }
 

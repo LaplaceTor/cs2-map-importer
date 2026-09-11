@@ -129,4 +129,31 @@ QString LogFileManager::generateApplicationLogFilePath(qint64 startupTimestamp)
     return QDir(logsDirectory()).filePath(fileName);
 }
 
+QString LogFileManager::generateWorkflowDirectoryPath(const QString& workflowName, qint64 startTimestamp)
+{
+    const QString safeName = sanitizeFileName(workflowName);
+    const QString timeStr = formatTimestamp(startTimestamp);
+    const QString dirName = QStringLiteral("%1_%2").arg(safeName, timeStr);
+    return QDir(logsDirectory()).filePath(dirName);
+}
+
+QString LogFileManager::generateWorkflowLogFilePath(const QString& workflowDir)
+{
+    return QDir(workflowDir).filePath(QStringLiteral("workflow.log"));
+}
+
+QString LogFileManager::generateToolLogFileName(const QString& assetBaseName, const QString& toolName, qint64 timestamp)
+{
+    const QString safeAsset = sanitizeFileName(assetBaseName.trimmed().isEmpty() ? QStringLiteral("asset") : assetBaseName);
+    const QString safeTool = sanitizeFileName(toolName.trimmed().isEmpty() ? QStringLiteral("tool") : toolName);
+    const QString timeStr = formatTimestamp(timestamp);
+    return QStringLiteral("%1_%2_%3.log").arg(safeAsset, safeTool, timeStr);
+}
+
+QString LogFileManager::generateToolLogFilePath(const QString& workflowDir, const QString& assetBaseName, const QString& toolName, qint64 timestamp)
+{
+    const QString fileName = generateToolLogFileName(assetBaseName, toolName, timestamp);
+    return QDir(workflowDir).filePath(fileName);
+}
+
 } // namespace Core::Logging

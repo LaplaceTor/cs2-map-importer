@@ -36,6 +36,21 @@ public:
     QString logFilePath() const;
     void setLogFilePath(const QString& path);
 
+    QString workflowDirectory() const;
+    void setWorkflowDirectory(const QString& dir);
+
+    QString taskDirectory() const;
+    void setTaskDirectory(const QString& dir);
+
+    QString assetBaseName() const;
+    void setAssetBaseName(const QString& name);
+
+    bool isWorkflow() const noexcept;
+    void setIsWorkflow(bool isWf) noexcept;
+
+    bool isToolTask() const noexcept;
+    void setIsToolTask(bool isTool) noexcept;
+
     bool isLogFileReady() const noexcept;
     void setLogFileReady(bool ready) noexcept;
 
@@ -68,6 +83,9 @@ public:
      */
     void setBlockSizeThreshold(qsizetype bytes);
 
+    using FlushCallback = std::function<void(quint64 taskId)>;
+    void setFlushCallback(FlushCallback callback);
+    void flush();
     void flushActiveBlock();
 
     QVector<LogBlock> sealedBlocks() const;
@@ -122,7 +140,8 @@ public:
     bool info(const QString& message);
     bool warning(const QString& message);
     bool error(const QString& message);
-    bool log(LogLevel level, const QString& message, LogSource source = LogSource::Workflow);
+    bool command(const QString& commandLine, quint64 toolTaskId = 0);
+    bool log(LogLevel level, const QString& message, LogSource source = LogSource::Workflow, quint64 toolTaskId = 0);
     bool logExternalToolOutput(const QString& message, LogLevel level = LogLevel::Info);
     LogSubmissionResult reportFault(const QString& message);
 
@@ -166,6 +185,11 @@ private:
     quint64 m_creationSequence = 0;
     qint64 m_startTimestamp = 0;
     QString m_logFilePath;
+    QString m_workflowDirectory;
+    QString m_taskDirectory;
+    QString m_assetBaseName;
+    bool m_isWorkflow = false;
+    bool m_isToolTask = false;
     bool m_logFileReady = false;
     mutable QRecursiveMutex m_mutex;
     std::shared_ptr<FaultBarrier> m_faultBarrier;
@@ -182,6 +206,7 @@ private:
     quint64 m_nextSequence = 1; // Task-local log entry sequence number
     quint64 m_logCount = 0;
     quint64 m_errorCount = 0;
+    FlushCallback m_flushCallback;
 };
 
 } // namespace Core::Logging

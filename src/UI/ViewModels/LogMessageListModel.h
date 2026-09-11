@@ -15,6 +15,7 @@ struct LogMessageItem {
     qint64 timestamp = 0;
     Core::Logging::LogLevel level = Core::Logging::LogLevel::Info;
     QString message;
+    quint64 toolTaskId = 0;
 };
 
 /**
@@ -33,7 +34,8 @@ public:
         TimestampStringRole,
         LevelRole,
         LevelStringRole,
-        MessageRole
+        MessageRole,
+        ToolTaskIdRole
     };
     Q_ENUM(LogMessageRoles)
 
