@@ -95,6 +95,7 @@ description: >-
 
 ### 4.4 集成边界
 * [ ] `Domain::Tool` + `Core::Process` 之外无直接 `QProcess` / Shell 调用。
+* [ ] 外部 CLI 工具必须通过 `LogManager::createToolTask` 封装为隐藏任务，并经 `ProcessOptions` 回调实现流式日志重定向与取消令牌绑定。
 * [ ] Application / UI 弹窗桥接之外无直接模态对话框调用。
 * [ ] 未引入全局静态日志器。
 * [ ] 未引入新的全局可变状态。
@@ -105,10 +106,10 @@ description: >-
 * [ ] 错误处理结构化并保留诊断上下文。
 * [ ] 未重复编写已有 Core 基础设施的功能。
 
-### 4.6 测试覆盖
-* [ ] 新增的 Domain / Core 逻辑具备隔离的单元测试覆盖。
-* [ ] 涉及的 Application 服务有编排测试。
-* [ ] UI 测试关注状态与信号，而非重复测试 Domain 内部细节。
+### 4.6 测试生命周期与分层契约
+* [ ] `tests/` 目录中的长期常驻测试仅限于 Core 层（`test_core_*`），仅链接 `cs2importer_core` 与 Qt6::Core/Test。
+* [ ] 非 Core 层（Domain / Workflow / Application / UI）测试仅作为开发验证期间的临时单任务测试（Task-Scoped / Ephemeral Tests）。
+* [ ] 任务完成后，上层临时测试必须彻底清理/删除，严禁合入主线或在 CMakeLists.txt 中残留对非 Core 模块的测试链接。
 
 ---
 
@@ -132,6 +133,9 @@ Workflow → Application
 
 任何业务文件 → QProcess / system() / Shell
 任何业务文件 → 全局 Logger::info/error/warning
+
+tests/ 常驻测试目标 → 链接 cs2importer_domain / cs2importer_workflow / cs2importer_application / cs2importer_ui
+非 Core 临时任务测试 → 任务结束后残留于代码库中
 
 承担众多杂项职责的庞大静态 Application 服务
 无明确移除计划的临时跨层 include

@@ -23,6 +23,22 @@ ApplicationWindow {
         Qt.quit()
     }
 
+    background: Rectangle {
+        color: window.palette.window
+
+        Image {
+            id: bgWatermarkIcon
+            anchors.centerIn: parent
+            width: 280
+            height: 280
+            source: "qrc:/icons/icon.png"
+            fillMode: Image.PreserveAspectFit
+            opacity: 0.33
+            smooth: true
+            mipmap: true
+        }
+    }
+
     property QtObject gameViewModel: gameViewModelInstance
     property QtObject logViewModel: logViewModelInstance
     property QtObject mainController: mainControllerInstance

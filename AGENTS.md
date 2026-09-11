@@ -147,6 +147,8 @@ UI 属性/信号
    - 失败原因 (`Error::message()`)：具体领域或系统失败事实；
    - 技术诊断 (`Error::details()`)：绝对路径、CLI 参数、stderr 等技术细节。
 5. **任务导向日志**：严禁使用全局静态 Logger（如 `Logger::info(...)`）。必须通过 `TaskLoggingContext` 显式向下传递。
+   - **层级化与工作流任务**：顶层导入流程通过 `LogManager::createWorkflowTask` 创建 Workflow 根任务，在 `logs/<workflowName>_<timestamp>/` 下生成独立目录与主工作流日志 `workflow.log`；
+   - **外部工具隐藏任务（Tool Task）**：外部 CLI 工具（如 `resourcecompiler`, `source1import`, `bspsrc`）必须通过 `LogManager::createToolTask` 创建。Tool 任务从主 UI 任务树中隐蔽（避免日志噪音），父任务接收携带 `toolTaskId` 的 `[EXEC]` 启动通知；工具输出实时流式写入独立文件（`<asset>_<tool>_<timestamp>.log`），UI 表现层通过独立 `ToolLogWindow` 按需查看。
 6. **异常边界转译**：Application 服务边界统一通过 `ExecutionGuard` 或 `AsyncTaskRunner` 将异常转译为 `Result<T>::failure`，严禁在内部 helper 中静默使用 `catch (...)` 吞没异常。
 
 > 💡 **详细规范与完整决策表**：请查阅专用技能 [`skills/cs2-async-error-handling/SKILL.md`](file:///c:/Users/KEY/Documents/GitHub/cs2-map-importer/skills/cs2-async-error-handling/SKILL.md) 获取双平面冲突仲裁矩阵、构造正反模式代码及进程机械结果转译规则。
@@ -157,8 +159,9 @@ UI 属性/信号
 
 1. **禁止直接操作外部进程**：业务代码严禁使用 `QProcess`、`system()`、`popen()` 或 `WinExec()`。
 2. **外部工具强类型封装**：所有外部 CLI 工具（`bspsrc`，官方 `resourcecompiler`, `source1import`）必须封装于 `Domain::Tool` 并通过 `Core::Process::ProcessRunner` 执行。
-3. **内嵌原生库替代**：严禁再引入或调用外部 `vpkeditcli` 与 `vtfcmd`，归档解包与 VTF 转码已全量由内嵌原生库（`Domain::Package` 与 `Domain::Material`，基于 `sourcepp`）在进程内完成。
-4. **用户交互解耦**：Domain / Workflow 严禁直接弹出模态对话框。必须通过抽象 Prompt 接口定义契约，由 Application 实现并调度 UI 呈现。
+3. **流式输出与取消绑定**：`ProcessRunner` 必须支持基于 `onStdOutLine` / `onStdErrLine` 的逐行实时流式日志捕获，并与 `CancellationToken` 强绑定，严禁无超时的静默阻塞式黑盒调用。
+4. **内嵌原生库替代**：严禁再引入或调用外部 `vpkeditcli` 与 `vtfcmd`，归档解包与 VTF 转码已全量由内嵌原生库（`Domain::Package` 与 `Domain::Material`，基于 `sourcepp`）在进程内完成。
+5. **用户交互解耦**：Domain / Workflow 严禁直接弹出模态对话框。必须通过抽象 Prompt 接口定义契约，由 Application 实现并调度 UI 呈现。
 
 ---
 
@@ -203,6 +206,7 @@ cs2importer (主程序 / QML)
 * `cs2importer_workflow` 链接 Domain + Core；
 * `cs2importer_application` 链接 Workflow + Domain + Core；
 * `cs2importer_ui` 链接 Application 及 Qt 模块。**严禁在 `src/UI/CMakeLists.txt` 中添加对 `cs2importer_domain` 或 `cs2importer_core` 的直接链接。**
+* **测试链接红线**：`tests/` 下的常驻单元测试目标仅限针对 Core 层，仅允许链接 `cs2importer_core` 及 `Qt6::Core`、`Qt6::Test`；**严禁在常驻测试目标中链接 `cs2importer_domain`、`cs2importer_workflow`、`cs2importer_application` 或 `cs2importer_ui`**。
 
 ---
 
@@ -223,6 +227,11 @@ cs2importer (主程序 / QML)
   cmake --build --preset windows-debug
   ```
 
+### 9.1 测试生命周期契约 (Testing Lifecycle Contract)
+
+* **Core 层测试（长期常驻）**：作为系统可复用基础设施的质量底座，纯 Core 单元测试（`test_core_*`）长期驻留于 `tests/` 目录中，用于守护基础原语的向后兼容与确定性；
+* **非 Core 层测试（面向单任务，用完即删）**：针对 Domain、Workflow、Application、UI 层的测试，均严格定义为**临时单任务测试（Task-Scoped / Ephemeral Tests）**。仅用于在研发、重构或定位缺陷的单个任务期间进行即时验证。**一旦任务完成，必须立即清理或删除，严禁将包含上层复杂依赖的测试长期留存在代码库中**。
+
 ---
 
 ## 10. 项目专属技能（Skills）快速索引
@@ -242,6 +251,7 @@ cs2importer (主程序 / QML)
 
 * 严禁任何形式的跨层逆向调用（Core/Domain/Workflow 绝对不感知 Application/UI）。
 * 严禁 UI 为了执行业务直接调用 Domain / Core 或在 UI CMake 中链接底层库。
+* 严禁在 `tests/` 常驻测试目标中反向链接非 Core 模块，严禁将用完的非 Core 临时任务测试残留于主干代码库。
 * 严禁为配置、服务、取消标志或日志器添加全局静态变量。
 * 严禁在业务代码中直接调用 `QProcess`、`system()` 或 Shell 命令。
 * 严禁从 Domain / Workflow 中弹出模态对话框。
@@ -250,3 +260,4 @@ cs2importer (主程序 / QML)
 > **终极思考准则**：
 > 正确的思考出发点不是：“这段代码写在哪里能让当前的构建通过？”
 > 而是：“**哪个分层拥有该职责？跨越该边界的公开契约是什么？如何在不让任何层感知其上层的前提下优雅实现它？**”
+

@@ -43,6 +43,29 @@ description: >-
 3. `AsyncTaskRunner` 结合业务结果、日志报错与捕获的异常，驱动 `LogManager` 中的 `TaskState` 状态转移。
 4. 回调函数接收 `const Result<T>&`，并线程安全地投递至调用方所在线程。
 
+### 1.2 层级化任务日志树与外部工具任务 (Workflow Task vs Tool Task)
+
+任务执行生命周期支持严格的层次化树状结构：
+
+```text
+Workflow Task (Root: createWorkflowTask) -> logs/<workflow>_<timestamp>/workflow.log
+ └── Stage Child Task (Stage: createChildTask)
+      ├── [EXEC] commandLine (携带 toolTaskId)
+      └── Tool Task (createToolTask, UI平铺树中隐藏) -> logs/<workflow>_<timestamp>/<asset>_<tool>_<time>.log
+```
+
+* **Workflow 根任务 (`LogManager::createWorkflowTask`)**：
+  * 面向高层宏观导入流程（如地图、粒子导入工作流）。
+  * 自动在 `logs/` 目录下生成独立时间戳目录 `logs/<workflowName>_<yyyyMMdd_HHmmss_zzz>/`，并将主日志输出至该目录下的 `workflow.log`。
+* **阶段子任务 (`createChildTask`)**：
+  * 表示工作流内部阶段里程碑（如解包、材质转码、几何体提取）。
+  * 继承父任务的工作流目录上下文，UI 端支持按深度平铺投影与同级互斥折叠。
+* **外部工具任务 (`createToolTask`)**：
+  * 专门承接外部 CLI 进程（`resourcecompiler`, `source1import`, `bspsrc`）。
+  * **主界面噪音屏蔽**：标记 `isToolTask() == true`，在 UI 主任务树（`LogViewModel`）中静默隐藏，避免大量编译日志刷屏。
+  * **命令透传与关联**：自动在父阶段任务注入 `[EXEC] <commandLine>` 日志条目，并绑定 `toolTaskId`。
+  * **独立落盘与专项视窗**：日志单独保存为 `<asset>_<tool>_<time>.log`，用户点击父任务中的命令条目时，UI 通过独立的 `ToolLogWindow` 调取该工具的完整输出流。
+
 ---
 
 ## 2. Result 语义契约与值访问
@@ -211,3 +234,54 @@ if (!procResult.isSuccess()) {
     );
 }
 ```
+
+### 6.3 实时流式捕获与 Tool Task 绑定模式
+
+外部编译/导入工具执行周期通常较长，严禁进行静默无反馈的黑盒调用。必须通过 `ProcessOptions` 的回调将 stdout 与 stderr 实时接入任务上下文：
+
+```cpp
+// 1. 创建隐藏 Tool 任务（父阶段任务自动记录 [EXEC]）
+auto toolTask = ctx->createToolTask(cmdLine, assetBaseName);
+toolTask->start();
+
+// 2. 配置流式捕获回调与协作式取消令牌
+Core::Process::ProcessOptions options;
+options.cancellationToken = cancelToken;
+options.timeout = 180000; // 3 分钟超时
+options.onStdOutLine = [toolTask](const QString& line) {
+    toolTask->info(line);
+    toolTask->flush(); // 实时落盘与通知
+};
+options.onStdErrLine = [toolTask](const QString& line) {
+    toolTask->warning(line);
+    toolTask->flush();
+};
+
+// 3. 执行进程
+auto procResult = Core::Process::ProcessRunner::run(executable, options);
+
+// 4. 根据结果结束 Tool 任务
+if (procResult.isSuccess()) {
+    toolTask->complete(QStringLiteral("工具执行成功"));
+} else if (procResult.isCancelled()) {
+    toolTask->cancel(QStringLiteral("用户取消工具执行"));
+} else {
+    toolTask->fail(procResult.errorMessage);
+}
+```
+
+---
+
+## 7. 测试生命周期契约 (Testing Lifecycle Policy)
+
+测试代码必须严格遵守仓库的依赖拓扑与生命周期契约：
+
+1. **Core 层测试（长期常驻维护）**：
+   - 纯 Core 单元测试（`test_core_*`）长期驻留于 `tests/`；
+   - 必须使用纯 Core 的基础设施（如在测试内实现轻量 `ILogSink` 或使用 `TaskFileSink`）进行断言；
+   - **绝对禁止反向依赖**：常驻测试严禁 include 或 link `Application`、`UI` 或 `Domain`。
+2. **非 Core 层测试（面向单任务，用完即删）**：
+   - 针对 Domain、Workflow、Application、UI 层的验证测试，一律定义为**临时单任务测试（Task-Scoped / Ephemeral Tests）**；
+   - 仅在开发相应功能或排查特定缺陷时编写用于自测验证；
+   - **任务完成后必须在合入代码库前立即删除**，严禁将包含上层复杂依赖（特别是 UI、QML、ViewModel）的测试长期滞留在 `tests/` 中。
+

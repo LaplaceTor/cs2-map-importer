@@ -140,12 +140,39 @@ ApplicationWindow {
 
             ListView {
                 id: taskListView
+                objectName: "taskListView"
                 anchors.fill: parent
                 anchors.margins: 6
                 clip: true
                 spacing: 8
+                bottomMargin: Math.max(0, taskListView.height - 48)
                 model: root.logViewModel
                 boundsBehavior: Flickable.StopAtBounds
+
+                NumberAnimation {
+                    id: scrollAnim
+                    target: taskListView
+                    property: "contentY"
+                    duration: 250
+                    easing.type: Easing.OutCubic
+                }
+
+                function smoothScrollTo(targetY) {
+                    scrollAnim.stop();
+                    var minY = taskListView.originY;
+                    var maxScrollY = taskListView.originY + Math.max(0, taskListView.contentHeight - taskListView.height + taskListView.bottomMargin);
+                    var clampedY = Math.max(minY, Math.min(targetY, maxScrollY));
+                    scrollAnim.to = clampedY;
+                    scrollAnim.start();
+                }
+
+                function positionRootCardAtTop(cardItem) {
+                    if (!cardItem) return;
+                    taskListView.forceLayout();
+                    var visualY = cardItem.mapToItem(taskListView, 0, 0).y;
+                    var targetY = taskListView.contentY + visualY;
+                    smoothScrollTo(targetY);
+                }
 
                 ScrollBar.vertical: ScrollBar {
                     id: vScrollBar
@@ -153,25 +180,24 @@ ApplicationWindow {
                 }
 
                 delegate: LogTaskCard {
+                    required property var model
+                    required property int index
+                    cardIndex: index
+                    taskId: (model && model.taskId !== undefined) ? model.taskId : 0
+                    cardDepth: (model && model.depth !== undefined) ? model.depth : 0
+                    taskName: (model && model.taskName !== undefined) ? model.taskName : ""
+                    stateString: (model && model.stateString !== undefined) ? model.stateString : ""
+                    progress: (model && model.progress !== undefined) ? model.progress : 0.0
+                    expanded: (model && model.expanded !== undefined) ? model.expanded : true
+                    messageCount: (model && model.messageCount !== undefined) ? model.messageCount : 0
+                    hasSubTasks: (model && model.hasSubTasks !== undefined) ? model.hasSubTasks : false
+                    subTasksCount: (model && model.subTasksCount !== undefined) ? model.subTasksCount : 0
+                    messagesModel: (model && model.messagesModel !== undefined) ? model.messagesModel : null
+                    subTasksModel: (model && model.subTasksModel !== undefined) ? model.subTasksModel : null
                     owningModel: root.logViewModel
                     autoScroll: root.logViewModel ? root.logViewModel.autoScroll : true
                     taskView: taskListView
                     logWindow: root
-                }
-
-                onCountChanged: {
-                    if (root.logViewModel && root.logViewModel.autoScroll) {
-                        Qt.callLater(taskListView.positionViewAtEnd)
-                    }
-                }
-            }
-
-            Connections {
-                target: root.logViewModel
-                function onAutoScrollChanged() {
-                    if (root.logViewModel && root.logViewModel.autoScroll) {
-                        Qt.callLater(taskListView.positionViewAtEnd)
-                    }
                 }
             }
         }

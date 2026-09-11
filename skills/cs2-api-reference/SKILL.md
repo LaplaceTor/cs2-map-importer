@@ -16,17 +16,36 @@ description: >-
 
 ### 1.1 核心调用范式
 
-```cpp
-auto task = Core::Logging::LogManager::instance()
-                .createTask(QStringLiteral("导入模型"));
+* **常规业务任务**：
+  ```cpp
+  auto task = Core::Logging::LogManager::instance()
+                  .createTask(QStringLiteral("导入模型"));
 
-task->start();
-task->info(QStringLiteral("开始处理"));
-task->updateProgress(0.5, QStringLiteral("转换中"));
-task->complete(QStringLiteral("处理完成"));
-```
+  task->start();
+  task->info(QStringLiteral("开始处理"));
+  task->updateProgress(0.5, QStringLiteral("转换中"));
+  task->complete(QStringLiteral("处理完成"));
+  ```
+* **Workflow 根任务与独立日志目录**：
+  ```cpp
+  // 自动创建 logs/<workflowName>_<timestamp>/ 目录与 workflow.log
+  auto wfTask = Core::Logging::LogManager::instance()
+                    .createWorkflowTask(QStringLiteral("Particle Import"), QStringLiteral("fire"));
+  ```
+* **外部 CLI 工具任务 (Tool Task)**：
+  ```cpp
+  // 挂载至父任务，UI 主树静默隐藏，父任务记录 [EXEC]，工具日志独立落盘
+  auto toolTask = Core::Logging::LogManager::instance()
+                      .createToolTask(stageTaskId, toolCommandLine, assetBaseName);
+  ```
 
-### 1.2 日志级别契约
+### 1.2 核心类与设施
+* `LogManager`：集中管理全局任务注册表、层级树、Sink 分发与 Flush；
+* `TaskLoggingContext`：单任务上下文句柄，提供 `info` / `warning` / `error` / `command`、进度汇报、`createChildTask` 与 `createToolTask`；
+* `LogFileManager`：负责任务日志路径生成、文件名清洗（Windows 安全名）与 Workflow/Tool 独立日志路径推导；
+* `TaskFileSink`：实现 `ILogSink`，负责各任务日志文件的即时创建、增量追加写入与优雅关闭。
+
+### 1.3 日志级别契约
 * `error()` / `reportFault()`：当前任务发生不可恢复的业务失败（触发后任务将被置为 `TaskState::Failed`）。
 * `warning()`：可恢复问题、降级处理或跳过（不影响成功终态）。
 * `info()`：面向用户的宏观阶段里程碑。
@@ -51,9 +70,9 @@ task->complete(QStringLiteral("处理完成"));
   * `DirectorySnapshot`：目录递归快照；
   * `FileLease`：RAII 移动语义的文件排他锁/租约机制。
 * **`Core::Process`**：
-  * `ProcessRunner`：封装外部控制台进程调用，提供超时控制、工作目录设置、环境变量管理；
-  * `ProcessOptions`：进程执行配置参数；
-  * `ProcessResult`：进程退出码、stdout、stderr 及机械状态载体。
+  * `ProcessRunner`：封装外部控制台进程调用，支持实时逐行流式重定向（`onStdOutLine` / `onStdErrLine`）、超时控制、取消令牌响应；
+  * `ProcessOptions`：进程执行配置参数，集成流式回调、超时与 `CancellationToken`；
+  * `ProcessResult`：进程退出码、stdout、stderr 及机械状态载体，提供 `toError()` / `toErrorCode()` 映射。
 * **`Core::Temp`**：
   * `TempFile` / `TempDirectory`：RAII 临时资源生命周期管理，析构时自动清理。
 * **`Core::Error`**：
@@ -132,3 +151,37 @@ task->complete(QStringLiteral("处理完成"));
 * **专项业务服务**：
   * `ParticleImportService` (`Application::Particle`)：粒子导入高层业务编排服务，对外暴露面向 UI 的 DTO 契约（`ParticleImportRequest`, `ParticleImportResult`）；
   * `SoundscapeConvertService` (`Application::Soundscape`)：声音景观批量转换服务，将 Source 1 脚本转为 CS2 KV3 音效事件文件。
+
+---
+
+## 6. Presentation / UI 层 API 参考 (`cs2importer_ui`)
+
+为 QML 界面提供数据绑定模型与交互控制器，消费 Application 层门面与 DTO。
+
+* **日志模型与视图模型 (`UI::ViewModels`)**：
+  * `LogViewModel`：集中管理面向界面的任务树平铺投影（`TaskModel`）、树节点动态增删、同级排他手风琴折叠（`toggleTaskExpanded`）、根任务置顶与充填展开（`positionRootCardAtTop`）、以及 Tool 任务模型提取（`getToolMessagesModel`）；
+  * `LogTaskModel`：单层/平铺任务列表项模型（包含 `TaskNameRole`, `StateStringRole`, `ExpandedRole`, `DepthRole`, `ToolTaskIdRole` 等）；
+  * `LogMessageListModel`：单任务内部日志条目列表模型（包含 `MessageRole`, `LevelStringRole`, `ToolTaskIdRole` 等）；
+  * `GameViewModel`：游戏检测与路径选择状态绑定 ViewModel。
+* **控制器与交互门面 (`UI::Controllers`)**：
+  * `MainController`：主窗口业务编排中枢，聚合各 Tab 控制器，对接 Application 服务；
+  * `ParticleTabController`：粒子导入选项交互与异步触发。
+* **QML 专用日志视窗与组件 (`src/qml/cs2importer/`)**：
+  * `LogWindow.qml`：宏观导入工作流与任务卡片列表窗口（集成任务树平铺与平滑滚动）；
+  * `ToolLogWindow.qml`：专用外部 CLI 工具（如 resourcecompiler）独立控制台实时日志窗口；
+  * `components/LogTaskCard.qml`：支持层次缩进与手风琴折叠交互的任务卡片组件。
+
+---
+
+## 7. 测试工程参考 (`tests/`)
+
+测试代码库严格按生命周期隔离：
+
+* **常驻单元测试 (`test_core_*`)**：
+  * 目标可执行文件：`test_core_logging`；
+  * 链接契约：`PRIVATE cs2importer_core Qt6::Core Qt6::Test`；
+  * 范围：仅测试 Core 层基础设施（`LogManager`, `TaskLoggingContext`, `TaskFileSink`, `LogFileManager`, `ProcessRunner`, `Result`, `Error`）。
+* **临时单任务测试（Task-Scoped / Ephemeral Tests）**：
+  * 任何针对 Domain、Workflow、Application、UI 层的单元或集成测试，仅在对应特性研发任务中临时存在；
+  * **用完即删**，严禁合入主线，严禁在 `tests/` 下建立对上层模块的永久性 CMake 链接。
+

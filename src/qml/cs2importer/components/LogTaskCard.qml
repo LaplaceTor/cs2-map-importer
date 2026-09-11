@@ -6,8 +6,9 @@ Rectangle {
     id: rootCard
 
     property var owningModel: null
+    property var taskId: (typeof model !== "undefined" && model && model.taskId !== undefined) ? model.taskId : 0
     property int cardIndex: (typeof index !== "undefined") ? index : 0
-    property int cardDepth: (typeof depth !== "undefined") ? depth : ((typeof model !== "undefined" && model && model.depth !== undefined) ? model.depth : 0)
+    property int cardDepth: (typeof model !== "undefined" && model && model.depth !== undefined) ? model.depth : 0
     property string taskName: (typeof model !== "undefined" && model && model.taskName !== undefined) ? model.taskName : ""
     property string stateString: (typeof model !== "undefined" && model && model.stateString !== undefined) ? model.stateString : ""
     property double progress: (typeof model !== "undefined" && model && model.progress !== undefined) ? model.progress : 0.0
@@ -20,16 +21,29 @@ Rectangle {
     property bool autoScroll: true
     property var taskView: null
     property var logWindow: null
+    readonly property var effectiveView: taskView || rootCard.ListView.view || null
 
     x: cardDepth * 16
-    width: (taskView ? taskView.width - 12 : (parent ? parent.width : 0)) - (cardDepth * 16)
+    width: (effectiveView ? effectiveView.width - 12 : (parent ? parent.width : 0)) - (cardDepth * 16)
     clip: true
     color: cardDepth === 0 ? "#212121" : (cardDepth === 1 ? "#1A1A1A" : "#141414")
     border.color: expanded ? (cardDepth === 0 ? "#4A4A4A" : (cardDepth === 1 ? "#3D3D3D" : "#333333")) : (cardDepth === 0 ? "#2E2E2E" : "#252525")
     border.width: 1
-    radius: 4
 
-    implicitHeight: cardContent.implicitHeight + 12
+    implicitHeight: {
+        if (!expanded) {
+            return 40;
+        }
+        var view = effectiveView;
+        if (cardDepth === 0) {
+            var viewH = view ? view.height : 400;
+            return Math.max(220, viewH - 12);
+        }
+        if (messageCount === 0) {
+            return 40;
+        }
+        return 40 + 6 + Math.min(260, Math.max(30, messageListView.contentHeight + 12));
+    }
     height: implicitHeight
 
     function scrollToBottom() {
@@ -38,9 +52,48 @@ Rectangle {
         }
     }
 
+    Component.onCompleted: {
+        var view = effectiveView;
+        if (cardDepth === 0 && expanded && view) {
+            Qt.callLater(function() {
+                if (view) {
+                    if (typeof view.positionRootCardAtTop === "function") {
+                        view.positionRootCardAtTop(rootCard);
+                    } else {
+                        view.forceLayout();
+                        view.positionViewAtIndex(cardIndex, ListView.Beginning);
+                    }
+                }
+            });
+        }
+    }
+
     onExpandedChanged: {
-        if (expanded && autoScroll) {
-            Qt.callLater(scrollToBottom)
+        var view = effectiveView;
+        if (expanded) {
+            if (cardDepth === 0 && view) {
+                Qt.callLater(function() {
+                    if (view) {
+                        if (typeof view.positionRootCardAtTop === "function") {
+                            view.positionRootCardAtTop(rootCard);
+                        } else {
+                            view.forceLayout();
+                            view.positionViewAtIndex(cardIndex, ListView.Beginning);
+                        }
+                    }
+                });
+            }
+            if (autoScroll) {
+                Qt.callLater(scrollToBottom);
+            }
+        } else {
+            if (view) {
+                Qt.callLater(function() {
+                    if (view) {
+                        view.returnToBounds();
+                    }
+                });
+            }
         }
     }
 
@@ -50,26 +103,24 @@ Rectangle {
         }
     }
 
-    ColumnLayout {
-        id: cardContent
-        anchors.left: parent.left
-        anchors.right: parent.right
+    // Task Header
+    Rectangle {
+        id: headerArea
         anchors.top: parent.top
-        anchors.margins: 6
-        spacing: 6
+        anchors.topMargin: 6
+        anchors.left: parent.left
+        anchors.leftMargin: 6
+        anchors.right: parent.right
+        anchors.rightMargin: 6
+        height: 28
+        color: headerMouseArea.containsMouse ? "#2A2A2A" : "transparent"
+        radius: 3
 
-        // Task Header
-        Rectangle {
-            Layout.fillWidth: true
-            implicitHeight: 28
-            color: headerMouseArea.containsMouse ? "#2A2A2A" : "transparent"
-            radius: 3
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 8
-                anchors.rightMargin: 8
-                spacing: 8
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            spacing: 8
 
                 // Expand / Collapse Chevron
                 Text {
@@ -165,38 +216,58 @@ Rectangle {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    if (rootCard.owningModel && typeof rootCard.owningModel.toggleTaskExpanded === "function") {
-                        rootCard.owningModel.toggleTaskExpanded(rootCard.cardIndex)
-                        if (rootCard.taskView) {
-                            Qt.callLater(function() {
-                                if (rootCard.taskView) {
-                                    rootCard.taskView.positionViewAtIndex(rootCard.cardIndex, ListView.Contain)
-                                }
-                            })
+                    if (rootCard.owningModel) {
+                        var willExpand = !rootCard.expanded;
+                        var tId = rootCard.taskId;
+
+                        if (typeof rootCard.owningModel.toggleTaskExpandedById === "function") {
+                            rootCard.owningModel.toggleTaskExpandedById(tId);
+                        } else if (typeof rootCard.owningModel.toggleTaskExpanded === "function") {
+                            rootCard.owningModel.toggleTaskExpanded(rootCard.cardIndex);
+                        }
+
+                        var view = rootCard.effectiveView;
+                        if (view) {
+                            if (willExpand && rootCard.cardDepth === 0) {
+                                Qt.callLater(function() {
+                                    if (view) {
+                                        if (typeof view.positionRootCardAtTop === "function") {
+                                            view.positionRootCardAtTop(rootCard);
+                                        } else {
+                                            view.forceLayout();
+                                            view.positionViewAtIndex(rootCard.cardIndex, ListView.Beginning);
+                                        }
+                                    }
+                                });
+                            } else if (!willExpand) {
+                                Qt.callLater(function() {
+                                    if (view) {
+                                        view.returnToBounds();
+                                    }
+                                });
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Message Output Area (Visible when expanded and has messages)
-        Rectangle {
-            id: messageArea
-            Layout.fillWidth: true
-            visible: rootCard.expanded && (rootCard.messageCount > 0)
-            implicitHeight: {
-                if (!visible) return 0;
-                if (rootCard.cardDepth === 0) {
-                    var viewH = rootCard.taskView ? rootCard.taskView.height : 400;
-                    var otherH = (rootCard.taskView && rootCard.taskView.count > 1) ? (rootCard.taskView.count - 1) * 44 : 0;
-                    return Math.max(180, viewH - 60 - otherH);
-                }
-                return Math.min(260, Math.max(30, messageListView.contentHeight + 12));
-            }
-            color: "#141414"
-            radius: 3
-            border.color: "#2C2C2C"
-            border.width: 1
+    // Message Output Area (Visible when expanded and has messages or is root card)
+    Rectangle {
+        id: messageArea
+        anchors.top: headerArea.bottom
+        anchors.topMargin: 6
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 6
+        anchors.left: parent.left
+        anchors.leftMargin: 6
+        anchors.right: parent.right
+        anchors.rightMargin: 6
+        visible: rootCard.expanded && (rootCard.cardDepth === 0 || rootCard.messageCount > 0)
+        color: "#141414"
+        radius: 3
+        border.color: "#2C2C2C"
+        border.width: 1
 
             ListView {
                 id: messageListView
@@ -224,6 +295,7 @@ Rectangle {
                 }
 
                 delegate: RowLayout {
+                    id: msgRow
                     width: messageListView.width - 12
                     spacing: 6
 
@@ -233,7 +305,7 @@ Rectangle {
                     required property var toolTaskId
 
                     Text {
-                        text: "[" + (timestampString || "00:00:00") + "]"
+                        text: "[" + (msgRow.timestampString || "00:00:00") + "]"
                         color: "#757575"
                         font.family: "Consolas, 'Courier New', monospace"
                         font.pixelSize: 11
@@ -247,7 +319,7 @@ Rectangle {
                         Layout.alignment: Qt.AlignTop
 
                         color: {
-                            var lvl = (levelString || "").toUpperCase()
+                            var lvl = (msgRow.levelString || "").toUpperCase()
                             if (lvl === "ERROR" || lvl === "CRITICAL") return "#C62828"
                             if (lvl === "WARNING") return "#EF6C00"
                             if (lvl === "DEBUG") return "#424242"
@@ -258,7 +330,7 @@ Rectangle {
                             id: lvlText
                             anchors.centerIn: parent
                             text: {
-                                var str = (levelString || "INFO").toUpperCase()
+                                var str = (msgRow.levelString || "INFO").toUpperCase()
                                 if (str === "WARNING") return "WARN"
                                 if (str === "CRITICAL") return "CRIT"
                                 return str
@@ -272,7 +344,7 @@ Rectangle {
                     // Detail Log Button for Tool Executions
                     Rectangle {
                         id: toolDetailBtn
-                        visible: Number(toolTaskId) > 0
+                        visible: Number(msgRow.toolTaskId) > 0
                         implicitWidth: toolBtnRow.implicitWidth + 10
                         implicitHeight: 18
                         radius: 2
@@ -306,7 +378,7 @@ Rectangle {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 if (rootCard.logWindow && typeof rootCard.logWindow.openToolLogWindow === "function") {
-                                    rootCard.logWindow.openToolLogWindow(toolTaskId, message)
+                                    rootCard.logWindow.openToolLogWindow(msgRow.toolTaskId, msgRow.message)
                                 }
                             }
                         }
@@ -317,11 +389,11 @@ Rectangle {
                         readOnly: true
                         selectByMouse: true
                         wrapMode: TextEdit.Wrap
-                        text: message || ""
+                        text: msgRow.message || ""
                         font.family: "Consolas, 'Courier New', monospace"
                         font.pixelSize: 12
                         color: {
-                            var lvl = (levelString || "").toUpperCase()
+                            var lvl = (msgRow.levelString || "").toUpperCase()
                             if (lvl === "ERROR" || lvl === "CRITICAL") return "#FF5252"
                             if (lvl === "WARNING") return "#FFD740"
                             if (lvl === "DEBUG") return "#9E9E9E"
@@ -332,5 +404,3 @@ Rectangle {
             }
         }
     }
-}
-

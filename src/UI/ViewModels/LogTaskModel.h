@@ -80,7 +80,7 @@ public:
     std::optional<LogTaskItem> taskSnapshot(int row) const;
     virtual std::shared_ptr<LogMessageListModel> taskMessagesModel(int row) const;
     virtual std::shared_ptr<LogTaskModel> taskSubTasksModel(int row) const;
-    virtual int findRowByTaskId(quint64 taskId) const;
+    Q_INVOKABLE virtual int findRowByTaskId(quint64 taskId) const;
 
     Q_INVOKABLE virtual UI::ViewModels::LogMessageListModel* getTaskMessagesModel(int row) const;
     Q_INVOKABLE virtual UI::ViewModels::LogTaskModel* getTaskSubTasksModel(int row) const;

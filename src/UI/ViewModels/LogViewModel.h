@@ -76,7 +76,7 @@ public:
     void setTaskExpanded(int visibleRow, bool expanded) override;
     std::shared_ptr<LogMessageListModel> taskMessagesModel(int visibleRow) const override;
     std::shared_ptr<LogTaskModel> taskSubTasksModel(int visibleRow) const override;
-    int findRowByTaskId(quint64 taskId) const override;
+    Q_INVOKABLE int findRowByTaskId(quint64 taskId) const override;
     UI::ViewModels::LogMessageListModel* getTaskMessagesModel(int row) const override;
     UI::ViewModels::LogTaskModel* getTaskSubTasksModel(int row) const override;
     QString exportToPlainText(int indentLevel = 0) const override;
