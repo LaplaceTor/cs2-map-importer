@@ -2,12 +2,11 @@
 
 #include "Application/Environment/GameInstallationInfo.h"
 #include "Application/Environment/GameInstallation.h"
+#include "Application/Async/SystemTaskLog.h"
 #include "Domain/Game/GameType.h"
 #include "Core/Path/FilesystemPath.h"
-#include "Core/Logging/TaskLoggingContext.h"
 #include "Core/Result/Result.h"
 #include <functional>
-#include <memory>
 #include <vector>
 #include <QObject>
 #include <QString>
@@ -34,17 +33,17 @@ public:
     // Synchronous environment detection returning both installations (as UI DTOs) and any non-fatal scan warnings
     static Core::Result<DetectionResult> detectEnvironment(
         const Core::Path::FilesystemPath& customSteamPath = {},
-        std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
+        const Application::Async::SystemTaskLog* logCtx = nullptr);
 
     static Core::Result<DetectionResult> detectEnvironment(
         const QString& customSteamPath,
-        std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
+        const Application::Async::SystemTaskLog* logCtx = nullptr);
 
     // Synchronous single game detection in Steam libraries (Application internal model)
     static Core::Result<GameInstallation> detectGame(
         Domain::Game::GameType type,
         const Core::Path::FilesystemPath& customSteamPath = {},
-        std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
+        const Application::Async::SystemTaskLog* logCtx = nullptr);
 };
 
 } // namespace Application::Environment

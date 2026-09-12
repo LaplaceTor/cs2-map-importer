@@ -33,7 +33,7 @@ namespace Application::Particle {
  * - Manages dual-plane lifecycle: TaskState in LogManager vs typed Result<ParticleImportResult>.
  * - Returns Application::Async::TaskHandle for unified cooperative cancellation and tracking.
  */
-class ParticleImportService : public QObject {
+class ParticleImportService : public QObject, public std::enable_shared_from_this<ParticleImportService> {
     Q_OBJECT
 
 public:
@@ -48,11 +48,12 @@ public:
 
     /**
      * @brief Asynchronously imports particles using AsyncTaskRunner.
-     * @return TaskHandle providing task status and cancellation.
+     * @return TaskHandle providing task status and cancellation. An invalid handle
+     *         is returned (with the failure delivered through @p callback) when an
+     *         import is already in progress.
      */
     Async::TaskHandle importParticlesAsync(
         const ParticleImportRequest& request,
-        Core::Logging::TaskLoggingContext* loggingCtx,
         std::function<void(const Core::Result<ParticleImportResult>&)> callback);
 
     /**

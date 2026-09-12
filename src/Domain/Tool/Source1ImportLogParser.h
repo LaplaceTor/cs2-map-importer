@@ -26,10 +26,15 @@ struct Source1ImportLogResult {
  */
 class Source1ImportLogParser {
 public:
+    /**
+     * @param workingDirectory Working directory of the tool process; relative
+     *        artifact paths reported on stdout are resolved against it.
+     */
     static Source1ImportLogResult parse(
         const QString& stdOut,
         const QString& stdErr = QString(),
-        int exitCode = 0);
+        int exitCode = 0,
+        const QString& workingDirectory = QString());
 };
 
 } // namespace Domain::Tool

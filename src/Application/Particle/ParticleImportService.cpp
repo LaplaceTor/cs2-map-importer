@@ -64,12 +64,24 @@ ParticleImportService::~ParticleImportService()
 
 Async::TaskHandle ParticleImportService::importParticlesAsync(
     const ParticleImportRequest& request,
-    Core::Logging::TaskLoggingContext* loggingCtx,
     std::function<void(const Core::Result<ParticleImportResult>&)> callback)
 {
-    if (m_activeImportsCount.fetch_add(1, std::memory_order_relaxed) == 0) {
-        emit isImportingChanged(true);
+    // Reject overlapping imports atomically: a second concurrent import would
+    // overwrite m_activeTaskHandle and become uncancellable.
+    if (m_activeImportsCount.fetch_add(1, std::memory_order_relaxed) != 0) {
+        m_activeImportsCount.fetch_sub(1, std::memory_order_relaxed);
+        if (callback) {
+            callback(Core::Result<ParticleImportResult>::failure(
+                Core::Error::ErrorCode::InvalidState,
+                QStringLiteral("Another import operation is already in progress")));
+        }
+        return Async::TaskHandle{};
     }
+    emit isImportingChanged(true);
+
+    // Workers hold a shared_ptr so the service stays alive for the whole task
+    // duration even if the owner drops it mid-flight.
+    const auto self = shared_from_this();
 
     const QString pcfFileName = request.sourcePcfPath.trimmed().isEmpty()
         ? QStringLiteral("PCF")
@@ -78,45 +90,33 @@ Async::TaskHandle ParticleImportService::importParticlesAsync(
         ? QStringLiteral("pcf")
         : QFileInfo(request.sourcePcfPath.trimmed()).completeBaseName();
     const QString taskName = QStringLiteral("Import Particle: %1").arg(pcfFileName);
-    const quint64 parentTaskId = loggingCtx ? loggingCtx->taskId() : 0;
 
-    auto worker = [this, request](std::shared_ptr<Core::Logging::TaskLoggingContext> taskCtx,
+    auto worker = [self, request](std::shared_ptr<Core::Logging::TaskLoggingContext> taskCtx,
                                   Core::Async::CancellationToken token) -> Core::Result<ParticleImportResult> {
         Workflow::Common::ImportContext ctx(taskCtx.get(), std::move(token));
-        return this->executeImport(request, ctx);
+        return self->executeImport(request, ctx);
     };
 
-    auto completionCallback = [this, userCallback = std::move(callback)](const Core::Result<ParticleImportResult>& result) {
-        if (m_activeImportsCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
+    auto completionCallback = [self, userCallback = std::move(callback)](const Core::Result<ParticleImportResult>& result) {
+        if (self->m_activeImportsCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
             {
-                std::lock_guard<std::mutex> lock(m_mutex);
-                m_activeTaskHandle = Async::TaskHandle{};
+                std::lock_guard<std::mutex> lock(self->m_mutex);
+                self->m_activeTaskHandle = Async::TaskHandle{};
             }
-            emit isImportingChanged(false);
+            emit self->isImportingChanged(false);
         }
         if (userCallback) {
             userCallback(result);
         }
     };
 
-    Async::TaskHandle handle;
-    if (parentTaskId != 0) {
-        handle = Async::AsyncTaskRunner::runTask<ParticleImportResult>(
-            taskName,
-            this,
-            std::move(worker),
-            std::move(completionCallback),
-            QThreadPool::globalInstance(),
-            parentTaskId);
-    } else {
-        handle = Async::AsyncTaskRunner::runWorkflowTask<ParticleImportResult>(
-            taskName,
-            pcfBaseName,
-            this,
-            std::move(worker),
-            std::move(completionCallback),
-            QThreadPool::globalInstance());
-    }
+    Async::TaskHandle handle = Async::AsyncTaskRunner::runWorkflowTask<ParticleImportResult>(
+        taskName,
+        pcfBaseName,
+        self.get(),
+        std::move(worker),
+        std::move(completionCallback),
+        QThreadPool::globalInstance());
 
     {
         std::lock_guard<std::mutex> lock(m_mutex);

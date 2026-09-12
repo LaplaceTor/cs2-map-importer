@@ -50,7 +50,7 @@ enum class ResultStatus {
  * @tparam T The business payload type (or void).
  */
 template <typename T = void>
-class Result {
+class [[nodiscard]] Result {
 public:
     using value_type = T;
 
@@ -170,7 +170,7 @@ private:
  * @brief Specialization of Result for operations producing no business payload (void).
  */
 template <>
-class Result<void> {
+class [[nodiscard]] Result<void> {
 public:
     using value_type = void;
 

@@ -12,7 +12,7 @@
 namespace Application::Environment::Internal {
 
 Core::Result<Core::Path::FilesystemPath> SteamLibraryDetector::detectSteamInstallPath(
-    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
+    const Application::Async::SystemTaskLog* logCtx)
 {
     if (logCtx) {
         logCtx->debug(QStringLiteral("Detecting Steam installation path..."));
@@ -86,7 +86,7 @@ Core::Result<Core::Path::FilesystemPath> SteamLibraryDetector::detectSteamInstal
 
 Core::Result<std::vector<SteamLibrary>> SteamLibraryDetector::detectLibraries(
     const Core::Path::FilesystemPath& steamPath,
-    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
+    const Application::Async::SystemTaskLog* logCtx)
 {
     Core::Path::FilesystemPath resolvedSteamPath;
 
@@ -170,7 +170,7 @@ Core::Result<std::vector<SteamLibrary>> SteamLibraryDetector::detectLibraries(
 
 Core::Result<std::vector<SteamLibrary>> SteamLibraryDetector::parseLibraryFolders(
     const Core::Path::FilesystemPath& libraryFoldersVdfPath,
-    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
+    const Application::Async::SystemTaskLog* logCtx)
 {
     if (!libraryFoldersVdfPath.isValid() || !libraryFoldersVdfPath.isFile()) {
         if (logCtx) {

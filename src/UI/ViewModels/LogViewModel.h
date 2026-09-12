@@ -9,12 +9,13 @@
 #include <functional>
 #include <memory>
 
-#include "Core/Logging/LogBlock.h"
-#include "Core/Logging/LogEntry.h"
-#include "Core/Logging/LogLevel.h"
-#include "Core/Logging/TaskState.h"
+#include "Application/Logging/TaskLogDTOs.h"
 #include "UI/ViewModels/LogMessageListModel.h"
 #include "UI/ViewModels/LogTaskModel.h"
+
+namespace Application::Logging {
+class TaskLogService;
+}
 
 namespace UI::ViewModels {
 
@@ -23,7 +24,7 @@ struct TaskTreeNode {
     quint64 parentTaskId = 0;
     int depth = 0;
     QString taskName;
-    Core::Logging::TaskState state = Core::Logging::TaskState::Pending;
+    Application::Logging::TaskState state = Application::Logging::TaskState::Pending;
     double progress = 0.0;
     QString currentMessage;
     bool expanded = false;
@@ -46,7 +47,8 @@ struct TaskRegistryEntry {
 /**
  * @brief Top-level ViewModel for logs, presenting a dynamic flattened tree projection
  * to QML ListView while maintaining the canonical task hierarchy in C++.
- * Note: Model mutations execute strictly on the owning UI thread (guaranteed by LogViewModelSinkAdapter).
+ * Consumes the Application::Logging::TaskLogService facade exclusively; model mutations
+ * execute strictly on the owning UI thread (guaranteed by TaskLogService queued delivery).
  */
 class LogViewModel : public LogTaskModel {
     Q_OBJECT
@@ -55,11 +57,11 @@ class LogViewModel : public LogTaskModel {
     Q_PROPERTY(bool autoScroll READ autoScroll WRITE setAutoScroll NOTIFY autoScrollChanged)
 
 public:
-    explicit LogViewModel(QObject* parent = nullptr);
+    explicit LogViewModel(Application::Logging::TaskLogService* logService = nullptr, QObject* parent = nullptr);
     ~LogViewModel() override;
 
-    void registerWithLogManager();
-    void unregisterFromLogManager();
+    void attachToLogService(Application::Logging::TaskLogService* service);
+    void detachFromLogService();
 
     // QAbstractListModel overrides for flattened projection
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
@@ -85,7 +87,6 @@ public:
     int totalMessageCount() const;
     bool autoScroll() const noexcept { return m_autoScroll; }
     void setAutoScroll(bool enabled);
-    quint64 viewGeneration() const noexcept { return m_viewGeneration.load(std::memory_order_relaxed); }
 
 public slots:
     Q_INVOKABLE void resetView();
@@ -103,11 +104,16 @@ public slots:
     QString lastTaskLogFilePath() const;
     QString activeTaskLogFolderPath() const;
     void appendLog(const QString& message, int level = 0);
-    void processIncomingBlock(const Core::Logging::LogBlock& block, const QString& taskName);
+    void processIncomingBlock(quint64 taskId, const QString& taskName,
+                              const QVector<Application::Logging::TaskLogMessage>& messages);
 
 signals:
     void totalMessageCountChanged();
     void autoScrollChanged();
+
+private slots:
+    void onLogBatchReceived(quint64 subscriptionId, quint64 taskId, const QString& taskName,
+                            const QVector<Application::Logging::TaskLogMessage>& messages);
 
 private:
     std::shared_ptr<TaskTreeNode> ensureTaskNode(quint64 taskId, const QString& taskName);
@@ -120,8 +126,8 @@ private:
     quint64 m_activeTaskId = 0;
     quint64 m_lastTaskId = 0;
     int m_totalMessages = 0;
-    quint64 m_registeredSinkId = 0;
-    std::atomic<quint64> m_viewGeneration{0};
+    Application::Logging::TaskLogService* m_logService = nullptr;
+    quint64 m_subscriptionId = 0;
 };
 
 } // namespace UI::ViewModels

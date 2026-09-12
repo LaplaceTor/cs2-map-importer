@@ -14,7 +14,7 @@ namespace Application::Async {
  * Enables UI components (e.g. MainController) to query task status and
  * initiate cooperative cancellation without managing raw tokens or threads.
  */
-class TaskHandle {
+class [[nodiscard]] TaskHandle {
 public:
     TaskHandle() = default;
     TaskHandle(quint64 taskId, Core::Async::CancellationToken token)

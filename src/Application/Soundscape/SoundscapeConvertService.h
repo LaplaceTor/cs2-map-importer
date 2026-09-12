@@ -33,10 +33,10 @@ public:
                                                               Core::Logging::TaskLoggingContext* loggingCtx = nullptr);
 
     /**
-     * @brief Asynchronously converts all soundscapes for a map using AsyncTaskRunner.
+     * @brief Asynchronously converts all soundscapes for a map as a workflow task
+     * (dedicated workflow log directory + visible UI task tree entry).
      */
     void convertMapSoundscapesAsync(const ConvertSoundscapeRequest& request,
-                                   Core::Logging::TaskLoggingContext* loggingCtx,
                                    std::function<void(const Core::Result<ConvertSoundscapeResult>&)> callback);
 };
 

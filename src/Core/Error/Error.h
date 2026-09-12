@@ -110,11 +110,16 @@ public:
         return m_code == code;
     }
 
+    /**
+     * @brief Matches a domain error against its owning domain name and domain code.
+     * Comparing the bare domain code alone would alias unrelated errors defined by
+     * different domains with the same numeric value, so the domain must match too.
+     */
     template <typename EnumT>
-    bool is(EnumT code) const noexcept
+    bool is(const QString& domainName, EnumT code) const noexcept
     {
         static_assert(std::is_enum_v<EnumT>, "Error::is requires an enum or enum class type");
-        return m_domainCode == static_cast<int>(code);
+        return isDomain(domainName) && m_domainCode == static_cast<int>(code);
     }
 
     template <typename EnumT>

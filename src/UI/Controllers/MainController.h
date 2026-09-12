@@ -26,11 +26,17 @@ public:
     explicit MainController(UI::ViewModels::LogViewModel* logViewModel = nullptr, QObject* parent = nullptr);
     ~MainController() override;
 
+    /**
+     * @brief Cancels all cooperative background operations owned by this controller.
+     * Invoked by the composition root during application shutdown, before the
+     * worker thread pool is drained.
+     */
+    void cancelAllOperations();
+
     void setLogViewModel(UI::ViewModels::LogViewModel* logViewModel) noexcept { m_logViewModel = logViewModel; }
     UI::ViewModels::LogViewModel* logViewModel() const noexcept { return m_logViewModel; }
 
     int activeTab() const noexcept { return m_activeTab; }
-    void setActiveTab(int tab);
 
     QString theme() const noexcept { return m_theme; }
     void setTheme(const QString& themeName);
@@ -51,7 +57,7 @@ public:
         const QString& s1GameInfoDir = QString()
     );
 
-    void setParticleImportService(std::unique_ptr<Application::Particle::ParticleImportService> service) noexcept {
+    void setParticleImportService(std::shared_ptr<Application::Particle::ParticleImportService> service) noexcept {
         m_particleImportService = std::move(service);
     }
     Application::Particle::ParticleImportService* particleImportService() const noexcept {
@@ -59,6 +65,9 @@ public:
     }
 
 public slots:
+    // Write accessor of the activeTab property; called directly from QML
+    // (Main.qml TabBar.onCurrentIndexChanged) and enforces the isProcessing guard.
+    void setActiveTab(int tab);
     void cycleTheme();
     void startImport();
     void stopImport();
@@ -81,7 +90,7 @@ private:
     bool m_isProcessing = false;
     bool m_canStart = false;
     UI::ViewModels::LogViewModel* m_logViewModel = nullptr;
-    std::unique_ptr<Application::Particle::ParticleImportService> m_particleImportService;
+    std::shared_ptr<Application::Particle::ParticleImportService> m_particleImportService;
 };
 
 } // namespace UI::Controllers

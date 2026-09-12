@@ -24,10 +24,15 @@ struct ResourceCompilerLogResult {
  */
 class ResourceCompilerLogParser {
 public:
+    /**
+     * @param workingDirectory Working directory of the tool process; relative
+     *        artifact paths reported on stdout are resolved against it.
+     */
     static ResourceCompilerLogResult parse(
         const QString& stdOut,
         const QString& stdErr = QString(),
-        int exitCode = 0);
+        int exitCode = 0,
+        const QString& workingDirectory = QString());
 };
 
 } // namespace Domain::Tool

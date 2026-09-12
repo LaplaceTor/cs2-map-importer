@@ -92,11 +92,11 @@ Application 亦可直接调用 Domain/Core 提供的非工作流服务，但 **U
 ### 3.1 表现层 / UI 规则 (`src/UI/`, `src/qml/`)
 
 * **允许：** 暴露 `Q_PROPERTY`、Qt 信号/槽；校验基础界面输入；调用 Application 服务/门面；将 UI 数据转换为 Application 请求 DTO；展示结果与错误。
-* **严禁：** 直接 include `Domain/*` 或 `Core/*` 执行业务操作；调用 Domain 校验器/解析器/处理器；调用进程/文件系统执行业务；扫描游戏目录/Steam；拥有工作流线程或取消令牌；直接创建 `QProcess` 或弹窗。
+* **严禁：** 直接 include `Domain/*` 或 `Core/*` 执行业务操作；调用 Domain 校验器/解析器/处理器；调用进程/文件系统执行业务；扫描游戏目录/Steam；拥有工作流线程或取消令牌；直接创建 `QProcess` 或弹窗；include `Core/Logging/*` 或以任何形式直接消费 `Core::Logging::LogManager`/日志文件（**日志唯一通道为 Application 的 `Application::Logging::TaskLogService` 门面及其 DTO**）。
 
 ### 3.2 Application 规则 (`src/Application/`)
 
-* **允许：** 暴露面向 UI 的门面/服务 API；将 UI 契约转换为 Domain/Workflow 输入；编排 `AsyncTaskRunner`、Worker 线程池与工作流；统一管理应用配置、更新与环境检测（Steam 探测、文件租约）；提供弹窗交互抽象接口的具体实现。
+* **允许：** 暴露面向 UI 的门面/服务 API；将 UI 契约转换为 Domain/Workflow 输入；编排 `AsyncTaskRunner`、Worker 线程池与工作流；持有 `Application::Logging::TaskLogService` 日志门面（订阅制 DTO 分发与日志路径查询，UI 消费日志的唯一通道）；统一管理应用配置、更新与环境检测（Steam 探测、文件租约）；提供弹窗交互抽象接口的具体实现。
 * **严禁：** 包含 QML 或直接操作 UI 控件；实现属于 Domain 的数据格式解析或转换；包含属于 Workflow 的具体导入流水线；在已有契约时向 QML 暴露底层 AST/指针细节。
 
 ### 3.3 Workflow 规则 (`src/Workflow/`)
@@ -133,25 +133,28 @@ Application 结果 DTO
 UI 属性/信号
 ```
 
+日志数据流同样单向：`Core::Logging`（采集/落盘）→ `Application::Logging`（`TaskLogService` 门面 + `TaskLogDTOs` DTO 转换）→ UI（订阅 `logBatchReceived` / 查询 `taskInfo`）。UI 严禁直接 include `Core/Logging/*`。
+
 ---
 
 ## 5. 核心异步、日志与错误处理原则
 
 1. **阻塞操作绝不上 UI 线程**：文件扫描、大文件解析、包解压、工具编译与导入流水线均必须由 Application 调度在 Worker 线程执行。
-2. **双平面架构**：
-   - **任务执行生命周期平面 (`TaskState`)**：由 `LogManager` / `TaskLoggingContext` 管理状态流转（`Pending → Running → Completed | Failed | Cancelled | Skipped`）；
+2. **任务平面架构（三平面）**：
+   - **任务执行生命周期平面 (`TaskState`)**：面向用户的工作流任务由 `LogManager::createWorkflowTask` / `createTask` / `createToolTask` 注册，经 `TaskLoggingContext` 管理状态流转（`Pending → Running → Completed | Failed | Cancelled | Skipped`），在 UI 任务树可见；
+   - **系统任务平面 (`SystemTaskLog`)**：环境检测、安装校验、插件列举等非导入后台任务必须经 `AsyncTaskRunner::runSystemTask` 执行——无 LogManager 任务、无 `TaskState`、不进任务树（taskId 恒为 0），日志经 `Application::Async::SystemTaskLog` 并入 `application_<timestamp>.log`（`[TaskName]` 前缀）；
    - **业务执行结果平面 (`Result<T>`)**：单层承载业务数据与结构化错误。
 3. **单层 Result 契约**：严禁嵌套 `Result<Result<T>>`。严禁基于异常进行常规业务控制流，访问 `result.value()` 前必须通过 `isSuccess()` 检查。
 4. **三层诊断分层**：
    - 操作总结 (`Result::message()`)：面向用户的宏观操作概括；
    - 失败原因 (`Error::message()`)：具体领域或系统失败事实；
    - 技术诊断 (`Error::details()`)：绝对路径、CLI 参数、stderr 等技术细节。
-5. **任务导向日志**：严禁使用全局静态 Logger（如 `Logger::info(...)`）。必须通过 `TaskLoggingContext` 显式向下传递。
+5. **任务导向日志**：严禁使用全局静态 Logger（如 `Logger::info(...)`）。工作流/工具任务必须通过 `TaskLoggingContext` 显式向下传递；系统任务使用 `SystemTaskLog`（见第 2 条）。
    - **层级化与工作流任务**：顶层导入流程通过 `LogManager::createWorkflowTask` 创建 Workflow 根任务，在 `logs/<workflowName>_<timestamp>/` 下生成独立目录与主工作流日志 `workflow.log`；
-   - **外部工具隐藏任务（Tool Task）**：外部 CLI 工具（如 `resourcecompiler`, `source1import`, `bspsrc`）必须通过 `LogManager::createToolTask` 创建。Tool 任务从主 UI 任务树中隐蔽（避免日志噪音），父任务接收携带 `toolTaskId` 的 `[EXEC]` 启动通知；工具输出实时流式写入独立文件（`<asset>_<tool>_<timestamp>.log`），UI 表现层通过独立 `ToolLogWindow` 按需查看。
+   - **外部工具隐藏任务（Tool Task）**：外部 CLI 工具（如 `resourcecompiler`, `source1import`, `bspsrc`）必须通过 `LogManager::createToolTask` 创建。Tool 任务从主 UI 任务树中隐蔽（避免日志噪音），父任务接收携带 `toolTaskId` 的 `[EXEC]` 启动通知；工具输出实时流式写入独立文件（`<asset>_<tool>_<timestamp>.log`，位于父任务目录下，同毫秒冲突自动追加 `_2` 序号），UI 表现层通过独立 `ToolLogWindow` 按需查看。
 6. **异常边界转译**：Application 服务边界统一通过 `ExecutionGuard` 或 `AsyncTaskRunner` 将异常转译为 `Result<T>::failure`，严禁在内部 helper 中静默使用 `catch (...)` 吞没异常。
 
-> 💡 **详细规范与完整决策表**：请查阅专用技能 [`skills/cs2-async-error-handling/SKILL.md`](file:///c:/Users/KEY/Documents/GitHub/cs2-map-importer/skills/cs2-async-error-handling/SKILL.md) 获取双平面冲突仲裁矩阵、构造正反模式代码及进程机械结果转译规则。
+> 💡 **详细规范与完整决策表**：请查阅专用技能 [`skills/cs2-async-error-handling/SKILL.md`](file:///c:/Users/KEY/Documents/GitHub/cs2-map-importer/skills/cs2-async-error-handling/SKILL.md) 获取三平面任务体系、终态冲突仲裁矩阵、构造正反模式代码及进程机械结果转译规则。
 
 ---
 
@@ -169,12 +172,12 @@ UI 属性/信号
 
 ```text
 src/
-├── Core/             # 通用基础设施 (Async, Error, FileSystem, KeyValues, Logging, Path, Process, Result, Temp)
-├── Domain/           # Valve/Source 专有领域模型 (Asset, Audio, Bsp, Game, Material, Package, Tool, Vmf)
-├── Workflow/         # 具体导入流水线 (Common, Map, Model, Particle)
-├── Application/      # 应用服务与任务调度 (Async, Common, Config, Environment, Execution, Particle, Soundscape, Task, Update)
-├── UI/               # 表现层 ViewModel 与控制器 (Controllers, ViewModels)
-└── qml/              # QML 界面视图与组件 (cs2importer/components, cs2importer/tabs, Main.qml)
+├── Core/             # 通用基础设施 (Async, Error, FileSystem, KeyValues, Logging, Path, Process, Result, Temp)【全部已有】
+├── Domain/           # Valve/Source 专有领域模型 (Asset, Audio, Game, Material, Package, Tool【已有】; Bsp, Vmf【规划】)
+├── Workflow/         # 具体导入流水线 (Common, Particle【已有】; Map, Model【规划】)
+├── Application/      # 应用服务与任务调度 (Async, Common, Environment, Execution, Logging, Particle, Soundscape【已有】; Config, Task, Update【规划】)
+├── UI/               # 表现层 ViewModel 与控制器 (Controllers, ViewModels)【全部已有】
+└── qml/              # QML 界面视图与组件 (cs2importer/components, cs2importer/tabs, Main.qml)【全部已有】
 ```
 
 `src/Legacy/` 仅用于过渡，新代码严禁依赖 Legacy。
@@ -240,7 +243,7 @@ cs2importer (主程序 / QML)
 
 | 任务类型 / 查阅需求 | 对应 Skill 路径 | 核心内容 |
 | :--- | :--- | :--- |
-| **异步调度、错误契约与诊断** | [`skills/cs2-async-error-handling/SKILL.md`](file:///c:/Users/KEY/Documents/GitHub/cs2-map-importer/skills/cs2-async-error-handling/SKILL.md) | 双平面仲裁矩阵、三层诊断规范、异常转译边界与进程机械结果映射。 |
+| **异步调度、错误契约与诊断** | [`skills/cs2-async-error-handling/SKILL.md`](file:///c:/Users/KEY/Documents/GitHub/cs2-map-importer/skills/cs2-async-error-handling/SKILL.md) | 三平面任务体系（工作流/工具/系统任务）、仲裁矩阵、三层诊断规范、异常转译边界与进程机械结果映射。 |
 | **分层 API 架构参考字典** | [`skills/cs2-api-reference/SKILL.md`](file:///c:/Users/KEY/Documents/GitHub/cs2-map-importer/skills/cs2-api-reference/SKILL.md) | Core、Domain、Workflow、Application 已实现的原语、服务类与接口字典。 |
 | **架构审查、迁移计划与重构决策** | [`skills/cs2-architecture-review/SKILL.md`](file:///c:/Users/KEY/Documents/GitHub/cs2-map-importer/skills/cs2-architecture-review/SKILL.md) | 架构审查清单 (Checklist)、重构演进路线图、迁移对照表与红线异味清单。 |
 | **Qt/QML/CMake 通用开发** | `third_party/agent-skills/skills/` | Qt C++ 规范、QML Review 与 UI 设计通用技能。 |

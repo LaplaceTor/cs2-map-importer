@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QHash>
+#include <QMultiHash>
 #include <QMutex>
 #include <QString>
 #include <QVector>
@@ -159,8 +160,13 @@ public:
     void clear();
 
 private:
+    void dropTaskCursorsLocked(quint64 taskId);
+    void collectDescendantsLocked(quint64 taskId, QVector<quint64>& out) const;
+
     mutable QMutex m_mutex;
     QHash<quint64, std::shared_ptr<TaskLoggingContext>> m_tasks;
+    // Parent -> child task registry for cancellation cascade: [parentTaskId -> childTaskIds]
+    QMultiHash<quint64, quint64> m_childTaskIds;
     QVector<std::shared_ptr<ILogSink>> m_sinks;
     // Independent block cursors per sink ID per task ID: [sinkId -> [taskId -> SinkCursor]]
     QHash<quint64, QHash<quint64, SinkCursor>> m_sinkCursors;

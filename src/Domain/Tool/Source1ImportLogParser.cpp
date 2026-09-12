@@ -8,7 +8,8 @@ namespace Domain::Tool {
 Source1ImportLogResult Source1ImportLogParser::parse(
     const QString& stdOut,
     const QString& stdErr,
-    int exitCode)
+    int exitCode,
+    const QString& workingDirectory)
 {
     Source1ImportLogResult result;
     result.rawOutput = stdOut;
@@ -48,12 +49,17 @@ Source1ImportLogResult Source1ImportLogParser::parse(
     bool hasOkBanner = false;
     bool hasErrorBanner = false;
 
-    auto checkAndAddVpcf = [&result](const QString& rawPath) {
-        if (rawPath.endsWith(QStringLiteral(".vpcf"), Qt::CaseInsensitive)) {
-            QString clean = QDir::cleanPath(rawPath);
-            if (!result.generatedVpcfPaths.contains(clean)) {
-                result.generatedVpcfPaths.append(clean);
-            }
+    auto checkAndAddVpcf = [&result, &workingDirectory](const QString& rawPath) {
+        if (!rawPath.endsWith(QStringLiteral(".vpcf"), Qt::CaseInsensitive)) {
+            return;
+        }
+        QString resolved = rawPath;
+        if (QDir::isRelativePath(resolved) && !workingDirectory.isEmpty()) {
+            resolved = QDir(workingDirectory).absoluteFilePath(resolved);
+        }
+        QString clean = QDir::cleanPath(resolved);
+        if (!result.generatedVpcfPaths.contains(clean)) {
+            result.generatedVpcfPaths.append(clean);
         }
     };
 
@@ -119,7 +125,10 @@ Source1ImportLogResult Source1ImportLogParser::parse(
         }
     }
 
-    // Also inspect stderr for errors and warnings
+    // Inspect stderr. Plain stderr output is NOT treated as an error by itself:
+    // source1import may emit ordinary progress/diagnostic lines on stderr. Only
+    // explicit WARNING: lines are tracked (with the known "Failed to make path"
+    // escalation); all other stderr lines are retained as warnings for diagnostics.
     if (!stdErr.isEmpty()) {
         const QStringList errLines = stdErr.split(QLatin1Char('\n'));
         for (const QString& line : errLines) {
@@ -133,12 +142,25 @@ Source1ImportLogResult Source1ImportLogParser::parse(
                     result.errorMessages.append(trimmed);
                 }
             } else {
-                result.errorMessages.append(trimmed);
+                result.warnings.append(trimmed);
             }
         }
     }
 
-    // If non-zero exit code but no explicit error messages matched, extract last meaningful output line
+    // If non-zero exit code but no explicit error messages matched, promote the last
+    // meaningful stderr line (then stdout line) so the failure keeps a concrete cause.
+    if (exitCode != 0 && result.errorMessages.isEmpty()) {
+        const QStringList errLines = stdErr.split(QLatin1Char('\n'));
+        for (auto it = errLines.crbegin(); it != errLines.crend(); ++it) {
+            QString trimmed = it->trimmed();
+            if (!trimmed.isEmpty() &&
+                !trimmed.startsWith(QLatin1Char('-')) &&
+                !trimmed.startsWith(QLatin1Char('='))) {
+                result.errorMessages.append(trimmed);
+                break;
+            }
+        }
+    }
     if (exitCode != 0 && result.errorMessages.isEmpty()) {
         for (auto it = outLines.crbegin(); it != outLines.crend(); ++it) {
             QString trimmed = it->trimmed();

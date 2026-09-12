@@ -61,6 +61,9 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
     procOptions.arguments = args;
     procOptions.timeout = options.timeoutMs > 0 ? options.timeoutMs : 120000;
     procOptions.cancellationToken = options.cancellationToken;
+    if (!options.workingDirectory.isEmpty()) {
+        procOptions.workingDirectory = options.workingDirectory.toString();
+    }
     if (!options.isCsgo) {
         procOptions.standardInput = "y\n";
     }
@@ -148,7 +151,8 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
             QStringLiteral("Source 1 导入工具启动失败"));
     }
 
-    auto logResult = Source1ImportLogParser::parse(procResult.stdOut, procResult.stdErr, procResult.exitCode);
+    auto logResult = Source1ImportLogParser::parse(
+        procResult.stdOut, procResult.stdErr, procResult.exitCode, options.workingDirectory.toString());
 
     Source1ImportToolResult toolResult;
     toolResult.success = logResult.success;

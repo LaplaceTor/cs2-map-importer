@@ -1,86 +1,61 @@
 #include "UI/ViewModels/LogViewModel.h"
-#include "Core/Logging/ILogSink.h"
-#include "Core/Logging/LogManager.h"
-#include "Core/Logging/ApplicationLogger.h"
-#include "Core/Logging/LogFileManager.h"
+
+#include "Application/Logging/TaskLogService.h"
 #include <QClipboard>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
 #include <QGuiApplication>
-#include <QMetaObject>
-#include <QPointer>
 #include <QQmlEngine>
 #include <QUrl>
 
 namespace UI::ViewModels {
 
-namespace {
-
-class LogViewModelSinkAdapter : public Core::Logging::ILogSink {
-public:
-    explicit LogViewModelSinkAdapter(LogViewModel* target)
-        : m_target(target)
-    {
-    }
-
-    bool writeBlock(const Core::Logging::LogBlock& block, const QString& taskName) override
-    {
-        if (!m_target) {
-            return false;
-        }
-        const quint64 generation = m_target->viewGeneration();
-        QMetaObject::invokeMethod(m_target.data(), [target = m_target, block, taskName, generation]() {
-            if (!target) {
-                return;
-            }
-            if (generation != target->viewGeneration()) {
-                // Stale queued log block from a prior generation (e.g. before resetView was called)
-                return;
-            }
-            target->processIncomingBlock(block, taskName);
-        }, Qt::QueuedConnection);
-        return true;
-    }
-
-    bool flush() override
-    {
-        return true;
-    }
-
-private:
-    QPointer<LogViewModel> m_target;
-};
-
-} // namespace
-
-LogViewModel::LogViewModel(QObject* parent)
+LogViewModel::LogViewModel(Application::Logging::TaskLogService* logService, QObject* parent)
     : LogTaskModel(0, parent)
+    , m_logService(logService)
 {
     QQmlEngine::setObjectOwnership(this, QQmlEngine::CppOwnership);
 }
 
 LogViewModel::~LogViewModel()
 {
-    unregisterFromLogManager();
+    detachFromLogService();
 }
 
-void LogViewModel::registerWithLogManager()
+void LogViewModel::attachToLogService(Application::Logging::TaskLogService* service)
 {
-    if (m_registeredSinkId != 0) {
+    detachFromLogService();
+    m_logService = service;
+    if (!m_logService) {
         return;
     }
-    auto sink = std::make_shared<LogViewModelSinkAdapter>(this);
-    m_registeredSinkId = sink->sinkId();
-    Core::Logging::LogManager::instance().addSink(sink);
+
+    m_subscriptionId = m_logService->subscribe();
+    connect(m_logService, &Application::Logging::TaskLogService::logBatchReceived,
+            this, &LogViewModel::onLogBatchReceived);
 }
 
-void LogViewModel::unregisterFromLogManager()
+void LogViewModel::detachFromLogService()
 {
-    if (m_registeredSinkId != 0) {
-        Core::Logging::LogManager::instance().removeSink(m_registeredSinkId);
-        m_registeredSinkId = 0;
+    if (m_logService) {
+        disconnect(m_logService, nullptr, this, nullptr);
+        if (m_subscriptionId != 0) {
+            m_logService->unsubscribe(m_subscriptionId);
+        }
     }
+    m_logService = nullptr;
+    m_subscriptionId = 0;
+}
+
+void LogViewModel::onLogBatchReceived(quint64 subscriptionId, quint64 taskId, const QString& taskName,
+                                      const QVector<Application::Logging::TaskLogMessage>& messages)
+{
+    // Stale batch: published under a superseded/reset subscription (e.g. before resetView)
+    if (subscriptionId == 0 || subscriptionId != m_subscriptionId) {
+        return;
+    }
+    processIncomingBlock(taskId, taskName, messages);
 }
 
 int LogViewModel::totalMessageCount() const
@@ -92,11 +67,6 @@ void LogViewModel::setAutoScroll(bool enabled)
 {
     if (m_autoScroll != enabled) {
         m_autoScroll = enabled;
-        for (const auto& node : m_nodesById) {
-            if (node->subTasksModel) {
-                node->subTasksModel->setAutoScroll(enabled);
-            }
-        }
         emit autoScrollChanged();
     }
 }
@@ -134,7 +104,7 @@ QVariant LogViewModel::data(const QModelIndex& index, int role) const
     case StateRole:
         return static_cast<int>(node->state);
     case StateStringRole:
-        return Core::Logging::taskStateToString(node->state);
+        return Application::Logging::taskStateToString(node->state);
     case ProgressRole:
         return node->progress;
     case CurrentMessageRole:
@@ -170,7 +140,7 @@ QVariant LogViewModel::data(const QModelIndex& index, int role) const
                     ? QDateTime::fromMSecsSinceEpoch(msg.timestamp).toString(QStringLiteral("hh:mm:ss"))
                     : QStringLiteral("00:00:00"));
                 map.insert(QStringLiteral("level"), static_cast<int>(msg.level));
-                map.insert(QStringLiteral("levelString"), Core::Logging::logLevelToString(msg.level));
+                map.insert(QStringLiteral("levelString"), Application::Logging::logLevelToString(msg.level));
                 map.insert(QStringLiteral("message"), msg.message);
                 list.append(map);
             }
@@ -235,20 +205,21 @@ std::shared_ptr<TaskTreeNode> LogViewModel::ensureTaskNode(quint64 taskId, const
         return m_nodesById.value(taskId);
     }
 
-    auto context = Core::Logging::LogManager::instance().findTask(taskId);
-    quint64 parentId = context ? context->parentTaskId() : 0;
+    const Application::Logging::TaskInfo info =
+        m_logService ? m_logService->taskInfo(taskId) : Application::Logging::TaskInfo{};
+    const quint64 parentId = info.isValid ? info.parentTaskId : 0;
 
     auto node = std::make_shared<TaskTreeNode>();
     node->taskId = taskId;
     node->parentTaskId = parentId;
     node->taskName = taskName.trimmed().isEmpty() ? QStringLiteral("Task %1").arg(taskId) : taskName.trimmed();
-    node->state = context ? context->state() : Core::Logging::TaskState::Running;
-    node->progress = context ? context->progress() : 0.0;
-    node->currentMessage = context ? context->currentMessage() : QString();
+    node->state = info.isValid ? info.state : Application::Logging::TaskState::Running;
+    node->progress = info.isValid ? info.progress : 0.0;
+    node->currentMessage = info.isValid ? info.currentMessage : QString();
     node->messagesModel = std::make_shared<LogMessageListModel>();
     QQmlEngine::setObjectOwnership(node->messagesModel.get(), QQmlEngine::CppOwnership);
 
-    const bool isTool = context ? context->isToolTask() : false;
+    const bool isTool = info.isValid ? info.isToolTask : false;
     node->isToolTask = isTool;
 
     if (isTool) {
@@ -256,8 +227,8 @@ std::shared_ptr<TaskTreeNode> LogViewModel::ensureTaskNode(quint64 taskId, const
         // but excluded from visible task tree projection and parent subtask models.
         m_nodesById.insert(taskId, node);
         if (parentId != 0) {
-            auto parentCtx = Core::Logging::LogManager::instance().findTask(parentId);
-            auto parentNode = ensureTaskNode(parentId, parentCtx ? parentCtx->taskName() : QString());
+            const auto parentInfo = m_logService ? m_logService->taskInfo(parentId) : Application::Logging::TaskInfo{};
+            auto parentNode = ensureTaskNode(parentId, parentInfo.isValid ? parentInfo.taskName : QString());
             node->parent = parentNode;
             node->depth = parentNode->depth + 1;
         }
@@ -266,7 +237,6 @@ std::shared_ptr<TaskTreeNode> LogViewModel::ensureTaskNode(quint64 taskId, const
         node->depth = 0;
         node->expanded = true;
         node->subTasksModel = std::make_shared<LogTaskModel>(1);
-        node->subTasksModel->setAutoScroll(m_autoScroll);
         QQmlEngine::setObjectOwnership(node->subTasksModel.get(), QQmlEngine::CppOwnership);
 
         m_rootTasks.append(node);
@@ -280,13 +250,12 @@ std::shared_ptr<TaskTreeNode> LogViewModel::ensureTaskNode(quint64 taskId, const
         emit taskCountChanged();
     } else {
         // Child subtask
-        auto parentCtx = Core::Logging::LogManager::instance().findTask(parentId);
-        auto parentNode = ensureTaskNode(parentId, parentCtx ? parentCtx->taskName() : QString());
+        const auto parentInfo = m_logService ? m_logService->taskInfo(parentId) : Application::Logging::TaskInfo{};
+        auto parentNode = ensureTaskNode(parentId, parentInfo.isValid ? parentInfo.taskName : QString());
 
         node->depth = parentNode->depth + 1;
         node->expanded = false; // Default collapsed per grill decision
         node->subTasksModel = std::make_shared<LogTaskModel>(node->depth + 1);
-        node->subTasksModel->setAutoScroll(m_autoScroll);
         QQmlEngine::setObjectOwnership(node->subTasksModel.get(), QQmlEngine::CppOwnership);
 
         node->parent = parentNode;
@@ -329,11 +298,11 @@ std::shared_ptr<TaskTreeNode> LogViewModel::ensureTaskNode(quint64 taskId, const
 
     if (!m_taskLogFiles.contains(taskId)) {
         QString taskFilePath;
-        if (context && !context->logFilePath().isEmpty()) {
-            taskFilePath = context->logFilePath();
-        } else {
-            const qint64 startTimestamp = context ? context->startTimestamp() : 0;
-            taskFilePath = Core::Logging::LogFileManager::generateTaskLogFilePath(node->taskName, startTimestamp, taskId);
+        if (info.isValid && !info.logFilePath.isEmpty()) {
+            taskFilePath = info.logFilePath;
+        } else if (m_logService) {
+            const qint64 startTimestamp = info.isValid ? info.startTimestamp : 0;
+            taskFilePath = m_logService->fallbackTaskLogFilePath(node->taskName, startTimestamp, taskId);
         }
         m_taskLogFiles.insert(taskId, taskFilePath);
     }
@@ -343,20 +312,19 @@ std::shared_ptr<TaskTreeNode> LogViewModel::ensureTaskNode(quint64 taskId, const
     return node;
 }
 
-void LogViewModel::processIncomingBlock(const Core::Logging::LogBlock& block, const QString& taskName)
+void LogViewModel::processIncomingBlock(quint64 taskId, const QString& taskName,
+                                        const QVector<Application::Logging::TaskLogMessage>& messages)
 {
-    quint64 taskId = block.taskId();
-    const auto& entries = block.entries();
-    if (entries.isEmpty() && taskId == 0) {
+    if (messages.isEmpty() && taskId == 0) {
         return;
     }
 
     auto node = ensureTaskNode(taskId, taskName);
 
-    if (!entries.isEmpty() && node->messagesModel) {
+    if (!messages.isEmpty() && node->messagesModel) {
         QVector<LogMessageItem> newItems;
-        newItems.reserve(entries.size());
-        for (const auto& logEntry : entries) {
+        newItems.reserve(messages.size());
+        for (const auto& logEntry : messages) {
             LogMessageItem msgItem;
             msgItem.sequence = logEntry.sequence;
             msgItem.timestamp = logEntry.timestamp;
@@ -366,29 +334,18 @@ void LogViewModel::processIncomingBlock(const Core::Logging::LogBlock& block, co
             newItems.append(msgItem);
         }
         node->messagesModel->appendEntries(newItems);
-        m_totalMessages += entries.size();
+        m_totalMessages += messages.size();
     }
 
-    const auto previousState = node->state;
-    // Refresh state from context
-    auto context = Core::Logging::LogManager::instance().findTask(taskId);
-    if (context) {
-        node->state = context->state();
-        node->progress = context->progress();
-        node->currentMessage = context->currentMessage();
+    // Refresh state from the Application log facade
+    const Application::Logging::TaskInfo info =
+        m_logService ? m_logService->taskInfo(taskId) : Application::Logging::TaskInfo{};
+    if (info.isValid) {
+        node->state = info.state;
+        node->progress = info.progress;
+        node->currentMessage = info.currentMessage;
         if (!taskName.trimmed().isEmpty() && node->taskName.startsWith(QStringLiteral("Task "))) {
             node->taskName = taskName.trimmed();
-        }
-    }
-
-    if (m_autoScroll && previousState != Core::Logging::TaskState::Completed && node->state == Core::Logging::TaskState::Completed) {
-        if (node->expanded) {
-            int r = m_visibleNodes.indexOf(node);
-            if (r >= 0) {
-                toggleTaskExpanded(r);
-            } else {
-                node->expanded = false;
-            }
         }
     }
 
@@ -621,7 +578,12 @@ UI::ViewModels::LogTaskModel* LogViewModel::getTaskSubTasksModel(int row) const
 
 void LogViewModel::resetView()
 {
-    m_viewGeneration.fetch_add(1, std::memory_order_relaxed);
+    // Invalidate log batches that were published before this reset but are still
+    // queued for delivery: renewing the subscription makes the receiver drop them.
+    if (m_logService && m_subscriptionId != 0) {
+        m_logService->unsubscribe(m_subscriptionId);
+        m_subscriptionId = m_logService->subscribe();
+    }
 
     beginResetModel();
     m_rootTasks.clear();
@@ -663,11 +625,11 @@ QString LogViewModel::exportToPlainText(int indentLevel) const
                     : QStringLiteral("00:00:00");
                 QString levelStr;
                 switch (msg.level) {
-                case Core::Logging::LogLevel::Debug:    levelStr = QStringLiteral("DEBUG"); break;
-                case Core::Logging::LogLevel::Info:     levelStr = QStringLiteral("INFO "); break;
-                case Core::Logging::LogLevel::Warning:  levelStr = QStringLiteral("WARN "); break;
-                case Core::Logging::LogLevel::Error:    levelStr = QStringLiteral("ERROR"); break;
-                case Core::Logging::LogLevel::Critical: levelStr = QStringLiteral("CRIT "); break;
+                case Application::Logging::LogLevel::Debug:    levelStr = QStringLiteral("DEBUG"); break;
+                case Application::Logging::LogLevel::Info:     levelStr = QStringLiteral("INFO "); break;
+                case Application::Logging::LogLevel::Warning:  levelStr = QStringLiteral("WARN "); break;
+                case Application::Logging::LogLevel::Error:    levelStr = QStringLiteral("ERROR"); break;
+                case Application::Logging::LogLevel::Critical: levelStr = QStringLiteral("CRIT "); break;
                 }
                 result.append(QStringLiteral("%1[%2] %3  %4").arg(indentStr, timeStr, levelStr, msg.message));
             }
@@ -690,8 +652,9 @@ QString LogViewModel::exportToPlainText(int indentLevel) const
 QString LogViewModel::activeTaskLogFilePath() const
 {
     if (m_activeTaskId != 0) {
-        auto context = Core::Logging::LogManager::instance().findTask(m_activeTaskId);
-        if (context && context->state() == Core::Logging::TaskState::Running) {
+        const Application::Logging::TaskInfo info =
+            m_logService ? m_logService->taskInfo(m_activeTaskId) : Application::Logging::TaskInfo{};
+        if (info.isValid && info.state == Application::Logging::TaskState::Running) {
             return m_taskLogFiles.value(m_activeTaskId);
         }
     }
@@ -713,10 +676,10 @@ bool LogViewModel::openLogFile()
         targetPath = lastTaskLogFilePath();
     }
     if (targetPath.isEmpty() || !QFileInfo::exists(targetPath)) {
-        targetPath = Core::Logging::ApplicationLogger::logFilePath();
+        targetPath = m_logService ? m_logService->applicationLogFilePath() : QString();
     }
     if (targetPath.isEmpty() || !QFileInfo::exists(targetPath)) {
-        targetPath = Core::Logging::LogFileManager::generateApplicationLogFilePath();
+        targetPath = m_logService ? m_logService->expectedApplicationLogFilePath() : QString();
     }
 
     if (targetPath.isEmpty() || !QFileInfo::exists(targetPath)) {
@@ -730,25 +693,28 @@ QString LogViewModel::activeTaskLogFolderPath() const
 {
     quint64 targetId = m_activeTaskId != 0 ? m_activeTaskId : m_lastTaskId;
     if (targetId != 0) {
-        auto context = Core::Logging::LogManager::instance().findTask(targetId);
-        if (context && !context->workflowDirectory().isEmpty() && QDir(context->workflowDirectory()).exists()) {
-            return context->workflowDirectory();
+        const Application::Logging::TaskInfo info =
+            m_logService ? m_logService->taskInfo(targetId) : Application::Logging::TaskInfo{};
+        if (info.isValid && !info.workflowDirectory.isEmpty() && QDir(info.workflowDirectory).exists()) {
+            return info.workflowDirectory;
         }
         QString filePath = m_taskLogFiles.value(targetId);
         if (!filePath.isEmpty() && QFileInfo::exists(filePath)) {
             return QFileInfo(filePath).dir().absolutePath();
         }
     }
-    return Core::Logging::LogFileManager::logsDirectory();
+    return m_logService ? m_logService->logsDirectory() : QString();
 }
 
 bool LogViewModel::openLogFolder()
 {
     QString targetFolder = activeTaskLogFolderPath();
     if (targetFolder.isEmpty() || !QDir(targetFolder).exists()) {
-        targetFolder = Core::Logging::LogFileManager::logsDirectory();
+        targetFolder = m_logService ? m_logService->logsDirectory() : QString();
     }
-    Core::Logging::LogFileManager::ensureLogsDirectoryExists();
+    if (m_logService) {
+        m_logService->ensureLogsDirectory();
+    }
     return QDesktopServices::openUrl(QUrl::fromLocalFile(targetFolder));
 }
 
@@ -775,7 +741,7 @@ QString LogViewModel::getToolTaskState(quint64 toolTaskId)
 {
     auto it = m_nodesById.find(toolTaskId);
     if (it != m_nodesById.end() && it.value()) {
-        return Core::Logging::taskStateToString(it.value()->state);
+        return Application::Logging::taskStateToString(it.value()->state);
     }
     return QStringLiteral("UNKNOWN");
 }
@@ -816,14 +782,13 @@ void LogViewModel::appendLog(const QString& message, int level)
     if (message.isEmpty()) {
         return;
     }
-    Core::Logging::LogBlock block(0, 0);
-    Core::Logging::LogEntry entry;
-    entry.taskId = 0;
+    QVector<Application::Logging::TaskLogMessage> messages;
+    Application::Logging::TaskLogMessage entry;
     entry.timestamp = QDateTime::currentMSecsSinceEpoch();
-    entry.level = static_cast<Core::Logging::LogLevel>(level);
+    entry.level = static_cast<Application::Logging::LogLevel>(level);
     entry.message = message;
-    block.append(entry);
-    processIncomingBlock(block, QStringLiteral("General"));
+    messages.append(std::move(entry));
+    processIncomingBlock(0, QStringLiteral("General"), messages);
 }
 
 } // namespace UI::ViewModels

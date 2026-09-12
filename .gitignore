@@ -23,4 +23,5 @@ build_package.ps1
 release_test/
 dist/
 *.zip
-logs/
+logs/
+.zcode/

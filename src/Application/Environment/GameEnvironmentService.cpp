@@ -180,39 +180,31 @@ void GameEnvironmentService::validateSource1FolderAsync(
     QString effectiveName = typeName.trimmed().isEmpty() ? QStringLiteral("Source 1") : typeName.trimmed();
     QString taskName = QStringLiteral("Validate %1").arg(effectiveName);
 
-    Application::Async::AsyncTaskRunner::runTask<GameInstallationInfo>(
+    (void)Application::Async::AsyncTaskRunner::runSystemTask<GameInstallationInfo>(
         taskName,
         context,
-        [type, normalizedPath, effectiveName](std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) -> Core::Result<GameInstallationInfo> {
-            if (logCtx) {
-                logCtx->info(QStringLiteral("Starting validation for %1 at: %2").arg(effectiveName, normalizedPath));
-            }
+        [type, normalizedPath, effectiveName](const Application::Async::SystemTaskLog& sysLog) -> Core::Result<GameInstallationInfo> {
+            sysLog.info(QStringLiteral("Starting validation for %1 at: %2").arg(effectiveName, normalizedPath));
             if (normalizedPath.isEmpty()) {
-                QString errMsg = QStringLiteral("Target path is empty, validation skipped");
-                if (logCtx) {
-                    logCtx->warning(errMsg);
-                }
+                const QString errMsg = QStringLiteral("Target path is empty, validation skipped");
+                sysLog.warning(errMsg);
                 return Core::Result<GameInstallationInfo>::skipped(errMsg);
             }
 
             Core::Path::FilesystemPath fsPath(normalizedPath);
             Core::Result<GameInstallation> instResult;
             if (type == Domain::Game::GameType::Custom) {
-                instResult = GameInstallationValidator::inspectGameInfo(fsPath, logCtx);
+                instResult = GameInstallationValidator::inspectGameInfo(fsPath, &sysLog);
             } else {
-                instResult = GameInstallationValidator::validateSource1(type, fsPath, logCtx);
+                instResult = GameInstallationValidator::validateSource1(type, fsPath, &sysLog);
             }
 
             if (instResult.isSuccess()) {
-                if (logCtx) {
-                    logCtx->info(QStringLiteral("Validation completed successfully: %1").arg(instResult.value().displayName()));
-                }
+                sysLog.info(QStringLiteral("Validation completed successfully: %1").arg(instResult.value().displayName()));
                 return Core::Result<GameInstallationInfo>::success(instResult.value().toInfo());
             }
 
-            if (logCtx) {
-                logCtx->error(QStringLiteral("Validation failed for %1 at: %2: %3").arg(effectiveName, normalizedPath, instResult.message()));
-            }
+            sysLog.error(QStringLiteral("Validation failed for %1 at: %2: %3").arg(effectiveName, normalizedPath, instResult.message()));
             return Core::Result<GameInstallationInfo>::failure(instResult.error(), instResult.message());
         },
         std::move(callback));
@@ -249,33 +241,25 @@ void GameEnvironmentService::validateSource2FolderAsync(
 {
     QString normalizedPath = cleanPath(pathOrUrl);
 
-    Application::Async::AsyncTaskRunner::runTask<GameInstallationInfo>(
+    (void)Application::Async::AsyncTaskRunner::runSystemTask<GameInstallationInfo>(
         QStringLiteral("Validate Source 2"),
         context,
-        [normalizedPath](std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx) -> Core::Result<GameInstallationInfo> {
-            if (logCtx) {
-                logCtx->info(QStringLiteral("Starting Source 2 validation at: %1").arg(normalizedPath));
-            }
+        [normalizedPath](const Application::Async::SystemTaskLog& sysLog) -> Core::Result<GameInstallationInfo> {
+            sysLog.info(QStringLiteral("Starting Source 2 validation at: %1").arg(normalizedPath));
             if (normalizedPath.isEmpty()) {
-                QString errMsg = QStringLiteral("Target path is empty, validation skipped");
-                if (logCtx) {
-                    logCtx->warning(errMsg);
-                }
+                const QString errMsg = QStringLiteral("Target path is empty, validation skipped");
+                sysLog.warning(errMsg);
                 return Core::Result<GameInstallationInfo>::skipped(errMsg);
             }
 
             Core::Path::FilesystemPath fsPath(normalizedPath);
-            auto instResult = GameInstallationValidator::validateSource2(fsPath, Domain::Game::GameType::Unknown, logCtx);
+            auto instResult = GameInstallationValidator::validateSource2(fsPath, Domain::Game::GameType::Unknown, &sysLog);
             if (instResult.isSuccess()) {
-                if (logCtx) {
-                    logCtx->info(QStringLiteral("Validation completed successfully: %1").arg(instResult.value().displayName()));
-                }
+                sysLog.info(QStringLiteral("Validation completed successfully: %1").arg(instResult.value().displayName()));
                 return Core::Result<GameInstallationInfo>::success(instResult.value().toInfo());
             }
 
-            if (logCtx) {
-                logCtx->error(QStringLiteral("Validation failed for Source 2 at: %1: %2").arg(normalizedPath, instResult.message()));
-            }
+            sysLog.error(QStringLiteral("Validation failed for Source 2 at: %1: %2").arg(normalizedPath, instResult.message()));
             return Core::Result<GameInstallationInfo>::failure(instResult.error(), instResult.message());
         },
         std::move(callback));
@@ -315,6 +299,30 @@ QStringList GameEnvironmentService::listSource2Addons(const QString& s2BasePath)
 QStringList GameEnvironmentService::listSource2Addons(const GameInstallationInfo& s2Installation) const
 {
     return listSource2Addons(s2Installation.basePath);
+}
+
+void GameEnvironmentService::listSource2AddonsAsync(
+    const GameInstallationInfo& s2Installation,
+    QObject* context,
+    std::function<void(Core::Result<QStringList>)> callback)
+{
+    const QString basePath = cleanPath(s2Installation.basePath);
+
+    (void)Application::Async::AsyncTaskRunner::runSystemTask<QStringList>(
+        QStringLiteral("List Source 2 Addons"),
+        context,
+        [basePath](const Application::Async::SystemTaskLog& sysLog) -> Core::Result<QStringList> {
+            if (basePath.isEmpty()) {
+                const QString errMsg = QStringLiteral("Source 2 base path is empty, addon listing skipped");
+                sysLog.warning(errMsg);
+                return Core::Result<QStringList>::skipped(errMsg);
+            }
+            sysLog.info(QStringLiteral("Scanning addons under: %1").arg(basePath));
+            Core::Path::FilesystemPath fsPath(basePath);
+            return Core::Result<QStringList>::success(
+                Domain::Game::GameInstallationResolver::listSource2Addons(fsPath));
+        },
+        std::move(callback));
 }
 
 Core::Result<VpkSignatureLeaseResult> GameEnvironmentService::updateVpkLease(const QString& s2BasePath)

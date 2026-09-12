@@ -27,7 +27,8 @@ description: >-
 | `vpk.signatures` 锁定 / 导入前置保障 | `Application::Common` + `Application::Environment` | 对应目录 | `ImportPrerequisiteService` 统一校验基础参数并获取 CS2 文件租约。[已落地] |
 | `Ui::CheckForUpdate` | `Application::Update` | `src/Application/Update/` | 自动更新检测。 |
 | `Ui::LoadFromCfg`, `SaveToCfg` | `Application::Config` | `src/Application/Config/` | 配置持久化。 |
-| `Ui::Start`, 工作线程, `CancelAll` | `Application::Async` + `Application::Task` | 对应目录 | `AsyncTaskRunner`、`TaskHandle` 与协作式取消及任务生命周期管理。[已落地] |
+| `Ui::Start`, 工作线程, `CancelAll` | `Application::Async`（任务服务 `Application::Task`【规划】） | 对应目录 | `AsyncTaskRunner`（`runTask` / `runWorkflowTask` / `runSystemTask`）、`TaskHandle`、`SystemTaskLog`（系统任务平面）与协作式取消及任务生命周期管理。[已落地] |
+| `LogViewModel` 直连 `Core::Logging`（`registerWithLogManager` 时代） | `Application::Logging` | `src/Application/Logging/` | `TaskLogService` 日志投递门面 + `TaskLogDTOs` UI 侧值类型；UI 消费日志唯一通道（订阅制投递、陈旧批次抑制），`src/UI/` 严禁 include `Core/Logging/*`。[已落地] |
 | `Ui.h/.cpp` Q_PROPERTY/slots | `UI` | `src/UI/` | 极薄的表现层适配器（`MainController`, `LogViewModel` 等）。[重构中] |
 
 ---
@@ -39,7 +40,7 @@ description: >-
 1. **Stage 1 — Core 基础设施解耦提取**（已完成：错误体系、文件系统、KeyValues、任务导向日志、异步取消令牌 `CancellationToken`）
 2. **Stage 2 — Domain 领域基础迁移**（已完成：游戏模型/注册表/校验器、`Domain::Package` [PackArchive, BspPackExtractor, PackArchivePool]、`Domain::Material` [VtfConverter]、`Domain::Audio` [Soundscape 解析与转换]、`Domain::Tool` [CS2 官方工具与日志解析器]）
 3. **Stage 3 — 导入器与领域逻辑迁移**（进行中：`Workflow::Particle` 已落地；`Workflow::Common` 资产提取与 `ImportContext` 已就绪；待推进：ModelImporter → `Workflow::Model`、VmfBspProcess → `Domain::Vmf` + `Domain::Bsp`）
-4. **Stage 4 — Application 应用编排重构**（进行中：`AsyncTaskRunner`、`TaskHandle`、`ImportPrerequisiteService`、`ParticleImportService`、`SoundscapeConvertService`、`GameEnvironmentService` 已落地；待补齐：统一 ConfigService、UpdateService）
+4. **Stage 4 — Application 应用编排重构**（进行中：`AsyncTaskRunner`、`TaskHandle`、`runWorkflowTask` / `runSystemTask` / `SystemTaskLog`、`TaskLogService` 日志门面、`ImportPrerequisiteService`、`ParticleImportService`、`SoundscapeConvertService`、`GameEnvironmentService`、`GameInstallationValidator` 已落地；待补齐：统一 ConfigService、UpdateService）
 5. **Stage 5 — MapImporter 重构与 UI 瘦身**（待推进：MapImporter → `Workflow::Map`、UI 彻底收敛为纯展示与 Application 调用）
 
 ---
@@ -86,6 +87,7 @@ description: >-
 * [ ] 未引入任何向上逆向 include。
 * [ ] CMake 中未引入向上的反向依赖。
 * [ ] UI 模块未为访问底层细节而链接 Domain / Core。
+* [ ] UI 未 include `Core/Logging/*`——日志仅经 `Application::Logging::TaskLogService` 门面与其 DTO 消费。
 * [ ] Workflow 不依赖 Application / UI。
 
 ### 4.3 运行时表现
@@ -122,6 +124,7 @@ UI/ViewModel → Domain::GameValidator
 UI/ViewModel → Core::FileSystem
 UI/ViewModel → Core::KeyValues
 UI/ViewModel → Core::Process
+UI/ViewModel → Core::Logging（include `Core/Logging/*` 或直连 `LogManager`/日志文件）
 UI/ViewModel → Steam 注册表 / 库扫描
 
 Application → 直接操作 QML 控件

@@ -1,5 +1,6 @@
 qt_add_library(cs2importer_application STATIC
     Async/AsyncTaskRunner.h
+    Async/SystemTaskLog.h
     Async/TaskHandle.h
     Execution/ExecutionGuard.h
     Common/BaseImportDTOs.h
@@ -19,6 +20,9 @@ qt_add_library(cs2importer_application STATIC
     Environment/VpkSignatureLeaseService.cpp
     Environment/GameEnvironmentService.h
     Environment/GameEnvironmentService.cpp
+    Logging/TaskLogDTOs.h
+    Logging/TaskLogService.h
+    Logging/TaskLogService.cpp
     Particle/ParticleImportDTOs.h
     Particle/ParticleImportService.h
     Particle/ParticleImportService.cpp

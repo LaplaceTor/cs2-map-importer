@@ -149,13 +149,20 @@ public:
      * @brief Lifecycle state transitions:
      * Pending -> Running
      * Running -> Completed | Failed | Cancelled
-     * Completed | Failed | Cancelled -> Terminal (non-transitionable)
+     * Completed | Failed | Cancelled -> Terminal (non-transitionable for the
+     * regular transitions below)
      */
     bool start();
     bool complete(const QString& message = QString());
     bool fail(const QString& message = QString());
     bool cancel(const QString& message = QString());
     bool skip(const QString& message = QString());
+    /**
+     * @brief Execution-arbitration override. Re-judges a task's terminal state
+     * (e.g. Cancelled -> Failed when errors dominate). Re-judging into Completed
+     * from a failure-like terminal state is rejected; a terminal state can never
+     * revert to a non-terminal one.
+     */
     bool forceTerminalState(TaskState newState, const QString& message = QString());
 
     /**

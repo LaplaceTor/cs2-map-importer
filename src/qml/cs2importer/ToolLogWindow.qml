@@ -11,9 +11,30 @@ ApplicationWindow {
     property string toolName: ""
     property bool autoScroll: true
 
-    readonly property var messagesModel: logViewModel ? logViewModel.getToolMessagesModel(toolTaskId) : null
-    readonly property string stateString: logViewModel ? logViewModel.getToolTaskState(toolTaskId) : ""
-    readonly property string logFilePath: logViewModel ? logViewModel.getToolTaskLogFilePath(toolTaskId) : ""
+    // The tool task node may be projected into the view model slightly after the
+    // window opens (created when the tool's first log block arrives), and the state
+    // badge must track a running task. refreshTimer re-fetches until the model
+    // appears and the task reaches a terminal state.
+    property var messagesModel: logViewModel ? logViewModel.getToolMessagesModel(toolTaskId) : null
+    property string stateString: logViewModel ? logViewModel.getToolTaskState(toolTaskId) : ""
+    property string logFilePath: logViewModel ? logViewModel.getToolTaskLogFilePath(toolTaskId) : ""
+
+    Timer {
+        id: refreshTimer
+        interval: 250
+        repeat: true
+        running: root.visible && root.logViewModel !== null
+            && (root.messagesModel === null
+                || ["PENDING", "RUNNING"].indexOf((root.stateString || "").toUpperCase()) !== -1)
+        onTriggered: {
+            if (!root.logViewModel) {
+                return
+            }
+            root.messagesModel = root.logViewModel.getToolMessagesModel(root.toolTaskId)
+            root.stateString = root.logViewModel.getToolTaskState(root.toolTaskId)
+            root.logFilePath = root.logViewModel.getToolTaskLogFilePath(root.toolTaskId)
+        }
+    }
 
     signal windowClosed(var id)
 

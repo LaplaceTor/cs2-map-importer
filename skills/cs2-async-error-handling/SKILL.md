@@ -1,7 +1,7 @@
 ---
 name: cs2-async-error-handling
 description: >-
-  Use this skill when implementing asynchronous tasks, error handling, process execution, logging, or state transitions in cs2-map-importer. Covers dual-plane architecture, Result<T> semantics, tripartite diagnostic contracts, exception boundaries, and state conflict arbitration.
+  Use this skill when implementing asynchronous tasks, error handling, process execution, logging, or state transitions in cs2-map-importer. Covers the three task planes (workflow/tool tasks, system tasks, Result<T> outcomes), the Application logging facade, Result<T> semantics, tripartite diagnostic contracts, exception boundaries, and state conflict arbitration.
 ---
 
 # CS2 Map Importer — 异步任务与错误诊断规范指南
@@ -10,18 +10,23 @@ description: >-
 
 ---
 
-## 1. 双平面架构：任务执行生命周期 vs 业务执行结果
+## 1. 三平面任务体系：任务执行生命周期、系统任务与业务执行结果
 
-为保证异步任务与工作流操作的概念严密性，架构定义了两个正交平面：
+为保证异步任务与工作流操作的概念严密性，架构定义了三个正交平面：
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ 1. 任务执行生命周期平面 (Task Execution Lifecycle Plane: TaskState)        │
-│    由 LogManager / TaskLoggingContext 管理                                  │
+│    由 LogManager / TaskLoggingContext 管理 (工作流/阶段/工具任务)          │
 │    状态流转: Pending → Running → Completed | Failed | Cancelled | Skipped    │
 │    在 UI 日志模型中跟踪展示 (LogViewModel / LogTaskModel)                   │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│ 2. 业务执行结果平面 (Business Outcome Plane: Result<T>)                     │
+│ 2. 系统任务平面 (System Task Plane: SystemTaskLog)                          │
+│    由 AsyncTaskRunner::runSystemTask 创建, taskId 恒为 0                    │
+│    无 LogManager 任务 / 无 TaskState / 不进 UI 任务树                       │
+│    日志并入 application_<timestamp>.log ("[TaskName]" 前缀)                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 3. 业务执行结果平面 (Business Outcome Plane: Result<T>)                     │
 │    Workflow 与 Application API 的标准单层返回契约                           │
 │    结果状态: Success | Failure | Cancelled | Skipped + 业务负载 T 与说明文本 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -29,19 +34,22 @@ description: >-
 
 ### 1.1 `AsyncTaskRunner` 标准 API 体系
 
-`AsyncTaskRunner` 是连接两个平面的核心桥梁：
+`AsyncTaskRunner` 是连接三个平面的核心桥梁：
 
 * `AsyncTaskRunner::runTask<T>(taskName, context, worker, callback)`: 用于产出业务负载 `T` 的异步任务。
 * `AsyncTaskRunner::runTask<void>(taskName, context, worker, callback)`: 用于无返回值的异步任务，保持完整的 `Result<void>` 语义。
 * `AsyncTaskRunner::runChildTask<T>(parentTaskId, taskName, context, worker, callback)`: 用于层次化子任务。
 * `AsyncTaskRunner::runChildTask<void>(parentTaskId, taskName, context, worker, callback)`: 用于无返回值子任务。
 * `AsyncTaskRunner::runBackground(taskName, worker)`: 委派至 `runTask<void>` 的后台便捷封装，Worker 必须返回 `Core::Result<void>`，复用同一套生命周期与异常仲裁逻辑。
+* `AsyncTaskRunner::runWorkflowTask<T>(workflowName, assetBaseName, context, worker, callback)`: 顶层导入工作流入口——自动创建工作流日志目录（`logs/<workflowName>_<timestamp>/`）并注册 Workflow 根任务，再走 `runTask` 全套生命周期与仲裁。
+* `AsyncTaskRunner::runSystemTask<T>(taskName, context, worker, callback)`: **系统任务**入口——Worker 签名为 `(const Application::Async::SystemTaskLog&, [CancellationToken])`，必须返回 `Result<T>`。无 LogManager 任务、无 `TaskState`、不进 UI 任务树（taskId 恒为 0）；runner 在应用日志中写入一行生命周期记录（`started` / `finished` / `cancelled` / `skipped` / `failed`）；`TaskHandle::cancel()` 仅触发取消令牌，不触碰 LogManager。
 
 规则：
 1. `T` 为**业务负载类型**（如 `GameInstallationInfo`、`DetectionResult`、`void`），严禁嵌套为 `Result<Result<T>>`。
 2. Worker 返回单层 `Result<T>`。
 3. `AsyncTaskRunner` 结合业务结果、日志报错与捕获的异常，驱动 `LogManager` 中的 `TaskState` 状态转移。
 4. 回调函数接收 `const Result<T>&`，并线程安全地投递至调用方所在线程。
+5. **平面归属规则**：面向用户的导入工作流（粒子导入、音景转换等）一律走 `runWorkflowTask` / `runTask` 平面（进任务树、有独立日志）；环境检测、安装校验、插件列举等非导入后台任务必须走 `runSystemTask`，严禁占用可见任务树。
 
 ### 1.2 层级化任务日志树与外部工具任务 (Workflow Task vs Tool Task)
 
@@ -51,7 +59,7 @@ description: >-
 Workflow Task (Root: createWorkflowTask) -> logs/<workflow>_<timestamp>/workflow.log
  └── Stage Child Task (Stage: createChildTask)
       ├── [EXEC] commandLine (携带 toolTaskId)
-      └── Tool Task (createToolTask, UI平铺树中隐藏) -> logs/<workflow>_<timestamp>/<asset>_<tool>_<time>.log
+      └── Tool Task (createToolTask, UI平铺树中隐藏) -> <父任务日志目录>/<asset>_<tool>_<time>.log
 ```
 
 * **Workflow 根任务 (`LogManager::createWorkflowTask`)**：
@@ -64,7 +72,15 @@ Workflow Task (Root: createWorkflowTask) -> logs/<workflow>_<timestamp>/workflow
   * 专门承接外部 CLI 进程（`resourcecompiler`, `source1import`, `bspsrc`）。
   * **主界面噪音屏蔽**：标记 `isToolTask() == true`，在 UI 主任务树（`LogViewModel`）中静默隐藏，避免大量编译日志刷屏。
   * **命令透传与关联**：自动在父阶段任务注入 `[EXEC] <commandLine>` 日志条目，并绑定 `toolTaskId`。
-  * **独立落盘与专项视窗**：日志单独保存为 `<asset>_<tool>_<time>.log`，用户点击父任务中的命令条目时，UI 通过独立的 `ToolLogWindow` 调取该工具的完整输出流。
+  * **独立落盘与专项视窗**：日志单独保存为 `<asset>_<tool>_<time>.log`，**写入父任务的日志目录**（父为阶段任务时即 `logs/<workflow>_<ts>/<stage>/` 子目录；父为工作流根时直接落在工作流目录下）；同毫秒命名冲突自动追加 `_2`、`_3` 序号。用户点击父任务中的命令条目时，UI 通过独立的 `ToolLogWindow` 调取该工具的完整输出流。
+
+### 1.3 日志投递门面 (Application::Logging)
+
+UI 层消费日志的**唯一通道**是 Application 层门面 `Application::Logging::TaskLogService`（完整 API 见 `skills/cs2-api-reference/SKILL.md`）：
+
+* `TaskLogService` 以私有 `SinkBridge`（`Core::Logging::ILogSink`）桥接 `LogManager`，将密封 `LogBlock` 转换为 UI DTO（`TaskLogMessage` / `TaskInfo`，定义于 `TaskLogDTOs.h`），经队列信号 `logBatchReceived(subscriptionId, taskId, taskName, messages)` 投递；
+* **订阅制陈旧批次抑制**：`subscribe()` / `unsubscribe()`；旧订阅 id 的在途批次由接收方按 id 丢弃（取代旧的 `viewGeneration()` 代数模型）；无订阅者时跳过 DTO 转换；
+* **红线**：`src/UI/` 严禁 include `Core/Logging/*`。`LogViewModel` 通过 `attachToLogService()` / `detachFromLogService()` 挂接门面（旧的 `registerWithLogManager()` 直连模式已删除）。
 
 ---
 
@@ -199,8 +215,12 @@ try {
 | **Completed / Running** | **Cancelled** | 否（状态顺推） | `Cancelled` | `Cancelled`（保留原状态） |
 | **Completed / Running** | **Skipped** | 否（状态顺推） | `Skipped` | `Skipped`（保留原状态） |
 
-* **负载保全规则**：当 `Result<T>` 因契约冲突转换状态时，已有的部分数据负载（`result.value()`）严格予以保留。
+* **负载保全规则**：当 `Result<T>` 因契约冲突转换状态时，已有的部分数据负载（`result.value()`）严格予以保留（`Result::failure/cancelled/skipped` 均提供带 `partialValue` 的重载）。
 * **原始错误保留规则**：因契约违规转换为 `Failure` 时，若原 `Result` 中已含有非成功错误信息，完整保留其错误码与诊断细节；仅当原结果无有效错误（如原为 `Success`）时才合成 `OperationFailed`。
+* **仲裁执行机制**：矩阵由 `AsyncTaskRunner::runTaskInternal` 结合 `LogManager::forceTaskState(taskId, state, message)` 落地（幂等：重复强制同一终态不再重复 flush/通知）。
+* **终态不可逆规则**：`TaskLoggingContext::forceTerminalState` 是执行仲裁覆盖入口（可重判终态，如 `Cancelled → Failed`），但已处于失败类终态的任务**永远不可被重判为 Completed**；终态永不回退为非终态。
+* **取消级联**：`LogManager::cancelTask` 会级联取消全部子孙任务（BFS 遍历，环防护），保证日志树不出现"父已取消而子仍在运行"。
+* **故障屏障（FaultBarrier）**：致命故障路径走 `LogManager::reportFault(taskId, msg)` → `beginFaultDraining()` → `terminateAfterFault()`；任务上下文侧对应 `TaskLoggingContext::reportFault`（返回 `LogSubmissionResult`）。
 
 ---
 
@@ -215,8 +235,9 @@ try {
 | `ProcessStatus::Success` | `ErrorCode::Success` | 进程正常退出且退出码为 0 |
 | `ProcessStatus::FailedToStart` | `ErrorCode::ProcessFailed` (或 `ProcessNotFound`) | 可执行文件缺失、权限不足或启动失败 |
 | `ProcessStatus::TimedOut` | `ErrorCode::ProcessTimeout` | 进程执行超时被主动终止 |
-| `ProcessStatus::Crashed` | `ErrorCode::ProcessFailed` (底层映射为 `ProcessCrashed`) | 进程异常崩溃或收到致命信号 |
+| `ProcessStatus::Crashed` | `ErrorCode::ProcessCrashed` | 进程异常崩溃或收到致命信号（`toErrorCode()` 直接返回） |
 | `ProcessStatus::NonZeroExit` | `ErrorCode::ProcessFailed` | 进程非零异常退出 |
+| `ProcessStatus::Cancelled` | `ErrorCode::Cancelled` | 进程因取消令牌触发而被终止 |
 
 ### 6.2 诊断字段组装与调用示例
 
@@ -240,8 +261,12 @@ if (!procResult.isSuccess()) {
 外部编译/导入工具执行周期通常较长，严禁进行静默无反馈的黑盒调用。必须通过 `ProcessOptions` 的回调将 stdout 与 stderr 实时接入任务上下文：
 
 ```cpp
-// 1. 创建隐藏 Tool 任务（父阶段任务自动记录 [EXEC]）
-auto toolTask = ctx->createToolTask(cmdLine, assetBaseName);
+// 1. 创建隐藏 Tool 任务（LogManager 是唯一创建入口；父阶段任务自动记录 [EXEC]）
+//    规范调用方参见 Domain::Tool::ResourceCompilerTool / Source1ImportTool
+auto toolTask = Core::Logging::LogManager::instance().createToolTask(
+    taskCtx->taskId(),      // 父阶段任务 id
+    fullCommandLine,        // 完整命令行（工具名据此解析，支持带引号的含空格路径）
+    assetBaseName);
 toolTask->start();
 
 // 2. 配置流式捕获回调与协作式取消令牌

@@ -11,8 +11,7 @@
 #include <memory>
 #include <optional>
 
-#include "Core/Logging/LogLevel.h"
-#include "Core/Logging/TaskState.h"
+#include "Application/Logging/TaskLogDTOs.h"
 #include "UI/ViewModels/LogMessageListModel.h"
 
 namespace UI::ViewModels {
@@ -24,7 +23,7 @@ struct LogTaskItem {
     quint64 parentTaskId = 0;
     int depth = 0;
     QString taskName;
-    Core::Logging::TaskState state = Core::Logging::TaskState::Pending;
+    Application::Logging::TaskState state = Application::Logging::TaskState::Pending;
     double progress = 0.0;
     QString currentMessage;
     bool expanded = true;
@@ -34,7 +33,7 @@ struct LogTaskItem {
 
 /**
  * @brief Standard Qt ListModel for hierarchical Task items.
- * Note: Model mutations execute strictly on the owning UI thread (guaranteed by LogViewModelSinkAdapter).
+ * Note: Model mutations execute strictly on the owning UI thread (guaranteed by TaskLogService queued delivery).
  */
 class LogTaskModel : public QAbstractListModel {
     Q_OBJECT
@@ -71,11 +70,9 @@ public:
 
     virtual int taskCount() const;
     int depth() const noexcept { return m_depth; }
-    bool autoScroll() const noexcept { return m_autoScroll; }
-    void setAutoScroll(bool enabled);
 
     int appendTask(const LogTaskItem& task);
-    bool updateTaskMetadata(int row, Core::Logging::TaskState state, double progress, const QString& currentMessage, const QString& taskName = QString());
+    bool updateTaskMetadata(int row, Application::Logging::TaskState state, double progress, const QString& currentMessage, const QString& taskName = QString());
 
     std::optional<LogTaskItem> taskSnapshot(int row) const;
     virtual std::shared_ptr<LogMessageListModel> taskMessagesModel(int row) const;

@@ -50,7 +50,7 @@ std::optional<GameInstallation> GameInstallationValidator::createInstallationFro
 Core::Result<GameInstallation> GameInstallationValidator::validateSource1(
     Domain::Game::GameType type,
     const Core::Path::FilesystemPath& directory,
-    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
+    const Application::Async::SystemTaskLog* logCtx)
 {
     return Application::Execution::ExecutionGuard::guard<GameInstallation>([&]() -> Core::Result<GameInstallation> {
         QString typeStr = Domain::Game::GameRegistry::gameTypeToString(type);
@@ -112,7 +112,7 @@ Core::Result<GameInstallation> GameInstallationValidator::validateSource1(
 Core::Result<GameInstallation> GameInstallationValidator::validateSource2(
     const Core::Path::FilesystemPath& directory,
     Domain::Game::GameType type,
-    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
+    const Application::Async::SystemTaskLog* logCtx)
 {
     return Application::Execution::ExecutionGuard::guard<GameInstallation>([&]() -> Core::Result<GameInstallation> {
         if (logCtx) {
@@ -171,7 +171,7 @@ Core::Result<GameInstallation> GameInstallationValidator::validateSource2(
 
 Core::Result<GameInstallation> GameInstallationValidator::inspectGameInfo(
     const Core::Path::FilesystemPath& gameInfoPath,
-    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
+    const Application::Async::SystemTaskLog* logCtx)
 {
     return Application::Execution::ExecutionGuard::guard<GameInstallation>([&]() -> Core::Result<GameInstallation> {
         if (logCtx) {
@@ -231,7 +231,7 @@ Core::Result<GameInstallation> GameInstallationValidator::inspectGameInfo(
 Core::Result<GameInstallation> GameInstallationValidator::validateGameDirectory(
     Domain::Game::GameType type,
     const Core::Path::FilesystemPath& directory,
-    std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
+    const Application::Async::SystemTaskLog* logCtx)
 {
     return Application::Execution::ExecutionGuard::guard<GameInstallation>([&]() -> Core::Result<GameInstallation> {
         if (logCtx) {

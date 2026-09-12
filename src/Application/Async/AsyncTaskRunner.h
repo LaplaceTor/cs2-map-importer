@@ -19,6 +19,7 @@
 #include "Core/Error/ErrorCode.h"
 #include "Core/Error/Exception.h"
 #include "Application/Execution/ExecutionGuard.h"
+#include "Application/Async/SystemTaskLog.h"
 #include "Application/Async/TaskHandle.h"
 
 namespace Application::Async {
@@ -159,6 +160,123 @@ public:
         quint64 parentTaskId = 0)
     {
         return runTaskInternal<void>(taskName, context, std::forward<WorkerFn>(worker), std::function<void(const Result<void>&)>{}, pool, parentTaskId);
+    }
+
+    /**
+     * @brief Runs a system background task that is deliberately invisible to the
+     * workflow log plane: no LogManager task, no TaskState, no per-task log file,
+     * and no UI task tree entry. Worker entries are merged into the application
+     * log under a "[TaskName]" prefix; the runner writes one lifecycle line
+     * (started / finished / failed / cancelled / skipped) around the worker.
+     *
+     * The returned TaskHandle carries taskId 0, so cancel() cooperatively trips
+     * only the cancellation token without touching LogManager.
+     *
+     * @tparam T The business payload type.
+     * @param context The Qt lifetime context object (callback marshaled to its thread).
+     * @param worker Lambda taking const SystemTaskLog& (and optionally the CancellationToken) and returning Result<T>.
+     */
+    template <typename T = void, typename WorkerFn, typename CallbackFn = std::function<void(const Result<T>&)>>
+    static TaskHandle runSystemTask(
+        const QString& taskName,
+        QObject* context,
+        WorkerFn&& worker,
+        CallbackFn&& callback = CallbackFn{},
+        QThreadPool* pool = QThreadPool::globalInstance())
+    {
+        using DecayedWorker = std::decay_t<WorkerFn>;
+        using DecayedCallback = std::decay_t<CallbackFn>;
+        static_assert(
+            std::is_invocable_r_v<Result<T>, DecayedWorker, const SystemTaskLog&, Core::Async::CancellationToken> ||
+            std::is_invocable_r_v<Result<T>, DecayedWorker, const SystemTaskLog&>,
+            "AsyncTaskRunner::runSystemTask worker must return Core::Result<T> and take const SystemTaskLog& (and optionally the CancellationToken)");
+
+        QPointer<QObject> contextGuard(context);
+        Core::Async::CancellationToken token;
+        TaskHandle handle(0, token);
+
+        bool hasValidCallback = false;
+        if constexpr (std::is_invocable_v<DecayedCallback, Result<T>>) {
+            hasValidCallback = Detail::isCallableValid(callback);
+        }
+
+        auto workerLambda = [taskName, contextGuard, context, hasValidCallback, token,
+                             worker = DecayedWorker(std::forward<WorkerFn>(worker)),
+                             callback = DecayedCallback(std::forward<CallbackFn>(callback))]() mutable {
+            const SystemTaskLog sysLog(taskName);
+            sysLog.info(QStringLiteral("started"));
+
+            Result<T> result{};
+            try {
+                if constexpr (std::is_invocable_v<DecayedWorker, const SystemTaskLog&, Core::Async::CancellationToken>) {
+                    result = worker(sysLog, token);
+                } else {
+                    result = worker(sysLog);
+                }
+            } catch (const Core::Error::Exception& ex) {
+                const QString detailInfo = ex.details().isEmpty()
+                    ? (ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message())
+                    : QStringLiteral("%1 (%2)").arg(ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message(), ex.details());
+                sysLog.error(QStringLiteral("Task exception [%1]: %2")
+                    .arg(static_cast<int>(ex.errorCode()))
+                    .arg(detailInfo));
+                result = Execution::ExecutionGuard::handleException<T>(
+                    ex, QStringLiteral("Task '%1' failed").arg(taskName));
+            } catch (const std::exception& ex) {
+                sysLog.error(QStringLiteral("Unhandled standard exception: %1").arg(QString::fromUtf8(ex.what())));
+                result = Execution::ExecutionGuard::handleException<T>(
+                    ex, QStringLiteral("Task '%1' failed").arg(taskName));
+            } catch (...) {
+                sysLog.error(QStringLiteral("Unhandled unknown exception in task"));
+                result = Execution::ExecutionGuard::handleUnknownException<T>(
+                    QStringLiteral("Task '%1' failed").arg(taskName));
+            }
+
+            // Lifecycle outcome line (no TaskState plane; the application log is the record)
+            if (result.isSuccess()) {
+                sysLog.info(result.message().isEmpty()
+                    ? QStringLiteral("finished")
+                    : QStringLiteral("finished: %1").arg(result.message()));
+            } else if (result.isCancelled()) {
+                sysLog.warning(result.message().isEmpty()
+                    ? QStringLiteral("cancelled")
+                    : QStringLiteral("cancelled: %1").arg(result.message()));
+            } else if (result.isSkipped()) {
+                sysLog.info(result.message().isEmpty()
+                    ? QStringLiteral("skipped")
+                    : QStringLiteral("skipped: %1").arg(result.message()));
+            } else {
+                sysLog.error(result.message().isEmpty()
+                    ? QStringLiteral("failed")
+                    : QStringLiteral("failed: %1").arg(result.message()));
+            }
+
+            if constexpr (std::is_invocable_v<DecayedCallback, Result<T>>) {
+                if (hasValidCallback) {
+                    if (contextGuard) {
+                        QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, cb = std::move(callback), res = std::move(result)]() {
+                            try {
+                                if (contextGuard && Detail::isCallableValid(cb)) {
+                                    cb(res);
+                                }
+                            } catch (...) {}
+                        }, Qt::QueuedConnection);
+                    } else if (!context) {
+                        try {
+                            callback(result);
+                        } catch (...) {}
+                    }
+                }
+            }
+        };
+
+        QRunnable* runnable = QRunnable::create(std::move(workerLambda));
+        if (pool) {
+            pool->start(runnable);
+        } else {
+            QThreadPool::globalInstance()->start(runnable);
+        }
+        return handle;
     }
 
 private:

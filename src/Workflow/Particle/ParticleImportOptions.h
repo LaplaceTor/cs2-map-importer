@@ -20,6 +20,8 @@ struct ParticleImportOptions {
     bool isCsgo = false;
     Core::Path::FilesystemPath source1ImportExe;
     Core::Path::FilesystemPath resourceCompilerExe;
+    // Per-tool timeout override in milliseconds; 0 keeps the tool default (120 s).
+    int toolTimeoutMs = 0;
 
     bool operator==(const ParticleImportOptions& other) const = default;
 };

@@ -8,6 +8,7 @@
 
 #include "Application/Environment/GameEnvironmentService.h"
 #include "Application/Environment/VpkSignatureLeaseService.h"
+#include "Application/Logging/TaskLogService.h"
 #include "Core/Logging/ApplicationLogger.h"
 #include "Core/Logging/LogManager.h"
 #include "Core/Logging/TaskFileSink.h"
@@ -41,10 +42,11 @@ int main(int argc, char *argv[])
 
     auto gameEnvService = std::make_unique<Application::Environment::GameEnvironmentService>();
     auto gameViewModel = std::make_unique<UI::ViewModels::GameViewModel>(gameEnvService.get());
-    auto logViewModel = std::make_shared<UI::ViewModels::LogViewModel>();
+    auto taskLogService = std::make_shared<Application::Logging::TaskLogService>();
+    auto logViewModel = std::make_shared<UI::ViewModels::LogViewModel>(taskLogService.get());
     auto mainController = std::make_unique<UI::Controllers::MainController>(logViewModel.get());
 
-    logViewModel->registerWithLogManager();
+    logViewModel->attachToLogService(taskLogService.get());
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("gameViewModelInstance"), gameViewModel.get());
@@ -66,16 +68,26 @@ int main(int argc, char *argv[])
     // Trigger non-blocking asynchronous game detection in the background
     gameViewModel->autoDetect();
 
-    QObject::connect(&app, &QGuiApplication::aboutToQuit, []() {
+    QObject::connect(&app, &QGuiApplication::aboutToQuit, [controller = mainController.get()]() {
+        // Cancel cooperative work first so running workers observe cancellation promptly
+        if (controller) {
+            controller->cancelAllOperations();
+        }
         QThreadPool::globalInstance()->clear();
-        QThreadPool::globalInstance()->waitForDone(3000);
+        if (!QThreadPool::globalInstance()->waitForDone(3000)) {
+            Core::Logging::ApplicationLogger::warning(
+                QStringLiteral("Background workers did not finish within 3 s during shutdown"));
+        }
     });
 
     const int exitCode = app.exec();
 
-    // Ensure all asynchronous background tasks finish before tearing down services & sinks
+    // Final bounded grace period for cooperative workers (already cancelled above)
     QThreadPool::globalInstance()->clear();
-    QThreadPool::globalInstance()->waitForDone();
+    if (!QThreadPool::globalInstance()->waitForDone(3000)) {
+        Core::Logging::ApplicationLogger::warning(
+            QStringLiteral("Background workers still running after shutdown grace period"));
+    }
 
     // Flush workflow logs and shut down application logger cleanly
     Core::Logging::LogManager::instance().flushAll();
@@ -84,4 +96,3 @@ int main(int argc, char *argv[])
 
     return exitCode;
 }
-

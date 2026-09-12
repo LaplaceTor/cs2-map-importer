@@ -266,17 +266,30 @@ void FileSystem::move(const QString& source, const QString& destination, bool ov
         throw;
     }
 
-    // Copy succeeded: remove source. If removing source fails, rollback destination and restore backup.
+    // Copy succeeded: remove source. If removal fails, the destination copy is
+    // intentionally KEPT: removeRecursively may have partially deleted the source,
+    // making the destination the only complete copy. The failure is reported with
+    // all residual paths so the caller can decide how to recover.
     try {
         remove(source);
-    } catch (...) {
-        if (exists(destination)) {
-            remove(destination);
-        }
-        if (!backupPath.isEmpty() && exists(backupPath)) {
-            dir.rename(backupPath, destination);
-        }
-        throw;
+    } catch (const Core::Error::Exception& ex) {
+        throw Core::Error::Exception(
+            ex.errorCode(),
+            QStringLiteral("Move partially completed: destination copy kept, source removal failed"),
+            QStringLiteral("destination=%1 source=%2 backup=%3 cause=%4")
+                .arg(destination,
+                     source,
+                     backupPath.isEmpty() ? QStringLiteral("<none>") : backupPath,
+                     ex.details().isEmpty() ? ex.message() : ex.details()));
+    } catch (const std::exception& ex) {
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::OperationFailed,
+            QStringLiteral("Move partially completed: destination copy kept, source removal failed"),
+            QStringLiteral("destination=%1 source=%2 backup=%3 cause=%4")
+                .arg(destination,
+                     source,
+                     backupPath.isEmpty() ? QStringLiteral("<none>") : backupPath,
+                     QString::fromUtf8(ex.what())));
     }
 
     if (!backupPath.isEmpty() && exists(backupPath)) {

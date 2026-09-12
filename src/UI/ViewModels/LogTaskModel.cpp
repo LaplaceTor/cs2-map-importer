@@ -43,7 +43,7 @@ QVariant LogTaskModel::data(const QModelIndex& index, int role) const
     case StateRole:
         return static_cast<int>(task.state);
     case StateStringRole:
-        return Core::Logging::taskStateToString(task.state);
+        return Application::Logging::taskStateToString(task.state);
     case ProgressRole:
         return task.progress;
     case CurrentMessageRole:
@@ -79,7 +79,7 @@ QVariant LogTaskModel::data(const QModelIndex& index, int role) const
                     ? QDateTime::fromMSecsSinceEpoch(msg.timestamp).toString(QStringLiteral("hh:mm:ss"))
                     : QStringLiteral("00:00:00"));
                 map.insert(QStringLiteral("level"), static_cast<int>(msg.level));
-                map.insert(QStringLiteral("levelString"), Core::Logging::logLevelToString(msg.level));
+                map.insert(QStringLiteral("levelString"), Application::Logging::logLevelToString(msg.level));
                 map.insert(QStringLiteral("message"), msg.message);
                 list.append(map);
             }
@@ -137,11 +137,6 @@ QHash<int, QByteArray> LogTaskModel::roleNames() const
     return roles;
 }
 
-void LogTaskModel::setAutoScroll(bool enabled)
-{
-    m_autoScroll = enabled;
-}
-
 int LogTaskModel::taskCount() const
 {
     return m_tasks.size();
@@ -160,13 +155,12 @@ int LogTaskModel::appendTask(const LogTaskItem& task)
     return newRow;
 }
 
-bool LogTaskModel::updateTaskMetadata(int row, Core::Logging::TaskState state, double progress, const QString& currentMessage, const QString& taskName)
+bool LogTaskModel::updateTaskMetadata(int row, Application::Logging::TaskState state, double progress, const QString& currentMessage, const QString& taskName)
 {
     if (row < 0 || row >= m_tasks.size()) {
         return false;
     }
     auto& task = m_tasks[row];
-    const auto previousState = task.state;
     task.state = state;
     task.progress = progress;
     task.currentMessage = currentMessage;
@@ -184,11 +178,6 @@ bool LogTaskModel::updateTaskMetadata(int row, Core::Logging::TaskState state, d
         SubTasksCountRole,
         HasSubTasksRole
     };
-
-    if (m_autoScroll && previousState != Core::Logging::TaskState::Completed && state == Core::Logging::TaskState::Completed) {
-        task.expanded = false;
-        changedRoles.append(ExpandedRole);
-    }
 
     QModelIndex idx = index(row, 0);
     emit dataChanged(idx, idx, changedRoles);
@@ -360,11 +349,11 @@ QString LogTaskModel::exportToPlainText(int indentLevel) const
                     : QStringLiteral("00:00:00");
                 QString levelStr;
                 switch (msg.level) {
-                case Core::Logging::LogLevel::Debug:    levelStr = QStringLiteral("DEBUG"); break;
-                case Core::Logging::LogLevel::Info:     levelStr = QStringLiteral("INFO "); break;
-                case Core::Logging::LogLevel::Warning:  levelStr = QStringLiteral("WARN "); break;
-                case Core::Logging::LogLevel::Error:    levelStr = QStringLiteral("ERROR"); break;
-                case Core::Logging::LogLevel::Critical: levelStr = QStringLiteral("CRIT "); break;
+                case Application::Logging::LogLevel::Debug:    levelStr = QStringLiteral("DEBUG"); break;
+                case Application::Logging::LogLevel::Info:     levelStr = QStringLiteral("INFO "); break;
+                case Application::Logging::LogLevel::Warning:  levelStr = QStringLiteral("WARN "); break;
+                case Application::Logging::LogLevel::Error:    levelStr = QStringLiteral("ERROR"); break;
+                case Application::Logging::LogLevel::Critical: levelStr = QStringLiteral("CRIT "); break;
                 }
                 result.append(QStringLiteral("%1[%2] %3  %4").arg(indent, timeStr, levelStr, msg.message));
             }

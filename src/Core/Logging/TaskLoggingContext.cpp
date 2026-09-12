@@ -504,6 +504,13 @@ bool TaskLoggingContext::forceTerminalState(TaskState newState, const QString& m
         }
         return true;
     }
+    if (isTerminalState(m_state) && newState == TaskState::Completed) {
+        // Terminal re-arbitration may re-judge between failure-like terminal states
+        // (e.g. Cancelled -> Failed by the execution arbitration matrix), but a task
+        // that already reached a failure-like terminal state can never be re-judged
+        // as Completed.
+        return false;
+    }
 
     LogLevel level = LogLevel::Info;
     if (newState == TaskState::Failed) {

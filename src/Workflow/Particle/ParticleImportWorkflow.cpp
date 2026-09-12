@@ -4,14 +4,57 @@
 #include "Domain/Tool/ResourceCompilerTool.h"
 #include "Domain/Tool/Cs2PathLayout.h"
 #include "Domain/Tool/ToolErrors.h"
+#include <QFile>
 
 namespace Workflow::Particle {
+
+namespace {
+
+/**
+ * @brief Best-effort removal of half-finished artifacts left behind by a cancelled
+ * or failed workflow. The workflow owns the lifecycle of the files it generated,
+ * so a cancelled import must not leave partial .vpcf/.vpcf_c assets in the addon
+ * content directory.
+ */
+void cleanupGeneratedArtifacts(const QStringList& vpcfPaths, const Common::ImportContext& context)
+{
+    int removed = 0;
+    for (const QString& path : vpcfPaths) {
+        QFile generated(path);
+        if (generated.exists()) {
+            if (generated.remove()) {
+                removed++;
+            } else {
+                context.warning(QStringLiteral("Failed to clean up generated artifact: %1 (%2)")
+                    .arg(path, generated.errorString()));
+            }
+        }
+        QFile compiled(path + QStringLiteral("_c"));
+        if (compiled.exists()) {
+            if (compiled.remove()) {
+                removed++;
+            } else {
+                context.warning(QStringLiteral("Failed to clean up generated artifact: %1 (%2)")
+                    .arg(compiled.fileName(), compiled.errorString()));
+            }
+        }
+    }
+    if (removed > 0) {
+        context.info(QStringLiteral("Cleaned up %1 half-finished artifact(s) after cancelled/failed import").arg(removed));
+    }
+}
+
+} // namespace
 
 Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
     const ParticleImportOptions& options,
     const Common::ImportContext& context)
 {
     const QString trimmedAddon = options.addonName.trimmed();
+    const int toolTimeoutMs = options.toolTimeoutMs > 0 ? options.toolTimeoutMs : 120000;
+    // Deterministic working directory anchor: relative artifact paths reported by the
+    // tools on stdout are resolved against the CS2 game directory.
+    const auto toolWorkingDirectory = Domain::Tool::Cs2PathLayout::gameDirectory(options.cs2BaseDir);
 
     // Step 1: Convert PCF via Source1ImportTool
     auto convertResult = context.runStep(
@@ -25,6 +68,8 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
             s1Options.allowDepthBlend = options.allowDepthBlend;
             s1Options.disableDiffuse = options.disableDiffuse;
             s1Options.isCsgo = options.isCsgo;
+            s1Options.timeoutMs = toolTimeoutMs;
+            s1Options.workingDirectory = toolWorkingDirectory;
             s1Options.cancellationToken = context.token();
 
             auto s1Result = Domain::Tool::Source1ImportTool::importAsset(
@@ -69,6 +114,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
             rcOptions.inputFiles = workflowResult.generatedVpcfFiles;
             rcOptions.forceCompile = true;
             rcOptions.verbose = true;
+            rcOptions.timeoutMs = toolTimeoutMs;
             rcOptions.cancellationToken = context.token();
 
             auto rcResult = Domain::Tool::ResourceCompilerTool::compileResources(
@@ -83,9 +129,11 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
         });
 
     if (compileResult.isCancelled()) {
+        cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context);
         return Core::Result<ParticleImportWorkflowResult>::cancelled(compileResult.message());
     }
     if (compileResult.isFailure()) {
+        cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context);
         return Core::Result<ParticleImportWorkflowResult>::failure(compileResult.error(), compileResult.message());
     }
 

@@ -30,10 +30,14 @@ MainController::MainController(UI::ViewModels::LogViewModel* logViewModel, QObje
 }
 
 MainController::~MainController() {
+    cancelAllOperations();
+    m_particleImportService.reset();
+}
+
+void MainController::cancelAllOperations() {
     if (m_particleImportService && m_particleImportService->isImporting()) {
         m_particleImportService->cancelCurrentImport();
     }
-    m_particleImportService.reset();
 }
 
 void MainController::setActiveTab(int tab) {
@@ -153,13 +157,14 @@ void MainController::startParticleImport(
     emit isProcessingChanged();
 
     if (!m_particleImportService) {
-        m_particleImportService = std::make_unique<Application::Particle::ParticleImportService>();
+        m_particleImportService = std::make_shared<Application::Particle::ParticleImportService>();
     }
 
     QPointer<MainController> self(this);
-    m_particleImportService->importParticlesAsync(
+    // The handle's cancellation path is routed through the service (stopImport);
+    // the returned handle is intentionally not retained here.
+    (void)m_particleImportService->importParticlesAsync(
         request,
-        nullptr,
         [self](const Core::Result<Application::Particle::ParticleImportResult>& result) {
             if (!self) {
                 return;

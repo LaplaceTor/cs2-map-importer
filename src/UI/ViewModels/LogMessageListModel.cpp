@@ -42,7 +42,7 @@ QVariant LogMessageListModel::data(const QModelIndex& index, int role) const
     case LevelRole:
         return static_cast<int>(item.level);
     case LevelStringRole:
-        return Core::Logging::logLevelToString(item.level);
+        return Application::Logging::logLevelToString(item.level);
     case MessageRole:
     case Qt::DisplayRole:
         return item.message;

@@ -28,6 +28,12 @@ class ToolErrors {
 public:
     static inline const QString DomainName = QStringLiteral("Domain::Tool");
 
+    /** @brief Type-safe matcher for a Tool domain error code. */
+    static bool is(const Core::Error::Error& error, ToolErrorCode code) noexcept
+    {
+        return error.is(DomainName, code);
+    }
+
     static Core::Error::Error make(
         ToolErrorCode code,
         const QString& message,

@@ -21,6 +21,9 @@ struct Source1ImportOptions {
     bool disableDiffuse = false;
     bool isCsgo = false;
     int timeoutMs = 120000;
+    // Deterministic working directory for the tool process; relative artifact
+    // paths reported on stdout are resolved against this directory. Empty = inherit.
+    Core::Path::FilesystemPath workingDirectory;
     Core::Async::CancellationToken cancellationToken;
 };
 

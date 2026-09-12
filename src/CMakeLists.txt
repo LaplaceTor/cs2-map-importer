@@ -30,7 +30,6 @@ target_link_libraries(cs2importer PRIVATE
     Qt6::Qml
     Qt6::Quick
     Qt6::QuickControls2
-    Qt6::Network
 )
 
 target_include_directories(cs2importer PRIVATE

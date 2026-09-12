@@ -74,6 +74,12 @@ public:
     QStringList listSource2Addons(const QString& s2BasePath) const;
     QStringList listSource2Addons(const GameInstallationInfo& s2Installation) const;
 
+    // Asynchronously lists addons found in the Source 2 installation (off-UI-thread worker)
+    void listSource2AddonsAsync(
+        const GameInstallationInfo& s2Installation,
+        QObject* context,
+        std::function<void(Core::Result<QStringList>)> callback);
+
     // VPK signature lease operations encapsulated in facade
     void setVpkSignatureLeaseService(VpkSignatureLeaseService* service) noexcept;
     bool isVpkLeaseHeld() const noexcept;

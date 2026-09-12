@@ -133,8 +133,16 @@ QString LogFileManager::generateWorkflowDirectoryPath(const QString& workflowNam
 {
     const QString safeName = sanitizeFileName(workflowName);
     const QString timeStr = formatTimestamp(startTimestamp);
-    const QString dirName = QStringLiteral("%1_%2").arg(safeName, timeStr);
-    return QDir(logsDirectory()).filePath(dirName);
+    const QString baseName = QStringLiteral("%1_%2").arg(safeName, timeStr);
+    // Two workflows with the same name can be created within the same millisecond
+    // (e.g. batch imports); disambiguate with a numeric suffix on collision.
+    QDir logsDir(logsDirectory());
+    QString dirName = baseName;
+    int suffix = 2;
+    while (logsDir.exists(dirName)) {
+        dirName = QStringLiteral("%1_%2").arg(baseName).arg(suffix++);
+    }
+    return logsDir.filePath(dirName);
 }
 
 QString LogFileManager::generateWorkflowLogFilePath(const QString& workflowDir)
@@ -153,7 +161,18 @@ QString LogFileManager::generateToolLogFileName(const QString& assetBaseName, co
 QString LogFileManager::generateToolLogFilePath(const QString& workflowDir, const QString& assetBaseName, const QString& toolName, qint64 timestamp)
 {
     const QString fileName = generateToolLogFileName(assetBaseName, toolName, timestamp);
-    return QDir(workflowDir).filePath(fileName);
+    QDir dir(workflowDir);
+    if (!dir.exists(fileName)) {
+        return dir.filePath(fileName);
+    }
+    // Same asset + tool can start twice within one millisecond; disambiguate.
+    const QString baseName = fileName.left(fileName.size() - static_cast<int>(qstrlen(".log")));
+    QString candidate = fileName;
+    int suffix = 2;
+    while (dir.exists(candidate)) {
+        candidate = QStringLiteral("%1_%2.log").arg(baseName).arg(suffix++);
+    }
+    return dir.filePath(candidate);
 }
 
 } // namespace Core::Logging

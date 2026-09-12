@@ -243,21 +243,20 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertMapSounds
 
 void SoundscapeConvertService::convertMapSoundscapesAsync(
     const ConvertSoundscapeRequest& request,
-    Core::Logging::TaskLoggingContext* loggingCtx,
     std::function<void(const Core::Result<ConvertSoundscapeResult>&)> callback)
 {
-    const QString taskName = QStringLiteral("Convert Soundscapes: %1").arg(request.mapName.isEmpty() ? QStringLiteral("All") : request.mapName);
-    quint64 parentId = loggingCtx ? loggingCtx->taskId() : 0;
+    const QString mapLabel = request.mapName.isEmpty() ? QStringLiteral("All") : request.mapName;
+    const QString taskName = QStringLiteral("Convert Soundscapes: %1").arg(mapLabel);
 
-    Async::AsyncTaskRunner::runTask<ConvertSoundscapeResult>(
+    (void)Async::AsyncTaskRunner::runWorkflowTask<ConvertSoundscapeResult>(
         taskName,
+        request.mapName,
         nullptr,
         [this, request](std::shared_ptr<Core::Logging::TaskLoggingContext> ctx) -> Core::Result<ConvertSoundscapeResult> {
             return convertMapSoundscapes(request, ctx.get());
         },
         std::move(callback),
-        QThreadPool::globalInstance(),
-        parentId);
+        QThreadPool::globalInstance());
 }
 
 } // namespace Application::Soundscape

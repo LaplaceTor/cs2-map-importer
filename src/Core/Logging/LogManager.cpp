@@ -23,10 +23,16 @@ QString resolveLogPathForNewTask(
             ? parentCtx->taskDirectory()
             : parentCtx->workflowDirectory();
         const QString assetBaseName = parentCtx->assetBaseName();
-        QString toolToken = taskName.section(QLatin1Char(' '), 0, 0).trimmed();
-        if (toolToken.startsWith(QLatin1Char('"')) && toolToken.endsWith(QLatin1Char('"'))) {
-            toolToken = toolToken.mid(1, toolToken.length() - 2);
+        // Tool command lines may quote the executable path (paths with spaces),
+        // so parse the executable token quote-aware.
+        QString toolToken;
+        if (taskName.startsWith(QLatin1Char('"'))) {
+            const qsizetype endIdx = taskName.indexOf(QLatin1Char('"'), 1);
+            toolToken = (endIdx > 0) ? taskName.mid(1, endIdx - 1) : taskName.mid(1);
+        } else {
+            toolToken = taskName.section(QLatin1Char(' '), 0, 0);
         }
+        toolToken = toolToken.trimmed();
         QString toolName = QFileInfo(toolToken).completeBaseName();
         if (toolName.isEmpty()) {
             toolName = QStringLiteral("tool");
@@ -161,6 +167,9 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskNa
         logPath = resolveLogPathForNewTask(parentCtx, taskName, context->startTimestamp(), id);
         context->setLogFilePath(logPath);
         m_tasks.insert(id, context);
+        if (parentTaskId != 0) {
+            m_childTaskIds.insert(parentTaskId, id);
+        }
         sinks = m_sinks;
     }
 
@@ -218,6 +227,9 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const
         logPath = resolveLogPathForNewTask(parentCtx, taskName, context->startTimestamp(), taskId);
         context->setLogFilePath(logPath);
         m_tasks.insert(taskId, context);
+        if (parentTaskId != 0) {
+            m_childTaskIds.insert(parentTaskId, taskId);
+        }
 
         if (taskId >= m_nextTaskId && taskId != (std::numeric_limits<quint64>::max)()) {
             m_nextTaskId = taskId + 1;
@@ -296,14 +308,20 @@ bool LogManager::finishTask(quint64 taskId, const QString& message)
     if (!task) {
         return false;
     }
-    bool result = task->complete(message);
+    if (!task->complete(message)) {
+        return false; // Illegal transition: no flush, no termination notification
+    }
     bool flushOk = flushTask(taskId);
+    {
+        QMutexLocker locker(&m_mutex);
+        dropTaskCursorsLocked(taskId);
+    }
     for (const auto& sink : sinks) {
         if (sink) {
             sink->onTaskTerminated(taskId, TaskState::Completed);
         }
     }
-    return result && flushOk;
+    return flushOk;
 }
 
 bool LogManager::failTask(quint64 taskId, const QString& message)
@@ -318,14 +336,20 @@ bool LogManager::failTask(quint64 taskId, const QString& message)
     if (!task) {
         return false;
     }
-    bool result = task->fail(message);
+    if (!task->fail(message)) {
+        return false; // Illegal transition: no flush, no termination notification
+    }
     bool flushOk = flushTask(taskId);
+    {
+        QMutexLocker locker(&m_mutex);
+        dropTaskCursorsLocked(taskId);
+    }
     for (const auto& sink : sinks) {
         if (sink) {
             sink->onTaskTerminated(taskId, TaskState::Failed);
         }
     }
-    return result && flushOk;
+    return flushOk;
 }
 
 bool LogManager::cancelTask(quint64 taskId, const QString& message)
@@ -340,14 +364,32 @@ bool LogManager::cancelTask(quint64 taskId, const QString& message)
     if (!task) {
         return false;
     }
-    bool result = task->cancel(message);
+    if (!task->cancel(message)) {
+        return false; // Illegal transition: no flush, no termination notification
+    }
     bool flushOk = flushTask(taskId);
+    {
+        QMutexLocker locker(&m_mutex);
+        dropTaskCursorsLocked(taskId);
+    }
+
+    // Cascade cancellation to descendant tasks (e.g. hidden tool tasks) so the log
+    // tree cannot show a cancelled parent with still-running children.
+    QVector<quint64> descendants;
+    {
+        QMutexLocker locker(&m_mutex);
+        collectDescendantsLocked(taskId, descendants);
+    }
+    for (const quint64 childId : descendants) {
+        cancelTask(childId, message);
+    }
+
     for (const auto& sink : sinks) {
         if (sink) {
             sink->onTaskTerminated(taskId, TaskState::Cancelled);
         }
     }
-    return result && flushOk;
+    return flushOk;
 }
 
 bool LogManager::skipTask(quint64 taskId, const QString& message)
@@ -362,14 +404,20 @@ bool LogManager::skipTask(quint64 taskId, const QString& message)
     if (!task) {
         return false;
     }
-    bool result = task->skip(message);
+    if (!task->skip(message)) {
+        return false; // Illegal transition: no flush, no termination notification
+    }
     bool flushOk = flushTask(taskId);
+    {
+        QMutexLocker locker(&m_mutex);
+        dropTaskCursorsLocked(taskId);
+    }
     for (const auto& sink : sinks) {
         if (sink) {
             sink->onTaskTerminated(taskId, TaskState::Skipped);
         }
     }
-    return result && flushOk;
+    return flushOk;
 }
 
 bool LogManager::forceTaskState(quint64 taskId, TaskState state, const QString& message)
@@ -384,8 +432,20 @@ bool LogManager::forceTaskState(quint64 taskId, TaskState state, const QString& 
     if (!task) {
         return false;
     }
-    bool result = task->forceTerminalState(state, message);
+    const TaskState previousState = task->state();
+    if (!task->forceTerminalState(state, message)) {
+        return false;
+    }
+    // Idempotent re-force (same terminal state): state and message are already
+    // recorded; skip repeated flush/termination notifications.
+    if (previousState == task->state()) {
+        return true;
+    }
     bool flushOk = flushTask(taskId);
+    {
+        QMutexLocker locker(&m_mutex);
+        dropTaskCursorsLocked(taskId);
+    }
     if (TaskLoggingContext::isTerminalState(state)) {
         for (const auto& sink : sinks) {
             if (sink) {
@@ -393,7 +453,7 @@ bool LogManager::forceTaskState(quint64 taskId, TaskState state, const QString& 
             }
         }
     }
-    return result && flushOk;
+    return flushOk;
 }
 
 void LogManager::addSink(std::shared_ptr<ILogSink> sink)
@@ -614,6 +674,10 @@ bool LogManager::flushTask(quint64 taskId)
     {
         QMutexLocker locker(&m_mutex);
         if (m_sinks.isEmpty()) {
+            // Sealed blocks are intentionally RETAINED for inspection APIs
+            // (getSealedBlocks/getAllBlocks must keep serving the task history even
+            // without sinks). Retention stays bounded in practice: terminal flushes
+            // release committed blocks and removing the last sink releases the rest.
             return true;
         }
 
@@ -814,12 +878,45 @@ void LogManager::clear()
         }
 
         m_tasks.clear();
+        m_childTaskIds.clear();
         m_sinks.clear();
         m_sinkCursors.clear();
         m_sinkGenerations.clear();
         m_faultBarrier = std::make_shared<FaultBarrier>();
-        m_nextTaskId = 1;
+        // m_nextTaskId is intentionally NOT reset: external holders may still carry
+        // task ids from the previous session, and reusing them would misroute their
+        // late reports onto newly created tasks.
         m_nextCreationSequence = 1;
+    }
+}
+
+void LogManager::dropTaskCursorsLocked(quint64 taskId)
+{
+    // Caller must hold m_mutex. Terminal tasks can no longer produce blocks, so
+    // their per-sink cursors are dropped to keep the registry bounded across a
+    // long-running session.
+    for (auto it = m_sinkCursors.begin(); it != m_sinkCursors.end(); ++it) {
+        it.value().remove(taskId);
+    }
+}
+
+void LogManager::collectDescendantsLocked(quint64 taskId, QVector<quint64>& out) const
+{
+    // Caller must hold m_mutex. Breadth-first traversal of the parent -> child
+    // registry; the out-contains guard also protects against registry cycles.
+    QVector<quint64> frontier{taskId};
+    while (!frontier.isEmpty()) {
+        QVector<quint64> next;
+        for (const quint64 id : frontier) {
+            const QList<quint64> children = m_childTaskIds.values(id);
+            for (const quint64 child : children) {
+                if (!out.contains(child)) {
+                    out.append(child);
+                    next.append(child);
+                }
+            }
+        }
+        frontier = std::move(next);
     }
 }
 

@@ -6,21 +6,21 @@
 #include <QString>
 #include <QVector>
 
-#include "Core/Logging/LogLevel.h"
+#include "Application/Logging/TaskLogDTOs.h"
 
 namespace UI::ViewModels {
 
 struct LogMessageItem {
     quint64 sequence = 0;
     qint64 timestamp = 0;
-    Core::Logging::LogLevel level = Core::Logging::LogLevel::Info;
+    Application::Logging::LogLevel level = Application::Logging::LogLevel::Info;
     QString message;
     quint64 toolTaskId = 0;
 };
 
 /**
  * @brief Standard Qt ListModel for a single task's log messages.
- * Note: Model mutations execute strictly on the owning UI thread (guaranteed by LogViewModelSinkAdapter).
+ * Note: Model mutations execute strictly on the owning UI thread (guaranteed by TaskLogService queued delivery).
  */
 class LogMessageListModel : public QAbstractListModel {
     Q_OBJECT

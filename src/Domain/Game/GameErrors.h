@@ -25,6 +25,12 @@ class GameErrors {
 public:
     static inline const QString DomainName = QStringLiteral("Domain::Game");
 
+    /** @brief Type-safe matcher for a Game domain error code. */
+    static bool is(const Core::Error::Error& error, GameErrorCode code) noexcept
+    {
+        return error.is(DomainName, code);
+    }
+
     static Core::Error::Error make(
         GameErrorCode code,
         const QString& message,

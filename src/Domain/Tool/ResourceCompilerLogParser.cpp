@@ -8,7 +8,8 @@ namespace Domain::Tool {
 ResourceCompilerLogResult ResourceCompilerLogParser::parse(
     const QString& stdOut,
     const QString& stdErr,
-    int exitCode)
+    int exitCode,
+    const QString& workingDirectory)
 {
     ResourceCompilerLogResult result;
     result.rawOutput = stdOut;
@@ -42,6 +43,17 @@ ResourceCompilerLogResult ResourceCompilerLogParser::parse(
     bool hasOkBanner = false;
     bool hasErrorBanner = false;
 
+    auto checkAndAddVpcfC = [&result, &workingDirectory](const QString& rawPath) {
+        QString resolved = rawPath;
+        if (QDir::isRelativePath(resolved) && !workingDirectory.isEmpty()) {
+            resolved = QDir(workingDirectory).absoluteFilePath(resolved);
+        }
+        QString clean = QDir::cleanPath(resolved);
+        if (!result.compiledVpcfCPaths.contains(clean)) {
+            result.compiledVpcfCPaths.append(clean);
+        }
+    };
+
     const QStringList outLines = stdOut.split(QLatin1Char('\n'));
     for (const QString& line : outLines) {
         QString trimmed = line.trimmed();
@@ -54,10 +66,7 @@ ResourceCompilerLogResult ResourceCompilerLogParser::parse(
         if (matchWrote.hasMatch()) {
             QString path = matchWrote.captured(1).trimmed();
             if (path.endsWith(QStringLiteral(".vpcf_c"), Qt::CaseInsensitive)) {
-                QString clean = QDir::cleanPath(path);
-                if (!result.compiledVpcfCPaths.contains(clean)) {
-                    result.compiledVpcfCPaths.append(clean);
-                }
+                checkAndAddVpcfC(path);
             }
         }
 
@@ -95,7 +104,10 @@ ResourceCompilerLogResult ResourceCompilerLogParser::parse(
         }
     }
 
-    // Check stderr as well
+    // Check stderr as well. Plain stderr output is NOT treated as a compile error by
+    // itself: resourcecompiler may emit ordinary progress/diagnostic lines on stderr.
+    // Only explicit WARNING: lines are tracked; all other stderr lines are retained
+    // as warnings for diagnostics.
     if (!stdErr.isEmpty()) {
         const QStringList errLines = stdErr.split(QLatin1Char('\n'));
         for (const QString& line : errLines) {
@@ -106,9 +118,33 @@ ResourceCompilerLogResult ResourceCompilerLogParser::parse(
             if (trimmed.startsWith(QStringLiteral("WARNING:"), Qt::CaseInsensitive)) {
                 result.warnings.append(trimmed);
             } else {
-                if (!result.compileErrors.contains(trimmed)) {
-                    result.compileErrors.append(trimmed);
-                }
+                result.warnings.append(trimmed);
+            }
+        }
+    }
+
+    // If non-zero exit code but no explicit compile errors matched, promote the last
+    // meaningful stderr line (then stdout line) so the failure keeps a concrete cause.
+    if (exitCode != 0 && result.compileErrors.isEmpty()) {
+        const QStringList errLines = stdErr.split(QLatin1Char('\n'));
+        for (auto it = errLines.crbegin(); it != errLines.crend(); ++it) {
+            QString trimmed = it->trimmed();
+            if (!trimmed.isEmpty() &&
+                !trimmed.startsWith(QLatin1Char('-')) &&
+                !trimmed.startsWith(QLatin1Char('='))) {
+                result.compileErrors.append(trimmed);
+                break;
+            }
+        }
+    }
+    if (exitCode != 0 && result.compileErrors.isEmpty()) {
+        for (auto it = outLines.crbegin(); it != outLines.crend(); ++it) {
+            QString trimmed = it->trimmed();
+            if (!trimmed.isEmpty() &&
+                !trimmed.startsWith(QLatin1Char('-')) &&
+                !trimmed.startsWith(QLatin1Char('='))) {
+                result.compileErrors.append(trimmed);
+                break;
             }
         }
     }

@@ -75,6 +75,9 @@ Core::Result<ResourceCompilerToolResult> ResourceCompilerTool::compileResources(
     procOptions.arguments = args;
     procOptions.timeout = options.timeoutMs > 0 ? options.timeoutMs : 120000;
     procOptions.cancellationToken = options.cancellationToken;
+    if (!options.gameDir.isEmpty()) {
+        procOptions.workingDirectory = options.gameDir.toString();
+    }
 
     qint64 lastFlushTime = QDateTime::currentMSecsSinceEpoch();
     int pendingLinesCount = 0;
@@ -159,7 +162,8 @@ Core::Result<ResourceCompilerToolResult> ResourceCompilerTool::compileResources(
             QStringLiteral("资源编译器启动失败"));
     }
 
-    auto logResult = ResourceCompilerLogParser::parse(procResult.stdOut, procResult.stdErr, procResult.exitCode);
+    auto logResult = ResourceCompilerLogParser::parse(
+        procResult.stdOut, procResult.stdErr, procResult.exitCode, procOptions.workingDirectory);
 
     ResourceCompilerToolResult toolResult;
     toolResult.success = logResult.success;

@@ -73,14 +73,17 @@ void GameViewModel::applyS2Installation(const Application::Environment::GameInst
 
     refreshS2Addons();
 
+    // The lease update performs a single Win32 exclusive-file open (microsecond-scale)
+    // and intentionally stays synchronous; the lease service keeps no internal lock and
+    // must not be invoked from worker threads. Outcome is reported via vpkLeaseStatusChanged.
     if (m_envService) {
-        m_envService->updateVpkLease(inst);
+        (void)m_envService->updateVpkLease(inst);
     }
 }
 
 void GameViewModel::retryVpkSignatureLease() {
     if (m_envService) {
-        m_envService->retryVpkLease();
+        (void)m_envService->retryVpkLease(); // Outcome is reported via vpkLeaseStatusChanged
     }
 }
 
@@ -225,7 +228,7 @@ void GameViewModel::setSelectedS2Type(const QString& typeId) {
     } else {
         m_s2Installation = Application::Environment::GameInstallationInfo();
         if (m_envService) {
-            m_envService->updateVpkLease(m_s2Installation);
+            (void)m_envService->updateVpkLease(m_s2Installation); // Outcome is reported via vpkLeaseStatusChanged
         }
         m_s2GamePath.clear();
         m_s2GameTitle.clear();
@@ -294,7 +297,7 @@ void GameViewModel::selectS2Folder(const QString& pathOrUrl) {
             } else {
                 m_s2Installation = Application::Environment::GameInstallationInfo();
                 if (m_envService) {
-                    m_envService->updateVpkLease(m_s2Installation);
+                    (void)m_envService->updateVpkLease(m_s2Installation); // Outcome is reported via vpkLeaseStatusChanged
                 }
                 m_isS2Valid = false;
                 emit s2ValidityChanged();
@@ -352,11 +355,31 @@ void GameViewModel::setSelectedAddon(const QString& addon) {
 }
 
 void GameViewModel::refreshS2Addons() {
-    QStringList addons;
-    if (m_envService && m_s2Installation.isValid) {
-        addons = m_envService->listSource2Addons(m_s2Installation);
+    if (!m_envService) {
+        return;
     }
 
+    // Directory scanning must not run on the UI thread: dispatch to the worker pool
+    // and marshal the result back via the service's queued callback.
+    if (!m_s2Installation.isValid) {
+        applyAddonsResult(QStringList());
+        return;
+    }
+
+    const QString requestedBasePath = m_s2Installation.basePath;
+    m_envService->listSource2AddonsAsync(
+        m_s2Installation,
+        this,
+        [this, requestedBasePath](const Core::Result<QStringList>& result) {
+            // Drop results that belong to a superseded installation
+            if (m_s2Installation.basePath != requestedBasePath) {
+                return;
+            }
+            applyAddonsResult(result.isSuccess() ? result.value() : QStringList());
+        });
+}
+
+void GameViewModel::applyAddonsResult(const QStringList& addons) {
     m_s2AddonsList = addons;
     emit s2AddonsListChanged();
 

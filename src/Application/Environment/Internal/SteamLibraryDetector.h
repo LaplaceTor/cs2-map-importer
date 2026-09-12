@@ -1,10 +1,9 @@
 #pragma once
 
+#include "Application/Async/SystemTaskLog.h"
 #include "Core/Path/FilesystemPath.h"
-#include "Core/Logging/TaskLoggingContext.h"
 #include "Core/Result/Result.h"
 #include <QString>
-#include <memory>
 #include <vector>
 
 namespace Application::Environment::Internal {
@@ -22,17 +21,17 @@ class SteamLibraryDetector {
 public:
     // Detect Steam installation path on the host OS (Windows Registry, or standard locations)
     static Core::Result<Core::Path::FilesystemPath> detectSteamInstallPath(
-        std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
+        const Application::Async::SystemTaskLog* logCtx = nullptr);
 
     // Detect all Steam libraries from libraryfolders.vdf (within steamPath, or auto-detected Steam path if empty)
     static Core::Result<std::vector<SteamLibrary>> detectLibraries(
         const Core::Path::FilesystemPath& steamPath = {},
-        std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
+        const Application::Async::SystemTaskLog* logCtx = nullptr);
 
     // Parse a libraryfolders.vdf file directly
     static Core::Result<std::vector<SteamLibrary>> parseLibraryFolders(
         const Core::Path::FilesystemPath& libraryFoldersVdfPath,
-        std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx = nullptr);
+        const Application::Async::SystemTaskLog* logCtx = nullptr);
 
     // Read installdir from appmanifest_<appId>.acf in a steamapps folder
     static Core::Result<QString> readAppInstallDir(
