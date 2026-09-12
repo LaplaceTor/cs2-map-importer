@@ -1,7 +1,10 @@
 #include <QGuiApplication>
+#include <QLibraryInfo>
+#include <QLocale>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
+#include <QTranslator>
 #include <QIcon>
 #include <QtPlugin>
 #include <memory>
@@ -29,6 +32,23 @@ int main(int argc, char *argv[])
     app.setApplicationName(QStringLiteral("CS2 Importer"));
     app.setOrganizationName(QStringLiteral("LaplaceTor"));
     app.setWindowIcon(QIcon(QStringLiteral(":/icons/icon.png")));
+
+    // Load translations by system language before any service or QML is created.
+    // Only zh_CN ships for now; Chinese locale variants all map onto it, and any
+    // other locale falls back to the English source strings (no translator).
+    QLocale systemLocale = QLocale::system();
+    if (systemLocale.language() == QLocale::Chinese) {
+        auto qtTranslator = new QTranslator(&app);
+        if (qtTranslator->load(QLocale(QLocale::Chinese, QLocale::China),
+                               QStringLiteral("qtbase"), QStringLiteral("_"),
+                               QLibraryInfo::path(QLibraryInfo::TranslationsPath))) {
+            QCoreApplication::installTranslator(qtTranslator);
+        }
+        auto appTranslator = new QTranslator(&app);
+        if (appTranslator->load(QStringLiteral(":/i18n/cs2importer_zh_CN.qm"))) {
+            QCoreApplication::installTranslator(appTranslator);
+        }
+    }
 
     // Initialize application-level logging immediately with application startup timestamp
     Core::Logging::ApplicationLogger::initialize(startupTimestamp);

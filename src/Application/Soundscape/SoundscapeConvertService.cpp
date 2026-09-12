@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Application/Soundscape/SoundscapeConvertService.h"
 #include "Application/Async/AsyncTaskRunner.h"
 #include "Application/Execution/ExecutionGuard.h"
@@ -21,7 +22,7 @@ QString deriveOutputFileName(const QString& sourceFileName) {
 
     if (base.startsWith(QStringLiteral("soundscapes_"), Qt::CaseInsensitive)) {
         base.replace(0, 12, QStringLiteral("soundevents_"));
-    } else if (base.startsWith(QStringLiteral("soundscape_"), Qt::CaseInsensitive)) {
+    } else if (base.startsWith(QCoreApplication::translate("SoundscapeConvertService", "soundscape_"), Qt::CaseInsensitive)) {
         base.replace(0, 11, QStringLiteral("soundevents_"));
     } else if (!base.startsWith(QStringLiteral("soundevents_"), Qt::CaseInsensitive)) {
         base = QStringLiteral("soundevents_") + base;
@@ -42,7 +43,7 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertContent(
         if (!parseRes.isSuccess()) {
             return Core::Result<ConvertSoundscapeResult>::failure(
                 parseRes.error(),
-                QStringLiteral("Failed to parse soundscape content: %1").arg(baseName));
+                QCoreApplication::translate("SoundscapeConvertService", "Failed to parse soundscape content: %1").arg(baseName));
         }
 
         const auto& definitions = parseRes.value();
@@ -66,7 +67,7 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertContent(
         result.fileStats.push_back(stats);
 
         return Core::Result<ConvertSoundscapeResult>::success(result);
-    }, QStringLiteral("Failed to convert soundscape content: %1").arg(baseName));
+    }, QCoreApplication::translate("SoundscapeConvertService", "Failed to convert soundscape content: %1").arg(baseName));
 }
 
 Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertFile(
@@ -78,7 +79,7 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertFile(
         if (!sourceFile.exists()) {
             return Core::Result<ConvertSoundscapeResult>::failure(
                 Core::Error::ErrorCode::FileNotFound,
-                QStringLiteral("Source soundscape file does not exist"),
+                QCoreApplication::translate("SoundscapeConvertService", "Source soundscape file does not exist"),
                 sourceFile.toString());
         }
 
@@ -86,7 +87,7 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertFile(
         if (!parseRes.isSuccess()) {
             return Core::Result<ConvertSoundscapeResult>::failure(
                 parseRes.error(),
-                QStringLiteral("Failed to parse soundscape file: %1").arg(sourceFile.toString()));
+                QCoreApplication::translate("SoundscapeConvertService", "Failed to parse soundscape file: %1").arg(sourceFile.toString()));
         }
 
         const auto& definitions = parseRes.value();
@@ -96,7 +97,7 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertFile(
         if (!writeRes.isSuccess()) {
             return Core::Result<ConvertSoundscapeResult>::failure(
                 writeRes.error(),
-                QStringLiteral("Failed to write target .vsndevts file: %1").arg(targetFile.toString()));
+                QCoreApplication::translate("SoundscapeConvertService", "Failed to write target .vsndevts file: %1").arg(targetFile.toString()));
         }
 
         ConvertSoundscapeResult result;
@@ -119,7 +120,7 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertFile(
         result.fileStats.push_back(stats);
 
         return Core::Result<ConvertSoundscapeResult>::success(result);
-    }, QStringLiteral("Failed to convert soundscape file: %1").arg(sourceFile.toString()));
+    }, QCoreApplication::translate("SoundscapeConvertService", "Failed to convert soundscape file: %1").arg(sourceFile.toString()));
 }
 
 Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertMapSoundscapes(
@@ -128,7 +129,7 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertMapSounds
 {
     return Execution::ExecutionGuard::guard([&]() -> Core::Result<ConvertSoundscapeResult> {
         if (loggingCtx) {
-            loggingCtx->info(QStringLiteral("Starting soundscape conversion for map '%1'").arg(request.mapName));
+            loggingCtx->info(QCoreApplication::translate("SoundscapeConvertService", "Starting soundscape conversion for map '%1'").arg(request.mapName));
         }
 
         std::vector<Core::Path::FilesystemPath> candidateFiles;
@@ -138,9 +139,9 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertMapSounds
         } else {
             if (!Core::FileSystem::FileSystem::exists(request.s1ScriptsDir.toString())) {
                 if (loggingCtx) {
-                    loggingCtx->warning(QStringLiteral("Scripts directory not found: %1").arg(request.s1ScriptsDir.toString()));
+                    loggingCtx->warning(QCoreApplication::translate("SoundscapeConvertService", "Scripts directory not found: %1").arg(request.s1ScriptsDir.toString()));
                 }
-                return Core::Result<ConvertSoundscapeResult>::skipped(QStringLiteral("No scripts directory found to convert"));
+                return Core::Result<ConvertSoundscapeResult>::skipped(QCoreApplication::translate("SoundscapeConvertService", "No scripts directory found to convert"));
             }
 
             const QString scriptsDirPath = request.s1ScriptsDir.toString();
@@ -150,8 +151,8 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertMapSounds
             QStringList filters;
             filters << QStringLiteral("soundscapes_*.txt")
                     << QStringLiteral("soundscapes_*.vsc")
-                    << QStringLiteral("soundscapes.txt")
-                    << QStringLiteral("soundscapes.vsc");
+                    << QCoreApplication::translate("SoundscapeConvertService", "soundscapes.txt")
+                    << QCoreApplication::translate("SoundscapeConvertService", "soundscapes.vsc");
 
             const QFileInfoList entries = scriptsDir.entryInfoList(filters, QDir::Files | QDir::NoDotAndDotDot);
             for (const auto& entry : entries) {
@@ -165,14 +166,14 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertMapSounds
 
         if (candidateFiles.empty()) {
             if (loggingCtx) {
-                loggingCtx->info(QStringLiteral("No soundscape files found to convert for map '%1'").arg(request.mapName));
+                loggingCtx->info(QCoreApplication::translate("SoundscapeConvertService", "No soundscape files found to convert for map '%1'").arg(request.mapName));
             }
-            return Core::Result<ConvertSoundscapeResult>::skipped(QStringLiteral("No soundscape files found"));
+            return Core::Result<ConvertSoundscapeResult>::skipped(QCoreApplication::translate("SoundscapeConvertService", "No soundscape files found"));
         }
 
         Core::Path::FilesystemPath targetSoundeventsDir = request.s2ContentDir.isEmpty()
-            ? Core::Path::FilesystemPath(QStringLiteral("soundevents"))
-            : request.s2ContentDir / QStringLiteral("soundevents");
+            ? Core::Path::FilesystemPath(QCoreApplication::translate("SoundscapeConvertService", "soundevents"))
+            : request.s2ContentDir / QCoreApplication::translate("SoundscapeConvertService", "soundevents");
 
         Core::FileSystem::FileSystem::createDirectory(targetSoundeventsDir.toString());
 
@@ -189,7 +190,7 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertMapSounds
 
         for (const auto& sourceFile : candidateFiles) {
             if (loggingCtx && loggingCtx->state() == Core::Logging::TaskState::Cancelled) {
-                loggingCtx->info(QStringLiteral("Soundscape conversion cancelled by user"));
+                loggingCtx->info(QCoreApplication::translate("SoundscapeConvertService", "Soundscape conversion cancelled by user"));
                 return Core::Result<ConvertSoundscapeResult>::cancelled();
             }
 
@@ -204,7 +205,7 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertMapSounds
             auto fileRes = convertFile(sourceFile, targetFile, options);
             if (!fileRes.isSuccess()) {
                 if (loggingCtx) {
-                    loggingCtx->error(QStringLiteral("Failed to convert %1: %2").arg(sourceFileName, fileRes.message()));
+                    loggingCtx->error(QCoreApplication::translate("SoundscapeConvertService", "Failed to convert %1: %2").arg(sourceFileName, fileRes.message()));
                 }
                 return fileRes;
             }
@@ -228,7 +229,7 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertMapSounds
         aggregatedResult.uniqueRawSoundAssets.sort();
 
         if (loggingCtx) {
-            loggingCtx->info(QStringLiteral("Soundscape conversion completed: %1 soundscapes converted, %2 soundevents generated, %3 files written, %4 unique raw sound assets referenced.")
+            loggingCtx->info(QCoreApplication::translate("SoundscapeConvertService", "Soundscape conversion completed: %1 soundscapes converted, %2 soundevents generated, %3 files written, %4 unique raw sound assets referenced.")
                 .arg(aggregatedResult.totalSoundscapesConverted)
                 .arg(aggregatedResult.totalSoundEventsGenerated)
                 .arg(aggregatedResult.generatedFiles.size())
@@ -237,16 +238,16 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertMapSounds
 
         return Core::Result<ConvertSoundscapeResult>::success(
             aggregatedResult,
-            QStringLiteral("Soundscape conversion completed successfully"));
-    }, QStringLiteral("Soundscape conversion failed for map '%1'").arg(request.mapName));
+            QCoreApplication::translate("SoundscapeConvertService", "Soundscape conversion completed successfully"));
+    }, QCoreApplication::translate("SoundscapeConvertService", "Soundscape conversion failed for map '%1'").arg(request.mapName));
 }
 
 void SoundscapeConvertService::convertMapSoundscapesAsync(
     const ConvertSoundscapeRequest& request,
     std::function<void(const Core::Result<ConvertSoundscapeResult>&)> callback)
 {
-    const QString mapLabel = request.mapName.isEmpty() ? QStringLiteral("All") : request.mapName;
-    const QString taskName = QStringLiteral("Convert Soundscapes: %1").arg(mapLabel);
+    const QString mapLabel = request.mapName.isEmpty() ? QCoreApplication::translate("SoundscapeConvertService", "All") : request.mapName;
+    const QString taskName = QCoreApplication::translate("SoundscapeConvertService", "Convert Soundscapes: %1").arg(mapLabel);
 
     (void)Async::AsyncTaskRunner::runWorkflowTask<ConvertSoundscapeResult>(
         taskName,

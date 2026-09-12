@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QCoreApplication>
 #include "Core/Async/CancellationToken.h"
 #include "Core/Logging/TaskLoggingContext.h"
 #include "Core/Result/Result.h"
@@ -45,7 +46,7 @@ public:
      * @brief Checks cancellation status and returns a cancelled Result<void> if cancelled.
      */
     Core::Result<void> checkCancelled(
-        const QString& message = QStringLiteral("Operation was cancelled")) const
+        const QString& message = QCoreApplication::translate("ImportContext", "Operation was cancelled")) const
     {
         if (isCancelled()) {
             return Core::Result<void>::cancelled(message);
@@ -99,7 +100,7 @@ public:
     {
         using ReturnType = std::invoke_result_t<StepFn>;
         if (isCancelled()) {
-            return ReturnType::cancelled(QStringLiteral("Cancelled before step: %1").arg(stepName));
+            return ReturnType::cancelled(QCoreApplication::translate("ImportContext", "Cancelled before step: %1").arg(stepName));
         }
 
         if (progress >= 0.0) {
@@ -109,7 +110,7 @@ public:
         auto result = fn();
 
         if (isCancelled() && !result.isCancelled()) {
-            return ReturnType::cancelled(QStringLiteral("Cancelled during step: %1").arg(stepName));
+            return ReturnType::cancelled(QCoreApplication::translate("ImportContext", "Cancelled during step: %1").arg(stepName));
         }
 
         return result;

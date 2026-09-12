@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Domain/Game/GameValidator.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Domain/Game/GameInfoParser.h"
@@ -12,7 +13,7 @@ Core::Result<void> GameValidator::validateGameInfo(const GameInfo& info, GameTyp
     if (expectedType == GameType::Unknown) {
         return Core::Result<void>::failure(
             Core::Error::ErrorCode::InvalidArgument,
-            QStringLiteral("Cannot validate against GameType::Unknown"));
+            QCoreApplication::translate("GameValidator", "Cannot validate against GameType::Unknown"));
     }
 
     if (expectedType == GameType::Custom) {
@@ -21,14 +22,14 @@ Core::Result<void> GameValidator::validateGameInfo(const GameInfo& info, GameTyp
         }
         return Core::Result<void>::failure(
             GameErrors::emptyCustomGameInfo(
-                QStringLiteral("Custom GameInfo is empty and has no valid gameinfo file path")));
+                QCoreApplication::translate("GameValidator", "Custom GameInfo is empty and has no valid gameinfo file path")));
     }
 
     const auto* def = GameRegistry::findByType(expectedType);
     if (!def) {
         return Core::Result<void>::failure(
             GameErrors::unsupportedGame(
-                QStringLiteral("Game definition not found for type"),
+                QCoreApplication::translate("GameValidator", "Game definition not found for type"),
                 GameRegistry::gameTypeToString(expectedType)));
     }
 
@@ -75,7 +76,7 @@ Core::Result<void> GameValidator::validateGameInfo(const GameInfo& info, GameTyp
         if (otherDef && otherDef->type != expectedType && !(otherDef->primaryAppId == 730 && def->primaryAppId == 730)) {
             return Core::Result<void>::failure(
                 GameErrors::steamAppMismatch(
-                    QStringLiteral("GameInfo AppID belongs to another game"),
+                    QCoreApplication::translate("GameValidator", "GameInfo AppID belongs to another game"),
                     QStringLiteral("AppID %1 belongs to '%2', expected '%3'")
                         .arg(QString::number(info.steamAppId()),
                              GameRegistry::gameTypeToString(otherDef->type),
@@ -128,7 +129,7 @@ Core::Result<void> GameValidator::validateGameInfo(const GameInfo& info, GameTyp
 
     return Core::Result<void>::failure(
         GameErrors::gameTypeMismatch(
-            QStringLiteral("GameInfo does not match expected game type"),
+            QCoreApplication::translate("GameValidator", "GameInfo does not match expected game type"),
             QStringLiteral("game: '%1', title: '%2', appid: %3, expected: '%4'")
                 .arg(actualGame, actualTitle, QString::number(info.steamAppId()), GameRegistry::gameTypeToString(expectedType))));
 }
@@ -263,16 +264,16 @@ Core::Result<GameInfo> GameValidator::validateDirectory(
     if (!gameDir.isValid() || gameDir.isEmpty()) {
         return Core::Result<GameInfo>::failure(
             Core::Error::Error::invalidPath(
-                QStringLiteral("Game directory path is empty or invalid"),
+                QCoreApplication::translate("GameValidator", "Game directory path is empty or invalid"),
                 gameDir.toString()),
-            QStringLiteral("Game directory validation failed"));
+            QCoreApplication::translate("GameValidator", "Game directory validation failed"));
     }
     if (!gameDir.exists()) {
         return Core::Result<GameInfo>::failure(
             Core::Error::Error::directoryNotFound(
-                QStringLiteral("Game directory does not exist"),
+                QCoreApplication::translate("GameValidator", "Game directory does not exist"),
                 gameDir.toString()),
-            QStringLiteral("Game directory validation failed"));
+            QCoreApplication::translate("GameValidator", "Game directory validation failed"));
     }
 
     Core::Path::FilesystemPath targetGameInfoPath;
@@ -284,17 +285,17 @@ Core::Result<GameInfo> GameValidator::validateDirectory(
     } else {
         return Core::Result<GameInfo>::failure(
             Core::Error::Error::invalidPath(
-                QStringLiteral("Path is neither a directory nor a valid custom gameinfo file"),
+                QCoreApplication::translate("GameValidator", "Path is neither a directory nor a valid custom gameinfo file"),
                 gameDir.toString()),
-            QStringLiteral("Game directory validation failed"));
+            QCoreApplication::translate("GameValidator", "Game directory validation failed"));
     }
 
     if (!targetGameInfoPath.exists() || !targetGameInfoPath.isFile()) {
         return Core::Result<GameInfo>::failure(
             GameErrors::gameInfoNotFound(
-                QStringLiteral("GameInfo file was not found"),
+                QCoreApplication::translate("GameValidator", "GameInfo file was not found"),
                 targetGameInfoPath.toString()),
-            QStringLiteral("Game directory validation failed"));
+            QCoreApplication::translate("GameValidator", "Game directory validation failed"));
     }
 
     const auto* def = GameRegistry::findByType(type);
@@ -312,7 +313,7 @@ Core::Result<GameInfo> GameValidator::validateDirectory(
     if (!validationResult.isSuccess()) {
         return Core::Result<GameInfo>::failure(
             validationResult.error(),
-            QStringLiteral("Game directory validation failed"));
+            QCoreApplication::translate("GameValidator", "Game directory validation failed"));
     }
 
     return parseResult;

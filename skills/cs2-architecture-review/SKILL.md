@@ -107,6 +107,7 @@ description: >-
 * [ ] Domain API 使用强领域类型。
 * [ ] 错误处理结构化并保留诊断上下文。
 * [ ] 未重复编写已有 Core 基础设施的功能。
+* [ ] 用户可见文案已包裹 `tr()` / `QCoreApplication::translate` 且上下文为类名（i18n 契约，见 AGENTS.md §5.7）；`details()` 与外部工具原始输出保持英文原文。
 
 ### 4.6 测试生命周期与分层契约
 * [ ] `tests/` 目录中的长期常驻测试仅限于 Core 层（`test_core_*`），仅链接 `cs2importer_core` 与 Qt6::Core/Test。
@@ -136,6 +137,7 @@ Workflow → Application
 
 任何业务文件 → QProcess / system() / Shell
 任何业务文件 → 全局 Logger::info/error/warning
+任何业务文件 → 硬编码 QStringLiteral 用户可见文案（应经 tr() / QCoreApplication::translate）
 
 tests/ 常驻测试目标 → 链接 cs2importer_domain / cs2importer_workflow / cs2importer_application / cs2importer_ui
 非 Core 临时任务测试 → 任务结束后残留于代码库中

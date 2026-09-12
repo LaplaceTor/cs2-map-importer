@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Core/KeyValues/KeyValuesParser.h"
 #include "Core/Error/ErrorCode.h"
 #include <utility>
@@ -22,14 +23,14 @@ Core::Result<void> KeyValuesParser::parse(const QString& source, KeyValuesNode& 
         if (token.isCloseBrace()) {
             return Core::Result<void>::failure(
                 Core::Error::ErrorCode::InvalidFile,
-                QStringLiteral("Unexpected '}' at top level"),
+                QCoreApplication::translate("KeyValuesParser", "Unexpected '}' at top level"),
                 QStringLiteral("Line %1, column %2").arg(token.line).arg(token.column));
         }
 
         if (token.isOpenBrace()) {
             return Core::Result<void>::failure(
                 Core::Error::ErrorCode::InvalidFile,
-                QStringLiteral("Unexpected '{' without a preceding key"),
+                QCoreApplication::translate("KeyValuesParser", "Unexpected '{' without a preceding key"),
                 QStringLiteral("Line %1, column %2").arg(token.line).arg(token.column));
         }
 
@@ -48,7 +49,7 @@ KeyValuesNode KeyValuesParser::parseOrThrow(const QString& source) {
     if (!res.isSuccess()) {
         throw Error::Exception(
             res.error().code(),
-            QStringLiteral("KeyValues parsing failed: %1").arg(res.message()),
+            QCoreApplication::translate("KeyValuesParser", "KeyValues parsing failed: %1").arg(res.message()),
             res.details());
     }
     return root;
@@ -59,7 +60,7 @@ Core::Result<void> KeyValuesParser::parseBlock(KeyValuesLexer& lexer, KeyValuesN
     if (!keyToken.isString()) {
         return Core::Result<void>::failure(
             Core::Error::ErrorCode::InvalidFile,
-            QStringLiteral("Expected string token for key"),
+            QCoreApplication::translate("KeyValuesParser", "Expected string token for key"),
             QStringLiteral("Line %1, column %2").arg(keyToken.line).arg(keyToken.column));
     }
 
@@ -96,7 +97,7 @@ Core::Result<void> KeyValuesParser::parseBlock(KeyValuesLexer& lexer, KeyValuesN
             if (childToken.isOpenBrace()) {
                 return Core::Result<void>::failure(
                     Core::Error::ErrorCode::InvalidFile,
-                    QStringLiteral("Unexpected '{' inside section"),
+                    QCoreApplication::translate("KeyValuesParser", "Unexpected '{' inside section"),
                     QStringLiteral("Section '%1' at line %2, column %3")
                         .arg(keyToken.text)
                         .arg(childToken.line)
@@ -112,7 +113,7 @@ Core::Result<void> KeyValuesParser::parseBlock(KeyValuesLexer& lexer, KeyValuesN
         if (!closed) {
             return Core::Result<void>::failure(
                 Core::Error::ErrorCode::InvalidFile,
-                QStringLiteral("Unclosed '{' block (reached EOF)"),
+                QCoreApplication::translate("KeyValuesParser", "Unclosed '{' block (reached EOF)"),
                 QStringLiteral("Section '%1'").arg(keyToken.text));
         }
 
@@ -141,7 +142,7 @@ Core::Result<void> KeyValuesParser::parseBlock(KeyValuesLexer& lexer, KeyValuesN
 
     return Core::Result<void>::failure(
         Core::Error::ErrorCode::InvalidFile,
-        QStringLiteral("Unexpected token"),
+        QCoreApplication::translate("KeyValuesParser", "Unexpected token"),
         QStringLiteral("Line %1, column %2").arg(nextToken.line).arg(nextToken.column));
 }
 

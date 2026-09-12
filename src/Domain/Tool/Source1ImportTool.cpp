@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Source1ImportTool.h"
 
 #include "Source1ImportLogParser.h"
@@ -38,12 +39,12 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
     if (toolBinaryPath.isEmpty() || !toolBinaryPath.isValid()) {
         return Core::Result<Source1ImportToolResult>::failure(
             ToolErrors::executableNotFound(toolBinaryPath.toString()),
-            QStringLiteral("Source 1 导入工具路径无效"));
+            QCoreApplication::translate("Source1ImportTool", "Source 1 import tool path is invalid"));
     }
     if (!toolBinaryPath.exists()) {
         return Core::Result<Source1ImportToolResult>::failure(
             ToolErrors::executableNotFound(toolBinaryPath.toString()),
-            QStringLiteral("Source 1 导入工具不存在"));
+            QCoreApplication::translate("Source1ImportTool", "Source 1 import tool does not exist"));
     }
 
     QStringList args = buildArguments(options);
@@ -107,12 +108,12 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
 
     if (procResult.isCancelled() || options.cancellationToken.isCancelled()) {
         if (childTask) {
-            Core::Logging::LogManager::instance().cancelTask(childTask->taskId(), QStringLiteral("source1import cancelled"));
+            Core::Logging::LogManager::instance().cancelTask(childTask->taskId(), QCoreApplication::translate("Source1ImportTool", "source1import cancelled"));
         }
         if (taskCtx) {
-            taskCtx->warning(QStringLiteral("source1import was cancelled"));
+            taskCtx->warning(QCoreApplication::translate("Source1ImportTool", "source1import was cancelled"));
         }
-        return Core::Result<Source1ImportToolResult>::cancelled(QStringLiteral("Source 1 导入工具已被取消"));
+        return Core::Result<Source1ImportToolResult>::cancelled(QCoreApplication::translate("Source1ImportTool", "Source 1 import tool was cancelled"));
     }
 
     if (procResult.status == Core::Process::ProcessStatus::Crashed) {
@@ -120,23 +121,23 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
             Core::Logging::LogManager::instance().failTask(childTask->taskId(), procResult.errorMessage);
         }
         if (taskCtx) {
-            taskCtx->error(QStringLiteral("source1import crashed: %1").arg(procResult.errorMessage));
+            taskCtx->error(QCoreApplication::translate("Source1ImportTool", "source1import crashed: %1").arg(procResult.errorMessage));
         }
         return Core::Result<Source1ImportToolResult>::failure(
-            ToolErrors::crashed(QStringLiteral("source1import.exe"), procResult.errorMessage),
-            QStringLiteral("Source 1 导入工具崩溃"));
+            ToolErrors::crashed(QCoreApplication::translate("Source1ImportTool", "source1import.exe"), procResult.errorMessage),
+            QCoreApplication::translate("Source1ImportTool", "Source 1 import tool crashed"));
     }
 
     if (procResult.status == Core::Process::ProcessStatus::TimedOut) {
         if (childTask) {
-            Core::Logging::LogManager::instance().failTask(childTask->taskId(), QStringLiteral("Timed out"));
+            Core::Logging::LogManager::instance().failTask(childTask->taskId(), QCoreApplication::translate("Source1ImportTool", "Timed out"));
         }
         if (taskCtx) {
-            taskCtx->error(QStringLiteral("source1import timed out after %1 ms").arg(procOptions.timeout));
+            taskCtx->error(QCoreApplication::translate("Source1ImportTool", "source1import timed out after %1 ms").arg(procOptions.timeout));
         }
         return Core::Result<Source1ImportToolResult>::failure(
-            ToolErrors::timeout(QStringLiteral("source1import.exe"), procResult.errorMessage),
-            QStringLiteral("Source 1 导入工具执行超时"));
+            ToolErrors::timeout(QCoreApplication::translate("Source1ImportTool", "source1import.exe"), procResult.errorMessage),
+            QCoreApplication::translate("Source1ImportTool", "Source 1 import tool timed out"));
     }
 
     if (procResult.status == Core::Process::ProcessStatus::FailedToStart) {
@@ -144,11 +145,11 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
             Core::Logging::LogManager::instance().failTask(childTask->taskId(), procResult.errorMessage);
         }
         if (taskCtx) {
-            taskCtx->error(QStringLiteral("source1import failed to start: %1").arg(procResult.errorMessage));
+            taskCtx->error(QCoreApplication::translate("Source1ImportTool", "source1import failed to start: %1").arg(procResult.errorMessage));
         }
         return Core::Result<Source1ImportToolResult>::failure(
-            ToolErrors::executionFailed(QStringLiteral("source1import.exe"), procResult.exitCode, procResult.errorMessage),
-            QStringLiteral("Source 1 导入工具启动失败"));
+            ToolErrors::executionFailed(QCoreApplication::translate("Source1ImportTool", "source1import.exe"), procResult.exitCode, procResult.errorMessage),
+            QCoreApplication::translate("Source1ImportTool", "Failed to start Source 1 import tool"));
     }
 
     auto logResult = Source1ImportLogParser::parse(
@@ -176,32 +177,32 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
 
     if (logResult.hasNoMatchingFiles) {
         if (childTask) {
-            Core::Logging::LogManager::instance().failTask(childTask->taskId(), QStringLiteral("No matching files found"));
+            Core::Logging::LogManager::instance().failTask(childTask->taskId(), QCoreApplication::translate("Source1ImportTool", "No matching files found"));
         }
         return Core::Result<Source1ImportToolResult>::failure(
             ToolErrors::noMatchingFiles(options.inputFilePath.toString(), procResult.stdOut),
-            QStringLiteral("未找到与规格匹配的文件"),
+            QCoreApplication::translate("Source1ImportTool", "No files found matching the specification"),
             toolResult);
     }
 
     if (!toolResult.success) {
         QString failureReason = logResult.errorMessages.isEmpty()
-            ? QStringLiteral("source1import returned failure with exit code %1").arg(procResult.exitCode)
-            : logResult.errorMessages.join(QStringLiteral("; "));
+            ? QCoreApplication::translate("Source1ImportTool", "source1import returned failure with exit code %1").arg(procResult.exitCode)
+            : logResult.errorMessages.join(QCoreApplication::translate("Source1ImportTool", "; "));
         if (childTask) {
             Core::Logging::LogManager::instance().failTask(childTask->taskId(), failureReason);
         }
         if (taskCtx) {
-            taskCtx->error(QStringLiteral("source1import failed: %1").arg(failureReason));
+            taskCtx->error(QCoreApplication::translate("Source1ImportTool", "source1import failed: %1").arg(failureReason));
         }
         return Core::Result<Source1ImportToolResult>::failure(
             ToolErrors::importFailed(failureReason, procResult.stdOut),
-            QStringLiteral("资源导入失败: %1").arg(failureReason),
+            QCoreApplication::translate("Source1ImportTool", "Resource import failed: %1").arg(failureReason),
             toolResult);
     }
 
     if (childTask) {
-        Core::Logging::LogManager::instance().finishTask(childTask->taskId(), QStringLiteral("Converted %1 asset(s)").arg(toolResult.importedCount));
+        Core::Logging::LogManager::instance().finishTask(childTask->taskId(), QCoreApplication::translate("Source1ImportTool", "Converted %1 asset(s)").arg(toolResult.importedCount));
     }
 
     if (taskCtx && !toolLogFileName.isEmpty()) {
@@ -211,7 +212,7 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
 
     return Core::Result<Source1ImportToolResult>::success(
         toolResult,
-        QStringLiteral("成功导入 %1 个资产").arg(toolResult.importedCount));
+        QCoreApplication::translate("Source1ImportTool", "Successfully imported %1 asset(s)").arg(toolResult.importedCount));
 }
 
 } // namespace Domain::Tool

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QCoreApplication>
 #include <QString>
 #include <exception>
 #include <type_traits>
@@ -45,7 +46,7 @@ public:
     {
         return Core::Result<T>::failure(
             Core::Error::Error::unknown(
-                QStringLiteral("Unhandled standard exception"),
+                QCoreApplication::translate("ExecutionGuard", "Unhandled standard exception"),
                 QString::fromUtf8(ex.what())),
             operationSummary.isEmpty() ? QString::fromUtf8(ex.what()) : operationSummary);
     }
@@ -58,8 +59,8 @@ public:
         const QString& operationSummary = QString())
     {
         return Core::Result<T>::failure(
-            Core::Error::Error::unknown(QStringLiteral("Unhandled unknown exception")),
-            operationSummary.isEmpty() ? QStringLiteral("Unhandled unknown exception") : operationSummary);
+            Core::Error::Error::unknown(QCoreApplication::translate("ExecutionGuard", "Unhandled unknown exception")),
+            operationSummary.isEmpty() ? QCoreApplication::translate("ExecutionGuard", "Unhandled unknown exception") : operationSummary);
     }
 
     /**

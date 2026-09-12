@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "UI/ViewModels/LogViewModel.h"
 
 #include "Application/Logging/TaskLogService.h"
@@ -788,7 +789,7 @@ void LogViewModel::appendLog(const QString& message, int level)
     entry.level = static_cast<Application::Logging::LogLevel>(level);
     entry.message = message;
     messages.append(std::move(entry));
-    processIncomingBlock(0, QStringLiteral("General"), messages);
+    processIncomingBlock(0, QCoreApplication::translate("LogViewModel", "General"), messages);
 }
 
 } // namespace UI::ViewModels

@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Application/Environment/GameEnvironmentService.h"
 #include "Application/Environment/GameDetectService.h"
 #include "Application/Environment/GameInstallation.h"
@@ -178,7 +179,7 @@ void GameEnvironmentService::validateSource1FolderAsync(
     QString normalizedPath = cleanPath(pathOrUrl);
     Domain::Game::GameType type = resolveGameTypeFromName(typeName);
     QString effectiveName = typeName.trimmed().isEmpty() ? QStringLiteral("Source 1") : typeName.trimmed();
-    QString taskName = QStringLiteral("Validate %1").arg(effectiveName);
+    QString taskName = QCoreApplication::translate("GameEnvironmentService", "Validate %1").arg(effectiveName);
 
     (void)Application::Async::AsyncTaskRunner::runSystemTask<GameInstallationInfo>(
         taskName,
@@ -216,7 +217,7 @@ Core::Result<GameInstallationInfo> GameEnvironmentService::validateSource1Folder
 {
     QString normalizedPath = cleanPath(pathOrUrl);
     if (normalizedPath.isEmpty()) {
-        return Core::Result<GameInstallationInfo>::failure(Core::Error::ErrorCode::InvalidArgument, QStringLiteral("Target path is empty"));
+        return Core::Result<GameInstallationInfo>::failure(Core::Error::ErrorCode::InvalidArgument, QCoreApplication::translate("GameEnvironmentService", "Target path is empty"));
     }
 
     Core::Path::FilesystemPath fsPath(normalizedPath);
@@ -229,7 +230,7 @@ Core::Result<GameInstallationInfo> GameEnvironmentService::validateSource1Folder
     }
 
     if (!instResult.isSuccess()) {
-        return Core::Result<GameInstallationInfo>::failure(instResult.error(), QStringLiteral("Source 1 validation failed"));
+        return Core::Result<GameInstallationInfo>::failure(instResult.error(), QCoreApplication::translate("GameEnvironmentService", "Source 1 validation failed"));
     }
     return Core::Result<GameInstallationInfo>::success(instResult.value().toInfo());
 }
@@ -242,7 +243,7 @@ void GameEnvironmentService::validateSource2FolderAsync(
     QString normalizedPath = cleanPath(pathOrUrl);
 
     (void)Application::Async::AsyncTaskRunner::runSystemTask<GameInstallationInfo>(
-        QStringLiteral("Validate Source 2"),
+        QCoreApplication::translate("GameEnvironmentService", "Validate Source 2"),
         context,
         [normalizedPath](const Application::Async::SystemTaskLog& sysLog) -> Core::Result<GameInstallationInfo> {
             sysLog.info(QStringLiteral("Starting Source 2 validation at: %1").arg(normalizedPath));
@@ -270,13 +271,13 @@ Core::Result<GameInstallationInfo> GameEnvironmentService::validateSource2Folder
 {
     QString normalizedPath = cleanPath(pathOrUrl);
     if (normalizedPath.isEmpty()) {
-        return Core::Result<GameInstallationInfo>::failure(Core::Error::ErrorCode::InvalidArgument, QStringLiteral("Target path is empty"));
+        return Core::Result<GameInstallationInfo>::failure(Core::Error::ErrorCode::InvalidArgument, QCoreApplication::translate("GameEnvironmentService", "Target path is empty"));
     }
 
     Core::Path::FilesystemPath fsPath(normalizedPath);
     auto instResult = GameInstallationValidator::validateSource2(fsPath);
     if (!instResult.isSuccess()) {
-        return Core::Result<GameInstallationInfo>::failure(instResult.error(), QStringLiteral("Source 2 validation failed"));
+        return Core::Result<GameInstallationInfo>::failure(instResult.error(), QCoreApplication::translate("GameEnvironmentService", "Source 2 validation failed"));
     }
     return Core::Result<GameInstallationInfo>::success(instResult.value().toInfo());
 }
@@ -309,7 +310,7 @@ void GameEnvironmentService::listSource2AddonsAsync(
     const QString basePath = cleanPath(s2Installation.basePath);
 
     (void)Application::Async::AsyncTaskRunner::runSystemTask<QStringList>(
-        QStringLiteral("List Source 2 Addons"),
+        QCoreApplication::translate("GameEnvironmentService", "List Source 2 Addons"),
         context,
         [basePath](const Application::Async::SystemTaskLog& sysLog) -> Core::Result<QStringList> {
             if (basePath.isEmpty()) {
@@ -328,7 +329,7 @@ void GameEnvironmentService::listSource2AddonsAsync(
 Core::Result<VpkSignatureLeaseResult> GameEnvironmentService::updateVpkLease(const QString& s2BasePath)
 {
     if (!m_leaseService) {
-        VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("VPK signature lease service is unavailable"), QString()};
+        VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QCoreApplication::translate("GameEnvironmentService", "VPK signature lease service is unavailable"), QString()};
         return Core::Result<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidState, res.systemMessage, QString(), res);
     }
     return m_leaseService->acquireLease(cleanPath(s2BasePath));
@@ -337,7 +338,7 @@ Core::Result<VpkSignatureLeaseResult> GameEnvironmentService::updateVpkLease(con
 Core::Result<VpkSignatureLeaseResult> GameEnvironmentService::updateVpkLease(const GameInstallationInfo& s2Installation)
 {
     if (!m_leaseService) {
-        VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("VPK signature lease service is unavailable"), QString()};
+        VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QCoreApplication::translate("GameEnvironmentService", "VPK signature lease service is unavailable"), QString()};
         return Core::Result<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidState, res.systemMessage, QString(), res);
     }
     return m_leaseService->updateInstallation(s2Installation);
@@ -346,7 +347,7 @@ Core::Result<VpkSignatureLeaseResult> GameEnvironmentService::updateVpkLease(con
 Core::Result<VpkSignatureLeaseResult> GameEnvironmentService::retryVpkLease()
 {
     if (!m_leaseService) {
-        VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("VPK signature lease service is unavailable"), QString()};
+        VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QCoreApplication::translate("GameEnvironmentService", "VPK signature lease service is unavailable"), QString()};
         return Core::Result<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidState, res.systemMessage, QString(), res);
     }
     return m_leaseService->retryLease();

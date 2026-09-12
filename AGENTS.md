@@ -31,6 +31,7 @@
 * **构建系统：** 现代 CMake (3.28+)
 * **目标平台：** **仅限 Windows**（程序仅支持 Windows 平台构建、编译与运行；代码库严禁保留或新增对 Linux / macOS 等非 Windows 平台的兼容代码、多平台宏守卫或条件分支）
 * **UI 技术：** QML / Qt Quick Controls 2 (Fusion 样式)
+* **国际化：** Qt Linguist（英文为源语言，zh_CN 翻译经 `translations/cs2importer_zh_CN.ts` 提取；`src/Main.cpp` 启动时按 `QLocale::system()` 自动载入 `.qm`，非中文语系回退英文，无手动切换与配置持久化）
 
 ---
 
@@ -153,6 +154,7 @@ UI 属性/信号
    - **层级化与工作流任务**：顶层导入流程通过 `LogManager::createWorkflowTask` 创建 Workflow 根任务，在 `logs/<workflowName>_<timestamp>/` 下生成独立目录与主工作流日志 `workflow.log`；
    - **外部工具隐藏任务（Tool Task）**：外部 CLI 工具（如 `resourcecompiler`, `source1import`, `bspsrc`）必须通过 `LogManager::createToolTask` 创建。Tool 任务从主 UI 任务树中隐蔽（避免日志噪音），父任务接收携带 `toolTaskId` 的 `[EXEC]` 启动通知；工具输出实时流式写入独立文件（`<asset>_<tool>_<timestamp>.log`，位于父任务目录下，同毫秒冲突自动追加 `_2` 序号），UI 表现层通过独立 `ToolLogWindow` 按需查看。
 6. **异常边界转译**：Application 服务边界统一通过 `ExecutionGuard` 或 `AsyncTaskRunner` 将异常转译为 `Result<T>::failure`，严禁在内部 helper 中静默使用 `catch (...)` 吞没异常。
+7. **消息创建处翻译 (i18n)**：面向用户的消息（`Result::message()`、`Error::message()`、任务日志摘要、对话框文案、QML `qsTr()`）必须在**创建处**翻译——QObject 类用成员 `tr()`，非 QObject 类用 `QCoreApplication::translate("<类名上下文>", "...")`，字符串表用 `QT_TRANSLATE_NOOP` 标记。日志文件内容随界面语言变化。**不翻译**：`Error::details()` 技术诊断、外部工具原始输出、`debug()`/系统日志行、日志等级与导出格式串、游戏产品名。
 
 > 💡 **详细规范与完整决策表**：请查阅专用技能 [`skills/cs2-async-error-handling/SKILL.md`](file:///c:/Users/KEY/Documents/GitHub/cs2-map-importer/skills/cs2-async-error-handling/SKILL.md) 获取三平面任务体系、终态冲突仲裁矩阵、构造正反模式代码及进程机械结果转译规则。
 
@@ -182,6 +184,8 @@ src/
 
 `src/Legacy/` 仅用于过渡，新代码严禁依赖 Legacy。
 
+仓库根目录 `translations/` 存放 Qt Linguist 翻译源文件（`cs2importer_zh_CN.ts`）；新增语言仅需追加对应 `.ts` 并在 `src/CMakeLists.txt` 的 `qt_add_translations` 中登记。
+
 ---
 
 ## 8. CMake 依赖强制规范
@@ -210,6 +214,7 @@ cs2importer (主程序 / QML)
 * `cs2importer_application` 链接 Workflow + Domain + Core；
 * `cs2importer_ui` 链接 Application 及 Qt 模块。**严禁在 `src/UI/CMakeLists.txt` 中添加对 `cs2importer_domain` 或 `cs2importer_core` 的直接链接。**
 * **测试链接红线**：`tests/` 下的常驻单元测试目标仅限针对 Core 层，仅允许链接 `cs2importer_core` 及 `Qt6::Core`、`Qt6::Test`；**严禁在常驻测试目标中链接 `cs2importer_domain`、`cs2importer_workflow`、`cs2importer_application` 或 `cs2importer_ui`**。
+* **翻译构建红线**：`LinguistTools` 仅在根 `CMakeLists.txt` 引入；`qt_add_translations` 仅挂载于主程序目标 `cs2importer`（`SOURCE_TARGETS` 显式列出六个自有层目标，严禁扫描 `third_party` / FetchContent 产物）；部署脚本严禁恢复 `NO_TRANSLATIONS`。新增字符串后通过 `update_translations` 目标运行 lupdate 提取。
 
 ---
 
@@ -218,6 +223,7 @@ cs2importer (主程序 / QML)
 * **C++ 标准**：C++20，适度使用 Qt 类型，严格遵循 RAII、值传递/移动语义与 `const` 正确性。
 * **平台限制**：**仅限 Windows**。根目录 `CMakeLists.txt` 统一执行 `if(NOT WIN32)` 报错守卫；严禁添加或保留非 Windows 条件编译（`#ifdef Q_OS_WIN` 等）。
 * **命名规范**：类名与枚举采用 `PascalCase`；函数、变量采用 `camelCase`。
+* **国际化规范**：严禁硬编码面向用户的 `QStringLiteral` 文案——QObject 类用 `tr()`，非 QObject 类用 `QCoreApplication::translate("<类名上下文>", "...")`，字符串表用 `QT_TRANSLATE_NOOP`；`details()`、路径、CLI 参数与外部工具原始输出保持英文原文。
 * **第三方库**：置于 `third_party/`，由最底层实际消费模块 `PRIVATE` 链接，第三方类型严禁暴露在项目公共头文件中。
 * **构建指令**：
   ```bash

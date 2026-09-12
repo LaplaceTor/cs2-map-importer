@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Application/Particle/ParticleImportService.h"
 
 #include <QFile>
@@ -73,7 +74,7 @@ Async::TaskHandle ParticleImportService::importParticlesAsync(
         if (callback) {
             callback(Core::Result<ParticleImportResult>::failure(
                 Core::Error::ErrorCode::InvalidState,
-                QStringLiteral("Another import operation is already in progress")));
+                QCoreApplication::translate("ParticleImportService", "Another import operation is already in progress")));
         }
         return Async::TaskHandle{};
     }
@@ -89,7 +90,7 @@ Async::TaskHandle ParticleImportService::importParticlesAsync(
     const QString pcfBaseName = request.sourcePcfPath.trimmed().isEmpty()
         ? QStringLiteral("pcf")
         : QFileInfo(request.sourcePcfPath.trimmed()).completeBaseName();
-    const QString taskName = QStringLiteral("Import Particle: %1").arg(pcfFileName);
+    const QString taskName = QCoreApplication::translate("ParticleImportService", "Import Particle: %1").arg(pcfFileName);
 
     auto worker = [self, request](std::shared_ptr<Core::Logging::TaskLoggingContext> taskCtx,
                                   Core::Async::CancellationToken token) -> Core::Result<ParticleImportResult> {
@@ -194,16 +195,16 @@ Core::Result<ParticleImportResult> ParticleImportService::executeImport(
         if (trimmedPcfPath.isEmpty()) {
             return Core::Result<ParticleImportResult>::failure(
                 Core::Error::ErrorCode::InvalidPath,
-                QStringLiteral("Source PCF path cannot be empty"));
+                QCoreApplication::translate("ParticleImportService", "Source PCF path cannot be empty"));
         }
         if (!QFile::exists(trimmedPcfPath)) {
             return Core::Result<ParticleImportResult>::failure(
                 Core::Error::ErrorCode::FileNotFound,
-                QStringLiteral("Source PCF file does not exist"),
+                QCoreApplication::translate("ParticleImportService", "Source PCF file does not exist"),
                 trimmedPcfPath);
         }
 
-        context.info(QStringLiteral("Starting particle import for addon '%1' with PCF '%2'")
+        context.info(QCoreApplication::translate("ParticleImportService", "Starting particle import for addon '%1' with PCF '%2'")
             .arg(base.addonName, trimmedPcfPath));
 
         // Step 3: Build Workflow Options & Invoke Workflow
@@ -217,28 +218,28 @@ Core::Result<ParticleImportResult> ParticleImportService::executeImport(
         auto wfResult = runner(options, context);
 
         if (wfResult.isCancelled()) {
-            context.info(QStringLiteral("Particle import workflow was cancelled"));
+            context.info(QCoreApplication::translate("ParticleImportService", "Particle import workflow was cancelled"));
             return Core::Result<ParticleImportResult>::cancelled(wfResult.message());
         }
 
         if (wfResult.isFailure()) {
-            context.error(QStringLiteral("Particle import workflow failed: %1").arg(wfResult.message()));
+            context.error(QCoreApplication::translate("ParticleImportService", "Particle import workflow failed: %1").arg(wfResult.message()));
             return Core::Result<ParticleImportResult>::failure(wfResult.error(), wfResult.message());
         }
 
         if (wfResult.isSkipped()) {
-            context.info(QStringLiteral("Particle import workflow was skipped: %1").arg(wfResult.message()));
+            context.info(QCoreApplication::translate("ParticleImportService", "Particle import workflow was skipped: %1").arg(wfResult.message()));
             return Core::Result<ParticleImportResult>::skipped(wfResult.message());
         }
 
         // Step 4: Map Workflow Result to Application Result DTO
         const auto appResult = toApplicationResult(wfResult.value());
 
-        context.info(QStringLiteral("Particle import workflow finished successfully: %1 converted, %2 compiled")
+        context.info(QCoreApplication::translate("ParticleImportService", "Particle import workflow finished successfully: %1 converted, %2 compiled")
             .arg(appResult.totalConverted).arg(appResult.totalCompiled));
 
         return Core::Result<ParticleImportResult>::success(appResult, wfResult.message());
-    }, QStringLiteral("Particle import failed"));
+    }, QCoreApplication::translate("ParticleImportService", "Particle import failed"));
 }
 
 } // namespace Application::Particle

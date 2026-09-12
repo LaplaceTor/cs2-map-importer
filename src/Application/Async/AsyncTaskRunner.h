@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QCoreApplication>
 #include <QObject>
 #include <QString>
 #include <QThreadPool>
@@ -216,20 +217,20 @@ public:
             } catch (const Core::Error::Exception& ex) {
                 const QString detailInfo = ex.details().isEmpty()
                     ? (ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message())
-                    : QStringLiteral("%1 (%2)").arg(ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message(), ex.details());
+                    : QCoreApplication::translate("AsyncTaskRunner", "%1 (%2)").arg(ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message(), ex.details());
                 sysLog.error(QStringLiteral("Task exception [%1]: %2")
                     .arg(static_cast<int>(ex.errorCode()))
                     .arg(detailInfo));
                 result = Execution::ExecutionGuard::handleException<T>(
-                    ex, QStringLiteral("Task '%1' failed").arg(taskName));
+                    ex, QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
             } catch (const std::exception& ex) {
                 sysLog.error(QStringLiteral("Unhandled standard exception: %1").arg(QString::fromUtf8(ex.what())));
                 result = Execution::ExecutionGuard::handleException<T>(
-                    ex, QStringLiteral("Task '%1' failed").arg(taskName));
+                    ex, QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
             } catch (...) {
                 sysLog.error(QStringLiteral("Unhandled unknown exception in task"));
                 result = Execution::ExecutionGuard::handleUnknownException<T>(
-                    QStringLiteral("Task '%1' failed").arg(taskName));
+                    QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
             }
 
             // Lifecycle outcome line (no TaskState plane; the application log is the record)
@@ -307,7 +308,7 @@ private:
                 if (Detail::isCallableValid(callback)) {
                     Result<T> failureResult = Result<T>::failure(
                         Core::Error::ErrorCode::OperationFailed,
-                        QStringLiteral("Failed to create task context for '%1' (invalid parentTaskId: %2)")
+                        QCoreApplication::translate("AsyncTaskRunner", "Failed to create task context for '%1' (invalid parentTaskId: %2)")
                             .arg(taskName).arg(parentTaskId));
                     if (context) {
                         QPointer<QObject> guard(context);
@@ -357,32 +358,32 @@ private:
                     if (taskContext) {
                         const QString detailInfo = ex.details().isEmpty()
                             ? (ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message())
-                            : QStringLiteral("%1 (%2)").arg(ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message(), ex.details());
+                            : QCoreApplication::translate("AsyncTaskRunner", "%1 (%2)").arg(ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message(), ex.details());
                         taskContext->error(QStringLiteral("Task exception [%1]: %2")
                             .arg(static_cast<int>(ex.errorCode()))
                             .arg(detailInfo));
                     }
                     result = Execution::ExecutionGuard::handleException<T>(
-                        ex, QStringLiteral("Task '%1' failed").arg(taskName));
+                        ex, QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
                 } catch (const std::exception& ex) {
                     threwException = true;
                     if (taskContext) {
                         taskContext->error(QStringLiteral("Unhandled standard exception: %1").arg(QString::fromUtf8(ex.what())));
                     }
                     result = Execution::ExecutionGuard::handleException<T>(
-                        ex, QStringLiteral("Task '%1' failed").arg(taskName));
+                        ex, QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
                 } catch (...) {
                     threwException = true;
                     if (taskContext) {
                         taskContext->error(QStringLiteral("Unhandled unknown exception in task"));
                     }
                     result = Execution::ExecutionGuard::handleUnknownException<T>(
-                        QStringLiteral("Task '%1' failed").arg(taskName));
+                        QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
                 }
 
                 if (taskContext) {
                     if (threwException) {
-                        QString taskSummary = QStringLiteral("Task failed with uncaught exception");
+                        QString taskSummary = QCoreApplication::translate("AsyncTaskRunner", "Task failed with uncaught exception");
                         Core::Logging::LogManager::instance().forceTaskState(
                             taskId, Core::Logging::TaskState::Failed, taskSummary);
                     } else {
@@ -431,64 +432,64 @@ private:
                             // Priority 1: Failed / Logged errors dominate
                             if (result.isSuccess()) {
                                 if (!hasErrors) {
-                                    taskContext->error(QStringLiteral("Contract violation: worker returned Result::success after task failed"));
+                                    taskContext->error(QCoreApplication::translate("AsyncTaskRunner", "Contract violation: worker returned Result::success after task failed"));
                                 }
-                                result = makeContractFailure(QStringLiteral("Contract violation: Task completed with logged errors or explicit failure"));
+                                result = makeContractFailure(QCoreApplication::translate("AsyncTaskRunner", "Contract violation: Task completed with logged errors or explicit failure"));
                             } else if (result.isCancelled()) {
-                                taskContext->error(QStringLiteral("Contract violation: worker returned Result::cancelled after task failed with errors"));
-                                result = makeContractFailure(QStringLiteral("Contract violation: Task failed with errors before cancellation"));
+                                taskContext->error(QCoreApplication::translate("AsyncTaskRunner", "Contract violation: worker returned Result::cancelled after task failed with errors"));
+                                result = makeContractFailure(QCoreApplication::translate("AsyncTaskRunner", "Contract violation: Task failed with errors before cancellation"));
                             } else if (result.isSkipped()) {
-                                taskContext->error(QStringLiteral("Contract violation: worker returned Result::skipped after task failed with errors"));
-                                result = makeContractFailure(QStringLiteral("Contract violation: Task failed with errors before skipping"));
+                                taskContext->error(QCoreApplication::translate("AsyncTaskRunner", "Contract violation: worker returned Result::skipped after task failed with errors"));
+                                result = makeContractFailure(QCoreApplication::translate("AsyncTaskRunner", "Contract violation: Task failed with errors before skipping"));
                             }
                             Core::Logging::LogManager::instance().forceTaskState(
                                 taskId, Core::Logging::TaskState::Failed,
-                                result.message().isEmpty() ? QStringLiteral("Task failed") : result.message());
+                                result.message().isEmpty() ? QCoreApplication::translate("AsyncTaskRunner", "Task failed") : result.message());
 
                         } else if (currentState == Core::Logging::TaskState::Cancelled) {
                             // Priority 2: Cancelled (without errors)
                             if (result.isSuccess()) {
-                                taskContext->warning(QStringLiteral("Contract violation: worker returned Result::success after task was cancelled"));
-                                result = makeContractCancelled(QStringLiteral("Contract violation: Task was cancelled"));
+                                taskContext->warning(QCoreApplication::translate("AsyncTaskRunner", "Contract violation: worker returned Result::success after task was cancelled"));
+                                result = makeContractCancelled(QCoreApplication::translate("AsyncTaskRunner", "Contract violation: Task was cancelled"));
                                 Core::Logging::LogManager::instance().forceTaskState(
-                                    taskId, Core::Logging::TaskState::Cancelled, QStringLiteral("Cancelled"));
+                                    taskId, Core::Logging::TaskState::Cancelled, QCoreApplication::translate("AsyncTaskRunner", "Cancelled"));
                             } else if (result.isFailure()) {
-                                taskContext->warning(QStringLiteral("Contract violation: worker returned Result::failure after task was cancelled"));
+                                taskContext->warning(QCoreApplication::translate("AsyncTaskRunner", "Contract violation: worker returned Result::failure after task was cancelled"));
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Failed,
-                                    result.message().isEmpty() ? QStringLiteral("Task failed") : result.message());
+                                    result.message().isEmpty() ? QCoreApplication::translate("AsyncTaskRunner", "Task failed") : result.message());
                             } else if (result.isSkipped()) {
-                                taskContext->warning(QStringLiteral("Contract violation: worker returned Result::skipped after task was cancelled"));
-                                result = makeContractCancelled(QStringLiteral("Contract violation: Task was cancelled"));
+                                taskContext->warning(QCoreApplication::translate("AsyncTaskRunner", "Contract violation: worker returned Result::skipped after task was cancelled"));
+                                result = makeContractCancelled(QCoreApplication::translate("AsyncTaskRunner", "Contract violation: Task was cancelled"));
                                 Core::Logging::LogManager::instance().forceTaskState(
-                                    taskId, Core::Logging::TaskState::Cancelled, QStringLiteral("Cancelled"));
+                                    taskId, Core::Logging::TaskState::Cancelled, QCoreApplication::translate("AsyncTaskRunner", "Cancelled"));
                             } else { // result.isCancelled() -> Agreement
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Cancelled,
-                                    result.message().isEmpty() ? QStringLiteral("Cancelled") : result.message());
+                                    result.message().isEmpty() ? QCoreApplication::translate("AsyncTaskRunner", "Cancelled") : result.message());
                             }
 
                         } else if (currentState == Core::Logging::TaskState::Skipped) {
                             // Priority 3: Skipped (without errors)
                             if (result.isSuccess()) {
-                                taskContext->warning(QStringLiteral("Contract violation: worker returned Result::success after task was skipped"));
-                                result = makeContractSkipped(QStringLiteral("Contract violation: Task was skipped"));
+                                taskContext->warning(QCoreApplication::translate("AsyncTaskRunner", "Contract violation: worker returned Result::success after task was skipped"));
+                                result = makeContractSkipped(QCoreApplication::translate("AsyncTaskRunner", "Contract violation: Task was skipped"));
                                 Core::Logging::LogManager::instance().forceTaskState(
-                                    taskId, Core::Logging::TaskState::Skipped, QStringLiteral("Skipped"));
+                                    taskId, Core::Logging::TaskState::Skipped, QCoreApplication::translate("AsyncTaskRunner", "Skipped"));
                             } else if (result.isFailure()) {
-                                taskContext->warning(QStringLiteral("Contract violation: worker returned Result::failure after task was skipped"));
+                                taskContext->warning(QCoreApplication::translate("AsyncTaskRunner", "Contract violation: worker returned Result::failure after task was skipped"));
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Failed,
-                                    result.message().isEmpty() ? QStringLiteral("Task failed") : result.message());
+                                    result.message().isEmpty() ? QCoreApplication::translate("AsyncTaskRunner", "Task failed") : result.message());
                             } else if (result.isCancelled()) {
-                                taskContext->warning(QStringLiteral("Contract violation: worker returned Result::cancelled after task was skipped"));
+                                taskContext->warning(QCoreApplication::translate("AsyncTaskRunner", "Contract violation: worker returned Result::cancelled after task was skipped"));
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Cancelled,
-                                    result.message().isEmpty() ? QStringLiteral("Cancelled") : result.message());
+                                    result.message().isEmpty() ? QCoreApplication::translate("AsyncTaskRunner", "Cancelled") : result.message());
                             } else { // result.isSkipped() -> Agreement
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Skipped,
-                                    result.message().isEmpty() ? QStringLiteral("Skipped") : result.message());
+                                    result.message().isEmpty() ? QCoreApplication::translate("AsyncTaskRunner", "Skipped") : result.message());
                             }
 
                         } else {
@@ -496,19 +497,19 @@ private:
                             if (result.isSuccess()) {
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Completed,
-                                    result.message().isEmpty() ? QStringLiteral("Completed") : result.message());
+                                    result.message().isEmpty() ? QCoreApplication::translate("AsyncTaskRunner", "Completed") : result.message());
                             } else if (result.isCancelled()) {
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Cancelled,
-                                    result.message().isEmpty() ? QStringLiteral("Cancelled") : result.message());
+                                    result.message().isEmpty() ? QCoreApplication::translate("AsyncTaskRunner", "Cancelled") : result.message());
                             } else if (result.isSkipped()) {
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Skipped,
-                                    result.message().isEmpty() ? QStringLiteral("Skipped") : result.message());
+                                    result.message().isEmpty() ? QCoreApplication::translate("AsyncTaskRunner", "Skipped") : result.message());
                             } else { // Failure
                                 Core::Logging::LogManager::instance().forceTaskState(
                                     taskId, Core::Logging::TaskState::Failed,
-                                    result.message().isEmpty() ? QStringLiteral("Task failed") : result.message());
+                                    result.message().isEmpty() ? QCoreApplication::translate("AsyncTaskRunner", "Task failed") : result.message());
                             }
                         }
                     }

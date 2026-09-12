@@ -5,6 +5,15 @@ add_subdirectory(Application)
 add_subdirectory(UI)
 add_subdirectory(qml/cs2importer)
 
+set(translation_source_targets
+    cs2importer_core
+    cs2importer_domain
+    cs2importer_workflow
+    cs2importer_application
+    cs2importer_ui
+    cs2importer_qml
+)
+
 set(APP_SOURCES
     Main.cpp
     ${CMAKE_SOURCE_DIR}/icons/cs2importer.rc
@@ -40,6 +49,12 @@ set(APP_VERSION "${PROJECT_VERSION}" CACHE STRING "Application version")
 target_compile_definitions(cs2importer PRIVATE "APP_VERSION=\"${APP_VERSION}\"")
 
 qt_import_qml_plugins(cs2importer)
+
+qt_add_translations(cs2importer
+    TS_FILES ${CMAKE_SOURCE_DIR}/translations/cs2importer_zh_CN.ts
+    SOURCE_TARGETS ${translation_source_targets}
+)
+
 qt_finalize_executable(cs2importer)
 
 install(TARGETS cs2importer
@@ -51,7 +66,6 @@ if(CS2IMPORTER_DEPLOY_QT_RUNTIME)
     qt_generate_deploy_qml_app_script(
         TARGET cs2importer
         OUTPUT_SCRIPT deploy_script
-        NO_TRANSLATIONS
     )
 
     install(SCRIPT ${deploy_script})

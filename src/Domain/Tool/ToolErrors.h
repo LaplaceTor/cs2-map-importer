@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QCoreApplication>
 #include "Core/Error/Error.h"
 #include "Core/Error/ErrorCode.h"
 #include <QString>
@@ -48,7 +49,7 @@ public:
         const QString& details = QString())
     {
         return make(ToolErrorCode::ExecutableNotFound,
-                    QStringLiteral("Executable not found: %1").arg(path),
+                    QCoreApplication::translate("ToolErrors", "Executable not found: %1").arg(path),
                     details,
                     Core::Error::ErrorCode::FileNotFound);
     }
@@ -59,7 +60,7 @@ public:
         const QString& details = QString())
     {
         return make(ToolErrorCode::ExecutionFailed,
-                    QStringLiteral("%1 execution failed with exit code %2").arg(toolName).arg(exitCode),
+                    QCoreApplication::translate("ToolErrors", "%1 execution failed with exit code %2").arg(toolName).arg(exitCode),
                     details,
                     Core::Error::ErrorCode::ProcessFailed);
     }
@@ -69,7 +70,7 @@ public:
         const QString& details = QString())
     {
         return make(ToolErrorCode::Timeout,
-                    QStringLiteral("%1 execution timed out").arg(toolName),
+                    QCoreApplication::translate("ToolErrors", "%1 execution timed out").arg(toolName),
                     details,
                     Core::Error::ErrorCode::ProcessTimeout);
     }
@@ -79,7 +80,7 @@ public:
         const QString& details = QString())
     {
         return make(ToolErrorCode::Crashed,
-                    QStringLiteral("%1 crashed during execution").arg(toolName),
+                    QCoreApplication::translate("ToolErrors", "%1 crashed during execution").arg(toolName),
                     details,
                     Core::Error::ErrorCode::ProcessCrashed);
     }
@@ -89,37 +90,37 @@ public:
         const QString& details = QString())
     {
         return make(ToolErrorCode::NoMatchingFiles,
-                    QStringLiteral("Found no files matching specification: %1").arg(pattern),
+                    QCoreApplication::translate("ToolErrors", "Found no files matching specification: %1").arg(pattern),
                     details,
                     Core::Error::ErrorCode::FileNotFound);
     }
 
     static Core::Error::Error importFailed(
-        const QString& message = QStringLiteral("Source1Import failed"),
+        const QString& message = QCoreApplication::translate("ToolErrors", "Source1Import failed"),
         const QString& details = QString())
     {
         return make(ToolErrorCode::ImportFailed,
-                    message.isEmpty() ? QStringLiteral("Source1Import failed") : message,
+                    message.isEmpty() ? QCoreApplication::translate("ToolErrors", "Source1Import failed") : message,
                     details,
                     Core::Error::ErrorCode::OperationFailed);
     }
 
     static Core::Error::Error compilationFailed(
-        const QString& message = QStringLiteral("ResourceCompiler failed"),
+        const QString& message = QCoreApplication::translate("ToolErrors", "ResourceCompiler failed"),
         const QString& details = QString())
     {
         return make(ToolErrorCode::CompilationFailed,
-                    message.isEmpty() ? QStringLiteral("ResourceCompiler failed") : message,
+                    message.isEmpty() ? QCoreApplication::translate("ToolErrors", "ResourceCompiler failed") : message,
                     details,
                     Core::Error::ErrorCode::OperationFailed);
     }
 
     static Core::Error::Error parseError(
-        const QString& message = QStringLiteral("Failed to parse tool output"),
+        const QString& message = QCoreApplication::translate("ToolErrors", "Failed to parse tool output"),
         const QString& details = QString())
     {
         return make(ToolErrorCode::ParseError,
-                    message.isEmpty() ? QStringLiteral("Failed to parse tool output") : message,
+                    message.isEmpty() ? QCoreApplication::translate("ToolErrors", "Failed to parse tool output") : message,
                     details,
                     Core::Error::ErrorCode::CorruptedData);
     }

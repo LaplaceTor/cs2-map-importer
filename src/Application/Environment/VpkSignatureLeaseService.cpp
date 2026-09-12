@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Application/Environment/VpkSignatureLeaseService.h"
 #include "Application/Execution/ExecutionGuard.h"
 #include "Domain/Game/GameType.h"
@@ -35,21 +36,21 @@ Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallati
 {
     return Application::Execution::ExecutionGuard::guard<VpkSignatureLeaseResult>([&]() {
         return updateInstallationInternal(s2Installation);
-    }, QStringLiteral("Failed to update VPK signature lease"));
+    }, QCoreApplication::translate("VpkSignatureLeaseService", "Failed to update VPK signature lease"));
 }
 
 Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallation(const GameInstallationInfo& s2Info)
 {
     return Application::Execution::ExecutionGuard::guard<VpkSignatureLeaseResult>([&]() {
         return updateInstallationInternal(s2Info);
-    }, QStringLiteral("Failed to update VPK signature lease"));
+    }, QCoreApplication::translate("VpkSignatureLeaseService", "Failed to update VPK signature lease"));
 }
 
 Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLease(const Core::Path::FilesystemPath& cs2BasePath)
 {
     return Application::Execution::ExecutionGuard::guard<VpkSignatureLeaseResult>([&]() {
         return acquireLeaseInternal(cs2BasePath);
-    }, QStringLiteral("Failed to acquire VPK signature lease"));
+    }, QCoreApplication::translate("VpkSignatureLeaseService", "Failed to acquire VPK signature lease"));
 }
 
 Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLease(const QString& cs2BasePath)
@@ -61,7 +62,7 @@ Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::retryLease()
 {
     return Application::Execution::ExecutionGuard::guard<VpkSignatureLeaseResult>([&]() {
         return retryLeaseInternal();
-    }, QStringLiteral("VPK signature lease retry failed"));
+    }, QCoreApplication::translate("VpkSignatureLeaseService", "VPK signature lease retry failed"));
 }
 
 Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::updateInstallationInternal(const GameInstallation& s2Installation)
@@ -97,7 +98,7 @@ Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::retryLeaseIntern
     if (m_activeInstallation.isValid() && m_activeInstallation.type() == Domain::Game::GameType::CS2) {
         return acquireLeaseInternal(m_activeInstallation.baseDirectory());
     }
-    VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QStringLiteral("No active CS2 installation to retry leasing"), QString()};
+    VpkSignatureLeaseResult res{VpkSignatureLeaseStatus::Inactive, QCoreApplication::translate("VpkSignatureLeaseService", "No active CS2 installation to retry leasing"), QString()};
     return Core::Result<VpkSignatureLeaseResult>::failure(Core::Error::ErrorCode::InvalidArgument, res.systemMessage, QString(), res);
 }
 
@@ -107,7 +108,7 @@ Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLeaseInte
 
     if (cs2BasePath.isEmpty() || !cs2BasePath.exists() || !cs2BasePath.isDirectory()) {
         result.status = VpkSignatureLeaseStatus::NotFound;
-        result.systemMessage = QStringLiteral("CS2 base directory is invalid or does not exist");
+        result.systemMessage = QCoreApplication::translate("VpkSignatureLeaseService", "CS2 base directory is invalid or does not exist");
         m_lastStatus = result.status;
         if (m_loggingContext) {
             m_loggingContext->warning(QStringLiteral("CS2 base directory is invalid or does not exist: %1").arg(cs2BasePath.toString()));
@@ -127,7 +128,7 @@ Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLeaseInte
 
     if (!targetInfo.exists()) {
         result.status = VpkSignatureLeaseStatus::NotFound;
-        result.systemMessage = QStringLiteral("vpk.signatures does not exist at expected path");
+        result.systemMessage = QCoreApplication::translate("VpkSignatureLeaseService", "vpk.signatures does not exist at expected path");
         m_lastStatus = result.status;
         if (m_loggingContext) {
             m_loggingContext->warning(QStringLiteral("vpk.signatures does not exist at expected path: %1").arg(targetPath));
@@ -142,7 +143,7 @@ Core::Result<VpkSignatureLeaseResult> VpkSignatureLeaseService::acquireLeaseInte
 
     if (!targetInfo.isFile()) {
         result.status = VpkSignatureLeaseStatus::Failed;
-        result.systemMessage = QStringLiteral("Target vpk.signatures is not a regular file");
+        result.systemMessage = QCoreApplication::translate("VpkSignatureLeaseService", "Target vpk.signatures is not a regular file");
         m_lastStatus = result.status;
         if (m_loggingContext) {
             m_loggingContext->warning(QStringLiteral("Target vpk.signatures is not a regular file: %1").arg(targetPath));

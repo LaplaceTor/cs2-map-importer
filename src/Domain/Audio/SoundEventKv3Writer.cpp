@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Domain/Audio/SoundEventKv3Writer.h"
 #include "Core/FileSystem/AtomicFile.h"
 #include <QTextStream>
@@ -173,11 +174,11 @@ Core::Result<void> SoundEventKv3Writer::writeToFile(const Core::Path::Filesystem
         Core::FileSystem::AtomicFile::writeAtomic(filePath.toString(), data);
         return Core::Result<void>::success();
     } catch (const Core::Error::Exception& ex) {
-        return Core::Result<void>::failure(ex.error(), QStringLiteral("Failed to write KV3 soundevents file"));
+        return Core::Result<void>::failure(ex.error(), QCoreApplication::translate("SoundEventKv3Writer", "Failed to write KV3 soundevents file"));
     } catch (const std::exception& ex) {
         return Core::Result<void>::failure(Core::Error::ErrorCode::WriteFailed, QString::fromUtf8(ex.what()), filePath.toString());
     } catch (...) {
-        return Core::Result<void>::failure(Core::Error::ErrorCode::Unknown, QStringLiteral("Unknown error writing KV3 soundevents file"), filePath.toString());
+        return Core::Result<void>::failure(Core::Error::ErrorCode::Unknown, QCoreApplication::translate("SoundEventKv3Writer", "Unknown error writing KV3 soundevents file"), filePath.toString());
     }
 }
 

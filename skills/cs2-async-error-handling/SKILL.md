@@ -94,6 +94,7 @@ UI 层消费日志的**唯一通道**是 Application 层门面 `Application::Log
   * `error().details()`：技术诊断数据（如文件路径、stderr 输出、语法行号）。
 * **`message()`**：面向用户/UI 的高层操作总结（如 `"CS2 校验失败"`）。未设置时自动回退为 `error().message()`；处于 `Skipped` 状态时携带具体跳过原因。
 * **`details()`**：直接代理 `error().details()`。
+* **i18n 契约**：`message()` 与 `error().message()` 属用户可见文案，必须在**创建处翻译**——QObject 类用 `tr()`，非 QObject 类用 `QCoreApplication::translate("<类名上下文>", "...")`；`details()` 与外部工具原始输出保持英文技术原文。
 
 ### 2.2 值访问规范 (Value Access Contract)
 * **`hasValue()` / `isSuccess()` 前置检查**：访问业务负载 `result.value()`、`operator*`、`operator->` 前，**必须**显式检查。在无值状态下调用 `.value()` 会抛出 `std::bad_optional_access`。
@@ -113,7 +114,9 @@ UI 层消费日志的**唯一通道**是 Application 层门面 `Application::Log
 | :--- | :--- | :--- | :--- | :--- |
 | **操作总结 (Operation Summary)** | `Result::message()` | Workflow / Application | 面向用户/任务的全局高层概括，说明**哪个宏观操作失败或成功**。 | `"地图 'de_dust2' 导入失败"`, `"CS2 环境验证失败"`, `"Steam 探测失败"` |
 | **失败原因 (Failure Reason)** | `Error::message()` | Domain / Core | 具体领域或底层系统原因，说明**为何发生失败**。 | `"gameinfo.gi 未找到"`, `"实体解析语法错误"`, `"file missing"` |
-| **技术诊断 (Technical Diagnostics)** | `Error::details()` / `Result::details()` | Domain / Core / Process | 供排查问题的底层技术诊断数据（绝对路径、stderr 输出、AST 行号、CLI 参数、退出码等）。 | `"C:/Steam/steamapps/common/CS2/game/csgo/gameinfo.gi"`, 编译器 stderr 输出 |
+| **技术诊断 (Technical Diagnostics)** | `Error::details()` / `Result::details()` | Domain / Core / Process | 供排查问题的底层技术诊断数据（绝对路径、stderr 输出、AST 行号、CLI 参数、退出码等）。**恒为英文原文，不翻译**。 | `"C:/Steam/steamapps/common/CS2/game/csgo/gameinfo.gi"`, 编译器 stderr 输出 |
+
+> **i18n 规则**：`Result::message()` 与 `Error::message()` 属于用户可见平面，必须在消息创建处经 `tr()` / `QCoreApplication::translate("<类名上下文>", ...)` 翻译（非 QObject 类无法使用成员 `tr()`）；日志文件与 UI 因此同语言。`details()`、外部工具原始输出、`debug()` 日志行不翻译。
 
 ### 3.1 构造反模式与规范模式
 
@@ -139,11 +142,11 @@ UI 层消费日志的**唯一通道**是 Application 层门面 `Application::Log
   auto err = Domain::Game::GameErrors::gameInfoNotFound("file missing", gamePath.toQString());
   return Result<void>::failure(
       err,
-      QStringLiteral("Steam 游戏探测失败") // Result.message: 操作总结
+      QCoreApplication::translate("GameEnvironmentService", "Steam game detection failed") // Result.message: 操作总结（创建处翻译）
   );
   // 最终：
   // error.message()  = "file missing" (具体失败原因)
-  // result.message() = "Steam 游戏探测失败" (宏观操作总结)
+  // result.message() = "Steam 游戏探测失败" (宏观操作总结，中文环境下的翻译结果)
   // result.details() = "C:/Steam/..." (技术诊断细节)
   ```
 * ✅ **规范模式 2：带技术细节的便捷重载**
@@ -151,8 +154,8 @@ UI 层消费日志的**唯一通道**是 Application 层门面 `Application::Log
   // 正确：ErrorCode + 明确原因 + 技术路径
   return Result<void>::failure(
       Core::Error::ErrorCode::FileNotFound,
-      QStringLiteral("gameinfo.gi not found"), // Error.message
-      gamePath.toQString()                     // Error.details
+      QCoreApplication::translate("GameInfoParser", "Failed to parse GameInfo file"), // Error.message（创建处翻译）
+      gamePath.toQString()                     // Error.details（英文技术原文，不翻译）
   );
   ```
 
@@ -174,7 +177,8 @@ try {
 } catch (const std::exception& ex) {
     return Result<T>::failure(Core::Error::ErrorCode::OperationFailed, QString::fromUtf8(ex.what()));
 } catch (...) {
-    return Result<T>::failure(Core::Error::ErrorCode::Unknown, QStringLiteral("Unknown runtime exception caught"));
+    return Result<T>::failure(Core::Error::ErrorCode::Unknown,
+        QCoreApplication::translate("ExecutionGuard", "Unhandled unknown exception"));
 }
 ```
 
@@ -251,7 +255,7 @@ Core::Process::ProcessResult procResult = processRunner.run(cmd, args, options);
 if (!procResult.isSuccess()) {
     return Result<void>::failure(
         procResult.toError(),
-        QStringLiteral("BSPSRC 地图反编译执行失败") // Result.message: 操作总结
+        QCoreApplication::translate("MapImportWorkflow", "BSP decompilation failed") // Result.message: 操作总结（创建处翻译）
     );
 }
 ```
@@ -285,11 +289,11 @@ options.onStdErrLine = [toolTask](const QString& line) {
 // 3. 执行进程
 auto procResult = Core::Process::ProcessRunner::run(executable, options);
 
-// 4. 根据结果结束 Tool 任务
+// 4. 根据结果结束 Tool 任务（终态摘要为用户可见文案，创建处翻译）
 if (procResult.isSuccess()) {
-    toolTask->complete(QStringLiteral("工具执行成功"));
+    toolTask->complete(QCoreApplication::translate("ToolWorkflow", "Tool execution completed"));
 } else if (procResult.isCancelled()) {
-    toolTask->cancel(QStringLiteral("用户取消工具执行"));
+    toolTask->cancel(QCoreApplication::translate("ToolWorkflow", "Tool execution cancelled by user"));
 } else {
     toolTask->fail(procResult.errorMessage);
 }

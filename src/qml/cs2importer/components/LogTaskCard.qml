@@ -175,7 +175,13 @@ Rectangle {
                     Text {
                         id: stateText
                         anchors.centerIn: parent
-                        text: rootCard.stateString
+                        text: (rootCard.stateString === "PENDING") ? qsTr("PENDING")
+                        : (rootCard.stateString === "RUNNING") ? qsTr("RUNNING")
+                        : (rootCard.stateString === "COMPLETED") ? qsTr("COMPLETED")
+                        : (rootCard.stateString === "FAILED") ? qsTr("FAILED")
+                        : (rootCard.stateString === "CANCELLED") ? qsTr("CANCELLED")
+                        : (rootCard.stateString === "SKIPPED") ? qsTr("SKIPPED")
+                        : rootCard.stateString
                         color: "#FFFFFF"
                         font.pixelSize: 9
                         font.bold: true
@@ -364,7 +370,7 @@ Rectangle {
                             }
 
                             Text {
-                                text: qsTr("详细日志")
+                                text: qsTr("Detailed Log")
                                 color: "#FFFFFF"
                                 font.pixelSize: 10
                                 font.bold: true

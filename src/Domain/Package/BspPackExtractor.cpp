@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Domain/Package/BspPackExtractor.h"
 
 #include <algorithm>
@@ -31,42 +32,42 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
     if (bspPath.isEmpty() || !bspPath.isValid()) {
         return Core::Result<std::size_t>::failure(
             Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("BSP file path is empty or invalid"));
+            QCoreApplication::translate("BspPackExtractor", "BSP file path is empty or invalid"));
     }
     if (!bspPath.exists()) {
         return Core::Result<std::size_t>::failure(
             Core::Error::ErrorCode::FileNotFound,
-            QStringLiteral("BSP file not found"),
+            QCoreApplication::translate("BspPackExtractor", "BSP file not found"),
             bspPath.toString());
     }
     if (destDir.isEmpty() || !destDir.isValid()) {
         return Core::Result<std::size_t>::failure(
             Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("destination directory is empty or invalid"));
+            QCoreApplication::translate("BspPackExtractor", "destination directory is empty or invalid"));
     }
 
     if (options.isCancelled && options.isCancelled()) {
         return Core::Result<std::size_t>::cancelled(
-            QStringLiteral("BSP embedded file extraction cancelled"), 0);
+            QCoreApplication::translate("BspPackExtractor", "BSP embedded file extraction cancelled"), 0);
     }
 
     bsppp::BSP reader{bspPath.toString().toStdString()};
     if (!reader) {
         return Core::Result<std::size_t>::failure(
             Core::Error::ErrorCode::InvalidFile,
-            QStringLiteral("BSP file failed to load or has an invalid signature"),
+            QCoreApplication::translate("BspPackExtractor", "BSP file failed to load or has an invalid signature"),
             bspPath.toString());
     }
 
     if (!reader.hasLump(bsppp::BSPLump::PAKFILE)) {
         return Core::Result<std::size_t>::skipped(
-            QStringLiteral("BSP contains no embedded files"));
+            QCoreApplication::translate("BspPackExtractor", "BSP contains no embedded files"));
     }
 
     auto pakDataOpt = reader.getLumpData(bsppp::BSPLump::PAKFILE);
     if (!pakDataOpt || pakDataOpt->empty()) {
         return Core::Result<std::size_t>::skipped(
-            QStringLiteral("BSP contains no embedded files"));
+            QCoreApplication::translate("BspPackExtractor", "BSP contains no embedded files"));
     }
 
     const auto& pakData = *pakDataOpt;
@@ -77,7 +78,7 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
     if (mz_stream_mem_open(memStream, nullptr, MZ_OPEN_MODE_READ) != MZ_OK) {
         mz_stream_mem_delete(&memStream);
         return Core::Result<std::size_t>::skipped(
-            QStringLiteral("BSP contains no embedded files"));
+            QCoreApplication::translate("BspPackExtractor", "BSP contains no embedded files"));
     }
 
     void* zipHandle = mz_zip_create();
@@ -86,7 +87,7 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
         mz_stream_mem_close(memStream);
         mz_stream_mem_delete(&memStream);
         return Core::Result<std::size_t>::skipped(
-            QStringLiteral("BSP contains no embedded files"));
+            QCoreApplication::translate("BspPackExtractor", "BSP contains no embedded files"));
     }
 
     struct EntryInfo {
@@ -131,12 +132,12 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
 
     if (entriesToExtract.empty()) {
         return Core::Result<std::size_t>::skipped(
-            QStringLiteral("BSP contains no embedded files"));
+            QCoreApplication::translate("BspPackExtractor", "BSP contains no embedded files"));
     }
 
     if (options.isCancelled && options.isCancelled()) {
         return Core::Result<std::size_t>::cancelled(
-            QStringLiteral("BSP embedded file extraction cancelled"), 0);
+            QCoreApplication::translate("BspPackExtractor", "BSP embedded file extraction cancelled"), 0);
     }
 
     // Phase 1: Pre-create unique directories single-threaded
@@ -246,7 +247,7 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
 
     if (cancelRequested.load(std::memory_order_relaxed)) {
         return Core::Result<std::size_t>::cancelled(
-            QStringLiteral("BSP embedded file extraction cancelled"), extracted);
+            QCoreApplication::translate("BspPackExtractor", "BSP embedded file extraction cancelled"), extracted);
     }
 
     return Core::Result<std::size_t>::success(extracted);

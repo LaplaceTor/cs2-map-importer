@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "ResourceCompilerTool.h"
 
 #include "ResourceCompilerLogParser.h"
@@ -42,22 +43,22 @@ Core::Result<ResourceCompilerToolResult> ResourceCompilerTool::compileResources(
     if (toolBinaryPath.isEmpty() || !toolBinaryPath.isValid()) {
         return Core::Result<ResourceCompilerToolResult>::failure(
             ToolErrors::executableNotFound(toolBinaryPath.toString()),
-            QStringLiteral("资源编译器路径无效"));
+            QCoreApplication::translate("ResourceCompilerTool", "Resource compiler path is invalid"));
     }
     if (!toolBinaryPath.exists()) {
         return Core::Result<ResourceCompilerToolResult>::failure(
             ToolErrors::executableNotFound(toolBinaryPath.toString()),
-            QStringLiteral("资源编译器不存在"));
+            QCoreApplication::translate("ResourceCompilerTool", "Resource compiler does not exist"));
     }
     if (options.gameDir.isEmpty()) {
         return Core::Result<ResourceCompilerToolResult>::failure(
             Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("CS2 游戏目录不能为空"));
+            QCoreApplication::translate("ResourceCompilerTool", "CS2 game directory cannot be empty"));
     }
     if (options.inputFiles.isEmpty()) {
         return Core::Result<ResourceCompilerToolResult>::failure(
             Core::Error::ErrorCode::InvalidArgument,
-            QStringLiteral("待编译资源列表不能为空"));
+            QCoreApplication::translate("ResourceCompilerTool", "Resource list to compile cannot be empty"));
     }
 
     QStringList args = buildArguments(options);
@@ -118,12 +119,12 @@ Core::Result<ResourceCompilerToolResult> ResourceCompilerTool::compileResources(
 
     if (procResult.isCancelled() || options.cancellationToken.isCancelled()) {
         if (childTask) {
-            Core::Logging::LogManager::instance().cancelTask(childTask->taskId(), QStringLiteral("resourcecompiler cancelled"));
+            Core::Logging::LogManager::instance().cancelTask(childTask->taskId(), QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler cancelled"));
         }
         if (taskCtx) {
-            taskCtx->warning(QStringLiteral("resourcecompiler was cancelled"));
+            taskCtx->warning(QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler was cancelled"));
         }
-        return Core::Result<ResourceCompilerToolResult>::cancelled(QStringLiteral("资源编译器已被取消"));
+        return Core::Result<ResourceCompilerToolResult>::cancelled(QCoreApplication::translate("ResourceCompilerTool", "Resource compiler was cancelled"));
     }
 
     if (procResult.status == Core::Process::ProcessStatus::Crashed) {
@@ -131,23 +132,23 @@ Core::Result<ResourceCompilerToolResult> ResourceCompilerTool::compileResources(
             Core::Logging::LogManager::instance().failTask(childTask->taskId(), procResult.errorMessage);
         }
         if (taskCtx) {
-            taskCtx->error(QStringLiteral("resourcecompiler crashed: %1").arg(procResult.errorMessage));
+            taskCtx->error(QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler crashed: %1").arg(procResult.errorMessage));
         }
         return Core::Result<ResourceCompilerToolResult>::failure(
-            ToolErrors::crashed(QStringLiteral("resourcecompiler.exe"), procResult.errorMessage),
-            QStringLiteral("资源编译器崩溃"));
+            ToolErrors::crashed(QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler.exe"), procResult.errorMessage),
+            QCoreApplication::translate("ResourceCompilerTool", "Resource compiler crashed"));
     }
 
     if (procResult.status == Core::Process::ProcessStatus::TimedOut) {
         if (childTask) {
-            Core::Logging::LogManager::instance().failTask(childTask->taskId(), QStringLiteral("Timed out"));
+            Core::Logging::LogManager::instance().failTask(childTask->taskId(), QCoreApplication::translate("ResourceCompilerTool", "Timed out"));
         }
         if (taskCtx) {
-            taskCtx->error(QStringLiteral("resourcecompiler timed out after %1 ms").arg(procOptions.timeout));
+            taskCtx->error(QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler timed out after %1 ms").arg(procOptions.timeout));
         }
         return Core::Result<ResourceCompilerToolResult>::failure(
-            ToolErrors::timeout(QStringLiteral("resourcecompiler.exe"), procResult.errorMessage),
-            QStringLiteral("资源编译器执行超时"));
+            ToolErrors::timeout(QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler.exe"), procResult.errorMessage),
+            QCoreApplication::translate("ResourceCompilerTool", "Resource compiler timed out"));
     }
 
     if (procResult.status == Core::Process::ProcessStatus::FailedToStart) {
@@ -155,11 +156,11 @@ Core::Result<ResourceCompilerToolResult> ResourceCompilerTool::compileResources(
             Core::Logging::LogManager::instance().failTask(childTask->taskId(), procResult.errorMessage);
         }
         if (taskCtx) {
-            taskCtx->error(QStringLiteral("resourcecompiler failed to start: %1").arg(procResult.errorMessage));
+            taskCtx->error(QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler failed to start: %1").arg(procResult.errorMessage));
         }
         return Core::Result<ResourceCompilerToolResult>::failure(
-            ToolErrors::executionFailed(QStringLiteral("resourcecompiler.exe"), procResult.exitCode, procResult.errorMessage),
-            QStringLiteral("资源编译器启动失败"));
+            ToolErrors::executionFailed(QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler.exe"), procResult.exitCode, procResult.errorMessage),
+            QCoreApplication::translate("ResourceCompilerTool", "Failed to start resource compiler"));
     }
 
     auto logResult = ResourceCompilerLogParser::parse(
@@ -182,25 +183,25 @@ Core::Result<ResourceCompilerToolResult> ResourceCompilerTool::compileResources(
             taskCtx->error(e);
         }
         for (const auto& p : toolResult.compiledVpcfCPaths) {
-            taskCtx->info(QStringLiteral("Compiled VPCF_C: %1").arg(p));
+            taskCtx->info(QCoreApplication::translate("ResourceCompilerTool", "Compiled VPCF_C: %1").arg(p));
         }
     }
 
     if (!toolResult.success) {
         QString failureReason = logResult.compileErrors.isEmpty()
-            ? QStringLiteral("resourcecompiler returned failure with exit code %1").arg(procResult.exitCode)
-            : logResult.compileErrors.join(QStringLiteral("; "));
+            ? QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler returned failure with exit code %1").arg(procResult.exitCode)
+            : logResult.compileErrors.join(QCoreApplication::translate("ResourceCompilerTool", "; "));
         if (childTask) {
             Core::Logging::LogManager::instance().failTask(childTask->taskId(), failureReason);
         }
         return Core::Result<ResourceCompilerToolResult>::failure(
             ToolErrors::compilationFailed(failureReason, procResult.stdOut),
-            QStringLiteral("资源编译失败"),
+            QCoreApplication::translate("ResourceCompilerTool", "Resource compilation failed"),
             toolResult);
     }
 
     if (childTask) {
-        Core::Logging::LogManager::instance().finishTask(childTask->taskId(), QStringLiteral("Compiled %1 asset(s)").arg(toolResult.compiledCount));
+        Core::Logging::LogManager::instance().finishTask(childTask->taskId(), QCoreApplication::translate("ResourceCompilerTool", "Compiled %1 asset(s)").arg(toolResult.compiledCount));
     }
 
     if (taskCtx && !toolLogFileName.isEmpty()) {
@@ -210,7 +211,7 @@ Core::Result<ResourceCompilerToolResult> ResourceCompilerTool::compileResources(
 
     return Core::Result<ResourceCompilerToolResult>::success(
         toolResult,
-        QStringLiteral("成功编译 %1 个资源").arg(toolResult.compiledCount));
+        QCoreApplication::translate("ResourceCompilerTool", "Successfully compiled %1 resource(s)").arg(toolResult.compiledCount));
 }
 
 } // namespace Domain::Tool

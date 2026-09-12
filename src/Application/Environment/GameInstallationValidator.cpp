@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Application/Environment/GameInstallationValidator.h"
 #include "Application/Execution/ExecutionGuard.h"
 #include "Domain/Game/GameErrors.h"
@@ -65,9 +66,9 @@ Core::Result<GameInstallation> GameInstallationValidator::validateSource1(
             }
             return Core::Result<GameInstallation>::failure(
                 Core::Error::Error::invalidPath(
-                    QStringLiteral("Target directory path is empty or invalid"),
+                    QCoreApplication::translate("GameInstallationValidator", "Target directory path is empty or invalid"),
                     directory.toString()),
-                QStringLiteral("Source 1 validation failed"));
+                QCoreApplication::translate("GameInstallationValidator", "Source 1 validation failed"));
         }
         if (!directory.exists()) {
             if (logCtx) {
@@ -75,9 +76,9 @@ Core::Result<GameInstallation> GameInstallationValidator::validateSource1(
             }
             return Core::Result<GameInstallation>::failure(
                 Core::Error::Error::directoryNotFound(
-                    QStringLiteral("Target directory does not exist"),
+                    QCoreApplication::translate("GameInstallationValidator", "Target directory does not exist"),
                     directory.toString()),
-                QStringLiteral("Source 1 validation failed"));
+                QCoreApplication::translate("GameInstallationValidator", "Source 1 validation failed"));
         }
 
         auto res = Domain::Game::GameInstallationResolver::resolveSource1(type, directory);
@@ -87,7 +88,7 @@ Core::Result<GameInstallation> GameInstallationValidator::validateSource1(
             }
             return Core::Result<GameInstallation>::failure(
                 res.error(),
-                QStringLiteral("Source 1 validation failed"));
+                QCoreApplication::translate("GameInstallationValidator", "Source 1 validation failed"));
         }
 
         auto inst = createInstallationFromResolved(res.value());
@@ -103,10 +104,10 @@ Core::Result<GameInstallation> GameInstallationValidator::validateSource1(
         }
         return Core::Result<GameInstallation>::failure(
             Domain::Game::GameErrors::invalidGameInstallation(
-                QStringLiteral("Failed to create installation from resolved Source 1 path"),
+                QCoreApplication::translate("GameInstallationValidator", "Failed to create installation from resolved Source 1 path"),
                 directory.toString()),
-            QStringLiteral("Source 1 validation failed"));
-    }, QStringLiteral("Source 1 validation failed"));
+            QCoreApplication::translate("GameInstallationValidator", "Source 1 validation failed"));
+    }, QCoreApplication::translate("GameInstallationValidator", "Source 1 validation failed"));
 }
 
 Core::Result<GameInstallation> GameInstallationValidator::validateSource2(
@@ -125,9 +126,9 @@ Core::Result<GameInstallation> GameInstallationValidator::validateSource2(
             }
             return Core::Result<GameInstallation>::failure(
                 Core::Error::Error::invalidPath(
-                    QStringLiteral("Target directory path is empty or invalid"),
+                    QCoreApplication::translate("GameInstallationValidator", "Target directory path is empty or invalid"),
                     directory.toString()),
-                QStringLiteral("Source 2 validation failed"));
+                QCoreApplication::translate("GameInstallationValidator", "Source 2 validation failed"));
         }
         if (!directory.exists()) {
             if (logCtx) {
@@ -135,9 +136,9 @@ Core::Result<GameInstallation> GameInstallationValidator::validateSource2(
             }
             return Core::Result<GameInstallation>::failure(
                 Core::Error::Error::directoryNotFound(
-                    QStringLiteral("Target directory does not exist"),
+                    QCoreApplication::translate("GameInstallationValidator", "Target directory does not exist"),
                     directory.toString()),
-                QStringLiteral("Source 2 validation failed"));
+                QCoreApplication::translate("GameInstallationValidator", "Source 2 validation failed"));
         }
 
         auto res = Domain::Game::GameInstallationResolver::resolveSource2(directory, type);
@@ -147,7 +148,7 @@ Core::Result<GameInstallation> GameInstallationValidator::validateSource2(
             }
             return Core::Result<GameInstallation>::failure(
                 res.error(),
-                QStringLiteral("Source 2 validation failed"));
+                QCoreApplication::translate("GameInstallationValidator", "Source 2 validation failed"));
         }
 
         auto inst = createInstallationFromResolved(res.value());
@@ -163,10 +164,10 @@ Core::Result<GameInstallation> GameInstallationValidator::validateSource2(
         }
         return Core::Result<GameInstallation>::failure(
             Domain::Game::GameErrors::invalidGameInstallation(
-                QStringLiteral("Failed to create installation from resolved Source 2 path"),
+                QCoreApplication::translate("GameInstallationValidator", "Failed to create installation from resolved Source 2 path"),
                 directory.toString()),
-            QStringLiteral("Source 2 validation failed"));
-    }, QStringLiteral("Source 2 validation failed"));
+            QCoreApplication::translate("GameInstallationValidator", "Source 2 validation failed"));
+    }, QCoreApplication::translate("GameInstallationValidator", "Source 2 validation failed"));
 }
 
 Core::Result<GameInstallation> GameInstallationValidator::inspectGameInfo(
@@ -184,9 +185,9 @@ Core::Result<GameInstallation> GameInstallationValidator::inspectGameInfo(
             }
             return Core::Result<GameInstallation>::failure(
                 Core::Error::Error::invalidPath(
-                    QStringLiteral("GameInfo path is empty or invalid"),
+                    QCoreApplication::translate("GameInstallationValidator", "GameInfo path is empty or invalid"),
                     gameInfoPath.toString()),
-                QStringLiteral("GameInfo inspection failed"));
+                QCoreApplication::translate("GameInstallationValidator", "GameInfo inspection failed"));
         }
         if (!gameInfoPath.exists()) {
             if (logCtx) {
@@ -194,9 +195,9 @@ Core::Result<GameInstallation> GameInstallationValidator::inspectGameInfo(
             }
             return Core::Result<GameInstallation>::failure(
                 Core::Error::Error::fileNotFound(
-                    QStringLiteral("GameInfo path does not exist"),
+                    QCoreApplication::translate("GameInstallationValidator", "GameInfo path does not exist"),
                     gameInfoPath.toString()),
-                QStringLiteral("GameInfo inspection failed"));
+                QCoreApplication::translate("GameInstallationValidator", "GameInfo inspection failed"));
         }
 
         auto res = Domain::Game::GameInstallationResolver::inspectGameInfo(gameInfoPath);
@@ -206,7 +207,7 @@ Core::Result<GameInstallation> GameInstallationValidator::inspectGameInfo(
             }
             return Core::Result<GameInstallation>::failure(
                 res.error(),
-                QStringLiteral("GameInfo inspection failed"));
+                QCoreApplication::translate("GameInstallationValidator", "GameInfo inspection failed"));
         }
 
         auto inst = createInstallationFromResolved(res.value());
@@ -222,10 +223,10 @@ Core::Result<GameInstallation> GameInstallationValidator::inspectGameInfo(
         }
         return Core::Result<GameInstallation>::failure(
             Domain::Game::GameErrors::invalidGameInstallation(
-                QStringLiteral("Failed to create installation from inspected GameInfo"),
+                QCoreApplication::translate("GameInstallationValidator", "Failed to create installation from inspected GameInfo"),
                 gameInfoPath.toString()),
-            QStringLiteral("GameInfo inspection failed"));
-    }, QStringLiteral("GameInfo inspection failed"));
+            QCoreApplication::translate("GameInstallationValidator", "GameInfo inspection failed"));
+    }, QCoreApplication::translate("GameInstallationValidator", "GameInfo inspection failed"));
 }
 
 Core::Result<GameInstallation> GameInstallationValidator::validateGameDirectory(
@@ -246,7 +247,7 @@ Core::Result<GameInstallation> GameInstallationValidator::validateGameDirectory(
             }
             return Core::Result<GameInstallation>::failure(
                 res.error(),
-                QStringLiteral("Game directory validation failed"));
+                QCoreApplication::translate("GameInstallationValidator", "Game directory validation failed"));
         }
 
         auto inst = createInstallationFromResolved(res.value());
@@ -256,10 +257,10 @@ Core::Result<GameInstallation> GameInstallationValidator::validateGameDirectory(
 
         return Core::Result<GameInstallation>::failure(
             Domain::Game::GameErrors::invalidGameInstallation(
-                QStringLiteral("Failed to create installation from resolved game directory"),
+                QCoreApplication::translate("GameInstallationValidator", "Failed to create installation from resolved game directory"),
                 directory.toString()),
-            QStringLiteral("Game directory validation failed"));
-    }, QStringLiteral("Game directory validation failed"));
+            QCoreApplication::translate("GameInstallationValidator", "Game directory validation failed"));
+    }, QCoreApplication::translate("GameInstallationValidator", "Game directory validation failed"));
 }
 
 } // namespace Application::Environment

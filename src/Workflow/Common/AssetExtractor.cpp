@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Workflow/Common/AssetExtractor.h"
 
 #include <exception>
@@ -116,13 +117,13 @@ void extractCompanions(Domain::Package::PackArchivePool& pool, const Domain::Gam
 
         if (outcome.isFailure()) {
             if (taskCtx) {
-                taskCtx->warning(QStringLiteral("Companion extraction failed for '%1': %2")
+                taskCtx->warning(QCoreApplication::translate("AssetExtractor", "Companion extraction failed for '%1': %2")
                                      .arg(companionRelative, outcome.message()));
             }
             continue;
         }
         if (!outcome.value().found && taskCtx) {
-            taskCtx->debug(QStringLiteral("Companion '%1' not present in target '%2'")
+            taskCtx->debug(QCoreApplication::translate("AssetExtractor", "Companion '%1' not present in target '%2'")
                                .arg(companionRelative, winner.pathString()));
         }
     }
@@ -143,12 +144,12 @@ Core::Result<AssetExtraction> AssetExtractor::extract(
         if (relativeAssetPath.isEmpty()) {
             return Core::Result<AssetExtraction>::failure(
                 Core::Error::ErrorCode::InvalidArgument,
-                QStringLiteral("relative asset path is empty"));
+                QCoreApplication::translate("AssetExtractor", "relative asset path is empty"));
         }
         if (destContentDir.isEmpty() || !destContentDir.isValid()) {
             return Core::Result<AssetExtraction>::failure(
                 Core::Error::ErrorCode::InvalidPath,
-                QStringLiteral("destination content directory is empty or invalid"));
+                QCoreApplication::translate("AssetExtractor", "destination content directory is empty or invalid"));
         }
 
         Domain::Package::PackArchivePool localPool;
@@ -160,7 +161,7 @@ Core::Result<AssetExtraction> AssetExtractor::extract(
         for (const auto& target : targets) {
             if (token.isCancelled()) {
                 return Core::Result<AssetExtraction>::cancelled(
-                    QStringLiteral("Asset extraction cancelled"));
+                    QCoreApplication::translate("AssetExtractor", "Asset extraction cancelled"));
             }
 
             Core::Result<LookupHit> outcome = target.isVpk()
@@ -170,18 +171,18 @@ Core::Result<AssetExtraction> AssetExtractor::extract(
             if (outcome.isFailure()) {
                 return Core::Result<AssetExtraction>::failure(
                     outcome.error(),
-                    QStringLiteral("Asset extraction failed while searching '%1'").arg(target.pathString()));
+                    QCoreApplication::translate("AssetExtractor", "Asset extraction failed while searching '%1'").arg(target.pathString()));
             }
             if (!outcome.value().found) {
                 if (taskCtx) {
-                    taskCtx->debug(QStringLiteral("Asset '%1' not found in target '%2'")
+                    taskCtx->debug(QCoreApplication::translate("AssetExtractor", "Asset '%1' not found in target '%2'")
                                        .arg(entryPath, target.pathString()));
                 }
                 continue;
             }
 
             if (taskCtx) {
-                taskCtx->info(QStringLiteral("Extracted '%1' from '%2'")
+                taskCtx->info(QCoreApplication::translate("AssetExtractor", "Extracted '%1' from '%2'")
                                   .arg(entryPath, target.pathString()));
             }
             extractCompanions(pool, target, outcome.value().fromPack, entryPath, options.companionExtensions, destContentDir, token, taskCtx);
@@ -194,7 +195,7 @@ Core::Result<AssetExtraction> AssetExtractor::extract(
         }
 
         return Core::Result<AssetExtraction>::skipped(
-            QStringLiteral("Asset '%1' was not found in any search target").arg(entryPath));
+            QCoreApplication::translate("AssetExtractor", "Asset '%1' was not found in any search target").arg(entryPath));
     });
 }
 

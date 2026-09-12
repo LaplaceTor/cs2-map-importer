@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Application/Environment/SteamService.h"
 #include "Application/Execution/ExecutionGuard.h"
 #include "Domain/Game/GameRegistry.h"
@@ -13,7 +14,7 @@ Core::Result<void> SteamService::validateGameFiles(
 {
     return Application::Execution::ExecutionGuard::guard<void>([&]() -> Core::Result<void> {
         return validateGameFilesInternal(appId, logCtx);
-    }, QStringLiteral("Steam validation failed"));
+    }, QCoreApplication::translate("SteamService", "Steam validation failed"));
 }
 
 Core::Result<void> SteamService::validateGameFiles(
@@ -29,11 +30,11 @@ Core::Result<void> SteamService::validateGameFiles(
             }
             return Core::Result<void>::failure(
                 Domain::Game::GameErrors::unsupportedGame(
-                    QStringLiteral("No primary AppID registered for game type"),
+                    QCoreApplication::translate("SteamService", "No primary AppID registered for game type"),
                     typeStr));
         }
         return validateGameFilesInternal(def->primaryAppId, logCtx);
-    }, QStringLiteral("Steam validation failed"));
+    }, QCoreApplication::translate("SteamService", "Steam validation failed"));
 }
 
 Core::Result<void> SteamService::validateGameFilesInternal(
@@ -46,7 +47,7 @@ Core::Result<void> SteamService::validateGameFilesInternal(
         }
         return Core::Result<void>::failure(
             Core::Error::ErrorCode::InvalidArgument,
-            QStringLiteral("Invalid Steam AppID"),
+            QCoreApplication::translate("SteamService", "Invalid Steam AppID"),
             QString::number(appId));
     }
     if (logCtx) {
@@ -60,7 +61,7 @@ Core::Result<void> SteamService::validateGameFilesInternal(
         }
         return Core::Result<void>::failure(
             Core::Error::ErrorCode::OperationFailed,
-            QStringLiteral("Failed to open Steam validation URL"),
+            QCoreApplication::translate("SteamService", "Failed to open Steam validation URL"),
             validateUrl.toString());
     }
     return Core::Result<void>::success();

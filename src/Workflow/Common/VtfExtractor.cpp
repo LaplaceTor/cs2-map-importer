@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Workflow/Common/VtfExtractor.h"
 
 #include <exception>
@@ -38,12 +39,12 @@ Core::Result<AssetExtraction> VtfExtractor::extract(
         if (relativeVtfPath.isEmpty()) {
             return Core::Result<AssetExtraction>::failure(
                 Core::Error::ErrorCode::InvalidArgument,
-                QStringLiteral("relative VTF path is empty"));
+                QCoreApplication::translate("VtfExtractor", "relative VTF path is empty"));
         }
         if (destImageDir.isEmpty() || !destImageDir.isValid()) {
             return Core::Result<AssetExtraction>::failure(
                 Core::Error::ErrorCode::InvalidPath,
-                QStringLiteral("destination image directory is empty or invalid"));
+                QCoreApplication::translate("VtfExtractor", "destination image directory is empty or invalid"));
         }
 
         // The intermediate VTF lands in a RAII temporary directory.

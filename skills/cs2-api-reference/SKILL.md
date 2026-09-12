@@ -85,6 +85,11 @@ description: >-
   * `Exception`：跨线程异常传输载体（派生自 `std::exception` / `QException`）。
 * **`Core::Result<T>`**：
   * 标准业务结果承载类型（`[[nodiscard]]`），原生支持 `Success`, `Failure`, `Cancelled`, `Skipped` 四态及 `Core::Error`；`failure` / `cancelled` / `skipped` 均提供带 `partialValue` 的重载，用于契约冲突仲裁时的部分业务负载保全。
+* **国际化 (i18n 约定)**：
+  * **非 QObject 类**（Core/Domain/Workflow/Application 中的服务、错误工厂、模板头文件）统一使用 `QCoreApplication::translate("<类名上下文>", "...")` 在**消息创建处**翻译；**QObject 类**（UI 层）使用成员 `tr()`；
+  * 字符串表用 `QT_TRANSLATE_NOOP("<上下文>", "...")` 标记，取值处再经 `QCoreApplication::translate` 转换（如 `DspPreset` 预设名表）；
+  * 翻译文件为 `translations/cs2importer_zh_CN.ts`（仓库根目录），由主程序 CMake 的 `qt_add_translations(cs2importer ... SOURCE_TARGETS <各层目标>)` 统一提取并嵌入资源 `/i18n/cs2importer_zh_CN.qm`；`src/Main.cpp` 启动时按 `QLocale::system()` 自动加载（中文语系 → zh_CN，其他语言回退英文源串）；
+  * **不翻译**：`Error::details()` 技术诊断（路径/stderr/CLI 参数）、外部工具原始输出、`debug()`/`sysLog` 系统日志行、日志等级与导出格式串、游戏产品名（"Counter-Strike 2" 等）。
 
 ---
 
@@ -176,7 +181,7 @@ description: >-
   * `LogMessageListModel`：单任务内部日志条目列表模型（包含 `MessageRole`, `LevelStringRole`, `ToolTaskIdRole` 等；`level` 为 `Application::Logging::LogLevel`）；
   * `GameViewModel`：游戏检测与路径选择状态绑定 ViewModel；`refreshS2Addons()` 异步列举插件（经 `listSource2AddonsAsync`，带过期结果丢弃守卫）；VPK 租约（`updateVpkLease` / `retryVpkLease`）为**有意同步**的 UI 线程调用（单次 Win32 排他文件打开，结果经 `vpkLeaseStatusChanged` 信号上报，严禁在 Worker 线程调用）。
 * **控制器与交互门面 (`UI::Controllers`)**：
-  * `MainController`：主窗口业务编排中枢，聚合 Application 服务与 `LogViewModel`（无独立 Tab 控制器层）；提供 `startImport` / `startParticleImport`（启动前全局 `collapseAll()`）、`stopImport`、`cancelAllOperations()`（组合根关停时先于线程池清理调用）、`setActiveTab(int)` 公共槽（QML TabBar 直连，带 isProcessing 守卫）。
+  * `MainController`：主窗口业务编排中枢，聚合 Application 服务与 `LogViewModel`（无独立 Tab 控制器层）；提供 `startImport` / `startParticleImport`（启动前全局 `collapseAll()`）、`stopImport`、`cancelAllOperations()`（组合根关停时先于线程池清理调用）、`setActiveTab(int)` 公共槽（QML TabBar 直连，带 isProcessing 守卫）。对话框标题与正文等用户可见文案一律经 `tr()`（上下文 = 类名）。
 * **QML 专用日志视窗与组件 (`src/qml/cs2importer/`)**：
   * `LogWindow.qml`：宏观导入工作流与任务卡片列表窗口（集成任务树平铺与平滑滚动）；
   * `ToolLogWindow.qml`：专用外部 CLI 工具（如 resourcecompiler）独立控制台实时日志窗口；窗口可见且任务未达终态期间以 250ms 定时器轮询 `getToolMessagesModel` / `getToolTaskState` / `getToolTaskLogFilePath`（弥合隐藏工具任务节点首次日志块到达才投影的时序差）；

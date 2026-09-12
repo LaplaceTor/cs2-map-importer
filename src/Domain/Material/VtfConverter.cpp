@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Domain/Material/VtfConverter.h"
 
 #include <exception>
@@ -37,12 +38,12 @@ Core::Result<std::vector<std::byte>> validateVtfPath(const Core::Path::Filesyste
     if (vtfPath.isEmpty() || !vtfPath.isValid()) {
         return Core::Result<std::vector<std::byte>>::failure(
             Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("VTF file path is empty or invalid"));
+            QCoreApplication::translate("VtfConverter", "VTF file path is empty or invalid"));
     }
     if (!vtfPath.exists() || !vtfPath.isFile()) {
         return Core::Result<std::vector<std::byte>>::failure(
             Core::Error::ErrorCode::FileNotFound,
-            QStringLiteral("VTF file not found"),
+            QCoreApplication::translate("VtfConverter", "VTF file not found"),
             vtfPath.toString());
     }
     return Core::Result<std::vector<std::byte>>::success({});
@@ -100,7 +101,7 @@ Core::Result<std::vector<std::byte>> VtfConverter::convertToImageBuffer(
         if (fileBytes.empty()) {
             return Core::Result<std::vector<std::byte>>::failure(
                 Core::Error::ErrorCode::OperationFailed,
-                QStringLiteral("failed to decode VTF image or encode to target format"),
+                QCoreApplication::translate("VtfConverter", "failed to decode VTF image or encode to target format"),
                 vtfPath.toString());
         }
         return Core::Result<std::vector<std::byte>>::success(std::move(fileBytes));
@@ -114,7 +115,7 @@ Core::Result<void> VtfConverter::convertToImageFile(
     if (destImagePath.isEmpty() || !destImagePath.isValid()) {
         return Core::Result<void>::failure(
             Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("destination image path is empty or invalid"));
+            QCoreApplication::translate("VtfConverter", "destination image path is empty or invalid"));
     }
 
     auto imageBytes = convertToImageBuffer(vtfPath, format);

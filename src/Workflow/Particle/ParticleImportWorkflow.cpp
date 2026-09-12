@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "ParticleImportWorkflow.h"
 
 #include "Domain/Tool/Source1ImportTool.h"
@@ -25,7 +26,7 @@ void cleanupGeneratedArtifacts(const QStringList& vpcfPaths, const Common::Impor
             if (generated.remove()) {
                 removed++;
             } else {
-                context.warning(QStringLiteral("Failed to clean up generated artifact: %1 (%2)")
+                context.warning(QCoreApplication::translate("ParticleImportWorkflow", "Failed to clean up generated artifact: %1 (%2)")
                     .arg(path, generated.errorString()));
             }
         }
@@ -34,13 +35,13 @@ void cleanupGeneratedArtifacts(const QStringList& vpcfPaths, const Common::Impor
             if (compiled.remove()) {
                 removed++;
             } else {
-                context.warning(QStringLiteral("Failed to clean up generated artifact: %1 (%2)")
+                context.warning(QCoreApplication::translate("ParticleImportWorkflow", "Failed to clean up generated artifact: %1 (%2)")
                     .arg(compiled.fileName(), compiled.errorString()));
             }
         }
     }
     if (removed > 0) {
-        context.info(QStringLiteral("Cleaned up %1 half-finished artifact(s) after cancelled/failed import").arg(removed));
+        context.info(QCoreApplication::translate("ParticleImportWorkflow", "Cleaned up %1 half-finished artifact(s) after cancelled/failed import").arg(removed));
     }
 }
 
@@ -58,7 +59,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
 
     // Step 1: Convert PCF via Source1ImportTool
     auto convertResult = context.runStep(
-        QStringLiteral("Converting PCF with source1import"),
+        QCoreApplication::translate("ParticleImportWorkflow", "Converting PCF with source1import"),
         0.5,
         [&]() -> Core::Result<Domain::Tool::Source1ImportToolResult> {
             Domain::Tool::Source1ImportOptions s1Options;
@@ -77,7 +78,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
             if (s1Result.isFailure()) {
                 return Core::Result<Domain::Tool::Source1ImportToolResult>::failure(
                     s1Result.error(),
-                    QStringLiteral("PCF conversion failed: %1").arg(s1Result.message()));
+                    QCoreApplication::translate("ParticleImportWorkflow", "PCF conversion failed: %1").arg(s1Result.message()));
             }
 
             const auto& s1Data = s1Result.value();
@@ -86,7 +87,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
                     Domain::Tool::ToolErrors::noMatchingFiles(
                         options.sourcePcfPath.toString(),
                         s1Data.rawOutput),
-                    QStringLiteral("No .vpcf files generated from PCF conversion"));
+                    QCoreApplication::translate("ParticleImportWorkflow", "No .vpcf files generated from PCF conversion"));
             }
 
             return s1Result;
@@ -106,7 +107,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
 
     // Step 2: Compile generated resources via ResourceCompilerTool
     auto compileResult = context.runStep(
-        QStringLiteral("Compiling generated .vpcf resources"),
+        QCoreApplication::translate("ParticleImportWorkflow", "Compiling generated .vpcf resources"),
         1.0,
         [&]() -> Core::Result<Domain::Tool::ResourceCompilerToolResult> {
             Domain::Tool::ResourceCompilerOptions rcOptions;
@@ -122,7 +123,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
             if (rcResult.isFailure()) {
                 return Core::Result<Domain::Tool::ResourceCompilerToolResult>::failure(
                     rcResult.error(),
-                    QStringLiteral("Resource compilation failed: %1").arg(rcResult.message()));
+                    QCoreApplication::translate("ParticleImportWorkflow", "Resource compilation failed: %1").arg(rcResult.message()));
             }
 
             return rcResult;
@@ -145,7 +146,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
 
     return Core::Result<ParticleImportWorkflowResult>::success(
         workflowResult,
-        QStringLiteral("Particle import and compilation completed successfully"));
+        QCoreApplication::translate("ParticleImportWorkflow", "Particle import and compilation completed successfully"));
 }
 
 } // namespace Workflow::Particle

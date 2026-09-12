@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Application/Environment/Internal/SteamLibraryDetector.h"
 #include "Core/KeyValues/KeyValuesDocument.h"
 #include "Core/Path/PathUtils.h"
@@ -81,7 +82,7 @@ Core::Result<Core::Path::FilesystemPath> SteamLibraryDetector::detectSteamInstal
     }
     return Core::Result<Core::Path::FilesystemPath>::failure(
         Core::Error::ErrorCode::DirectoryNotFound,
-        QStringLiteral("No Steam installation found on host system"));
+        QCoreApplication::translate("SteamLibraryDetector", "No Steam installation found on host system"));
 }
 
 Core::Result<std::vector<SteamLibrary>> SteamLibraryDetector::detectLibraries(
@@ -97,7 +98,7 @@ Core::Result<std::vector<SteamLibrary>> SteamLibraryDetector::detectLibraries(
             }
             return Core::Result<std::vector<SteamLibrary>>::failure(
                 Core::Error::ErrorCode::DirectoryNotFound,
-                QStringLiteral("Specified Steam directory does not exist or is not a directory"),
+                QCoreApplication::translate("SteamLibraryDetector", "Specified Steam directory does not exist or is not a directory"),
                 steamPath.toString());
         }
         resolvedSteamPath = steamPath;
@@ -106,12 +107,12 @@ Core::Result<std::vector<SteamLibrary>> SteamLibraryDetector::detectLibraries(
         if (!detectRes.isSuccess()) {
             return Core::Result<std::vector<SteamLibrary>>::failure(
                 detectRes.error(),
-                QStringLiteral("No Steam installation found on system"));
+                QCoreApplication::translate("SteamLibraryDetector", "No Steam installation found on system"));
         }
         resolvedSteamPath = detectRes.value();
     }
 
-    Core::Path::FilesystemPath vdfPath(QDir(resolvedSteamPath.toString()).filePath(QStringLiteral("steamapps/libraryfolders.vdf")));
+    Core::Path::FilesystemPath vdfPath(QDir(resolvedSteamPath.toString()).filePath(QCoreApplication::translate("SteamLibraryDetector", "steamapps/libraryfolders.vdf")));
     if (vdfPath.exists() && vdfPath.isFile()) {
         if (logCtx) {
             logCtx->debug(QStringLiteral("Loading Steam library folders configuration from: %1").arg(vdfPath.toString()));
@@ -123,7 +124,7 @@ Core::Result<std::vector<SteamLibrary>> SteamLibraryDetector::detectLibraries(
             }
             return Core::Result<std::vector<SteamLibrary>>::failure(
                 parseRes.error(),
-                QStringLiteral("Failed to parse Steam library configuration"));
+                QCoreApplication::translate("SteamLibraryDetector", "Failed to parse Steam library configuration"));
         }
 
         // Case A: Valid VDF with library entries
@@ -149,7 +150,7 @@ Core::Result<std::vector<SteamLibrary>> SteamLibraryDetector::detectLibraries(
     defaultLib.path = resolvedSteamPath;
 
     // Scan for appmanifests in defaultLib
-    QDir steamappsDir(QDir(resolvedSteamPath.toString()).filePath(QStringLiteral("steamapps")));
+    QDir steamappsDir(QDir(resolvedSteamPath.toString()).filePath(QCoreApplication::translate("SteamLibraryDetector", "steamapps")));
     if (steamappsDir.exists()) {
         const QStringList manifests = steamappsDir.entryList(QStringList() << QStringLiteral("appmanifest_*.acf"), QDir::Files);
         static const QRegularExpression manifestRegex(QStringLiteral("appmanifest_(\\d+)\\.acf"), QRegularExpression::CaseInsensitiveOption);
@@ -190,7 +191,7 @@ Core::Result<std::vector<SteamLibrary>> SteamLibraryDetector::parseLibraryFolder
         }
         return Core::Result<std::vector<SteamLibrary>>::failure(
             loadRes.error(),
-            QStringLiteral("Failed to parse libraryfolders.vdf"));
+            QCoreApplication::translate("SteamLibraryDetector", "Failed to parse libraryfolders.vdf"));
     }
 
     const auto* rootNode = &doc.root();
@@ -242,7 +243,7 @@ Core::Result<std::vector<SteamLibrary>> SteamLibraryDetector::parseLibraryFolder
         }
 
         // Also check actual appmanifest_*.acf files in <libPath>/steamapps
-        QDir steamappsDir(QDir(libPath.toString()).filePath(QStringLiteral("steamapps")));
+        QDir steamappsDir(QDir(libPath.toString()).filePath(QCoreApplication::translate("SteamLibraryDetector", "steamapps")));
         if (steamappsDir.exists()) {
             const QStringList manifests = steamappsDir.entryList(QStringList() << QStringLiteral("appmanifest_*.acf"), QDir::Files);
             static const QRegularExpression manifestRegex(QStringLiteral("appmanifest_(\\d+)\\.acf"), QRegularExpression::CaseInsensitiveOption);
@@ -270,22 +271,22 @@ Core::Result<QString> SteamLibraryDetector::readAppInstallDir(const Core::Path::
     if (!libraryPath.isValid() || !libraryPath.isDirectory()) {
         return Core::Result<QString>::failure(
             Core::Error::ErrorCode::DirectoryNotFound,
-            QStringLiteral("Invalid Steam library path"),
+            QCoreApplication::translate("SteamLibraryDetector", "Invalid Steam library path"),
             libraryPath.toString());
     }
     if (appId <= 0) {
         return Core::Result<QString>::failure(
             Core::Error::ErrorCode::InvalidArgument,
-            QStringLiteral("Invalid Steam AppID"),
+            QCoreApplication::translate("SteamLibraryDetector", "Invalid Steam AppID"),
             QString::number(appId));
     }
 
-    QString manifestPathStr = QDir(libraryPath.toString()).filePath(QStringLiteral("steamapps/appmanifest_%1.acf").arg(appId));
+    QString manifestPathStr = QDir(libraryPath.toString()).filePath(QCoreApplication::translate("SteamLibraryDetector", "steamapps/appmanifest_%1.acf").arg(appId));
     Core::Path::FilesystemPath manifestPath(manifestPathStr);
     if (!manifestPath.exists() || !manifestPath.isFile()) {
         return Core::Result<QString>::failure(
             Core::Error::ErrorCode::FileNotFound,
-            QStringLiteral("App manifest file not found"),
+            QCoreApplication::translate("SteamLibraryDetector", "App manifest file not found"),
             manifestPath.toString());
     }
 
@@ -294,7 +295,7 @@ Core::Result<QString> SteamLibraryDetector::readAppInstallDir(const Core::Path::
     if (!loadRes.isSuccess()) {
         return Core::Result<QString>::failure(
             loadRes.error(),
-            QStringLiteral("Failed to parse app manifest"));
+            QCoreApplication::translate("SteamLibraryDetector", "Failed to parse app manifest"));
     }
 
     const auto* appState = doc.findChild(QStringLiteral("AppState"));
@@ -304,7 +305,7 @@ Core::Result<QString> SteamLibraryDetector::readAppInstallDir(const Core::Path::
     if (installDir.isEmpty()) {
         return Core::Result<QString>::failure(
             Core::Error::ErrorCode::InvalidFile,
-            QStringLiteral("Field 'installdir' not found in app manifest"),
+            QCoreApplication::translate("SteamLibraryDetector", "Field 'installdir' not found in app manifest"),
             manifestPath.toString());
     }
     return Core::Result<QString>::success(installDir);
@@ -314,22 +315,22 @@ Core::Result<QString> SteamLibraryDetector::readAppName(const Core::Path::Filesy
     if (!libraryPath.isValid() || !libraryPath.isDirectory()) {
         return Core::Result<QString>::failure(
             Core::Error::ErrorCode::DirectoryNotFound,
-            QStringLiteral("Invalid Steam library path"),
+            QCoreApplication::translate("SteamLibraryDetector", "Invalid Steam library path"),
             libraryPath.toString());
     }
     if (appId <= 0) {
         return Core::Result<QString>::failure(
             Core::Error::ErrorCode::InvalidArgument,
-            QStringLiteral("Invalid Steam AppID"),
+            QCoreApplication::translate("SteamLibraryDetector", "Invalid Steam AppID"),
             QString::number(appId));
     }
 
-    QString manifestPathStr = QDir(libraryPath.toString()).filePath(QStringLiteral("steamapps/appmanifest_%1.acf").arg(appId));
+    QString manifestPathStr = QDir(libraryPath.toString()).filePath(QCoreApplication::translate("SteamLibraryDetector", "steamapps/appmanifest_%1.acf").arg(appId));
     Core::Path::FilesystemPath manifestPath(manifestPathStr);
     if (!manifestPath.exists() || !manifestPath.isFile()) {
         return Core::Result<QString>::failure(
             Core::Error::ErrorCode::FileNotFound,
-            QStringLiteral("App manifest file not found"),
+            QCoreApplication::translate("SteamLibraryDetector", "App manifest file not found"),
             manifestPath.toString());
     }
 
@@ -338,7 +339,7 @@ Core::Result<QString> SteamLibraryDetector::readAppName(const Core::Path::Filesy
     if (!loadRes.isSuccess()) {
         return Core::Result<QString>::failure(
             loadRes.error(),
-            QStringLiteral("Failed to parse app manifest"));
+            QCoreApplication::translate("SteamLibraryDetector", "Failed to parse app manifest"));
     }
 
     const auto* appState = doc.findChild(QStringLiteral("AppState"));
@@ -348,7 +349,7 @@ Core::Result<QString> SteamLibraryDetector::readAppName(const Core::Path::Filesy
     if (appName.isEmpty()) {
         return Core::Result<QString>::failure(
             Core::Error::ErrorCode::InvalidFile,
-            QStringLiteral("Field 'name' not found in app manifest"),
+            QCoreApplication::translate("SteamLibraryDetector", "Field 'name' not found in app manifest"),
             manifestPath.toString());
     }
     return Core::Result<QString>::success(appName);

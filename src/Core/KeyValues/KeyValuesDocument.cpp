@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Core/KeyValues/KeyValuesDocument.h"
 #include "Core/KeyValues/KeyValuesParser.h"
 #include "Core/FileSystem/FileSystem.h"
@@ -22,7 +23,7 @@ KeyValuesDocument KeyValuesDocument::fromFile(const Path::FilesystemPath& path) 
     if (!res.isSuccess()) {
         throw Error::Exception(
             res.error().code(),
-            QStringLiteral("Failed to load KeyValues document from %1: %2")
+            QCoreApplication::translate("KeyValuesDocument", "Failed to load KeyValues document from %1: %2")
                 .arg(path.toString(), res.message()),
             res.details());
     }
@@ -35,7 +36,7 @@ KeyValuesDocument KeyValuesDocument::fromString(const QString& content) {
     if (!res.isSuccess()) {
         throw Error::Exception(
             res.error().code(),
-            QStringLiteral("Failed to parse KeyValues string: %1").arg(res.message()),
+            QCoreApplication::translate("KeyValuesDocument", "Failed to parse KeyValues string: %1").arg(res.message()),
             res.details());
     }
     return doc;
@@ -49,13 +50,13 @@ Core::Result<void> KeyValuesDocument::loadFromFile(const Path::FilesystemPath& p
     if (!path.isValid() || path.isEmpty()) {
         return Core::Result<void>::failure(
             Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("Path is empty or invalid"),
+            QCoreApplication::translate("KeyValuesDocument", "Path is empty or invalid"),
             path.toString());
     }
     if (!path.exists()) {
         return Core::Result<void>::failure(
             Core::Error::ErrorCode::FileNotFound,
-            QStringLiteral("File does not exist"),
+            QCoreApplication::translate("KeyValuesDocument", "File does not exist"),
             path.toString());
     }
 

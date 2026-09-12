@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QCoreApplication>
 #include <QString>
 #include <optional>
 #include <type_traits>
@@ -106,7 +107,7 @@ public:
     /**
      * @brief Constructs a cancelled result with reason note and optional partial value.
      */
-    static Result<T> cancelled(QString message = QStringLiteral("Operation cancelled"), std::optional<T> partialValue = std::nullopt)
+    static Result<T> cancelled(QString message = QCoreApplication::translate("Result", "Operation cancelled"), std::optional<T> partialValue = std::nullopt)
     {
         Result<T> r;
         r.m_status = ResultStatus::Cancelled;
@@ -119,7 +120,7 @@ public:
     /**
      * @brief Constructs a skipped result with explanation and optional existing value.
      */
-    static Result<T> skipped(QString message = QStringLiteral("Operation skipped"), std::optional<T> existingValue = std::nullopt)
+    static Result<T> skipped(QString message = QCoreApplication::translate("Result", "Operation skipped"), std::optional<T> existingValue = std::nullopt)
     {
         Result<T> r;
         r.m_status = ResultStatus::Skipped;
@@ -215,7 +216,7 @@ public:
     /**
      * @brief Constructs a cancelled void result with reason note.
      */
-    static Result<void> cancelled(QString message = QStringLiteral("Operation cancelled"))
+    static Result<void> cancelled(QString message = QCoreApplication::translate("Result", "Operation cancelled"))
     {
         Result<void> r;
         r.m_status = ResultStatus::Cancelled;
@@ -227,7 +228,7 @@ public:
     /**
      * @brief Constructs a skipped void result with explanation.
      */
-    static Result<void> skipped(QString message = QStringLiteral("Operation skipped"))
+    static Result<void> skipped(QString message = QCoreApplication::translate("Result", "Operation skipped"))
     {
         Result<void> r;
         r.m_status = ResultStatus::Skipped;

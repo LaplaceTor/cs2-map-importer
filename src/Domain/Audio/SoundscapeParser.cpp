@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Domain/Audio/SoundscapeParser.h"
 #include "Core/KeyValues/KeyValuesParser.h"
 #include <QSet>
@@ -25,7 +26,7 @@ Core::Result<std::vector<SoundscapeDefinition>> SoundscapeParser::parseString(co
     Core::KeyValues::KeyValuesDocument doc;
     auto loadRes = doc.loadFromString(content);
     if (!loadRes.isSuccess()) {
-        return Core::Result<std::vector<SoundscapeDefinition>>::failure(loadRes.error(), QStringLiteral("Failed to parse Soundscape VDF content"));
+        return Core::Result<std::vector<SoundscapeDefinition>>::failure(loadRes.error(), QCoreApplication::translate("SoundscapeParser", "Failed to parse Soundscape VDF content"));
     }
 
     return parseDocument(doc);
@@ -35,7 +36,7 @@ Core::Result<std::vector<SoundscapeDefinition>> SoundscapeParser::parseFile(cons
     Core::KeyValues::KeyValuesDocument doc;
     auto loadRes = doc.loadFromFile(filePath);
     if (!loadRes.isSuccess()) {
-        return Core::Result<std::vector<SoundscapeDefinition>>::failure(loadRes.error(), QStringLiteral("Failed to load Soundscape file"));
+        return Core::Result<std::vector<SoundscapeDefinition>>::failure(loadRes.error(), QCoreApplication::translate("SoundscapeParser", "Failed to load Soundscape file"));
     }
 
     return parseDocument(doc);

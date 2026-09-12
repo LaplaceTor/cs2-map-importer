@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "ProcessRunner.h"
 
 #include <QProcess>
@@ -27,7 +28,7 @@ ProcessResult ProcessRunner::execute(const QString& executable, const ProcessOpt
     if (executable.isEmpty()) {
         result.status = ProcessStatus::FailedToStart;
         result.exitCode = -1;
-        result.errorMessage = QStringLiteral("Executable path is empty.");
+        result.errorMessage = QCoreApplication::translate("ProcessRunner", "Executable path is empty.");
         return result;
     }
 
@@ -61,7 +62,7 @@ ProcessResult ProcessRunner::execute(const QString& executable, const ProcessOpt
         result.exitCode = -1;
         if (process.error() == QProcess::Timedout) {
             result.status = ProcessStatus::TimedOut;
-            result.errorMessage = QStringLiteral("Process startup timed out.");
+            result.errorMessage = QCoreApplication::translate("ProcessRunner", "Process startup timed out.");
         } else {
             result.status = ProcessStatus::FailedToStart;
             result.errorMessage = QString("Failed to start executable '%1': %2")
@@ -117,7 +118,7 @@ ProcessResult ProcessRunner::execute(const QString& executable, const ProcessOpt
             }
             result.status = ProcessStatus::Cancelled;
             result.exitCode = -1;
-            result.errorMessage = QStringLiteral("Process was cancelled by user.");
+            result.errorMessage = QCoreApplication::translate("ProcessRunner", "Process was cancelled by user.");
             result.stdOut = fullStdOut;
             result.stdErr = fullStdErr;
             return result;
@@ -159,7 +160,7 @@ ProcessResult ProcessRunner::execute(const QString& executable, const ProcessOpt
     if (options.cancellationToken.isCancelled()) {
         result.status = ProcessStatus::Cancelled;
         result.exitCode = -1;
-        result.errorMessage = QStringLiteral("Process was cancelled by user.");
+        result.errorMessage = QCoreApplication::translate("ProcessRunner", "Process was cancelled by user.");
         result.stdOut = fullStdOut;
         result.stdErr = fullStdErr;
         return result;

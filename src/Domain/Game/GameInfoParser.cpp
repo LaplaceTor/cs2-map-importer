@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Domain/Game/GameInfoParser.h"
 #include "Domain/Game/GameErrors.h"
 #include "Domain/Game/SearchPathResolver.h"
@@ -135,16 +136,16 @@ Core::Result<GameInfo> GameInfoParser::parse(
     if (!gameInfoPath.isValid() || gameInfoPath.isEmpty()) {
         return Core::Result<GameInfo>::failure(
             Core::Error::Error::invalidPath(
-                QStringLiteral("GameInfo file path is invalid or empty"),
+                QCoreApplication::translate("GameInfoParser", "GameInfo file path is invalid or empty"),
                 gameInfoPath.toString()),
-            QStringLiteral("GameInfo parsing failed"));
+            QCoreApplication::translate("GameInfoParser", "GameInfo parsing failed"));
     }
     if (!gameInfoPath.exists()) {
         return Core::Result<GameInfo>::failure(
             GameErrors::gameInfoNotFound(
-                QStringLiteral("GameInfo file does not exist"),
+                QCoreApplication::translate("GameInfoParser", "GameInfo file does not exist"),
                 gameInfoPath.toString()),
-            QStringLiteral("GameInfo parsing failed"));
+            QCoreApplication::translate("GameInfoParser", "GameInfo parsing failed"));
     }
 
     Core::KeyValues::KeyValuesDocument doc;
@@ -152,7 +153,7 @@ Core::Result<GameInfo> GameInfoParser::parse(
     if (!loadResult.isSuccess()) {
         return Core::Result<GameInfo>::failure(
             loadResult.error(),
-            QStringLiteral("Failed to load GameInfo"));
+            QCoreApplication::translate("GameInfoParser", "Failed to load GameInfo"));
     }
 
     return Core::Result<GameInfo>::success(createFromDocument(std::move(doc), gameInfoPath, engine));
@@ -166,7 +167,7 @@ Core::Result<GameInfo> GameInfoParser::parseFromString(
     if (!gameInfoPath.isEmpty() && !gameInfoPath.isValid()) {
         return Core::Result<GameInfo>::failure(
             Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("GameInfo path hint is invalid"),
+            QCoreApplication::translate("GameInfoParser", "GameInfo path hint is invalid"),
             gameInfoPath.toString());
     }
 
@@ -175,7 +176,7 @@ Core::Result<GameInfo> GameInfoParser::parseFromString(
     if (!loadResult.isSuccess()) {
         return Core::Result<GameInfo>::failure(
             loadResult.error(),
-            QStringLiteral("Failed to parse GameInfo content"));
+            QCoreApplication::translate("GameInfoParser", "Failed to parse GameInfo content"));
     }
 
     return Core::Result<GameInfo>::success(createFromDocument(std::move(doc), gameInfoPath, engine));

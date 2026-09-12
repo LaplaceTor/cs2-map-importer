@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Application/Common/ImportPrerequisiteService.h"
 
 #include <QDir>
@@ -34,7 +35,7 @@ Core::Result<ValidatedBaseImport> ImportPrerequisiteService::prepare(
     // Step 1: Cancellation check
     if (context.isCancelled()) {
         return Core::Result<ValidatedBaseImport>::cancelled(
-            QStringLiteral("Import cancelled before start"));
+            QCoreApplication::translate("ImportPrerequisiteService", "Import cancelled before start"));
     }
 
     // Step 2: Validate Source 1 directory
@@ -42,12 +43,12 @@ Core::Result<ValidatedBaseImport> ImportPrerequisiteService::prepare(
     if (trimmedS1Dir.isEmpty()) {
         return Core::Result<ValidatedBaseImport>::failure(
             Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("Source 1 game directory cannot be empty"));
+            QCoreApplication::translate("ImportPrerequisiteService", "Source 1 game directory cannot be empty"));
     }
     if (!QDir(trimmedS1Dir).exists()) {
         return Core::Result<ValidatedBaseImport>::failure(
             Core::Error::ErrorCode::FileNotFound,
-            QStringLiteral("Source 1 game directory does not exist"),
+            QCoreApplication::translate("ImportPrerequisiteService", "Source 1 game directory does not exist"),
             trimmedS1Dir);
     }
 
@@ -75,12 +76,12 @@ Core::Result<ValidatedBaseImport> ImportPrerequisiteService::prepare(
     if (trimmedCs2Dir.isEmpty()) {
         return Core::Result<ValidatedBaseImport>::failure(
             Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("CS2 base directory cannot be empty"));
+            QCoreApplication::translate("ImportPrerequisiteService", "CS2 base directory cannot be empty"));
     }
     if (!QDir(trimmedCs2Dir).exists()) {
         return Core::Result<ValidatedBaseImport>::failure(
             Core::Error::ErrorCode::FileNotFound,
-            QStringLiteral("CS2 base directory does not exist"),
+            QCoreApplication::translate("ImportPrerequisiteService", "CS2 base directory does not exist"),
             trimmedCs2Dir);
     }
 
@@ -89,7 +90,7 @@ Core::Result<ValidatedBaseImport> ImportPrerequisiteService::prepare(
     if (trimmedAddon.isEmpty()) {
         return Core::Result<ValidatedBaseImport>::failure(
             Core::Error::ErrorCode::InvalidArgument,
-            QStringLiteral("Target addon name cannot be empty"));
+            QCoreApplication::translate("ImportPrerequisiteService", "Target addon name cannot be empty"));
     }
 
     // Step 5: Coordinate VpkSignatureLeaseService
@@ -101,10 +102,10 @@ Core::Result<ValidatedBaseImport> ImportPrerequisiteService::prepare(
     if (leaseService) {
         auto leaseRes = leaseService->acquireLease(trimmedCs2Dir);
         if (!leaseRes.isSuccess()) {
-            context.warning(QStringLiteral("Could not acquire vpk.signatures lease at '%1': %2")
+            context.warning(QCoreApplication::translate("ImportPrerequisiteService", "Could not acquire vpk.signatures lease at '%1': %2")
                 .arg(trimmedCs2Dir, leaseRes.message()));
         } else {
-            context.info(QStringLiteral("Acquired vpk.signatures exclusive lease"));
+            context.info(QCoreApplication::translate("ImportPrerequisiteService", "Acquired vpk.signatures exclusive lease"));
         }
     }
 

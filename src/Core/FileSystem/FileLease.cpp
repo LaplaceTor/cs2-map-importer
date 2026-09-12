@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Core/FileSystem/FileLease.h"
 #include <QFileInfo>
 #include <QDir>
@@ -42,16 +43,16 @@ FileLeaseResult FileLease::acquireExclusive(const QString& filePath)
     release();
 
     if (filePath.isEmpty()) {
-        return {FileLeaseError::InvalidPath, QStringLiteral("File path is empty.")};
+        return {FileLeaseError::InvalidPath, QCoreApplication::translate("FileLease", "File path is empty.")};
     }
 
     QFileInfo info(filePath);
     if (!info.exists()) {
-        return {FileLeaseError::NotFound, QStringLiteral("File does not exist: %1").arg(filePath)};
+        return {FileLeaseError::NotFound, QCoreApplication::translate("FileLease", "File does not exist: %1").arg(filePath)};
     }
 
     if (!info.isFile()) {
-        return {FileLeaseError::InvalidPath, QStringLiteral("Path is not a regular file: %1").arg(filePath)};
+        return {FileLeaseError::InvalidPath, QCoreApplication::translate("FileLease", "Path is not a regular file: %1").arg(filePath)};
     }
 
     const QString nativePath = QDir::toNativeSeparators(info.absoluteFilePath());
@@ -94,7 +95,7 @@ FileLeaseResult FileLease::acquireExclusive(const QString& filePath)
             errorType = FileLeaseError::NotFound;
         }
 
-        const QString systemMsg = QStringLiteral("Failed to acquire exclusive handle on '%1' (Windows Error %2): %3")
+        const QString systemMsg = QCoreApplication::translate("FileLease", "Failed to acquire exclusive handle on '%1' (Windows Error %2): %3")
             .arg(nativePath)
             .arg(err)
             .arg(QString::fromLocal8Bit(std::system_category().message(err).c_str()).trimmed());

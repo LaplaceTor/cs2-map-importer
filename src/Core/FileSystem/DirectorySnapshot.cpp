@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "DirectorySnapshot.h"
 #include "Core/Error/Exception.h"
 #include "Core/Error/ErrorCode.h"
@@ -19,14 +20,14 @@ DirectorySnapshot DirectorySnapshot::capture(const QString& directoryPath) {
     if (snapshot.m_rootPath.isEmpty()) {
         throw Core::Error::Exception(
             Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("Cannot capture directory snapshot: Path is empty"));
+            QCoreApplication::translate("DirectorySnapshot", "Cannot capture directory snapshot: Path is empty"));
     }
 
     QDir dir(snapshot.m_rootPath);
     if (!dir.exists()) {
         throw Core::Error::Exception(
             Core::Error::ErrorCode::DirectoryNotFound,
-            QStringLiteral("Directory does not exist: %1").arg(snapshot.m_rootPath));
+            QCoreApplication::translate("DirectorySnapshot", "Directory does not exist: %1").arg(snapshot.m_rootPath));
     }
 
     QDirIterator it(snapshot.m_rootPath, QDir::Files | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
@@ -52,7 +53,7 @@ void DirectorySnapshot::checkSameRoot(const DirectorySnapshot& other) const {
     if (m_rootPath != other.m_rootPath) {
         throw Core::Error::Exception(
             Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("Cannot compare DirectorySnapshots from different root directories: '%1' vs '%2'")
+            QCoreApplication::translate("DirectorySnapshot", "Cannot compare DirectorySnapshots from different root directories: '%1' vs '%2'")
                 .arg(m_rootPath, other.m_rootPath));
     }
 }

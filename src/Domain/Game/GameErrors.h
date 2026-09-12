@@ -1,4 +1,5 @@
 #pragma once
+#include <QCoreApplication>
 #include "Core/Error/Error.h"
 #include "Core/Error/ErrorCode.h"
 #include <QString>
@@ -41,61 +42,61 @@ public:
     }
 
     static Core::Error::Error unsupportedGame(
-        const QString& message = QStringLiteral("Unsupported or unrecognised game type"),
+        const QString& message = QCoreApplication::translate("GameErrors", "Unsupported or unrecognised game type"),
         const QString& details = QString())
     {
         return make(GameErrorCode::UnsupportedGame,
-                    message.isEmpty() ? QStringLiteral("Unsupported or unrecognised game type") : message,
+                    message.isEmpty() ? QCoreApplication::translate("GameErrors", "Unsupported or unrecognised game type") : message,
                     details,
                     Core::Error::ErrorCode::NotSupported);
     }
 
     static Core::Error::Error gameInfoNotFound(
-        const QString& message = QStringLiteral("GameInfo file was not found"),
+        const QString& message = QCoreApplication::translate("GameErrors", "GameInfo file was not found"),
         const QString& details = QString())
     {
         return make(GameErrorCode::GameInfoNotFound,
-                    message.isEmpty() ? QStringLiteral("GameInfo file was not found") : message,
+                    message.isEmpty() ? QCoreApplication::translate("GameErrors", "GameInfo file was not found") : message,
                     details,
                     Core::Error::ErrorCode::FileNotFound);
     }
 
     static Core::Error::Error gameTypeMismatch(
-        const QString& message = QStringLiteral("Game configuration does not match expected game type"),
+        const QString& message = QCoreApplication::translate("GameErrors", "Game configuration does not match expected game type"),
         const QString& details = QString())
     {
         return make(GameErrorCode::GameTypeMismatch,
-                    message.isEmpty() ? QStringLiteral("Game configuration does not match expected game type") : message,
+                    message.isEmpty() ? QCoreApplication::translate("GameErrors", "Game configuration does not match expected game type") : message,
                     details,
                     Core::Error::ErrorCode::TypeMismatch);
     }
 
     static Core::Error::Error steamAppMismatch(
-        const QString& message = QStringLiteral("Steam AppID does not match expected game"),
+        const QString& message = QCoreApplication::translate("GameErrors", "Steam AppID does not match expected game"),
         const QString& details = QString())
     {
         return make(GameErrorCode::SteamAppMismatch,
-                    message.isEmpty() ? QStringLiteral("Steam AppID does not match expected game") : message,
+                    message.isEmpty() ? QCoreApplication::translate("GameErrors", "Steam AppID does not match expected game") : message,
                     details,
                     Core::Error::ErrorCode::TypeMismatch);
     }
 
     static Core::Error::Error invalidGameInstallation(
-        const QString& message = QStringLiteral("Invalid game installation structure"),
+        const QString& message = QCoreApplication::translate("GameErrors", "Invalid game installation structure"),
         const QString& details = QString())
     {
         return make(GameErrorCode::InvalidGameInstallation,
-                    message.isEmpty() ? QStringLiteral("Invalid game installation structure") : message,
+                    message.isEmpty() ? QCoreApplication::translate("GameErrors", "Invalid game installation structure") : message,
                     details,
                     Core::Error::ErrorCode::InvalidState);
     }
 
     static Core::Error::Error emptyCustomGameInfo(
-        const QString& message = QStringLiteral("Custom GameInfo is empty and has no valid gameinfo file path"),
+        const QString& message = QCoreApplication::translate("GameErrors", "Custom GameInfo is empty and has no valid gameinfo file path"),
         const QString& details = QString())
     {
         return make(GameErrorCode::EmptyCustomGameInfo,
-                    message.isEmpty() ? QStringLiteral("Custom GameInfo is empty and has no valid gameinfo file path") : message,
+                    message.isEmpty() ? QCoreApplication::translate("GameErrors", "Custom GameInfo is empty and has no valid gameinfo file path") : message,
                     details,
                     Core::Error::ErrorCode::TypeMismatch);
     }

@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "UI/Controllers/MainController.h"
 #include "UI/ViewModels/LogViewModel.h"
 #include <QGuiApplication>
@@ -43,8 +44,8 @@ void MainController::cancelAllOperations() {
 void MainController::setActiveTab(int tab) {
     if (m_isProcessing) {
         emit alertRequested(
-            QStringLiteral("Task in Progress"),
-            QStringLiteral("An operation is currently executing. You cannot change tabs until the current operation completes.")
+            QCoreApplication::translate("MainController", "Task in Progress"),
+            QCoreApplication::translate("MainController", "An operation is currently executing. You cannot change tabs until the current operation completes.")
         );
         return;
     }
@@ -98,8 +99,8 @@ void MainController::startImport() {
     }
     // Placeholder for WorkflowRunner integration in Stage 4
     emit alertRequested(
-        QStringLiteral("Feature in Development"),
-        QStringLiteral("Import execution will be connected in the upcoming Workflow integration stage.")
+        QCoreApplication::translate("MainController", "Feature in Development"),
+        QCoreApplication::translate("MainController", "Import execution will be connected in the upcoming Workflow integration stage.")
     );
 }
 
@@ -178,21 +179,21 @@ void MainController::startParticleImport(
 
                 if (result.isSuccess()) {
                     emit self->alertRequested(
-                        QStringLiteral("Particle Import Complete"),
+                        QCoreApplication::translate("MainController", "Particle Import Complete"),
                         result.message().isEmpty()
-                            ? QStringLiteral("All particles were successfully imported and compiled.")
+                            ? QCoreApplication::translate("MainController", "All particles were successfully imported and compiled.")
                             : result.message()
                     );
                 } else if (result.isCancelled()) {
                     emit self->alertRequested(
-                        QStringLiteral("Import Cancelled"),
-                        QStringLiteral("Particle import was cancelled by user.")
+                        QCoreApplication::translate("MainController", "Import Cancelled"),
+                        QCoreApplication::translate("MainController", "Particle import was cancelled by user.")
                     );
                 } else {
                     emit self->alertRequested(
-                        QStringLiteral("Particle Import Failed"),
+                        QCoreApplication::translate("MainController", "Particle Import Failed"),
                         result.message().isEmpty()
-                            ? QStringLiteral("An error occurred during particle import.")
+                            ? QCoreApplication::translate("MainController", "An error occurred during particle import.")
                             : result.message()
                     );
                 }
@@ -210,8 +211,8 @@ void MainController::stopImport() {
 void MainController::checkForUpdates() {
     // Placeholder for UpdateService integration in Stage 4
     emit alertRequested(
-        QStringLiteral("Check for Updates"),
-        QStringLiteral("You are currently running the latest development version (v%1).").arg(appVersion())
+        QCoreApplication::translate("MainController", "Check for Updates"),
+        QCoreApplication::translate("MainController", "You are currently running the latest development version (v%1).").arg(appVersion())
     );
 }
 

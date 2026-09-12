@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Domain/Package/PackArchive.h"
 
 #include <exception>
@@ -56,12 +57,12 @@ Core::Result<PackArchive> PackArchive::open(const Core::Path::FilesystemPath& ar
     if (archivePath.isEmpty() || !archivePath.isValid()) {
         return Core::Result<PackArchive>::failure(
             Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("pack archive path is empty or invalid"));
+            QCoreApplication::translate("PackArchive", "pack archive path is empty or invalid"));
     }
     if (!archivePath.exists()) {
         return Core::Result<PackArchive>::failure(
             Core::Error::ErrorCode::FileNotFound,
-            QStringLiteral("pack archive file not found"),
+            QCoreApplication::translate("PackArchive", "pack archive file not found"),
             archivePath.toString());
     }
 
@@ -71,7 +72,7 @@ Core::Result<PackArchive> PackArchive::open(const Core::Path::FilesystemPath& ar
     if (!packFile) {
         return Core::Result<PackArchive>::failure(
             Core::Error::ErrorCode::InvalidFile,
-            QStringLiteral("file is not a supported pack archive or failed to parse"),
+            QCoreApplication::translate("PackArchive", "file is not a supported pack archive or failed to parse"),
             archivePath.toString());
     }
 
@@ -89,7 +90,7 @@ Core::Result<std::vector<QString>> PackArchive::listEntries() const {
         if (!m_packFile) {
             return Core::Result<std::vector<QString>>::failure(
                 Core::Error::ErrorCode::InvalidState,
-                QStringLiteral("pack archive is not open"));
+                QCoreApplication::translate("PackArchive", "pack archive is not open"));
         }
 
         std::vector<QString> entries;
@@ -112,14 +113,14 @@ Core::Result<std::vector<std::byte>> PackArchive::readEntry(const QString& entry
         if (!m_packFile) {
             return Core::Result<std::vector<std::byte>>::failure(
                 Core::Error::ErrorCode::InvalidState,
-                QStringLiteral("pack archive is not open"));
+                QCoreApplication::translate("PackArchive", "pack archive is not open"));
         }
 
         auto data = m_packFile->readEntry(normalizeEntryPath(entryPath).toStdString());
         if (!data) {
             return Core::Result<std::vector<std::byte>>::failure(
                 Core::Error::ErrorCode::FileNotFound,
-                QStringLiteral("entry not found in pack archive"),
+                QCoreApplication::translate("PackArchive", "entry not found in pack archive"),
                 entryPath);
         }
         return Core::Result<std::vector<std::byte>>::success(std::move(*data));
@@ -131,19 +132,19 @@ Core::Result<void> PackArchive::extractEntryToFile(const QString& entryPath, con
         if (!m_packFile) {
             return Core::Result<void>::failure(
                 Core::Error::ErrorCode::InvalidState,
-                QStringLiteral("pack archive is not open"));
+                QCoreApplication::translate("PackArchive", "pack archive is not open"));
         }
         if (destFile.isEmpty() || !destFile.isValid()) {
             return Core::Result<void>::failure(
                 Core::Error::ErrorCode::InvalidPath,
-                QStringLiteral("destination file path is empty or invalid"));
+                QCoreApplication::translate("PackArchive", "destination file path is empty or invalid"));
         }
 
         const QString normalized = normalizeEntryPath(entryPath);
         if (!m_packFile->hasEntry(normalized.toStdString())) {
             return Core::Result<void>::failure(
                 Core::Error::ErrorCode::FileNotFound,
-                QStringLiteral("entry not found in pack archive"),
+                QCoreApplication::translate("PackArchive", "entry not found in pack archive"),
                 entryPath);
         }
 
@@ -151,7 +152,7 @@ Core::Result<void> PackArchive::extractEntryToFile(const QString& entryPath, con
         if (!m_packFile->extractEntry(normalized.toStdString(), destFile.toString().toStdString())) {
             return Core::Result<void>::failure(
                 Core::Error::ErrorCode::WriteFailed,
-                QStringLiteral("failed to extract entry to destination file"),
+                QCoreApplication::translate("PackArchive", "failed to extract entry to destination file"),
                 destFile.toString());
         }
         return Core::Result<void>::success();
@@ -163,19 +164,19 @@ Core::Result<void> PackArchive::extractAllToDirectory(const Core::Path::Filesyst
         if (!m_packFile) {
             return Core::Result<void>::failure(
                 Core::Error::ErrorCode::InvalidState,
-                QStringLiteral("pack archive is not open"));
+                QCoreApplication::translate("PackArchive", "pack archive is not open"));
         }
         if (destDir.isEmpty() || !destDir.isValid()) {
             return Core::Result<void>::failure(
                 Core::Error::ErrorCode::InvalidPath,
-                QStringLiteral("destination directory path is empty or invalid"));
+                QCoreApplication::translate("PackArchive", "destination directory path is empty or invalid"));
         }
 
         // false: extract directly below destDir instead of a pack-name subfolder.
         if (!m_packFile->extractAll(destDir.toString().toStdString(), false)) {
             return Core::Result<void>::failure(
                 Core::Error::ErrorCode::WriteFailed,
-                QStringLiteral("failed to extract one or more entries"),
+                QCoreApplication::translate("PackArchive", "failed to extract one or more entries"),
                 destDir.toString());
         }
         return Core::Result<void>::success();

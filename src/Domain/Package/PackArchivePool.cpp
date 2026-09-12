@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Domain/Package/PackArchivePool.h"
 
 #include <utility>
@@ -21,7 +22,7 @@ Core::Result<std::shared_ptr<PackArchive>> PackArchivePool::getOrOpen(const Core
     if (archivePath.isEmpty() || !archivePath.isValid()) {
         return Core::Result<std::shared_ptr<PackArchive>>::failure(
             Core::Error::ErrorCode::InvalidPath,
-            QStringLiteral("pack archive path is empty or invalid"));
+            QCoreApplication::translate("PackArchivePool", "pack archive path is empty or invalid"));
     }
 
     const QString normalizedKey = archivePath.toString().toLower();

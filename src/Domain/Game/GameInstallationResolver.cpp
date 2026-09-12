@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "Domain/Game/GameInstallationResolver.h"
 #include "Domain/Game/GameErrors.h"
 #include "Domain/Game/GameDefinition.h"
@@ -96,30 +97,30 @@ Core::Result<ResolvedGameInstallation> GameInstallationResolver::resolveSource1(
     if (!directory.isValid() || directory.isEmpty()) {
         return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::invalidPath(
-                QStringLiteral("Source 1 directory path is empty or invalid"),
+                QCoreApplication::translate("GameInstallationResolver", "Source 1 directory path is empty or invalid"),
                 directory.toString()),
-            QStringLiteral("Source 1 directory resolution failed"));
+            QCoreApplication::translate("GameInstallationResolver", "Source 1 directory resolution failed"));
     }
     if (!directory.exists()) {
         return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::directoryNotFound(
-                QStringLiteral("Source 1 directory does not exist"),
+                QCoreApplication::translate("GameInstallationResolver", "Source 1 directory does not exist"),
                 directory.toString()),
-            QStringLiteral("Source 1 directory resolution failed"));
+            QCoreApplication::translate("GameInstallationResolver", "Source 1 directory resolution failed"));
     }
     if (!directory.isDirectory()) {
         return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::invalidPath(
-                QStringLiteral("Source 1 path is not a directory"),
+                QCoreApplication::translate("GameInstallationResolver", "Source 1 path is not a directory"),
                 directory.toString()),
-            QStringLiteral("Source 1 directory resolution failed"));
+            QCoreApplication::translate("GameInstallationResolver", "Source 1 directory resolution failed"));
     }
 
     auto infoResult = GameValidator::validateDirectory(directory, type);
     if (!infoResult.isSuccess()) {
         return Core::Result<ResolvedGameInstallation>::failure(
             infoResult.error(),
-            QStringLiteral("Source 1 directory resolution failed"));
+            QCoreApplication::translate("GameInstallationResolver", "Source 1 directory resolution failed"));
     }
 
     return createResolved(type, directory, infoResult.value());
@@ -132,16 +133,16 @@ Core::Result<ResolvedGameInstallation> GameInstallationResolver::resolveSource2(
     if (!directory.isValid() || directory.isEmpty()) {
         return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::invalidPath(
-                QStringLiteral("Source 2 directory path is empty or invalid"),
+                QCoreApplication::translate("GameInstallationResolver", "Source 2 directory path is empty or invalid"),
                 directory.toString()),
-            QStringLiteral("Source 2 directory resolution failed"));
+            QCoreApplication::translate("GameInstallationResolver", "Source 2 directory resolution failed"));
     }
     if (!directory.exists()) {
         return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::directoryNotFound(
-                QStringLiteral("Source 2 directory does not exist"),
+                QCoreApplication::translate("GameInstallationResolver", "Source 2 directory does not exist"),
                 directory.toString()),
-            QStringLiteral("Source 2 directory resolution failed"));
+            QCoreApplication::translate("GameInstallationResolver", "Source 2 directory resolution failed"));
     }
 
     const auto* def = GameRegistry::findByType(type);
@@ -160,9 +161,9 @@ Core::Result<ResolvedGameInstallation> GameInstallationResolver::resolveSource2(
         } else {
             return Core::Result<ResolvedGameInstallation>::failure(
                 Core::Error::Error::invalidFile(
-                    QStringLiteral("Target file is not a Source 2 gameinfo.gi"),
+                    QCoreApplication::translate("GameInstallationResolver", "Target file is not a Source 2 gameinfo.gi"),
                     directory.toString()),
-                QStringLiteral("Source 2 directory resolution failed"));
+                QCoreApplication::translate("GameInstallationResolver", "Source 2 directory resolution failed"));
         }
     } else if (directory.isDirectory()) {
         // 1. If a specific Source 2 definition was given, check its expected modSubdirectory and gameInfoFileName
@@ -188,7 +189,7 @@ Core::Result<ResolvedGameInstallation> GameInstallationResolver::resolveSource2(
             if (gameDir.exists()) {
                 const auto subdirs = gameDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
                 for (const auto& subdir : subdirs) {
-                    Core::Path::FilesystemPath candidateGi(gameDir.filePath(subdir + QStringLiteral("/gameinfo.gi")));
+                    Core::Path::FilesystemPath candidateGi(gameDir.filePath(subdir + QCoreApplication::translate("GameInstallationResolver", "/gameinfo.gi")));
                     if (candidateGi.exists() && candidateGi.isFile()) {
                         giPath = candidateGi;
                         candidateBaseDir = directory;
@@ -211,16 +212,16 @@ Core::Result<ResolvedGameInstallation> GameInstallationResolver::resolveSource2(
     if (!giPath.exists() || !giPath.isFile()) {
         return Core::Result<ResolvedGameInstallation>::failure(
             GameErrors::gameInfoNotFound(
-                QStringLiteral("Could not locate gameinfo.gi in Source 2 structure"),
+                QCoreApplication::translate("GameInstallationResolver", "Could not locate gameinfo.gi in Source 2 structure"),
                 directory.toString()),
-            QStringLiteral("Source 2 directory resolution failed"));
+            QCoreApplication::translate("GameInstallationResolver", "Source 2 directory resolution failed"));
     }
 
     auto parseResult = GameInfoParser::parse(giPath, EngineType::Source2);
     if (!parseResult.isSuccess()) {
         return Core::Result<ResolvedGameInstallation>::failure(
             parseResult.error(),
-            QStringLiteral("Failed to parse Source 2 gameinfo.gi"));
+            QCoreApplication::translate("GameInstallationResolver", "Failed to parse Source 2 gameinfo.gi"));
     }
 
     const auto& optInfo = parseResult.value();
@@ -232,7 +233,7 @@ Core::Result<ResolvedGameInstallation> GameInstallationResolver::resolveSource2(
         if (!valRes.isSuccess()) {
             return Core::Result<ResolvedGameInstallation>::failure(
                 valRes.error(),
-                QStringLiteral("Source 2 gameinfo validation failed"));
+                QCoreApplication::translate("GameInstallationResolver", "Source 2 gameinfo validation failed"));
         }
         resolvedType = type;
     }
@@ -246,16 +247,16 @@ Core::Result<ResolvedGameInstallation> GameInstallationResolver::inspectGameInfo
     if (!path.isValid() || path.isEmpty()) {
         return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::invalidPath(
-                QStringLiteral("GameInfo path is empty or invalid"),
+                QCoreApplication::translate("GameInstallationResolver", "GameInfo path is empty or invalid"),
                 path.toString()),
-            QStringLiteral("GameInfo inspection failed"));
+            QCoreApplication::translate("GameInstallationResolver", "GameInfo inspection failed"));
     }
     if (!path.exists()) {
         return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::fileNotFound(
-                QStringLiteral("GameInfo path does not exist"),
+                QCoreApplication::translate("GameInstallationResolver", "GameInfo path does not exist"),
                 path.toString()),
-            QStringLiteral("GameInfo inspection failed"));
+            QCoreApplication::translate("GameInstallationResolver", "GameInfo inspection failed"));
     }
 
     Core::Path::FilesystemPath actualPath = path;
@@ -273,7 +274,7 @@ Core::Result<ResolvedGameInstallation> GameInstallationResolver::inspectGameInfo
             if (gameDir.exists()) {
                 const auto subdirs = gameDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
                 for (const auto& subdir : subdirs) {
-                    Core::Path::FilesystemPath candidateGi(gameDir.filePath(subdir + QStringLiteral("/gameinfo.gi")));
+                    Core::Path::FilesystemPath candidateGi(gameDir.filePath(subdir + QCoreApplication::translate("GameInstallationResolver", "/gameinfo.gi")));
                     if (candidateGi.exists() && candidateGi.isFile()) {
                         actualPath = candidateGi;
                         break;
@@ -285,7 +286,7 @@ Core::Result<ResolvedGameInstallation> GameInstallationResolver::inspectGameInfo
                 QDir baseDir(actualPath.toString());
                 const auto subdirs = baseDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
                 for (const auto& subdir : subdirs) {
-                    Core::Path::FilesystemPath candidateTxt(baseDir.filePath(subdir + QStringLiteral("/gameinfo.txt")));
+                    Core::Path::FilesystemPath candidateTxt(baseDir.filePath(subdir + QCoreApplication::translate("GameInstallationResolver", "/gameinfo.txt")));
                     if (candidateTxt.exists() && candidateTxt.isFile()) {
                         actualPath = candidateTxt;
                         break;
@@ -295,9 +296,9 @@ Core::Result<ResolvedGameInstallation> GameInstallationResolver::inspectGameInfo
             if (!actualPath.isFile()) {
                 return Core::Result<ResolvedGameInstallation>::failure(
                     GameErrors::gameInfoNotFound(
-                        QStringLiteral("No gameinfo.txt or gameinfo.gi found in directory"),
+                        QCoreApplication::translate("GameInstallationResolver", "No gameinfo.txt or gameinfo.gi found in directory"),
                         path.toString()),
-                    QStringLiteral("GameInfo inspection failed"));
+                    QCoreApplication::translate("GameInstallationResolver", "GameInfo inspection failed"));
             }
         }
     }
@@ -305,9 +306,9 @@ Core::Result<ResolvedGameInstallation> GameInstallationResolver::inspectGameInfo
     if (!actualPath.exists() || !actualPath.isFile()) {
         return Core::Result<ResolvedGameInstallation>::failure(
             GameErrors::gameInfoNotFound(
-                QStringLiteral("GameInfo file not found"),
+                QCoreApplication::translate("GameInstallationResolver", "GameInfo file not found"),
                 actualPath.toString()),
-            QStringLiteral("GameInfo inspection failed"));
+            QCoreApplication::translate("GameInstallationResolver", "GameInfo inspection failed"));
     }
 
     bool isGi = (actualPath.extension().compare(QStringLiteral("gi"), Qt::CaseInsensitive) == 0);
@@ -317,7 +318,7 @@ Core::Result<ResolvedGameInstallation> GameInstallationResolver::inspectGameInfo
     if (!parseResult.isSuccess()) {
         return Core::Result<ResolvedGameInstallation>::failure(
             parseResult.error(),
-            QStringLiteral("Failed to parse GameInfo file"));
+            QCoreApplication::translate("GameInstallationResolver", "Failed to parse GameInfo file"));
     }
 
     const auto& optInfo = parseResult.value();
@@ -335,16 +336,16 @@ Core::Result<ResolvedGameInstallation> GameInstallationResolver::resolveGameDire
     if (!directory.isValid() || directory.isEmpty()) {
         return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::invalidPath(
-                QStringLiteral("Directory path is empty or invalid"),
+                QCoreApplication::translate("GameInstallationResolver", "Directory path is empty or invalid"),
                 directory.toString()),
-            QStringLiteral("Game directory resolution failed"));
+            QCoreApplication::translate("GameInstallationResolver", "Game directory resolution failed"));
     }
     if (!directory.exists()) {
         return Core::Result<ResolvedGameInstallation>::failure(
             Core::Error::Error::directoryNotFound(
-                QStringLiteral("Directory does not exist"),
+                QCoreApplication::translate("GameInstallationResolver", "Directory does not exist"),
                 directory.toString()),
-            QStringLiteral("Game directory resolution failed"));
+            QCoreApplication::translate("GameInstallationResolver", "Game directory resolution failed"));
     }
 
     const auto* def = GameRegistry::findByType(type);

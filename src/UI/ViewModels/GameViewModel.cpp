@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include "UI/ViewModels/GameViewModel.h"
 #include <QQmlEngine>
 
@@ -95,20 +96,20 @@ void GameViewModel::onVpkLeaseStatusChanged(
     switch (status) {
     case Application::Environment::VpkSignatureLeaseStatus::AlreadyInUse:
         emit vpkSignatureOccupied(
-            QStringLiteral("Counter-Strike 2 is Running"),
-            QStringLiteral("vpk.signatures is currently in use by Counter-Strike 2 or another application.\n\nPlease close the occupying application and click Retry, or Exit to quit.")
+            QCoreApplication::translate("GameViewModel", "Counter-Strike 2 is Running"),
+            QCoreApplication::translate("GameViewModel", "vpk.signatures is currently in use by Counter-Strike 2 or another application.\n\nPlease close the occupying application and click Retry, or Exit to quit.")
         );
         break;
     case Application::Environment::VpkSignatureLeaseStatus::AccessDenied:
         emit alertRequested(
-            QStringLiteral("Access Denied"),
-            QStringLiteral("Permission denied when trying to access vpk.signatures:\n%1\n\nPlease check file permissions or run as administrator.").arg(filePath)
+            QCoreApplication::translate("GameViewModel", "Access Denied"),
+            QCoreApplication::translate("GameViewModel", "Permission denied when trying to access vpk.signatures:\n%1\n\nPlease check file permissions or run as administrator.").arg(filePath)
         );
         break;
     case Application::Environment::VpkSignatureLeaseStatus::Failed:
         emit alertRequested(
-            QStringLiteral("File Lease Failed"),
-            QStringLiteral("Failed to acquire exclusive lease on vpk.signatures:\n%1").arg(systemMessage)
+            QCoreApplication::translate("GameViewModel", "File Lease Failed"),
+            QCoreApplication::translate("GameViewModel", "Failed to acquire exclusive lease on vpk.signatures:\n%1").arg(systemMessage)
         );
         break;
     case Application::Environment::VpkSignatureLeaseStatus::Acquired:
@@ -268,11 +269,11 @@ void GameViewModel::selectS1Folder(const QString& pathOrUrl) {
                 emit s1ValidityChanged();
 
                 QString errorDetail = validated.message().isEmpty()
-                    ? QStringLiteral("The selected directory is not a valid installation for the selected game.\nPlease verify that it contains the expected game files and gameinfo.txt.")
+                    ? QCoreApplication::translate("GameViewModel", "The selected directory is not a valid installation for the selected game.\nPlease verify that it contains the expected game files and gameinfo.txt.")
                     : validated.message();
 
                 emit alertRequested(
-                    QStringLiteral("Invalid Source 1 Installation"),
+                    QCoreApplication::translate("GameViewModel", "Invalid Source 1 Installation"),
                     errorDetail
                 );
             }
@@ -303,11 +304,11 @@ void GameViewModel::selectS2Folder(const QString& pathOrUrl) {
                 emit s2ValidityChanged();
 
                 QString errorDetail = validated.message().isEmpty()
-                    ? QStringLiteral("The selected folder is not a valid Source 2 installation.\nPlease ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.")
+                    ? QCoreApplication::translate("GameViewModel", "The selected folder is not a valid Source 2 installation.\nPlease ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.")
                     : validated.message();
 
                 emit alertRequested(
-                    QStringLiteral("Invalid Source 2 Installation"),
+                    QCoreApplication::translate("GameViewModel", "Invalid Source 2 Installation"),
                     errorDetail
                 );
             }
@@ -323,9 +324,9 @@ void GameViewModel::validateS1InSteam() {
     auto res = m_envService->validateGameInSteam(target);
     if (!res.isSuccess()) {
         emit alertRequested(
-            QStringLiteral("Steam Validation Unavailable"),
+            QCoreApplication::translate("GameViewModel", "Steam Validation Unavailable"),
             res.message().isEmpty()
-                ? QStringLiteral("Could not initiate Steam validation. Make sure Steam is running and the game is installed.")
+                ? QCoreApplication::translate("GameViewModel", "Could not initiate Steam validation. Make sure Steam is running and the game is installed.")
                 : res.message()
         );
     }
@@ -339,9 +340,9 @@ void GameViewModel::validateS2InSteam() {
     auto res = m_envService->validateGameInSteam(target);
     if (!res.isSuccess()) {
         emit alertRequested(
-            QStringLiteral("Steam Validation Unavailable"),
+            QCoreApplication::translate("GameViewModel", "Steam Validation Unavailable"),
             res.message().isEmpty()
-                ? QStringLiteral("Could not initiate Steam validation for Source 2. Make sure Steam is running and Counter-Strike 2 is installed.")
+                ? QCoreApplication::translate("GameViewModel", "Could not initiate Steam validation for Source 2. Make sure Steam is running and Counter-Strike 2 is installed.")
                 : res.message()
         );
     }
