@@ -73,6 +73,30 @@ qt_add_library(cs2importer_domain STATIC
     Audio/SoundscapeToSoundEventConverter.cpp
     Audio/SoundEventKv3Writer.h
     Audio/SoundEventKv3Writer.cpp
+    Material/TextureImage.h
+    Material/TextureImage.cpp
+    Material/TgaCodec.h
+    Material/TgaCodec.cpp
+    Material/TextureIO.h
+    Material/TextureIO.cpp
+    Material/TextureProcess/ColorMath.h
+    Material/TextureProcess/TextureBlur.h
+    Material/TextureProcess/TextureBlur.cpp
+    Material/TextureProcess/TexturePresets.h
+    Material/TextureProcess/HeightGenerator.h
+    Material/TextureProcess/HeightGenerator.cpp
+    Material/TextureProcess/NormalGenerator.h
+    Material/TextureProcess/NormalGenerator.cpp
+    Material/TextureProcess/AoGenerator.h
+    Material/TextureProcess/AoGenerator.cpp
+    Material/TextureProcess/MetallicGenerator.h
+    Material/TextureProcess/MetallicGenerator.cpp
+    Material/TextureProcess/SmoothnessGenerator.h
+    Material/TextureProcess/SmoothnessGenerator.cpp
+    Material/TextureProcess/ChannelPacker.h
+    Material/TextureProcess/ChannelPacker.cpp
+    Material/TextureProcess/DiffuseEditor.h
+    Material/TextureProcess/DiffuseEditor.cpp
     Material/VtfConverter.h
     Material/VtfConverter.cpp
     Package/BspPackExtractor.h
@@ -96,6 +120,9 @@ qt_add_library(cs2importer_domain STATIC
 target_link_libraries(cs2importer_domain PUBLIC
     cs2importer_core
     Qt6::Core
+    # Qt6::Gui is required by the Material texture IO (QImageReader/QImageWriter);
+    # it is a Qt module, not a project layer, so linking it here breaks no boundary.
+    Qt6::Gui
 )
 
 # sourcepp stays an implementation detail: no sourcepp types in Domain public headers.

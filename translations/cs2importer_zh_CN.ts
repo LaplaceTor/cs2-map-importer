@@ -2,16 +2,40 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="zh_CN" sourcelanguage="en">
 <context>
+    <name>AoGenerator</name>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/AoGenerator.cpp" line="24"/>
+        <source>AO generation requires a valid normal image (3 channels)</source>
+        <translation>环境光遮蔽生成需要有效的法线图像（3 通道）</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/AoGenerator.cpp" line="30"/>
+        <source>iteration and sample counts must be positive</source>
+        <translation>迭代数与采样数必须为正</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/AoGenerator.cpp" line="36"/>
+        <source>height texture is not valid</source>
+        <translation>高度纹理无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/AoGenerator.cpp" line="52"/>
+        <location filename="../src/Domain/Material/TextureProcess/AoGenerator.cpp" line="164"/>
+        <source>failed to allocate working buffers</source>
+        <translation>工作缓冲区分配失败</translation>
+    </message>
+</context>
+<context>
     <name>AssetExtractor</name>
     <message>
         <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="120"/>
         <source>Companion extraction failed for &apos;%1&apos;: %2</source>
-        <translation>提取伴随文件失败：'%1'：%2</translation>
+        <translation>提取伴随文件失败：&apos;%1&apos;：%2</translation>
     </message>
     <message>
         <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="126"/>
         <source>Companion &apos;%1&apos; not present in target &apos;%2&apos;</source>
-        <translation>目标 '%2' 中不存在伴随文件 '%1'</translation>
+        <translation>目标 &apos;%2&apos; 中不存在伴随文件 &apos;%1&apos;</translation>
     </message>
     <message>
         <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="147"/>
@@ -31,22 +55,22 @@
     <message>
         <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="174"/>
         <source>Asset extraction failed while searching &apos;%1&apos;</source>
-        <translation>在 '%1' 中搜索资源时提取失败</translation>
+        <translation>在 &apos;%1&apos; 中搜索资源时提取失败</translation>
     </message>
     <message>
         <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="178"/>
         <source>Asset &apos;%1&apos; not found in target &apos;%2&apos;</source>
-        <translation>目标 '%2' 中未找到资源 '%1'</translation>
+        <translation>目标 &apos;%2&apos; 中未找到资源 &apos;%1&apos;</translation>
     </message>
     <message>
         <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="185"/>
         <source>Extracted &apos;%1&apos; from &apos;%2&apos;</source>
-        <translation>已从 '%2' 提取 '%1'</translation>
+        <translation>已从 &apos;%2&apos; 提取 &apos;%1&apos;</translation>
     </message>
     <message>
         <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="198"/>
         <source>Asset &apos;%1&apos; was not found in any search target</source>
-        <translation>在任何搜索目标中都未找到资源 '%1'</translation>
+        <translation>在任何搜索目标中都未找到资源 &apos;%1&apos;</translation>
     </message>
 </context>
 <context>
@@ -65,12 +89,12 @@
         <location filename="../src/Application/Async/AsyncTaskRunner.h" line="374"/>
         <location filename="../src/Application/Async/AsyncTaskRunner.h" line="381"/>
         <source>Task &apos;%1&apos; failed</source>
-        <translation>任务 '%1' 失败</translation>
+        <translation>任务 &apos;%1&apos; 失败</translation>
     </message>
     <message>
         <location filename="../src/Application/Async/AsyncTaskRunner.h" line="311"/>
         <source>Failed to create task context for &apos;%1&apos; (invalid parentTaskId: %2)</source>
-        <translation>无法为 '%1' 创建任务上下文（无效的 parentTaskId：%2）</translation>
+        <translation>无法为 &apos;%1&apos; 创建任务上下文（无效的 parentTaskId：%2）</translation>
     </message>
     <message>
         <location filename="../src/Application/Async/AsyncTaskRunner.h" line="386"/>
@@ -246,7 +270,7 @@
     <message>
         <location filename="../src/Workflow/Common/BspEmbeddedExtractor.cpp" line="46"/>
         <source>Extracted %1 embedded file(s) from &apos;%2&apos; to &apos;%3&apos;</source>
-        <translation>已从 '%2' 提取 %1 个内嵌文件到 '%3'</translation>
+        <translation>已从 &apos;%2&apos; 提取 %1 个内嵌文件到 &apos;%3&apos;</translation>
     </message>
     <message>
         <location filename="../src/Workflow/Common/BspEmbeddedExtractor.cpp" line="50"/>
@@ -256,7 +280,7 @@
     <message>
         <location filename="../src/Workflow/Common/BspEmbeddedExtractor.cpp" line="53"/>
         <source>Failed to extract embedded files from &apos;%1&apos;: %2</source>
-        <translation>从 '%1' 提取内嵌文件失败：%2</translation>
+        <translation>从 &apos;%1&apos; 提取内嵌文件失败：%2</translation>
     </message>
 </context>
 <context>
@@ -299,6 +323,52 @@
     </message>
 </context>
 <context>
+    <name>ChannelPacker</name>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/ChannelPacker.cpp" line="70"/>
+        <source>at least one channel must be assigned</source>
+        <translation>至少需要分配一个通道</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/ChannelPacker.cpp" line="83"/>
+        <source>a packed source image is not valid</source>
+        <translation>打包的源图像无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/ChannelPacker.cpp" line="92"/>
+        <source>packed source images must share the same dimensions</source>
+        <translation>打包的源图像必须尺寸一致</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/ChannelPacker.cpp" line="107"/>
+        <source>a source image lacks the requested channel</source>
+        <translation>源图像缺少所请求的通道</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/ChannelPacker.cpp" line="117"/>
+        <source>failed to allocate packed output</source>
+        <translation>打包输出分配失败</translation>
+    </message>
+</context>
+<context>
+    <name>DiffuseEditor</name>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/DiffuseEditor.cpp" line="47"/>
+        <source>diffuse editing requires a valid color image (3-4 channels)</source>
+        <translation>漫反射编辑需要有效的颜色图像（3-4 通道）</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/DiffuseEditor.cpp" line="53"/>
+        <source>blur sizes must be positive</source>
+        <translation>模糊尺寸必须为正</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/DiffuseEditor.cpp" line="90"/>
+        <source>failed to allocate working buffers</source>
+        <translation>工作缓冲区分配失败</translation>
+    </message>
+</context>
+<context>
     <name>DirectorySnapshot</name>
     <message>
         <location filename="../src/Core/FileSystem/DirectorySnapshot.cpp" line="23"/>
@@ -313,7 +383,7 @@
     <message>
         <location filename="../src/Core/FileSystem/DirectorySnapshot.cpp" line="56"/>
         <source>Cannot compare DirectorySnapshots from different root directories: &apos;%1&apos; vs &apos;%2&apos;</source>
-        <translation>无法比较来自不同根目录的目录快照：'%1' 与 '%2'</translation>
+        <translation>无法比较来自不同根目录的目录快照：&apos;%1&apos; 与 &apos;%2&apos;</translation>
     </message>
 </context>
 <context>
@@ -498,7 +568,7 @@
     <message>
         <location filename="../src/Core/FileSystem/FileLease.cpp" line="98"/>
         <source>Failed to acquire exclusive handle on &apos;%1&apos; (Windows Error %2): %3</source>
-        <translation>获取 '%1' 的独占句柄失败（Windows 错误 %2）：%3</translation>
+        <translation>获取 &apos;%1&apos; 的独占句柄失败（Windows 错误 %2）：%3</translation>
     </message>
 </context>
 <context>
@@ -541,12 +611,12 @@
     <message>
         <location filename="../src/Core/FileSystem/FileSystem.cpp" line="131"/>
         <source>Cannot copy directory: Destination is inside source directory (%1 -&gt; %2)</source>
-        <translation>无法复制目录：目标位于源目录内部（%1 -> %2）</translation>
+        <translation>无法复制目录：目标位于源目录内部（%1 -&gt; %2）</translation>
     </message>
     <message>
         <location filename="../src/Core/FileSystem/FileSystem.cpp" line="136"/>
         <source>Cannot copy directory: Source is inside destination directory (%1 -&gt; %2)</source>
-        <translation>无法复制目录：源位于目标目录内部（%1 -> %2）</translation>
+        <translation>无法复制目录：源位于目标目录内部（%1 -&gt; %2）</translation>
     </message>
     <message>
         <location filename="../src/Core/FileSystem/FileSystem.cpp" line="148"/>
@@ -576,12 +646,12 @@
     <message>
         <location filename="../src/Core/FileSystem/FileSystem.cpp" line="212"/>
         <source>Cannot move directory: Destination is inside source directory (%1 -&gt; %2)</source>
-        <translation>无法移动目录：目标位于源目录内部（%1 -> %2）</translation>
+        <translation>无法移动目录：目标位于源目录内部（%1 -&gt; %2）</translation>
     </message>
     <message>
         <location filename="../src/Core/FileSystem/FileSystem.cpp" line="217"/>
         <source>Cannot move directory: Source is inside destination directory (%1 -&gt; %2)</source>
-        <translation>无法移动目录：源位于目标目录内部（%1 -> %2）</translation>
+        <translation>无法移动目录：源位于目标目录内部（%1 -&gt; %2）</translation>
     </message>
     <message>
         <location filename="../src/Core/FileSystem/FileSystem.cpp" line="227"/>
@@ -1157,6 +1227,36 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
     </message>
 </context>
 <context>
+    <name>HeightGenerator</name>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="68"/>
+        <source>height-from-diffuse requires a valid color image (3-4 channels)</source>
+        <translation>从漫反射生成高度需要有效的颜色图像（3-4 通道）</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="82"/>
+        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="167"/>
+        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="251"/>
+        <source>failed to allocate working buffers</source>
+        <translation>工作缓冲区分配失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="177"/>
+        <source>band weights must not all be zero</source>
+        <translation>频段权重不能全为零</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="230"/>
+        <source>height-from-normal requires a valid normal image (3 channels)</source>
+        <translation>从法线生成高度需要有效的法线图像（3 通道）</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="236"/>
+        <source>iteration count must be positive</source>
+        <translation>迭代数必须为正</translation>
+    </message>
+</context>
+<context>
     <name>ImportContext</name>
     <message>
         <location filename="../src/Workflow/Common/ImportContext.h" line="49"/>
@@ -1209,7 +1309,7 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
     <message>
         <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="105"/>
         <source>Could not acquire vpk.signatures lease at &apos;%1&apos;: %2</source>
-        <translation>无法获取 '%1' 的 vpk.signatures 租约：%2</translation>
+        <translation>无法获取 &apos;%1&apos; 的 vpk.signatures 租约：%2</translation>
     </message>
     <message>
         <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="108"/>
@@ -1245,12 +1345,12 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
     <message>
         <location filename="../src/Core/KeyValues/KeyValuesParser.cpp" line="26"/>
         <source>Unexpected &apos;}&apos; at top level</source>
-        <translation>顶层出现意外的 '}'</translation>
+        <translation>顶层出现意外的 &apos;}&apos;</translation>
     </message>
     <message>
         <location filename="../src/Core/KeyValues/KeyValuesParser.cpp" line="33"/>
         <source>Unexpected &apos;{&apos; without a preceding key</source>
-        <translation>出现意外的 '{'（缺少前置键名）</translation>
+        <translation>出现意外的 &apos;{&apos;（缺少前置键名）</translation>
     </message>
     <message>
         <location filename="../src/Core/KeyValues/KeyValuesParser.cpp" line="52"/>
@@ -1265,12 +1365,12 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
     <message>
         <location filename="../src/Core/KeyValues/KeyValuesParser.cpp" line="100"/>
         <source>Unexpected &apos;{&apos; inside section</source>
-        <translation>节内部出现意外的 '{'</translation>
+        <translation>节内部出现意外的 &apos;{&apos;</translation>
     </message>
     <message>
         <location filename="../src/Core/KeyValues/KeyValuesParser.cpp" line="116"/>
         <source>Unclosed &apos;{&apos; block (reached EOF)</source>
-        <translation>未闭合的 '{' 块（已到文件末尾）</translation>
+        <translation>未闭合的 &apos;{&apos; 块（已到文件末尾）</translation>
     </message>
     <message>
         <location filename="../src/Core/KeyValues/KeyValuesParser.cpp" line="145"/>
@@ -1643,6 +1743,24 @@ Do you want to proceed?</source>
     </message>
 </context>
 <context>
+    <name>MetallicGenerator</name>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/MetallicGenerator.cpp" line="49"/>
+        <source>metallic generation requires a valid color image (3-4 channels)</source>
+        <translation>金属度生成需要有效的颜色图像（3-4 通道）</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/MetallicGenerator.cpp" line="75"/>
+        <source>HSL weights must not all be zero</source>
+        <translation>HSL 权重不能全为零</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/MetallicGenerator.cpp" line="88"/>
+        <source>failed to allocate working buffers</source>
+        <translation>工作缓冲区分配失败</translation>
+    </message>
+</context>
+<context>
     <name>ModelTab</name>
     <message>
         <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="30"/>
@@ -1736,6 +1854,31 @@ Do you want to proceed?</source>
     </message>
 </context>
 <context>
+    <name>NormalGenerator</name>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/NormalGenerator.cpp" line="42"/>
+        <source>height texture is not valid</source>
+        <translation>高度纹理无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/NormalGenerator.cpp" line="47"/>
+        <source>slope blur samples must be positive</source>
+        <translation>坡度模糊采样数必须为正</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/NormalGenerator.cpp" line="64"/>
+        <location filename="../src/Domain/Material/TextureProcess/NormalGenerator.cpp" line="104"/>
+        <location filename="../src/Domain/Material/TextureProcess/NormalGenerator.cpp" line="196"/>
+        <source>failed to allocate working buffers</source>
+        <translation>工作缓冲区分配失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/NormalGenerator.cpp" line="189"/>
+        <source>band weights must not all be zero</source>
+        <translation>频段权重不能全为零</translation>
+    </message>
+</context>
+<context>
     <name>PackArchive</name>
     <message>
         <location filename="../src/Domain/Package/PackArchive.cpp" line="60"/>
@@ -1820,7 +1963,7 @@ Do you want to proceed?</source>
     <message>
         <location filename="../src/Application/Particle/ParticleImportService.cpp" line="207"/>
         <source>Starting particle import for addon &apos;%1&apos; with PCF &apos;%2&apos;</source>
-        <translation>开始为附加内容 '%1' 导入粒子（PCF：'%2'）</translation>
+        <translation>开始为附加内容 &apos;%1&apos; 导入粒子（PCF：&apos;%2&apos;）</translation>
     </message>
     <message>
         <location filename="../src/Application/Particle/ParticleImportService.cpp" line="221"/>
@@ -2090,6 +2233,29 @@ Do you want to proceed?</source>
     </message>
 </context>
 <context>
+    <name>SmoothnessGenerator</name>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/SmoothnessGenerator.cpp" line="71"/>
+        <source>smoothness generation requires a valid color image (3-4 channels)</source>
+        <translation>光滑度生成需要有效的颜色图像（3-4 通道）</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/SmoothnessGenerator.cpp" line="77"/>
+        <source>metallic texture is not valid</source>
+        <translation>金属度纹理无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/SmoothnessGenerator.cpp" line="84"/>
+        <source>metallic texture size must match the diffuse texture</source>
+        <translation>金属度纹理尺寸必须与漫反射纹理一致</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/SmoothnessGenerator.cpp" line="121"/>
+        <source>failed to allocate working buffers</source>
+        <translation>工作缓冲区分配失败</translation>
+    </message>
+</context>
+<context>
     <name>SoundEventKv3Writer</name>
     <message>
         <location filename="../src/Domain/Audio/SoundEventKv3Writer.cpp" line="177"/>
@@ -2142,7 +2308,7 @@ Do you want to proceed?</source>
     <message>
         <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="132"/>
         <source>Starting soundscape conversion for map &apos;%1&apos;</source>
-        <translation>开始为地图 '%1' 转换 soundscape</translation>
+        <translation>开始为地图 &apos;%1&apos; 转换 soundscape</translation>
     </message>
     <message>
         <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="142"/>
@@ -2167,7 +2333,7 @@ Do you want to proceed?</source>
     <message>
         <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="169"/>
         <source>No soundscape files found to convert for map &apos;%1&apos;</source>
-        <translation>地图 '%1' 没有可转换的 soundscape 文件</translation>
+        <translation>地图 &apos;%1&apos; 没有可转换的 soundscape 文件</translation>
     </message>
     <message>
         <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="171"/>
@@ -2203,7 +2369,7 @@ Do you want to proceed?</source>
     <message>
         <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="242"/>
         <source>Soundscape conversion failed for map &apos;%1&apos;</source>
-        <translation>地图 '%1' 的 soundscape 转换失败</translation>
+        <translation>地图 &apos;%1&apos; 的 soundscape 转换失败</translation>
     </message>
     <message>
         <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="249"/>
@@ -2410,12 +2576,12 @@ Do you want to proceed?</source>
     <message>
         <location filename="../src/Application/Environment/Internal/SteamLibraryDetector.cpp" line="308"/>
         <source>Field &apos;installdir&apos; not found in app manifest</source>
-        <translation>应用清单中未找到 'installdir' 字段</translation>
+        <translation>应用清单中未找到 &apos;installdir&apos; 字段</translation>
     </message>
     <message>
         <location filename="../src/Application/Environment/Internal/SteamLibraryDetector.cpp" line="352"/>
         <source>Field &apos;name&apos; not found in app manifest</source>
-        <translation>应用清单中未找到 'name' 字段</translation>
+        <translation>应用清单中未找到 &apos;name&apos; 字段</translation>
     </message>
 </context>
 <context>
@@ -2440,6 +2606,117 @@ Do you want to proceed?</source>
         <location filename="../src/Application/Environment/SteamService.cpp" line="64"/>
         <source>Failed to open Steam validation URL</source>
         <translation>打开 Steam 校验 URL 失败</translation>
+    </message>
+</context>
+<context>
+    <name>TextureBlur</name>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/TextureBlur.cpp" line="54"/>
+        <location filename="../src/Domain/Material/TextureProcess/TextureBlur.cpp" line="131"/>
+        <location filename="../src/Domain/Material/TextureProcess/TextureBlur.cpp" line="178"/>
+        <source>source texture is not valid</source>
+        <translation>源纹理无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/TextureBlur.cpp" line="59"/>
+        <source>invalid blur parameters</source>
+        <translation>模糊参数无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureProcess/TextureBlur.cpp" line="80"/>
+        <source>failed to allocate blur output</source>
+        <translation>模糊输出分配失败</translation>
+    </message>
+</context>
+<context>
+    <name>TextureIO</name>
+    <message>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="78"/>
+        <source>texture path is empty or invalid</source>
+        <translation>纹理路径为空或无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="83"/>
+        <source>texture file not found</source>
+        <translation>找不到纹理文件</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="91"/>
+        <source>unsupported texture file extension</source>
+        <translation>不支持的纹理文件扩展名</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="109"/>
+        <source>failed to decode image file</source>
+        <translation>图像文件解码失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="120"/>
+        <source>image has invalid dimensions</source>
+        <translation>图像尺寸无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="157"/>
+        <source>destination path is empty or invalid</source>
+        <translation>目标路径为空或无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="162"/>
+        <source>texture image is not valid</source>
+        <translation>纹理图像无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="169"/>
+        <source>unsupported texture write extension</source>
+        <translation>不支持的纹理写入扩展名</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="214"/>
+        <source>failed to write PNG file</source>
+        <translation>PNG 文件写入失败</translation>
+    </message>
+</context>
+<context>
+    <name>TgaCodec</name>
+    <message>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="181"/>
+        <source>TGA file path is empty or invalid</source>
+        <translation>TGA 文件路径为空或无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="186"/>
+        <source>TGA file not found</source>
+        <translation>找不到 TGA 文件</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="199"/>
+        <source>unsupported or malformed TGA header</source>
+        <translation>TGA 文件头不受支持或已损坏</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="205"/>
+        <source>TGA image has zero dimensions</source>
+        <translation>TGA 图像尺寸为零</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="217"/>
+        <source>unsupported TGA bit depth</source>
+        <translation>不支持的 TGA 位深</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="225"/>
+        <source>TGA pixel data is truncated or corrupted</source>
+        <translation>TGA 像素数据被截断或损坏</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="267"/>
+        <source>TGA destination path is empty or invalid</source>
+        <translation>TGA 目标路径为空或无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="273"/>
+        <source>image is empty or dimensions exceed TGA limits</source>
+        <translation>图像为空或尺寸超出 TGA 限制</translation>
     </message>
 </context>
 <context>
