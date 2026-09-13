@@ -4,19 +4,28 @@
 
 #include <QtTest/QTest>
 #include <QDir>
+#include <QFile>
 #include <QImage>
 #include <QImageReader>
 #include <QStandardPaths>
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
+#include <filesystem>
 #include <random>
+#include <span>
+#include <vector>
+
+#include <vtfpp/VTF.h>
 
 #include "Core/Async/CancellationToken.h"
+#include "Core/Error/Error.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Domain/Material/TextureImage.h"
 #include "Domain/Material/TextureIO.h"
 #include "Domain/Material/TgaCodec.h"
+#include "Domain/Material/VtfCodec.h"
 #include "Domain/Material/TextureProcess/TextureBlur.h"
 #include "Domain/Material/TextureProcess/TexturePresets.h"
 #include "Domain/Material/TextureProcess/HeightGenerator.h"
@@ -61,6 +70,58 @@ TextureImage flatImage(int width, int height, int channels, float value)
     return image;
 }
 
+/**
+ * @brief Builds a 3x2 uncompressed 24-bit TGA stored bottom-up (the on-disk
+ *        row order is the reverse of the image's top-down row order).
+ */
+QByteArray buildTga24BitBottomUp()
+{
+    QByteArray data;
+    data.append(char(0)); // id length
+    data.append(char(0)); // color map type
+    data.append(char(2)); // uncompressed true-color
+    data.append(QByteArray(5, '\0')); // color map spec
+    data.append(QByteArray(4, '\0')); // x/y origin
+    data.append(char(3)); // width low byte
+    data.append(char(0)); // width high byte
+    data.append(char(2)); // height low byte
+    data.append(char(0)); // height high byte
+    data.append(char(24)); // bits per pixel
+    data.append(char(0)); // descriptor: bottom-up, no alpha
+    // BGR rows, bottom image row first.
+    const unsigned char bottomRow[9] = {10, 11, 12, 13, 14, 15, 16, 17, 18};
+    const unsigned char topRow[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+    data.append(reinterpret_cast<const char*>(bottomRow), 9);
+    data.append(reinterpret_cast<const char*>(topRow), 9);
+    return data;
+}
+
+/**
+ * @brief Builds a 2x2 uncompressed 32-bit TGA stored top-down with alpha.
+ */
+QByteArray buildTga32BitTopDown()
+{
+    QByteArray data;
+    data.append(char(0)); // id length
+    data.append(char(0)); // color map type
+    data.append(char(2)); // uncompressed true-color
+    data.append(QByteArray(5, '\0')); // color map spec
+    data.append(QByteArray(4, '\0')); // x/y origin
+    data.append(char(2)); // width low byte
+    data.append(char(0)); // width high byte
+    data.append(char(2)); // height low byte
+    data.append(char(0)); // height high byte
+    data.append(char(32)); // bits per pixel
+    data.append(char(0x28)); // descriptor: top-down (0x20), 8 alpha bits (0x08)
+    // BGRA rows, top image row first.
+    const unsigned char pixels[16] = {
+        10, 20, 30, 40, 50, 60, 70, 80,
+        90, 100, 110, 120, 130, 140, 150, 160,
+    };
+    data.append(reinterpret_cast<const char*>(pixels), 16);
+    return data;
+}
+
 } // namespace
 
 class TestMaterialBackend : public QObject {
@@ -68,8 +129,11 @@ class TestMaterialBackend : public QObject {
 
 private slots:
     void textureImagePlanarLayoutAndWrappedSampling();
-    void tgaRgbaRoundtrip();
-    void tgaGrayscaleRoundtrip();
+    void tgaReadHandlesBottomUpAndAlpha();
+    void pngGrayscaleRoundtrip();
+    void textureIoWriteRestrictedToPng();
+    void vtfReadRoundtripsUncompressedAndCompressed();
+    void vtfReadRejectsGarbage();
     void blurPreservesConstant();
     void blurImpulsePreservesEnergy();
     void heightFlatDiffuseYieldsMid();
@@ -134,31 +198,40 @@ void TestMaterialBackend::textureImagePlanarLayoutAndWrappedSampling()
     QVERIFY(!TextureImage::isChannelCountValid(5));
 }
 
-void TestMaterialBackend::tgaRgbaRoundtrip()
+void TestMaterialBackend::tgaReadHandlesBottomUpAndAlpha()
 {
-    QImage source(7, 5, QImage::Format_RGBA8888);
-    for (int y = 0; y < 5; ++y) {
-        for (int x = 0; x < 7; ++x) {
-            source.setPixel(x, y, qRgba(x * 36, y * 50, (x + y) * 18, 255 - x * 30));
-        }
+    // 24-bit bottom-up source: read must flip rows and expand BGR to RGBA.
+    const QString bottomUpPath = outputDirectory() + QStringLiteral("/tga_bottomup.tga");
+    {
+        QFile file(bottomUpPath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(buildTga24BitBottomUp());
     }
-
-    const QString path = outputDirectory() + QStringLiteral("/tga_rgba_roundtrip.tga");
-    auto written = TgaCodec::write(pathOf(path), source);
-    QVERIFY2(written.isSuccess(), qPrintable(written.message()));
-
-    auto loaded = TgaCodec::read(pathOf(path));
+    auto loaded = TgaCodec::read(pathOf(bottomUpPath));
     QVERIFY2(loaded.isSuccess(), qPrintable(loaded.message()));
-    const QImage roundtrip = loaded.value().convertToFormat(QImage::Format_RGBA8888);
-    QCOMPARE(roundtrip.size(), source.size());
-    for (int y = 0; y < 5; ++y) {
-        for (int x = 0; x < 7; ++x) {
-            QCOMPARE(roundtrip.pixel(x, y), source.pixel(x, y));
-        }
+    const QImage image = loaded.value().convertToFormat(QImage::Format_RGBA8888);
+    QCOMPARE(image.width(), 3);
+    QCOMPARE(image.height(), 2);
+    QCOMPARE(image.pixel(0, 0), qRgb(3, 2, 1));
+    QCOMPARE(image.pixel(2, 0), qRgb(9, 8, 7));
+    QCOMPARE(image.pixel(0, 1), qRgb(12, 11, 10));
+    QCOMPARE(image.pixel(2, 1), qRgb(18, 17, 16));
+
+    // 32-bit top-down source with alpha must survive verbatim (BGR -> RGB).
+    const QString topDownPath = outputDirectory() + QStringLiteral("/tga_topdown.tga");
+    {
+        QFile file(topDownPath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(buildTga32BitTopDown());
     }
+    auto alphaLoaded = TgaCodec::read(pathOf(topDownPath));
+    QVERIFY2(alphaLoaded.isSuccess(), qPrintable(alphaLoaded.message()));
+    const QImage alphaImage = alphaLoaded.value().convertToFormat(QImage::Format_RGBA8888);
+    QCOMPARE(alphaImage.pixel(0, 0), qRgba(30, 20, 10, 40));
+    QCOMPARE(alphaImage.pixel(1, 1), qRgba(150, 140, 130, 160));
 }
 
-void TestMaterialBackend::tgaGrayscaleRoundtrip()
+void TestMaterialBackend::pngGrayscaleRoundtrip()
 {
     TextureImage gray(9, 4, 1);
     for (int y = 0; y < 4; ++y) {
@@ -167,7 +240,7 @@ void TestMaterialBackend::tgaGrayscaleRoundtrip()
         }
     }
 
-    const QString path = outputDirectory() + QStringLiteral("/tga_gray_roundtrip.tga");
+    const QString path = outputDirectory() + QStringLiteral("/png_gray_roundtrip.png");
     auto written = TextureIO::writeTexture(pathOf(path), gray, false);
     QVERIFY2(written.isSuccess(), qPrintable(written.message()));
 
@@ -182,6 +255,125 @@ void TestMaterialBackend::tgaGrayscaleRoundtrip()
             QVERIFY(std::abs(restored.at(0, x, y) - gray.at(0, x, y)) < 1.0f / 255.0f);
         }
     }
+}
+
+void TestMaterialBackend::textureIoWriteRestrictedToPng()
+{
+    QVERIFY(TextureIO::isSupportedWriteExtension(QStringLiteral("png")));
+    QVERIFY(!TextureIO::isSupportedWriteExtension(QStringLiteral("tga")));
+    QVERIFY(!TextureIO::isSupportedWriteExtension(QStringLiteral("jpg")));
+    QVERIFY(!TextureIO::isSupportedWriteExtension(QStringLiteral("vtf")));
+
+    const TextureImage gray = flatImage(4, 4, 1, 0.5f);
+    auto rejectedTga = TextureIO::writeTexture(
+        pathOf(outputDirectory() + QStringLiteral("/rejected.tga")), gray, false);
+    QVERIFY(rejectedTga.isFailure());
+    QCOMPARE(rejectedTga.error().code(), Core::Error::ErrorCode::NotSupported);
+    auto rejectedJpg = TextureIO::writeTexture(
+        pathOf(outputDirectory() + QStringLiteral("/rejected.jpg")), gray, false);
+    QVERIFY(rejectedJpg.isFailure());
+
+    // The load side stays wide: TGA/VTF extensions must remain accepted.
+    QVERIFY(TextureIO::isSupportedLoadExtension(QStringLiteral("tga")));
+    QVERIFY(TextureIO::isSupportedLoadExtension(QStringLiteral("vtf")));
+    QVERIFY(TextureIO::isSupportedLoadExtension(QStringLiteral("png")));
+}
+
+void TestMaterialBackend::vtfReadRoundtripsUncompressedAndCompressed()
+{
+    const int size = 32;
+    std::vector<std::byte> rgba(static_cast<std::size_t>(size) * size * 4);
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
+            auto* pixel = rgba.data() + (static_cast<std::size_t>(y) * size + x) * 4;
+            pixel[0] = std::byte{static_cast<unsigned char>(x * 8)};       // R
+            pixel[1] = std::byte{static_cast<unsigned char>(y * 8)};       // G
+            pixel[2] = std::byte{static_cast<unsigned char>((x + y) * 4)}; // B
+            pixel[3] = std::byte{255};                                     // A
+        }
+    }
+    const std::span<const std::byte> sourcePixels{rgba.data(), rgba.size()};
+
+    // Uncompressed RGBA8888 storage must round-trip exactly (raw load path).
+    // The output format must be explicit: vtfpp resolves CreationOptions' empty
+    // FORMAT_DEFAULT to STRATA_BC7 on version 7+, which is heavily lossy.
+    const QString rgbaPath = outputDirectory() + QStringLiteral("/fixture_rgba.vtf");
+    vtfpp::VTF::CreationOptions rgbaOptions;
+    rgbaOptions.outputFormat = vtfpp::ImageFormat::RGBA8888;
+    QVERIFY(vtfpp::VTF::create(sourcePixels, vtfpp::ImageFormat::RGBA8888, size, size,
+        std::filesystem::path(rgbaPath.toStdWString()), rgbaOptions));
+
+    auto rgbaLoaded = TextureIO::loadTexture(pathOf(rgbaPath), false);
+    QVERIFY2(rgbaLoaded.isSuccess(), qPrintable(rgbaLoaded.message()));
+    const TextureImage& rgbaImage = rgbaLoaded.value();
+    QCOMPARE(rgbaImage.width(), size);
+    QCOMPARE(rgbaImage.height(), size);
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
+            QCOMPARE(rgbaImage.at(0, x, y), static_cast<float>(x * 8) / 255.0f);
+            QCOMPARE(rgbaImage.at(1, x, y), static_cast<float>(y * 8) / 255.0f);
+            QCOMPARE(rgbaImage.at(2, x, y), static_cast<float>((x + y) * 4) / 255.0f);
+            QCOMPARE(rgbaImage.at(3, x, y), 1.0f);
+        }
+    }
+
+    // Compressed storage: hand-build uniform DXT5 blocks (alpha endpoints
+    // 200/200, white color) so the fixture exercises vtfpp's bcdec decompress
+    // path without its disabled Compressonator compressor. Mip/thumbnail
+    // generation is disabled because it would re-enter the missing compressor.
+    const QString dxtPath = outputDirectory() + QStringLiteral("/fixture_dxt5.vtf");
+    std::vector<std::byte> dxt5(8 * 8 * 16); // 8x8 blocks of 16 bytes for 32x32
+    for (auto& block : dxt5) {
+        block = std::byte{0};
+    }
+    for (std::size_t offset = 0; offset < dxt5.size(); offset += 16) {
+        dxt5[offset + 0] = std::byte{200}; // alpha endpoint a0
+        dxt5[offset + 1] = std::byte{200}; // alpha endpoint a1
+        // alpha indices all zero -> alpha decodes to a0 (200) everywhere
+        dxt5[offset + 8] = std::byte{0xFF}; // color c0 = RGB565 white
+        dxt5[offset + 9] = std::byte{0xFF};
+        dxt5[offset + 10] = std::byte{0x00}; // color c1 = black (c0 > c1)
+        dxt5[offset + 11] = std::byte{0x00};
+        // color indices all zero -> color decodes to c0 (white) everywhere
+    }
+    vtfpp::VTF::CreationOptions dxtOptions;
+    dxtOptions.outputFormat = vtfpp::ImageFormat::DXT5;
+    dxtOptions.computeMips = false;
+    dxtOptions.computeThumbnail = false;
+    dxtOptions.computeTransparencyFlags = false;
+    dxtOptions.computeReflectivity = false;
+    QVERIFY(vtfpp::VTF::create(std::span<const std::byte>{dxt5.data(), dxt5.size()},
+        vtfpp::ImageFormat::DXT5, size, size,
+        std::filesystem::path(dxtPath.toStdWString()), dxtOptions));
+
+    auto dxtLoaded = TextureIO::loadTexture(pathOf(dxtPath), false);
+    QVERIFY2(dxtLoaded.isSuccess(), qPrintable(dxtLoaded.message()));
+    const TextureImage& dxtImage = dxtLoaded.value();
+    QCOMPARE(dxtImage.width(), size);
+    QCOMPARE(dxtImage.height(), size);
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
+            QCOMPARE(dxtImage.at(0, x, y), 1.0f);              // white
+            QCOMPARE(dxtImage.at(1, x, y), 1.0f);
+            QCOMPARE(dxtImage.at(2, x, y), 1.0f);
+            QCOMPARE(dxtImage.at(3, x, y), 200.0f / 255.0f);   // alpha endpoint
+        }
+    }
+}
+
+void TestMaterialBackend::vtfReadRejectsGarbage()
+{
+    QVERIFY(VtfCodec::isVtfExtension(QStringLiteral("vtf")));
+    QVERIFY(!VtfCodec::isVtfExtension(QStringLiteral("png")));
+
+    const QString garbagePath = outputDirectory() + QStringLiteral("/garbage.vtf");
+    {
+        QFile file(garbagePath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(QByteArray(64, '\xAB'));
+    }
+    auto loaded = TextureIO::loadTexture(pathOf(garbagePath), false);
+    QVERIFY(loaded.isFailure());
 }
 
 void TestMaterialBackend::blurPreservesConstant()

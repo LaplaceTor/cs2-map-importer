@@ -20,7 +20,7 @@
     </message>
     <message>
         <location filename="../src/Domain/Material/TextureProcess/AoGenerator.cpp" line="52"/>
-        <location filename="../src/Domain/Material/TextureProcess/AoGenerator.cpp" line="164"/>
+        <location filename="../src/Domain/Material/TextureProcess/AoGenerator.cpp" line="163"/>
         <source>failed to allocate working buffers</source>
         <translation>工作缓冲区分配失败</translation>
     </message>
@@ -1235,23 +1235,23 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
     </message>
     <message>
         <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="82"/>
-        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="167"/>
-        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="251"/>
+        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="170"/>
+        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="254"/>
         <source>failed to allocate working buffers</source>
         <translation>工作缓冲区分配失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="177"/>
+        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="180"/>
         <source>band weights must not all be zero</source>
         <translation>频段权重不能全为零</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="230"/>
+        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="233"/>
         <source>height-from-normal requires a valid normal image (3 channels)</source>
         <translation>从法线生成高度需要有效的法线图像（3 通道）</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="236"/>
+        <location filename="../src/Domain/Material/TextureProcess/HeightGenerator.cpp" line="239"/>
         <source>iteration count must be positive</source>
         <translation>迭代数必须为正</translation>
     </message>
@@ -2631,47 +2631,47 @@ Do you want to proceed?</source>
 <context>
     <name>TextureIO</name>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="78"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="80"/>
         <source>texture path is empty or invalid</source>
         <translation>纹理路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="83"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="85"/>
         <source>texture file not found</source>
         <translation>找不到纹理文件</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="91"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="93"/>
         <source>unsupported texture file extension</source>
         <translation>不支持的纹理文件扩展名</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="109"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="117"/>
         <source>failed to decode image file</source>
         <translation>图像文件解码失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="120"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="128"/>
         <source>image has invalid dimensions</source>
         <translation>图像尺寸无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="157"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="165"/>
         <source>destination path is empty or invalid</source>
         <translation>目标路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="162"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="170"/>
         <source>texture image is not valid</source>
         <translation>纹理图像无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="169"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="177"/>
         <source>unsupported texture write extension</source>
         <translation>不支持的纹理写入扩展名</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="214"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="218"/>
         <source>failed to write PNG file</source>
         <translation>PNG 文件写入失败</translation>
     </message>
@@ -2679,44 +2679,42 @@ Do you want to proceed?</source>
 <context>
     <name>TgaCodec</name>
     <message>
-        <location filename="../src/Domain/Material/TgaCodec.cpp" line="181"/>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="169"/>
         <source>TGA file path is empty or invalid</source>
         <translation>TGA 文件路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TgaCodec.cpp" line="186"/>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="174"/>
         <source>TGA file not found</source>
         <translation>找不到 TGA 文件</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TgaCodec.cpp" line="199"/>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="187"/>
         <source>unsupported or malformed TGA header</source>
         <translation>TGA 文件头不受支持或已损坏</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TgaCodec.cpp" line="205"/>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="193"/>
         <source>TGA image has zero dimensions</source>
         <translation>TGA 图像尺寸为零</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TgaCodec.cpp" line="217"/>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="205"/>
         <source>unsupported TGA bit depth</source>
         <translation>不支持的 TGA 位深</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TgaCodec.cpp" line="225"/>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="213"/>
         <source>TGA pixel data is truncated or corrupted</source>
         <translation>TGA 像素数据被截断或损坏</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TgaCodec.cpp" line="267"/>
         <source>TGA destination path is empty or invalid</source>
-        <translation>TGA 目标路径为空或无效</translation>
+        <translation type="vanished">TGA 目标路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TgaCodec.cpp" line="273"/>
         <source>image is empty or dimensions exceed TGA limits</source>
-        <translation>图像为空或尺寸超出 TGA 限制</translation>
+        <translation type="vanished">图像为空或尺寸超出 TGA 限制</translation>
     </message>
 </context>
 <context>
@@ -2838,6 +2836,29 @@ Do you want to proceed?</source>
     </message>
 </context>
 <context>
+    <name>VtfCodec</name>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="54"/>
+        <source>VTF file path is empty or invalid</source>
+        <translation>VTF 文件路径为空或无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="59"/>
+        <source>VTF file not found</source>
+        <translation>未找到 VTF 文件</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="69"/>
+        <source>failed to parse VTF file</source>
+        <translation>VTF 文件解析失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="83"/>
+        <source>VTF image data is missing or has unexpected size</source>
+        <translation>VTF 图像数据缺失或尺寸异常</translation>
+    </message>
+</context>
+<context>
     <name>VtfConverter</name>
     <message>
         <location filename="../src/Domain/Material/VtfConverter.cpp" line="41"/>
@@ -2863,12 +2884,12 @@ Do you want to proceed?</source>
 <context>
     <name>VtfExtractor</name>
     <message>
-        <location filename="../src/Workflow/Common/VtfExtractor.cpp" line="42"/>
+        <location filename="../src/Workflow/Common/VtfExtractor.cpp" line="41"/>
         <source>relative VTF path is empty</source>
         <translation>VTF 相对路径为空</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/VtfExtractor.cpp" line="47"/>
+        <location filename="../src/Workflow/Common/VtfExtractor.cpp" line="46"/>
         <source>destination image directory is empty or invalid</source>
         <translation>目标图像目录为空或无效</translation>
     </message>

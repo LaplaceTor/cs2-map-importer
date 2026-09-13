@@ -3,7 +3,6 @@
 #include <QCoreApplication>
 #include <QImage>
 
-#include <array>
 #include <cstring>
 #include <exception>
 #include <vector>
@@ -25,12 +24,6 @@ constexpr std::uint8_t kDescriptorTopDown = 0x20;
 std::uint16_t readLittleEndianU16(const unsigned char* bytes)
 {
     return static_cast<std::uint16_t>(bytes[0]) | (static_cast<std::uint16_t>(bytes[1]) << 8);
-}
-
-void writeLittleEndianU16(unsigned char* bytes, std::uint16_t value)
-{
-    bytes[0] = static_cast<std::uint8_t>(value & 0xFF);
-    bytes[1] = static_cast<std::uint8_t>((value >> 8) & 0xFF);
 }
 
 /**
@@ -168,11 +161,6 @@ bool TgaCodec::isTgaExtension(const QString& lowerCaseExtension)
     return lowerCaseExtension == QLatin1String("tga");
 }
 
-Core::Error::ErrorCode TgaCodec::tgaErrorForIoFailure()
-{
-    return Core::Error::ErrorCode::ReadFailed;
-}
-
 Core::Result<QImage> TgaCodec::read(const Core::Path::FilesystemPath& path)
 {
     if (path.isEmpty() || !path.isValid()) {
@@ -256,68 +244,6 @@ Core::Result<QImage> TgaCodec::read(const Core::Path::FilesystemPath& path)
             }
         }
         return Core::Result<QImage>::success(std::move(image));
-    });
-}
-
-Core::Result<void> TgaCodec::write(const Core::Path::FilesystemPath& path, const QImage& image)
-{
-    if (path.isEmpty() || !path.isValid()) {
-        return Core::Result<void>::failure(
-            Core::Error::ErrorCode::InvalidPath,
-            QCoreApplication::translate("TgaCodec", "TGA destination path is empty or invalid"));
-    }
-    if (image.isNull() || image.width() <= 0 || image.height() <= 0
-        || image.width() > 0xFFFF || image.height() > 0xFFFF) {
-        return Core::Result<void>::failure(
-            Core::Error::ErrorCode::InvalidArgument,
-            QCoreApplication::translate("TgaCodec", "image is empty or dimensions exceed TGA limits"));
-    }
-
-    return runGuarded([&]() -> Core::Result<void> {
-        const int width = image.width();
-        const int height = image.height();
-
-        const bool grayscale = image.format() == QImage::Format_Grayscale8;
-        const QImage rgba = grayscale ? QImage() : image.convertToFormat(QImage::Format_RGBA8888);
-
-        std::array<unsigned char, kTgaHeaderSize> header {};
-        header[0] = 0; // no image ID
-        header[1] = 0; // no color map
-        header[2] = grayscale ? kImageTypeUncompressedGrayscale : kImageTypeUncompressedTrueColor;
-        writeLittleEndianU16(header.data() + 12, static_cast<std::uint16_t>(width));
-        writeLittleEndianU16(header.data() + 14, static_cast<std::uint16_t>(height));
-        header[16] = grayscale ? 8 : 32;
-        header[17] = kDescriptorTopDown | (grayscale ? 0x00 : 0x08); // top-down, 8 alpha bits
-
-        QByteArray pixelData;
-        const int bytesPerPixel = grayscale ? 1 : 4;
-        pixelData.resize(static_cast<qsizetype>(width) * height * bytesPerPixel);
-        auto* out = reinterpret_cast<unsigned char*>(pixelData.data());
-
-        for (int y = 0; y < height; ++y) {
-            for (int x = 0; x < width; ++x) {
-                auto* dest = out + (static_cast<std::size_t>(y) * width + x) * bytesPerPixel;
-                if (grayscale) {
-                    dest[0] = image.constScanLine(y)[x];
-                } else {
-                    const auto* source = rgba.constScanLine(y) + x * 4;
-                    dest[0] = source[2]; // B
-                    dest[1] = source[1]; // G
-                    dest[2] = source[0]; // R
-                    dest[3] = source[3]; // A
-                }
-            }
-        }
-
-        QByteArray fileBytes;
-        fileBytes.reserve(kTgaHeaderSize + pixelData.size());
-        fileBytes.append(reinterpret_cast<const char*>(header.data()), kTgaHeaderSize);
-        fileBytes.append(pixelData);
-
-        // Throws Core::Error::Exception on IO failure; guarded above.
-        Core::FileSystem::FileSystem::createDirectory(path.parentPath().toString());
-        Core::FileSystem::FileSystem::writeAll(path.toString(), fileBytes);
-        return Core::Result<void>::success();
     });
 }
 

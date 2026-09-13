@@ -44,6 +44,10 @@ qt_add_executable(test_tmp_material_backend
 
 target_link_libraries(test_tmp_material_backend PRIVATE
     cs2importer_domain
+    # Task-scoped fixture helper: builds VTF files for the VtfCodec read tests.
+    # sourcepp is otherwise a Domain implementation detail; this link dies with
+    # the ephemeral target (AGENTS.md section 9.1).
+    sourcepp::vtfpp
     Qt6::Core
     Qt6::Gui
     Qt6::Test

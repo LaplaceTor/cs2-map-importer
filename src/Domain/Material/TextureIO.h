@@ -9,13 +9,14 @@
 namespace Domain::Material {
 
 /**
- * @brief Loads and writes plain image files (png / jpg / bmp / tga) as
- *        TextureImage working buffers.
+ * @brief Loads and writes texture files as TextureImage working buffers.
  *
- * PNG/JPG/BMP decoding uses Qt's built-in image plugins; TGA uses the
- * self-contained TgaCodec. Color-space handling is explicit at the call site:
- * color inputs are loaded sRGB-decoded into linear floats (matching GPU
- * sampling behavior), while data maps (height, normal, AO...) travel raw.
+ * Loading (wide): PNG/JPG/BMP decoding uses Qt's built-in image plugins; TGA
+ * uses the self-contained TgaCodec; VTF uses the vtfpp-backed VtfCodec.
+ * Writing (narrow): PNG is the only supported export format.
+ * Color-space handling is explicit at the call site: color inputs are loaded
+ * sRGB-decoded into linear floats (matching GPU sampling behavior), while data
+ * maps (height, normal, AO...) travel raw.
  */
 class TextureIO {
 public:
@@ -30,7 +31,8 @@ public:
                                                   bool srgbDecode = true);
 
     /**
-     * @brief Writes a TextureImage to a png or tga file (extension decides).
+     * @brief Writes a TextureImage to a PNG file (the only supported export
+     *        format).
      *
      * @param srgbEncode when true, applies the inverse sRGB transfer function
      *        before quantization (for color-like outputs); data maps are

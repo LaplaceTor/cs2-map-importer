@@ -77,6 +77,8 @@ qt_add_library(cs2importer_domain STATIC
     Material/TextureImage.cpp
     Material/TgaCodec.h
     Material/TgaCodec.cpp
+    Material/VtfCodec.h
+    Material/VtfCodec.cpp
     Material/TextureIO.h
     Material/TextureIO.cpp
     Material/TextureProcess/ColorMath.h

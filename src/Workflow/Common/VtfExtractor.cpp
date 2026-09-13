@@ -32,7 +32,6 @@ Core::Result<AssetExtraction> VtfExtractor::extract(
     const std::vector<Domain::Game::SearchTarget>& targets,
     const QString& relativeVtfPath,
     const Core::Path::FilesystemPath& destImageDir,
-    Domain::Material::ImageFileFormat targetFormat,
     const Core::Async::CancellationToken& token,
     Core::Logging::TaskLoggingContext* taskCtx) {
     return runGuarded([&]() -> Core::Result<AssetExtraction> {
@@ -55,12 +54,13 @@ Core::Result<AssetExtraction> VtfExtractor::extract(
             return extraction;
         }
 
-        const QString ext = Domain::Material::VtfConverter::formatExtension(targetFormat);
-        const QString imageName = QFileInfo(relativeVtfPath).baseName() + u'.' + ext;
+        // Image export is fixed to PNG at this use-case level.
+        const QString imageName = QFileInfo(relativeVtfPath).baseName() + QStringLiteral(".png");
         const Core::Path::FilesystemPath destImageFile = destImageDir / imageName;
 
         auto converted = Domain::Material::VtfConverter::convertToImageFile(
-            extraction.value().extractedFilePath, destImageFile, targetFormat);
+            extraction.value().extractedFilePath, destImageFile,
+            Domain::Material::ImageFileFormat::Png);
         if (converted.isFailure()) {
             return Core::Result<AssetExtraction>::failure(converted.error());
         }

@@ -10,6 +10,7 @@
 
 #include "Core/FileSystem/FileSystem.h"
 #include "Domain/Material/TgaCodec.h"
+#include "Domain/Material/VtfCodec.h"
 
 namespace {
 
@@ -60,13 +61,14 @@ bool TextureIO::isSupportedLoadExtension(const QString& lowerCaseExtension)
         || lowerCaseExtension == QLatin1String("jpg")
         || lowerCaseExtension == QLatin1String("jpeg")
         || lowerCaseExtension == QLatin1String("bmp")
-        || TgaCodec::isTgaExtension(lowerCaseExtension);
+        || TgaCodec::isTgaExtension(lowerCaseExtension)
+        || VtfCodec::isVtfExtension(lowerCaseExtension);
 }
 
 bool TextureIO::isSupportedWriteExtension(const QString& lowerCaseExtension)
 {
-    return lowerCaseExtension == QLatin1String("png")
-        || TgaCodec::isTgaExtension(lowerCaseExtension);
+    // Export is intentionally narrow: PNG only.
+    return lowerCaseExtension == QLatin1String("png");
 }
 
 Core::Result<TextureImage> TextureIO::loadTexture(const Core::Path::FilesystemPath& path,
@@ -93,7 +95,13 @@ Core::Result<TextureImage> TextureIO::loadTexture(const Core::Path::FilesystemPa
     }
 
     QImage source;
-    if (TgaCodec::isTgaExtension(extension)) {
+    if (VtfCodec::isVtfExtension(extension)) {
+        auto vtfResult = VtfCodec::read(path);
+        if (vtfResult.isFailure()) {
+            return Core::Result<TextureImage>::failure(vtfResult.error());
+        }
+        source = std::move(vtfResult.value());
+    } else if (TgaCodec::isTgaExtension(extension)) {
         auto tgaResult = TgaCodec::read(path);
         if (tgaResult.isFailure()) {
             return Core::Result<TextureImage>::failure(tgaResult.error());
@@ -201,10 +209,6 @@ Core::Result<void> TextureIO::writeTexture(const Core::Path::FilesystemPath& pat
                 }
             }
         }
-    }
-
-    if (TgaCodec::isTgaExtension(extension)) {
-        return TgaCodec::write(path, target);
     }
 
     QImageWriter writer(path.toString(), "png");

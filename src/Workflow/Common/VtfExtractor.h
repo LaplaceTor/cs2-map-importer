@@ -16,11 +16,12 @@ namespace Workflow::Common {
 
 /**
  * @brief Use case: locate a VTF texture across search targets, decode it and
- *        write the image into a destination directory using the specified format.
+ *        write the decoded image into a destination directory as a PNG file.
  *
- * The intermediate VTF file is unpacked into a RAII temporary directory that
- * is cleaned up automatically. The returned extraction's extractedFilePath
- * points at the produced image file.
+ * The output format is fixed to PNG at this use-case level; VtfConverter
+ * itself stays format-generic. The intermediate VTF file is unpacked into a
+ * RAII temporary directory that is cleaned up automatically. The returned
+ * extraction's extractedFilePath points at the produced image file.
  *
  * Result semantics follow AssetExtractor::extract, with the image encoding step
  * adding OperationFailed as a possible failure reason.
@@ -31,7 +32,6 @@ public:
         const std::vector<Domain::Game::SearchTarget>& targets,
         const QString& relativeVtfPath,
         const Core::Path::FilesystemPath& destImageDir,
-        Domain::Material::ImageFileFormat targetFormat = Domain::Material::ImageFileFormat::Png,
         const Core::Async::CancellationToken& token = {},
         Core::Logging::TaskLoggingContext* taskCtx = nullptr);
 };
