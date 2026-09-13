@@ -107,7 +107,7 @@ Application 亦可直接调用 Domain/Core 提供的非工作流服务，但 **U
 
 ### 3.4 Domain 规则 (`src/Domain/`)
 
-* **允许：** 解析与校验 Valve 专属数据格式；抽象 Source 1/2 领域资产与相对路径；封装官方 CLI 工具（`Domain::Tool`）；保持确定性与无状态纯计算。
+* **允许：** 解析与校验 Valve 专属数据格式；抽象 Source 1/2 领域资产与相对路径；材质纹理图像处理（VTF/TGA 解码、PBR 贴图生成、通道打包等确定性纯计算，见 `Domain::Material::TextureProcess`）；封装官方 CLI 工具（`Domain::Tool`）；保持确定性与无状态纯计算。
 * **严禁：** include `Application/*`、`Workflow/*`、`UI/*` 或 QML 头文件；发送 UI 通知或弹窗；访问应用全局配置或日志器；自行启动线程。
 
 ### 3.5 Core 规则 (`src/Core/`)
@@ -165,7 +165,7 @@ UI 属性/信号
 1. **禁止直接操作外部进程**：业务代码严禁使用 `QProcess`、`system()`、`popen()` 或 `WinExec()`。
 2. **外部工具强类型封装**：所有外部 CLI 工具（`bspsrc`，官方 `resourcecompiler`, `source1import`）必须封装于 `Domain::Tool` 并通过 `Core::Process::ProcessRunner` 执行。
 3. **流式输出与取消绑定**：`ProcessRunner` 必须支持基于 `onStdOutLine` / `onStdErrLine` 的逐行实时流式日志捕获，并与 `CancellationToken` 强绑定，严禁无超时的静默阻塞式黑盒调用。
-4. **内嵌原生库替代**：严禁再引入或调用外部 `vpkeditcli` 与 `vtfcmd`，归档解包与 VTF 转码已全量由内嵌原生库（`Domain::Package` 与 `Domain::Material`，基于 `sourcepp`）在进程内完成。
+4. **内嵌原生库替代**：严禁再引入或调用外部 `vpkeditcli` 与 `vtfcmd`，归档解包与 VTF 解码/转码已全量由内嵌原生库在进程内完成——`Domain::Package` 基于 `sourcepp`（vpkpp/bsppp）解包 VPK 与 BSP 嵌入包；`Domain::Material` 基于 `vtfpp` 解码 VTF（`VtfCodec` / `VtfConverter`），`TgaCodec` 为自包含 TGA 编解码实现，纹理读写统一收口于 `TextureIO`（宽读取、导出仅 PNG）。
 5. **用户交互解耦**：Domain / Workflow 严禁直接弹出模态对话框。必须通过抽象 Prompt 接口定义契约，由 Application 实现并调度 UI 呈现。
 
 ---
@@ -175,14 +175,14 @@ UI 属性/信号
 ```text
 src/
 ├── Core/             # 通用基础设施 (Async, Error, FileSystem, KeyValues, Logging, Path, Process, Result, Temp)【全部已有】
-├── Domain/           # Valve/Source 专有领域模型 (Asset, Audio, Game, Material, Package, Tool【已有】; Bsp, Vmf【规划】)
+├── Domain/           # Valve/Source 专有领域模型 (Asset, Audio, Game, Material（含 TextureProcess 纹理处理后端）, Package, Tool【已有】; Bsp, Vmf【规划】)
 ├── Workflow/         # 具体导入流水线 (Common, Particle【已有】; Map, Model【规划】)
 ├── Application/      # 应用服务与任务调度 (Async, Common, Environment, Execution, Logging, Particle, Soundscape【已有】; Config, Task, Update【规划】)
 ├── UI/               # 表现层 ViewModel 与控制器 (Controllers, ViewModels)【全部已有】
 └── qml/              # QML 界面视图与组件 (cs2importer/components, cs2importer/tabs, Main.qml)【全部已有】
 ```
 
-`src/Legacy/` 仅用于过渡，新代码严禁依赖 Legacy。
+`src/Legacy/` 仅用于过渡，新代码严禁依赖 Legacy。当前 `src/Legacy/` 未接入默认构建（`src/CMakeLists.txt` 未对其执行 `add_subdirectory`），仅作迁移参照保留。
 
 仓库根目录 `translations/` 存放 Qt Linguist 翻译源文件（`cs2importer_zh_CN.ts`）；新增语言仅需追加对应 `.ts` 并在 `src/CMakeLists.txt` 的 `qt_add_translations` 中登记。
 
@@ -209,7 +209,8 @@ cs2importer (主程序 / QML)
 ### CMake 架构红线
 
 * `cs2importer_core` 严禁链接 Domain / Application / UI；
-* `cs2importer_domain` 仅链接 Core；
+* `cs2importer_domain` 仅链接 Core（指项目层目标）；
+* **Qt 模块与第三方库不属于项目分层**：各层目标可按需链接 Qt 模块（如 `cs2importer_domain` 因 Material 纹理 IO 公共链接 `Qt6::Gui`），第三方库由最底层实际消费模块 `PRIVATE` 链接（见 §9），均不构成跨层违规；
 * `cs2importer_workflow` 链接 Domain + Core；
 * `cs2importer_application` 链接 Workflow + Domain + Core；
 * `cs2importer_ui` 链接 Application 及 Qt 模块。**严禁在 `src/UI/CMakeLists.txt` 中添加对 `cs2importer_domain` 或 `cs2importer_core` 的直接链接。**
@@ -239,7 +240,7 @@ cs2importer (主程序 / QML)
 ### 9.1 测试生命周期契约 (Testing Lifecycle Contract)
 
 * **Core 层测试（长期常驻）**：作为系统可复用基础设施的质量底座，纯 Core 单元测试（`test_core_*`）长期驻留于 `tests/` 目录中，用于守护基础原语的向后兼容与确定性；
-* **非 Core 层测试（面向单任务，用完即删）**：针对 Domain、Workflow、Application、UI 层的测试，均严格定义为**临时单任务测试（Task-Scoped / Ephemeral Tests）**。仅用于在研发、重构或定位缺陷的单个任务期间进行即时验证。**一旦任务完成，必须立即清理或删除，严禁将包含上层复杂依赖的测试长期留存在代码库中**。
+* **非 Core 层测试（面向单任务，用完即删）**：针对 Domain、Workflow、Application、UI 层的测试，均严格定义为**临时单任务测试（Task-Scoped / Ephemeral Tests）**。仅用于在研发、重构或定位缺陷的单个任务期间进行即时验证。**一旦任务完成，必须立即清理或删除，严禁将包含上层复杂依赖的测试长期留存在代码库中**。临时测试目标以 `test_tmp_` 前缀命名，并在 `tests/CMakeLists.txt` 中以显式注释块标注任务范围与删除义务；删除时须连同其仅为测试服务的配置（额外链接的第三方夹具、`find_package` 组件、下层目标子目录注入）一并清理。
 
 ---
 

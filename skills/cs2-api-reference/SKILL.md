@@ -105,7 +105,21 @@ description: >-
   * `BspPackExtractor`：专职从 Source 1 BSP 文件提取嵌入的 Pakfile 资产包；
   * `PackArchivePool`：归档池化缓存机制（LRU 缓存），复用打开的文件句柄，提供线程安全的高性能解包。已彻底废弃外部 VPKEdit CLI。
 * **`Domain::Material`**：
-  * `VtfConverter`：基于 `vtfpp` 的 VTF 纹理图像解码器，支持转码导出为 PNG、TGA、JPG、BMP、HDR 格式（内存缓冲区或直接落盘）。
+  * `VtfConverter`：基于 `vtfpp` 的 VTF 纹理图像解码器（mip 0、首帧/首面），支持转码导出为 PNG、TGA、JPG、BMP、HDR 格式（内存缓冲区或直接落盘）；
+  * `VtfCodec`：vtfpp 只读 VTF 解码器，压缩存储格式（DXT/BCn）解码为 RGBA8888 `QImage`；VTF 输出不在范围（导出仅 PNG）；
+  * `TgaCodec`：自包含 TGA 编解码器（不依赖第三方库）；
+  * `TextureIO`：纹理读写统一门面——宽读取（PNG/JPG/BMP 经 Qt 图像插件、TGA 经 `TgaCodec`、VTF 经 `VtfCodec`），窄写入（**仅 PNG**）；sRGB 解码/编码由调用点显式指定：颜色输入加载为 sRGB 解码后的线性浮点（与 GPU 采样行为一致），数据贴图（height/normal/AO…）字节值原样直通；
+  * `TextureImage`：通道分离的 float32 平面像素缓冲（channel-major、行主序），线性色彩空间工作图像，纯值类型（无 Qt / 第三方依赖），支持环绕双线性采样；
+  * **`Domain::Material::TextureProcess`（PBR 纹理生成子命名空间）**：Materialize (GPLv3) 着色器管线的 C++/Qt CPU 移植，统一签名为静态 `Core::Result<TextureImage>` + `CancellationToken` + 进度回调：
+    * `HeightGenerator`：从漫反射（7 频段均衡合成 + HSL 颜色取样掩码）或法线图生成高度图；
+    * `NormalGenerator`：从高度图生成切线空间法线（中心差分梯度 + 可选 shape-from-diffuse 重建 + 频段合成）；
+    * `AoGenerator`：从法线图 + 可选高度图生成环境光遮蔽（旋转径向采样扫描 + 深度项混合）；
+    * `MetallicGenerator` / `SmoothnessGenerator`：从漫反射（HSL 距离掩码 + 高通细节叠加）生成金属度 / 光滑度贴图，金属度图可选门控光滑度；
+    * `DiffuseEditor`：漫反射预处理（去光照梯度 / 热点 / 暗点、细节回注、饱和度与对比度调整）；
+    * `ChannelPacker`：逐通道贴图打包（`PackSource` 指定各通道取值来源，如 MRAO 约定 metallic→R / roughness→G / AO→B）；
+    * `TextureBlur`：可分离余弦窗模糊、7 频段频率金字塔与 256×256 大半径平均图（各生成器共享的底座设施）；
+    * `TexturePresets`：频段均衡器预设常量表（Default / Detail / Displace 等）；
+    * `ColorMath`：内部共享色彩数学（RGB↔HSL、确定性采样哈希），**非公共 API**，仅供生成器实现文件包含。
 * **`Domain::Audio`**：
   * `SoundscapeDefinition`：Source 1 声音景观领域模型（looping sound, random sound 等）；
   * `SoundscapeParser`：解析 `soundscapes_*.txt` VDF 脚本；
@@ -137,7 +151,7 @@ description: >-
   * `ImportContext`：组合 `Core::Logging::TaskLoggingContext*` 与 `Core::Async::CancellationToken`，提供统一的任务日志、进度汇报与取消状态检查（`checkCancelled()`）；
   * `AssetExtractor`：按 `SearchTarget` 列表定位并提取资产（目录松散文件 → 目标 `pak01_dir.vpk` → VPK 目标），结合 `PackArchivePool` 进行归档复用；
   * `BspEmbeddedExtractor`：经 `Domain::Package::PackArchive` 与 `BspPackExtractor` 枚举并提取 BSP 内部嵌入资产；
-  * `VtfExtractor`：组合 `AssetExtractor` 与 `Domain::Material::VtfConverter`，按指定格式提取并转码 VTF。
+  * `VtfExtractor`：组合 `AssetExtractor` 与 `Domain::Material::VtfConverter`，按 `SearchTarget` 列表定位 VTF、解码并**固定导出为 PNG**（用例层锁定格式，`VtfConverter` 本身保持格式无关）；中间 VTF 文件解包至 RAII 临时目录自动清理；失败语义沿用 `AssetExtractor::extract`，图像编码步骤额外引入 `OperationFailed` 失败原因。
 * **`Workflow::Particle`**：
   * `ParticleImportWorkflow`：Source 1 `.pcf` 到 Source 2 `.vpcf` 的完整导入工作流，编排依赖提取、content 目录资产生成与 `Domain::Tool::ResourceCompilerTool` 编译；以 `Cs2PathLayout::gameDirectory` 作为两个工具的工作目录锚点（保证 stdout 相对产物路径可解析）；**产物生命周期归属工作流**——编译步骤被取消或失败时清理半成品 `.vpcf` / `.vpcf_c`（`cleanupGeneratedArtifacts`）；
   * `ParticleImportOptions`：粒子导入配置参数（深度混合、禁用漫反射、`toolTimeoutMs` 单工具超时覆盖（0 = 沿用各工具默认 120s）等）。
@@ -199,5 +213,6 @@ description: >-
   * 范围：仅测试 Core 层基础设施（`LogManager`, `TaskLoggingContext`, `TaskFileSink`, `LogFileManager`, `ProcessRunner`, `Result`, `Error`）。
 * **临时单任务测试（Task-Scoped / Ephemeral Tests）**：
   * 任何针对 Domain、Workflow、Application、UI 层的单元或集成测试，仅在对应特性研发任务中临时存在；
-  * **用完即删**，严禁合入主线，严禁在 `tests/` 下建立对上层模块的永久性 CMake 链接。
+  * 目标以 `test_tmp_` 前缀命名，并在 `tests/CMakeLists.txt` 中以显式注释块标注任务范围与删除义务（AGENTS.md §9.1）；
+  * **用完即删**——删除时须连同测试源文件、CMake 目标块及其仅为测试服务的配置（额外链接的第三方夹具、`find_package` 组件、下层目标子目录注入）一并清理；严禁合入主线，严禁在 `tests/` 下建立对上层模块的永久性 CMake 链接。
 

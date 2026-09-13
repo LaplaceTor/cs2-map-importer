@@ -58,7 +58,9 @@ cmake --build --preset windows-debug
 
 ### Embedded Native Libraries (via Git Submodules)
 - [sourcepp](https://github.com/craftablescience/sourcepp) (`vpkpp`, `bsppp`, `vtfpp`) — Native, in-process parsing and extraction of Valve package archives (VPK, BSP pakfiles) and VTF texture decoding.
-- [cryptopp](https://github.com/weidai11/cryptopp) — Cryptography and hash infrastructure, modernized for C++20 and MSVC.
+
+### Ported Algorithms
+- [Materialize](https://github.com/maikramer/Materialize) (GPLv3) — The PBR texture generation backend (`Domain::Material::TextureProcess`) is a C++/Qt port of Materialize's shader pipelines: height, normal, AO, metallic and smoothness generation, diffuse editing, and PBR channel packing.
 
 ### External Tools
 - [bspsrc](https://github.com/ata4/bspsrc) — Decompiles Source engine BSP maps back into VMF map files.

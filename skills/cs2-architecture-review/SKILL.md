@@ -16,7 +16,7 @@ description: >-
 | :--- | :--- | :--- | :--- |
 | `Miscellaneous::RunCommandSync`, `PROGRAM_*` | `Domain::Tool` | `src/Domain/Tool/` | 基于 `Core::Process` 的 Valve 官方工具强类型封装（`ResourceCompilerTool`, `Source1ImportTool`，配备结构化日志解析器 `*LogParser` 与 `ToolErrors`）。[已落地] |
 | `VmfBspProcess` | `Domain::Vmf` / `Domain::Bsp` | `src/Domain/Vmf/`, `src/Domain/Bsp/` | VMF 处理与 BSP 反编译行为。 |
-| `MaterialFix` | `Domain::Material` | `src/Domain/Material/` | VMT/VMAT 材质转换与修正；`VtfConverter` 负责 VTF 图像解码与格式转换。[已落地] |
+| `MaterialFix` | `Domain::Material` | `src/Domain/Material/` | VMT/VMAT 材质转换与修正；VTF 解码（`VtfCodec` / `VtfConverter`）与纹理处理管线（`TextureProcess` PBR 贴图生成、通道打包，`TextureIO` 宽读取 / 仅 PNG 导出）。[已落地] |
 | `SoundscapeImport` | `Domain::Audio` + `Application::Soundscape` | 对应目录 | Source 1 Soundscape 脚本解析、KV3 Soundevents 转换与批量服务。[已落地] |
 | `FileExtractFromVPK`, Pakfile 提取 | `Domain::Package` + `Workflow::Common` | 对应目录 | 基于 `sourcepp` 的内嵌包解析与提取（`PackArchive`, `BspPackExtractor`, `PackArchivePool` 归档池化缓存）及 `AssetExtractor`，完全移除外部 VPKEdit CLI 依赖。[已落地] |
 | `Miscellaneous::ParseGameInfo`, `SearchTarget` | `Domain::Game` | `src/Domain/Game/` | GameInfo 解析、校验与搜索路径解析。[已落地] |
@@ -38,7 +38,7 @@ description: >-
 重构按阶段逐步推进，**严禁为了让临时代码通过编译而跨阶段混杂实现**。
 
 1. **Stage 1 — Core 基础设施解耦提取**（已完成：错误体系、文件系统、KeyValues、任务导向日志、异步取消令牌 `CancellationToken`）
-2. **Stage 2 — Domain 领域基础迁移**（已完成：游戏模型/注册表/校验器、`Domain::Package` [PackArchive, BspPackExtractor, PackArchivePool]、`Domain::Material` [VtfConverter]、`Domain::Audio` [Soundscape 解析与转换]、`Domain::Tool` [CS2 官方工具与日志解析器]）
+2. **Stage 2 — Domain 领域基础迁移**（已完成：游戏模型/注册表/校验器、`Domain::Package` [PackArchive, BspPackExtractor, PackArchivePool]、`Domain::Material` [VtfConverter, VtfCodec/TextureIO/TgaCodec 纹理 IO 与 `TextureProcess` 纹理处理后端]、`Domain::Audio` [Soundscape 解析与转换]、`Domain::Tool` [CS2 官方工具与日志解析器]）
 3. **Stage 3 — 导入器与领域逻辑迁移**（进行中：`Workflow::Particle` 已落地；`Workflow::Common` 资产提取与 `ImportContext` 已就绪；待推进：ModelImporter → `Workflow::Model`、VmfBspProcess → `Domain::Vmf` + `Domain::Bsp`）
 4. **Stage 4 — Application 应用编排重构**（进行中：`AsyncTaskRunner`、`TaskHandle`、`runWorkflowTask` / `runSystemTask` / `SystemTaskLog`、`TaskLogService` 日志门面、`ImportPrerequisiteService`、`ParticleImportService`、`SoundscapeConvertService`、`GameEnvironmentService`、`GameInstallationValidator` 已落地；待补齐：统一 ConfigService、UpdateService）
 5. **Stage 5 — MapImporter 重构与 UI 瘦身**（待推进：MapImporter → `Workflow::Map`、UI 彻底收敛为纯展示与 Application 调用）
