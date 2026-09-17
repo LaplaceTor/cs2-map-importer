@@ -19,6 +19,9 @@ QStringList Source1ImportTool::buildArguments(const Source1ImportOptions& option
     args << QStringLiteral("-nop4");
     args << QStringLiteral("-nop4sync");
     args << QStringLiteral("-src1gameinfodir") << options.source1GameInfoDir.toString();
+    if (!options.source1ContentDir.isEmpty()) {
+        args << QStringLiteral("-src1contentdir") << options.source1ContentDir.toString();
+    }
     args << QStringLiteral("-s2addon") << options.addonName;
     args << QStringLiteral("-game") << QStringLiteral("csgo");
     if (options.allowDepthBlend) {

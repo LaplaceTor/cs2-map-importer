@@ -16,6 +16,8 @@ public:
     bool isDirectory() const;
     bool isAbsolute() const;
     bool isRelative() const;
+    bool isSubpathOf(const FilesystemPath& baseDir) const;
+    bool contains(const FilesystemPath& childPath) const;
 
     QString fileName() const;
     QString extension() const;

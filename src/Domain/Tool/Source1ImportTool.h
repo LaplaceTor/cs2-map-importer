@@ -15,6 +15,7 @@ namespace Domain::Tool {
  */
 struct Source1ImportOptions {
     Core::Path::FilesystemPath source1GameInfoDir;
+    Core::Path::FilesystemPath source1ContentDir;
     QString addonName;
     Core::Path::FilesystemPath inputFilePath;
     bool allowDepthBlend = false;

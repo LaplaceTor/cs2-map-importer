@@ -55,6 +55,22 @@ bool FilesystemPath::isRelative() const {
     return QFileInfo(m_path).isRelative();
 }
 
+bool FilesystemPath::isSubpathOf(const FilesystemPath& baseDir) const {
+    if (m_path.isEmpty() || baseDir.isEmpty()) {
+        return false;
+    }
+    QString cleanChild = QDir::cleanPath(absolutePath().toString());
+    QString cleanBase = QDir::cleanPath(baseDir.absolutePath().toString());
+    if (!cleanBase.endsWith(QLatin1Char('/'))) {
+        cleanBase.append(QLatin1Char('/'));
+    }
+    return cleanChild.startsWith(cleanBase, Qt::CaseInsensitive);
+}
+
+bool FilesystemPath::contains(const FilesystemPath& childPath) const {
+    return childPath.isSubpathOf(*this);
+}
+
 QString FilesystemPath::fileName() const {
     if (m_path.isEmpty()) {
         return QString();

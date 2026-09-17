@@ -5,7 +5,11 @@
 #include "Domain/Tool/ResourceCompilerTool.h"
 #include "Domain/Tool/Cs2PathLayout.h"
 #include "Domain/Tool/ToolErrors.h"
+#include "Core/Error/ErrorCode.h"
+#include "Core/Temp/TempFileCleanup.h"
 #include <QFile>
+#include <QDir>
+#include <QFileInfo>
 
 namespace Workflow::Particle {
 
@@ -57,6 +61,46 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
     // tools on stdout are resolved against the CS2 game directory.
     const auto toolWorkingDirectory = Domain::Tool::Cs2PathLayout::gameDirectory(options.cs2BaseDir);
 
+    const Core::Path::FilesystemPath s1ParticlesPath = options.s1GameInfoDir / QStringLiteral("particles");
+    const QDir s1ParticlesDir(s1ParticlesPath.toString());
+
+    bool alreadyInS1Particles = options.sourcePcfPath.isSubpathOf(s1ParticlesPath);
+    if (!alreadyInS1Particles && !options.source1GameDir.isEmpty()) {
+        const Core::Path::FilesystemPath baseParticlesPath = options.source1GameDir / QStringLiteral("particles");
+        alreadyInS1Particles = options.sourcePcfPath.isSubpathOf(baseParticlesPath);
+    }
+
+    Core::Path::FilesystemPath effectivePcfPath = options.sourcePcfPath;
+    Core::Temp::TempFileCleanup tempPcfCleanup;
+
+    if (!alreadyInS1Particles) {
+        if (!s1ParticlesDir.exists() && !s1ParticlesDir.mkpath(QStringLiteral("."))) {
+            return Core::Result<ParticleImportWorkflowResult>::failure(
+                Core::Error::ErrorCode::OperationFailed,
+                QCoreApplication::translate("ParticleImportWorkflow", "Failed to create Source 1 particles directory: %1")
+                    .arg(s1ParticlesDir.absolutePath()));
+        }
+
+        const QString pcfFileName = QFileInfo(options.sourcePcfPath.toString()).fileName();
+        const QString targetPcfPathStr = s1ParticlesDir.filePath(pcfFileName);
+
+        if (QFile::exists(targetPcfPathStr)) {
+            QFile::remove(targetPcfPathStr);
+        }
+        if (!QFile::copy(options.sourcePcfPath.toString(), targetPcfPathStr)) {
+            return Core::Result<ParticleImportWorkflowResult>::failure(
+                Core::Error::ErrorCode::WriteFailed,
+                QCoreApplication::translate("ParticleImportWorkflow", "Failed to copy PCF file to Source 1 particles folder: %1")
+                    .arg(targetPcfPathStr));
+        }
+        effectivePcfPath = Core::Path::FilesystemPath(targetPcfPathStr);
+        tempPcfCleanup.setPath(targetPcfPathStr);
+        context.info(QCoreApplication::translate("ParticleImportWorkflow", "Copied PCF file to Source 1 particles folder: %1").arg(targetPcfPathStr));
+    } else {
+        context.info(QCoreApplication::translate("ParticleImportWorkflow", "PCF file is already inside Source 1 particles folder: %1")
+            .arg(options.sourcePcfPath.toString()));
+    }
+
     // Step 1: Convert PCF via Source1ImportTool
     auto convertResult = context.runStep(
         QCoreApplication::translate("ParticleImportWorkflow", "Converting PCF with source1import"),
@@ -65,7 +109,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
             Domain::Tool::Source1ImportOptions s1Options;
             s1Options.source1GameInfoDir = options.s1GameInfoDir;
             s1Options.addonName = trimmedAddon;
-            s1Options.inputFilePath = options.sourcePcfPath;
+            s1Options.inputFilePath = effectivePcfPath;
             s1Options.allowDepthBlend = options.allowDepthBlend;
             s1Options.disableDiffuse = options.disableDiffuse;
             s1Options.isCsgo = options.isCsgo;
@@ -85,7 +129,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
             if (s1Data.generatedVpcfPaths.isEmpty()) {
                 return Core::Result<Domain::Tool::Source1ImportToolResult>::failure(
                     Domain::Tool::ToolErrors::noMatchingFiles(
-                        options.sourcePcfPath.toString(),
+                        effectivePcfPath.toString(),
                         s1Data.rawOutput),
                     QCoreApplication::translate("ParticleImportWorkflow", "No .vpcf files generated from PCF conversion"));
             }
