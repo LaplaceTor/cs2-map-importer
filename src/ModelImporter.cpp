@@ -28,43 +28,49 @@ bool ModelImporter::Run(const QString& mdlPath) {
 
     const auto& opts = Miscellaneous::GetOptions();
 
-    // Prepare target directory in application directory: <appDir>/models/<modelName>
-    QString appModelsDir = QDir(opts.appDir).filePath("models/" + modelName);
-    QDir().mkpath(appModelsDir);
+    // Prepare target directory in Source 1 game directory: <s1gamedir>/models/<modelName>
+    QString targetModelsDir = QDir(opts.s1gamedir).filePath("models/" + modelName);
+    bool isSameDir = (QDir::cleanPath(srcDir).compare(QDir::cleanPath(targetModelsDir), Qt::CaseInsensitive) == 0);
 
-    // Whitelist of model-related extensions to copy
-    QStringList extensions = {"mdl", "vvd", "phy", "vtx", "dx90.vtx", "dx80.vtx", "sw.vtx", "ani"};
-    for (const QString& ext : extensions) {
-        QString srcFile = QDir(srcDir).filePath(modelName + "." + ext);
-        QString dstFile = QDir(appModelsDir).filePath(modelName + "." + ext);
+    if (isSameDir) {
+        Miscellaneous::Log("Source model path matches target path in s1gamedir, skipping copy.");
+    } else {
+        QDir().mkpath(targetModelsDir);
 
-        if (QFile::exists(srcFile)) {
-            if (QFileInfo(srcFile).canonicalFilePath() != QFileInfo(dstFile).canonicalFilePath()) {
-                if (QFile::exists(dstFile)) {
-                    QFile::remove(dstFile);
-                }
-                if (!QFile::copy(srcFile, dstFile)) {
-                    Miscellaneous::Log("Failed to copy " + srcFile + " to " + dstFile);
-                    if (ext == "mdl") {
-                        return false;
+        // Whitelist of model-related extensions to copy
+        QStringList extensions = {"mdl", "vvd", "phy", "vtx", "dx90.vtx", "dx80.vtx", "sw.vtx", "ani"};
+        for (const QString& ext : extensions) {
+            QString srcFile = QDir(srcDir).filePath(modelName + "." + ext);
+            QString dstFile = QDir(targetModelsDir).filePath(modelName + "." + ext);
+
+            if (QFile::exists(srcFile)) {
+                if (QFileInfo(srcFile).canonicalFilePath() != QFileInfo(dstFile).canonicalFilePath()) {
+                    if (QFile::exists(dstFile)) {
+                        QFile::remove(dstFile);
+                    }
+                    if (!QFile::copy(srcFile, dstFile)) {
+                        Miscellaneous::Log("Failed to copy " + srcFile + " to " + dstFile);
+                        if (ext == "mdl") {
+                            return false;
+                        }
                     }
                 }
+            } else if (ext == "mdl") {
+                Miscellaneous::Log("Error: Source MDL file not found: " + srcFile);
+                return false;
             }
-        } else if (ext == "mdl") {
-            Miscellaneous::Log("Error: Source MDL file not found: " + srcFile);
-            return false;
         }
     }
 
     QString relMdlPath = QDir::toNativeSeparators("models/" + modelName + "/" + mdlFileName);
 
     Miscellaneous::Log("Input model path: " + fullMdlPath);
-    Miscellaneous::Log("App models dir: " + appModelsDir);
+    Miscellaneous::Log("Target models dir: " + targetModelsDir);
     Miscellaneous::Log("Relative MDL path: " + relMdlPath);
 
     // Build options for cs_mdl_import
     QStringList arguments = { "-nop4" };
-    arguments << "-i" << QDir::toNativeSeparators(opts.appDir);
+    arguments << "-i" << QDir::toNativeSeparators(opts.s1gamedir);
     if (opts.modelSkipAnimation) arguments << "-skipcommondmxwrite";
     if (opts.modelChangeBindpose) arguments << "-YupToZup";
     if (opts.modelOverrideLean) arguments << "-overridelean";
