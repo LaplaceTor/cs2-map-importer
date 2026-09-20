@@ -5,12 +5,6 @@
 
 class VmfBspProcess {
 public:
-    struct FolderInfo {
-        QString path;
-        QStringList subfolders;
-        QStringList files;
-    };
-
     // Decompiles the BSP, moves unpacked files, and moves materials/models folders into s1gamedir
     static void ProcessBsp();
 
