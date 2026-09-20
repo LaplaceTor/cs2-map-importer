@@ -105,10 +105,6 @@ jobs:
           --no-compiler-runtime `
           --no-system-d3d-compiler `
           --no-system-dxc-compiler `
-          --no-virtualkeyboard `
-          --no-quick3d `
-          --no-spatialaudio `
-          --no-multimedia `
           release\cs2importer.exe
 
         Copy-Item -Path bin -Destination release\bin -Recurse
