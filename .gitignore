@@ -15,3 +15,9 @@ cmake_build/
 .vs/
 .qtcreator/
 .aider*
+
+gameinfotestfile/
+particles/
+source1soundscripts/
+source2soundscripts/
+*.ps1

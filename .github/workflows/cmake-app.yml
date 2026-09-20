@@ -23,7 +23,6 @@ jobs:
         host: 'windows'
         target: 'desktop'
         arch: 'win64_msvc2022_64'
-        modules: 'qtshadertools'
 
     - name: Draft Release
       id: release_drafter
@@ -104,10 +103,17 @@ jobs:
         # The built executable is usually in build\Release\ on Windows MSVC
         Copy-Item build\Release\cs2importer.exe release\
         # Deploy Qt dependencies next to the executable
-        windeployqt --qmldir src/qml release\cs2importer.exe
-
-        # Remove unused Qt folders
-        Remove-Item -Path release\translations -Recurse -Force -ErrorAction SilentlyContinue
+        windeployqt --qmldir src/qml `
+          --no-translations `
+          --no-opengl-sw `
+          --no-compiler-runtime `
+          --no-system-d3d-compiler `
+          --no-system-dxc-compiler `
+          --no-virtualkeyboard `
+          --no-quick3d `
+          --no-spatialaudio `
+          --no-multimedia `
+          release\cs2importer.exe
 
         Copy-Item -Path bin -Destination release\bin -Recurse
         cd release

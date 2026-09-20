@@ -16,15 +16,55 @@ bool ModelImporter::Run(const QString& mdlPath) {
     Miscellaneous::Log("Starting standalone Model Import process.");
 
     QString fullMdlPath = QDir::toNativeSeparators(mdlPath);
+    QFileInfo fi(fullMdlPath);
+    if (!fi.exists()) {
+        Miscellaneous::Log("Error: Input model file does not exist: " + fullMdlPath);
+        return false;
+    }
 
-    QString relMdlPath = QDir::toNativeSeparators("models/" + QFileInfo(fullMdlPath).fileName());
+    QString modelName = fi.completeBaseName();
+    QString mdlFileName = fi.fileName();
+    QString srcDir = fi.absolutePath();
+
+    const auto& opts = Miscellaneous::GetOptions();
+
+    // Prepare target directory in application directory: <appDir>/models/<modelName>
+    QString appModelsDir = QDir(opts.appDir).filePath("models/" + modelName);
+    QDir().mkpath(appModelsDir);
+
+    // Whitelist of model-related extensions to copy
+    QStringList extensions = {"mdl", "vvd", "phy", "vtx", "dx90.vtx", "dx80.vtx", "sw.vtx", "ani"};
+    for (const QString& ext : extensions) {
+        QString srcFile = QDir(srcDir).filePath(modelName + "." + ext);
+        QString dstFile = QDir(appModelsDir).filePath(modelName + "." + ext);
+
+        if (QFile::exists(srcFile)) {
+            if (QFileInfo(srcFile).canonicalFilePath() != QFileInfo(dstFile).canonicalFilePath()) {
+                if (QFile::exists(dstFile)) {
+                    QFile::remove(dstFile);
+                }
+                if (!QFile::copy(srcFile, dstFile)) {
+                    Miscellaneous::Log("Failed to copy " + srcFile + " to " + dstFile);
+                    if (ext == "mdl") {
+                        return false;
+                    }
+                }
+            }
+        } else if (ext == "mdl") {
+            Miscellaneous::Log("Error: Source MDL file not found: " + srcFile);
+            return false;
+        }
+    }
+
+    QString relMdlPath = QDir::toNativeSeparators("models/" + modelName + "/" + mdlFileName);
 
     Miscellaneous::Log("Input model path: " + fullMdlPath);
+    Miscellaneous::Log("App models dir: " + appModelsDir);
     Miscellaneous::Log("Relative MDL path: " + relMdlPath);
 
     // Build options for cs_mdl_import
-    const auto& opts = Miscellaneous::GetOptions();
     QStringList arguments = { "-nop4" };
+    arguments << "-i" << QDir::toNativeSeparators(opts.appDir);
     if (opts.modelSkipAnimation) arguments << "-skipcommondmxwrite";
     if (opts.modelChangeBindpose) arguments << "-YupToZup";
     if (opts.modelOverrideLean) arguments << "-overridelean";
@@ -32,12 +72,11 @@ bool ModelImporter::Run(const QString& mdlPath) {
     if (opts.modelImportLods) arguments << "-lods";
     if (opts.modelWriteWeaponPrefab) {
         arguments << "-write_weapon_anim_prefab";
-        QString modelBaseName = QFileInfo(relMdlPath).baseName();
-        arguments << "-weapon_anim_prefab" << (modelBaseName + "_prefab");
+        arguments << "-weapon_anim_prefab" << (modelName + "_prefab");
     }
 
-    QString outputDir = QDir::toNativeSeparators(opts.s2contentdir + "/models");
-    arguments << "-o" << outputDir << fullMdlPath;
+    QString outputDir = QDir::toNativeSeparators(opts.s2contentdir);
+    arguments << "-o" << outputDir << relMdlPath;
 
     int ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_CS_MDL_IMPORT, arguments);
 
@@ -47,14 +86,10 @@ bool ModelImporter::Run(const QString& mdlPath) {
         return false;
     }
 
-    // Define output path for refs file
-    QString refsName = QDir::toNativeSeparators(QDir(outputDir).filePath(QFileInfo(fullMdlPath).fileName()));
-    int pos = refsName.lastIndexOf(".mdl");
-    if (pos != -1) refsName.replace(pos, 4, "_refs.txt");
-
-    QString outName = QDir::toNativeSeparators(QDir(outputDir).filePath(QFileInfo(fullMdlPath).fileName()));
-    pos = outName.lastIndexOf(".mdl");
-    if (pos != -1) outName.replace(pos, 4, ".vmdl");
+    // Define output path for refs and vmdl files in s2contentdir
+    QString s2ModelDir = QDir(opts.s2contentdir).filePath("models/" + modelName);
+    QString refsName = QDir::toNativeSeparators(QDir(s2ModelDir).filePath(modelName + "_refs.txt"));
+    QString outName = QDir::toNativeSeparators(QDir(s2ModelDir).filePath(modelName + ".vmdl"));
 
     QSet<QString> mdlmtls;
     if (QFile::exists(refsName)) {
