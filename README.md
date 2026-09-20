@@ -7,24 +7,6 @@ A user-friendly tool with a Graphical User Interface (GUI) to import maps from S
 
 This project was previously a Python program (forked from sarim's importer) but has now been fully rewritten as a standalone C++ application with a modern QML-based UI.
 
-## Requirements
-
-To build and run this program, you will need:
-- **C++17** compatible compiler
-- **CMake** (version 3.10 or higher)
-- **Qt6** (version 6.8 or higher)
-
-## Build Instructions
-
-You can build this project using CMake:
-
-```bash
-mkdir build
-cd build
-cmake ..
-cmake --build .
-```
-
 ## Usage
 
 1. Launch `cs2importer`.
