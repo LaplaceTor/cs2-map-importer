@@ -84,7 +84,10 @@ jobs:
         if (Test-Path bin) { Copy-Item -Path bin -Destination release\bin -Recurse -Force }
         $zipName = "cs2importer-v2.0.0-${{ steps.vars.outputs.sha_short }}.zip"
         Push-Location release
-        7z a $zipName * -xr!*.zip
+        7z a $zipName * '-xr!*.zip'
+        $zipItem = Get-Item $zipName
+        Write-Host "Created archive: $($zipItem.FullName) ($($zipItem.Length) bytes)"
+        if ($zipItem.Length -le 1024) { throw "Archive $zipName is suspiciously small ($($zipItem.Length) bytes)" }
         Pop-Location
 
     - name: Upload Artifact
