@@ -87,6 +87,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
         const auto& pcfPath = options.sourcePcfPaths[static_cast<size_t>(i)];
         const QString pcfFileName = QFileInfo(pcfPath.toString()).fileName();
 
+        const double progress = 0.6 * (static_cast<double>(i + 1) / totalPcfCount);
         bool alreadyInS1Particles = pcfPath.isSubpathOf(s1ParticlesPath);
         if (!alreadyInS1Particles && !baseParticlesPath.isEmpty()) {
             alreadyInS1Particles = pcfPath.isSubpathOf(baseParticlesPath);
@@ -101,6 +102,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
                     .arg(s1ParticlesDir.absolutePath()));
                 workflowResult.failedPcfFiles.append(pcfPath.toString());
                 workflowResult.totalFailed += 1;
+                context.updateProgress(progress);
                 continue;
             }
 
@@ -113,6 +115,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
                     .arg(targetPcfPathStr));
                 workflowResult.failedPcfFiles.append(pcfPath.toString());
                 workflowResult.totalFailed += 1;
+                context.updateProgress(progress);
                 continue;
             }
             effectivePcfPath = Core::Path::FilesystemPath(targetPcfPathStr);
@@ -124,7 +127,6 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
         }
 
         // Run conversion step for this PCF
-        const double progress = 0.6 * (static_cast<double>(i + 1) / totalPcfCount);
         const QString stepName = totalPcfCount > 1
             ? QCoreApplication::translate("ParticleImportWorkflow", "Converting PCF (%1/%2): %3")
                 .arg(i + 1).arg(totalPcfCount).arg(pcfFileName)

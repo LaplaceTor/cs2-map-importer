@@ -149,6 +149,16 @@ ApplicationWindow {
                 model: root.logViewModel
                 boundsBehavior: Flickable.StopAtBounds
 
+                WheelHandler {
+                    id: outerWheelHandler
+                    target: null
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                    onWheel: (event) => {
+                        scrollAnim.stop();
+                        event.accepted = false;
+                    }
+                }
+
                 NumberAnimation {
                     id: scrollAnim
                     target: taskListView

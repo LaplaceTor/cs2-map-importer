@@ -87,12 +87,20 @@ public:
         }
     }
 
+    void updateCurrentMessage(const QString& message) const {
+        if (m_loggingCtx) {
+            m_loggingCtx->updateCurrentMessage(message);
+            m_loggingCtx->flush();
+        }
+    }
+
     quint64 taskId() const noexcept {
         return m_loggingCtx ? m_loggingCtx->taskId() : 0;
     }
 
     /**
      * @brief Executes a pipeline step with automatic cancellation checks before and after execution.
+     * Progress is advanced after step completion.
      */
     template <typename StepFn>
     auto runStep(const QString& stepName, double progress, StepFn&& fn) const
@@ -103,14 +111,18 @@ public:
             return ReturnType::cancelled(QCoreApplication::translate("ImportContext", "Cancelled before step: %1").arg(stepName));
         }
 
-        if (progress >= 0.0) {
-            updateProgress(progress, stepName);
+        if (!stepName.isEmpty()) {
+            updateCurrentMessage(stepName);
         }
 
         auto result = fn();
 
         if (isCancelled() && !result.isCancelled()) {
             return ReturnType::cancelled(QCoreApplication::translate("ImportContext", "Cancelled during step: %1").arg(stepName));
+        }
+
+        if (progress >= 0.0 && !result.isCancelled()) {
+            updateProgress(progress);
         }
 
         return result;

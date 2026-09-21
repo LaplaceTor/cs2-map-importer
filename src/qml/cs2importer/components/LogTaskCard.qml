@@ -19,6 +19,7 @@ Rectangle {
     property var messagesModel: (typeof model !== "undefined" && model && model.messagesModel !== undefined) ? model.messagesModel : null
     property var subTasksModel: (typeof model !== "undefined" && model && model.subTasksModel !== undefined) ? model.subTasksModel : null
     property bool autoScroll: true
+    property bool userScrolledUp: false
     property var taskView: null
     property var logWindow: null
     readonly property var effectiveView: taskView || rootCard.ListView.view || null
@@ -47,6 +48,7 @@ Rectangle {
     height: implicitHeight
 
     function scrollToBottom() {
+        userScrolledUp = false;
         if (autoScroll && messageListView && messageListView.count > 0) {
             messageListView.positionViewAtEnd()
         }
@@ -54,9 +56,9 @@ Rectangle {
 
     Component.onCompleted: {
         var view = effectiveView;
-        if (cardDepth === 0 && expanded && view) {
+        if (cardDepth === 0 && expanded && view && autoScroll && cardIndex === 0) {
             Qt.callLater(function() {
-                if (view) {
+                if (view && autoScroll) {
                     if (typeof view.positionRootCardAtTop === "function") {
                         view.positionRootCardAtTop(rootCard);
                     } else {
@@ -71,6 +73,7 @@ Rectangle {
     onExpandedChanged: {
         var view = effectiveView;
         if (expanded) {
+            userScrolledUp = false;
             if (cardDepth === 0 && view) {
                 Qt.callLater(function() {
                     if (view) {
@@ -98,6 +101,9 @@ Rectangle {
     }
 
     onAutoScrollChanged: {
+        if (autoScroll) {
+            userScrolledUp = false;
+        }
         if (autoScroll && expanded) {
             Qt.callLater(scrollToBottom)
         }
@@ -275,30 +281,82 @@ Rectangle {
         border.color: "#2C2C2C"
         border.width: 1
 
-            ListView {
-                id: messageListView
-                anchors.fill: parent
-                anchors.margins: 6
-                clip: true
-                spacing: 3
-                model: rootCard.messagesModel
-                boundsBehavior: Flickable.StopAtBounds
+        WheelHandler {
+            id: msgWheelHandler
+            target: null
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: (event) => {
+                // Strictly consume all wheel events in the log block, never bubble to outer taskListView!
+                event.accepted = true;
 
-                ScrollBar.vertical: ScrollBar {
-                    active: messageListView.contentHeight > messageListView.height
+                var delta = event.angleDelta.y;
+                if (delta === 0) {
+                    delta = event.pixelDelta.y;
+                }
+                if (delta === 0) {
+                    return;
                 }
 
-                onCountChanged: {
-                    if (rootCard.expanded && rootCard.autoScroll) {
-                        Qt.callLater(messageListView.positionViewAtEnd)
+                if (messageListView.contentHeight <= messageListView.height) {
+                    return;
+                }
+
+                var step = (delta / 120.0) * 60.0;
+                var minY = messageListView.originY;
+                var maxY = messageListView.originY + Math.max(0, messageListView.contentHeight - messageListView.height);
+                var newY = Math.max(minY, Math.min(maxY, messageListView.contentY - step));
+
+                messageListView.contentY = newY;
+
+                if (delta > 0) {
+                    rootCard.userScrolledUp = true;
+                } else if (delta < 0) {
+                    if (messageListView.atYEnd || Math.abs(newY - maxY) < 2) {
+                        rootCard.userScrolledUp = false;
                     }
                 }
+            }
+        }
 
-                Component.onCompleted: {
-                    if (rootCard.expanded && rootCard.autoScroll) {
-                        Qt.callLater(messageListView.positionViewAtEnd)
+        ListView {
+            id: messageListView
+            anchors.fill: parent
+            anchors.margins: 6
+            clip: true
+            spacing: 3
+            model: rootCard.messagesModel
+            boundsBehavior: Flickable.StopAtBounds
+
+            ScrollBar.vertical: ScrollBar {
+                id: msgScrollBar
+                active: messageListView.contentHeight > messageListView.height
+                onPressedChanged: {
+                    if (!pressed && messageListView.atYEnd) {
+                        rootCard.userScrolledUp = false;
                     }
                 }
+                onPositionChanged: {
+                    if (pressed) {
+                        if (messageListView.atYEnd) {
+                            rootCard.userScrolledUp = false;
+                        } else {
+                            rootCard.userScrolledUp = true;
+                        }
+                    }
+                }
+            }
+
+            onCountChanged: {
+                if (rootCard.expanded && rootCard.autoScroll && !rootCard.userScrolledUp) {
+                    Qt.callLater(messageListView.positionViewAtEnd)
+                }
+            }
+
+            Component.onCompleted: {
+                if (rootCard.expanded && rootCard.autoScroll) {
+                    Qt.callLater(messageListView.positionViewAtEnd)
+                }
+            }
 
                 delegate: RowLayout {
                     id: msgRow

@@ -523,6 +523,9 @@ bool TaskLoggingContext::forceTerminalState(TaskState newState, const QString& m
         m_currentMessage = message;
         appendLifecycleEntryLocked(level, message);
     }
+    if (newState == TaskState::Completed) {
+        m_progress = 1.0;
+    }
     flushActiveBlockLocked();
     m_state = newState;
     return true;

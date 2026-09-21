@@ -1,4 +1,4 @@
-﻿import QtQuick
+import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "components"
@@ -10,6 +10,7 @@ ApplicationWindow {
     property var toolTaskId: 0
     property string toolName: ""
     property bool autoScroll: true
+    property bool userScrolledUp: false
 
     // The tool task node may be projected into the view model slightly after the
     // window opens (created when the tool's first log block arrives), and the state
@@ -87,8 +88,11 @@ ApplicationWindow {
                 checked: root.autoScroll
                 onCheckedChanged: {
                     root.autoScroll = checked
-                    if (checked && messageListView.count > 0) {
-                        Qt.callLater(messageListView.positionViewAtEnd)
+                    if (checked) {
+                        root.userScrolledUp = false
+                        if (messageListView.count > 0) {
+                            Qt.callLater(messageListView.positionViewAtEnd)
+                        }
                     }
                 }
             }
@@ -188,12 +192,44 @@ ApplicationWindow {
                 model: root.messagesModel
                 boundsBehavior: Flickable.StopAtBounds
 
+                WheelHandler {
+                    id: toolWheelHandler
+                    target: null
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                    onWheel: (event) => {
+                        var delta = event.angleDelta.y !== 0 ? event.angleDelta.y : event.pixelDelta.y;
+                        if (delta > 0) {
+                            root.userScrolledUp = true;
+                        } else if (delta < 0) {
+                            if (messageListView.atYEnd) {
+                                root.userScrolledUp = false;
+                            }
+                        }
+                        event.accepted = false; // Allow native list scrolling
+                    }
+                }
+
                 ScrollBar.vertical: ScrollBar {
+                    id: toolScrollBar
                     active: messageListView.contentHeight > messageListView.height
+                    onPressedChanged: {
+                        if (!pressed && messageListView.atYEnd) {
+                            root.userScrolledUp = false;
+                        }
+                    }
+                    onPositionChanged: {
+                        if (pressed) {
+                            if (messageListView.atYEnd) {
+                                root.userScrolledUp = false;
+                            } else {
+                                root.userScrolledUp = true;
+                            }
+                        }
+                    }
                 }
 
                 onCountChanged: {
-                    if (root.autoScroll) {
+                    if (root.autoScroll && !root.userScrolledUp) {
                         Qt.callLater(messageListView.positionViewAtEnd)
                     }
                 }
