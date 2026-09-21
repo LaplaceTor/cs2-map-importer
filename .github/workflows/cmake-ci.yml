@@ -23,6 +23,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         submodules: recursive
+        fetch-depth: 0
 
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
@@ -108,6 +109,98 @@ jobs:
                 }
             }
         }
+        $global:LASTEXITCODE = 0
+
+    - name: Generate DEV Release Notes
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_SERVER_URL: ${{ github.server_url }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        CURRENT_SHA: ${{ github.sha }}
+        BRANCH_NAME: ${{ github.ref_name }}
+        TRIGGERED_BY: ${{ github.actor }}
+        APP_VERSION: 2.0.0-${{ steps.vars.outputs.sha_short }}
+      run: |
+        $ErrorActionPreference = "Continue"
+        $prevSha = $null
+        $releaseJson = gh release view dev --json targetCommitish 2>$null
+        if ($LASTEXITCODE -eq 0 -and $releaseJson) {
+            try {
+                $prevSha = ($releaseJson | ConvertFrom-Json).targetCommitish
+            } catch {
+                $prevSha = $null
+            }
+        }
+        $global:LASTEXITCODE = 0
+
+        $commits = @()
+        $isFallback = $false
+        $repoUrl = "$($env:GITHUB_SERVER_URL)/$($env:GITHUB_REPOSITORY)"
+
+        if ($prevSha) {
+            git cat-file -e "${prevSha}^{commit}" 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                if ($prevSha -eq $env:CURRENT_SHA) {
+                    $commits = @("* 无新提交（重跑构建）")
+                } else {
+                    $rawLogs = git log "$($prevSha)..HEAD" --no-merges --pretty=format:"%H|%s"
+                    if ($rawLogs) {
+                        foreach ($line in ($rawLogs -split "`r?`n")) {
+                            if ($line.Trim()) {
+                                $parts = $line.Split('|', 2)
+                                $sha = $parts[0]
+                                $shortSha = $sha.Substring(0, [Math]::Min(7, $sha.Length))
+                                $subject = $parts[1]
+                                $commits += "- $subject ([$shortSha]($repoUrl/commit/$sha))"
+                            }
+                        }
+                    }
+                    if ($commits.Count -eq 0) {
+                        $commits = @("* 自上次构建以来无新提交")
+                    }
+                }
+            } else {
+                $isFallback = $true
+            }
+        } else {
+            $isFallback = $true
+        }
+
+        if ($isFallback) {
+            $rawLogs = git log -n 10 --no-merges --pretty=format:"%H|%s"
+            if ($rawLogs) {
+                foreach ($line in ($rawLogs -split "`r?`n")) {
+                    if ($line.Trim()) {
+                        $parts = $line.Split('|', 2)
+                        $sha = $parts[0]
+                        $shortSha = $sha.Substring(0, [Math]::Min(7, $sha.Length))
+                        $subject = $parts[1]
+                        $commits += "- $subject ([$shortSha]($repoUrl/commit/$sha))"
+                    }
+                }
+            }
+        }
+        $global:LASTEXITCODE = 0
+
+        $commitSectionHeader = if ($isFallback) {
+            "### 提交变更 (最近 10 条提交)"
+        } else {
+            "### 提交变更 (Changes since last build)"
+        }
+
+        $shortCurrent = $env:CURRENT_SHA.Substring(0, [Math]::Min(7, $env:CURRENT_SHA.Length))
+        $bodyLines = @(
+            "### CS2 Map Importer - Development Build (DEV)"
+            "Build ``$($env:APP_VERSION)`` | [$shortCurrent]($repoUrl/commit/$($env:CURRENT_SHA)) | Branch ``$($env:BRANCH_NAME)`` | Triggered by @$($env:TRIGGERED_BY)"
+            ""
+            $commitSectionHeader
+        )
+        $bodyLines += $commits
+        $bodyContent = $bodyLines -join "`n"
+
+        Set-Content -Path "dev_release_body.md" -Value $bodyContent -Encoding utf8
+        $global:LASTEXITCODE = 0
 
     - name: Publish Dev Pre-Release
       uses: softprops/action-gh-release@v2
@@ -118,15 +211,7 @@ jobs:
         prerelease: true
         make_latest: false
         files: release/cs2importer-v2.0.0-${{ steps.vars.outputs.sha_short }}.zip
-        body: |
-          ### CS2 Map Importer - Development Build (DEV)
-
-          This is an automated development preview build.
-
-          - **Version**: `2.0.0-${{ steps.vars.outputs.sha_short }}`
-          - **Branch**: `${{ github.ref_name }}`
-          - **Commit**: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
-          - **Triggered By**: @${{ github.actor }}
+        body_path: dev_release_body.md
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
