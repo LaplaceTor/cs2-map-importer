@@ -6,7 +6,7 @@
 #include "Domain/Tool/Cs2PathLayout.h"
 #include "Domain/Tool/ToolErrors.h"
 #include "Core/Error/ErrorCode.h"
-#include "Core/Temp/TempFileCleanup.h"
+#include "Core/Temp/TempFile.h"
 #include <QFile>
 #include <QDir>
 #include <QFileInfo>
@@ -71,7 +71,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
     }
 
     Core::Path::FilesystemPath effectivePcfPath = options.sourcePcfPath;
-    Core::Temp::TempFileCleanup tempPcfCleanup;
+    Core::Temp::TempFile tempPcf;
 
     if (!alreadyInS1Particles) {
         if (!s1ParticlesDir.exists() && !s1ParticlesDir.mkpath(QStringLiteral("."))) {
@@ -94,7 +94,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
                     .arg(targetPcfPathStr));
         }
         effectivePcfPath = Core::Path::FilesystemPath(targetPcfPathStr);
-        tempPcfCleanup.setPath(targetPcfPathStr);
+        tempPcf.setPath(targetPcfPathStr);
         context.info(QCoreApplication::translate("ParticleImportWorkflow", "Copied PCF file to Source 1 particles folder: %1").arg(targetPcfPathStr));
     } else {
         context.info(QCoreApplication::translate("ParticleImportWorkflow", "PCF file is already inside Source 1 particles folder: %1")

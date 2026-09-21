@@ -58,7 +58,6 @@ qt_add_library(cs2importer_core STATIC
     Process/ProcessRunner.cpp
     Temp/TempDirectory.h
     Temp/TempFile.h
-    Temp/TempFileCleanup.h
 )
 
 target_link_libraries(cs2importer_core PRIVATE Qt6::Core)
