@@ -4,11 +4,20 @@ import QtQuick.Controls
 CheckBox {
     id: control
 
+    padding: 2
+    topPadding: 1
+    bottomPadding: 1
+    leftPadding: 0
+    rightPadding: 0
+
+    implicitWidth: Math.max(implicitIndicatorWidth + implicitContentWidth + leftPadding + rightPadding, implicitBackgroundWidth + leftPadding + rightPadding)
+    implicitHeight: Math.max(implicitIndicatorHeight, implicitContentHeight) + topPadding + bottomPadding
+
     indicator: Rectangle {
         implicitWidth: 16
         implicitHeight: 16
         x: control.leftPadding
-        y: parent.height / 2 - height / 2
+        y: control.topPadding + (control.contentItem.lineCount > 1 ? 2 : Math.round((control.availableHeight - height) / 2))
         radius: 3
         color: "#FFFFFF"
         border.color: control.down ? "#333333" : (control.hovered ? "#555555" : "#767676")
@@ -25,13 +34,14 @@ CheckBox {
     }
 
     contentItem: Text {
-        leftPadding: control.indicator ? (control.indicator.width + control.spacing) : 0
+        leftPadding: control.indicator ? (control.indicator.width + 6) : 0
+        width: control.availableWidth
         text: control.text
         font: control.font
-        opacity: enabled ? 1.0 : 0.4
+        opacity: control.enabled ? 1.0 : 0.4
         color: control.palette.text
         verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideRight
+        wrapMode: Text.WordWrap
         visible: control.text.length > 0
     }
 }

@@ -6,10 +6,10 @@ import "tabs"
 
 ApplicationWindow {
     id: window
-    width: 420
+    width: 480
     height: 700
-    minimumWidth: 420
-    maximumWidth: 420
+    minimumWidth: 480
+    maximumWidth: 480
     minimumHeight: 700
     maximumHeight: 700
     flags: Qt.Window | Qt.MSWindowsFixedSizeDialogHint | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint
@@ -42,10 +42,6 @@ ApplicationWindow {
     property QtObject gameViewModel: gameViewModelInstance
     property QtObject logViewModel: logViewModelInstance
     property QtObject mainController: mainControllerInstance
-
-    property string selectedMapFileName: ""
-    property string selectedMdlFileName: ""
-    property string selectedPcfFileName: ""
 
     // Connections to C++ signals
     Connections {
@@ -170,30 +166,55 @@ ApplicationWindow {
         }
     }
 
+    function fileUrlToNativePath(u) {
+        let s = u.toString()
+        if (s.indexOf("file:///") === 0) {
+            s = s.substring(8)
+        } else if (s.indexOf("file://") === 0) {
+            s = s.substring(7)
+        }
+        return decodeURIComponent(s).replace(/\//g, "\\")
+    }
+
     FileDialog {
         id: mapFileDialog
-        title: qsTr("Select VMF or BSP Map File")
-        nameFilters: ["Map files (*.vmf *.bsp)"]
+        title: qsTr("Select VMF or BSP Map Files")
+        nameFilters: ["Map files (*.vmf *.bsp)", "All files (*.*)"]
+        fileMode: FileDialog.OpenFiles
         onAccepted: {
-            selectedMapFileName = selectedFile.toString()
+            let paths = []
+            for (let i = 0; i < selectedFiles.length; ++i) {
+                paths.push(window.fileUrlToNativePath(selectedFiles[i]))
+            }
+            mapTab.addFiles(paths)
         }
     }
 
     FileDialog {
         id: mdlFileDialog
-        title: qsTr("Select Source 1 MDL Model File")
-        nameFilters: ["Model files (*.mdl)"]
+        title: qsTr("Select Source 1 MDL Model Files")
+        nameFilters: ["Model files (*.mdl)", "All files (*.*)"]
+        fileMode: FileDialog.OpenFiles
         onAccepted: {
-            selectedMdlFileName = selectedFile.toString()
+            let paths = []
+            for (let i = 0; i < selectedFiles.length; ++i) {
+                paths.push(window.fileUrlToNativePath(selectedFiles[i]))
+            }
+            modelTab.addFiles(paths)
         }
     }
 
     FileDialog {
         id: pcfFileDialog
-        title: qsTr("Select Source 1 PCF Particle File")
-        nameFilters: ["Particle files (*.pcf)"]
+        title: qsTr("Select Source 1 PCF Particle Files")
+        nameFilters: ["Particle files (*.pcf)", "All files (*.*)"]
+        fileMode: FileDialog.OpenFiles
         onAccepted: {
-            selectedPcfFileName = selectedFile.toString()
+            let paths = []
+            for (let i = 0; i < selectedFiles.length; ++i) {
+                paths.push(window.fileUrlToNativePath(selectedFiles[i]))
+            }
+            particleTab.addFiles(paths)
         }
     }
 
@@ -254,9 +275,9 @@ ApplicationWindow {
             currentIndex: navTabBar.currentIndex
 
             MapTab {
+                id: mapTab
                 gameViewModel: window.gameViewModel
                 mainController: window.mainController
-                selectedMapPath: window.selectedMapFileName
 
                 onRequestBrowseS1: {
                     if (window.gameViewModel && (window.gameViewModel.selectedS1Type.toLowerCase() === "custom" || window.gameViewModel.selectedS1Type.toLowerCase() === "other")) {
@@ -272,9 +293,9 @@ ApplicationWindow {
             }
 
             ModelTab {
+                id: modelTab
                 gameViewModel: window.gameViewModel
                 mainController: window.mainController
-                selectedMdlPath: window.selectedMdlFileName
 
                 onRequestBrowseS1: {
                     if (window.gameViewModel && (window.gameViewModel.selectedS1Type.toLowerCase() === "custom" || window.gameViewModel.selectedS1Type.toLowerCase() === "other")) {
@@ -290,9 +311,9 @@ ApplicationWindow {
             }
 
             ParticleTab {
+                id: particleTab
                 gameViewModel: window.gameViewModel
                 mainController: window.mainController
-                selectedPcfPath: window.selectedPcfFileName
 
                 onRequestBrowseS1: {
                     if (window.gameViewModel && (window.gameViewModel.selectedS1Type.toLowerCase() === "custom" || window.gameViewModel.selectedS1Type.toLowerCase() === "other")) {

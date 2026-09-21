@@ -10,6 +10,7 @@ qt_add_qml_module(cs2importer_qml
         components/GameSelectorBox.qml
         components/StyledCheckBox.qml
         components/LogTaskCard.qml
+        components/SourceFileListBox.qml
         tabs/MapTab.qml
         tabs/ModelTab.qml
         tabs/ParticleTab.qml

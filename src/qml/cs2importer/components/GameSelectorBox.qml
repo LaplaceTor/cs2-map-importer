@@ -28,15 +28,10 @@ GroupBox {
         elide: Text.ElideRight
         color: root.palette.windowText
     }
-    implicitWidth: 165
+    implicitWidth: 200
     implicitHeight: 165
-    Layout.preferredWidth: 165
     Layout.preferredHeight: 165
-    Layout.minimumWidth: 165
-    Layout.maximumWidth: 165
-    Layout.minimumHeight: 165
-    Layout.maximumHeight: 165
-    Layout.fillWidth: false
+    Layout.fillWidth: true
     Layout.fillHeight: false
 
     ColumnLayout {

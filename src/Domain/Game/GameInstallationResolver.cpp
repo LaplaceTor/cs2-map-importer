@@ -367,21 +367,15 @@ QStringList GameInstallationResolver::listSource2Addons(const Core::Path::Filesy
     }
 
     QStringList addons;
-    QDir gameDir(QDir(s2BasePath.toString()).filePath(QStringLiteral("game")));
-    if (!gameDir.exists()) {
+    QDir addonsDir(QDir(s2BasePath.toString()).filePath(QStringLiteral("content/csgo_addons")));
+    if (!addonsDir.exists()) {
         return addons;
     }
 
-    const auto subdirs = gameDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-    for (const auto& subdir : subdirs) {
-        if (subdir.endsWith(QStringLiteral("_addons"), Qt::CaseInsensitive)) {
-            QDir addonDir(gameDir.filePath(subdir));
-            const auto specificAddons = addonDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-            for (const auto& addon : specificAddons) {
-                if (!addons.contains(addon)) {
-                    addons.append(addon);
-                }
-            }
+    const auto subdirs = addonsDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const auto& addon : subdirs) {
+        if (!addons.contains(addon)) {
+            addons.append(addon);
         }
     }
 
