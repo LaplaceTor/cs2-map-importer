@@ -379,7 +379,7 @@ ApplicationWindow {
                 anchors.left: checkUpdateButton.right
                 anchors.leftMargin: 6
                 anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("v%1").arg(window.mainController ? window.mainController.appVersion : "1.0.0")
+                text: qsTr("v%1").arg(window.mainController ? window.mainController.appVersion : "2.0.0-dev")
                 font.pixelSize: 11
                 color: palette.placeholderText
             }

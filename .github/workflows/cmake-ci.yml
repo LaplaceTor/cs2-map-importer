@@ -15,6 +15,8 @@ env:
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
     - name: Checkout code
@@ -38,7 +40,7 @@ jobs:
         echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
     - name: Configure CMake
-      run: cmake -B build -S . -DAPP_VERSION=${{ steps.vars.outputs.sha_short }} -DCS2IMPORTER_BUILD_TESTS=OFF
+      run: cmake -B build -S . -DAPP_VERSION=2.0.0-${{ steps.vars.outputs.sha_short }} -DCS2IMPORTER_BUILD_TESTS=OFF
 
     - name: Build with CMake
       run: cmake --build build --config Release --target cs2importer
@@ -79,10 +81,52 @@ jobs:
       run: |
         cmake --install build --config Release --prefix "$PWD/release"
         if (Test-Path bin) { Copy-Item -Path bin -Destination release\bin -Recurse -Force }
+        $zipName = "cs2importer-v2.0.0-${{ steps.vars.outputs.sha_short }}.zip"
+        Push-Location release
+        7z a $zipName * -xr!*.zip
+        Pop-Location
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: CS2-Importer-Dev-${{ steps.vars.outputs.sha_short }}
         path: release
+
+    - name: Clean Old Release Assets
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        $ErrorActionPreference = "Continue"
+        $releaseJson = gh release view dev --json assets 2>$null
+        if ($LASTEXITCODE -eq 0 -and $releaseJson) {
+            $assets = ($releaseJson | ConvertFrom-Json).assets
+            foreach ($asset in $assets) {
+                if ($asset.name -like "*.zip") {
+                    Write-Host "Deleting old asset: $($asset.name)"
+                    gh release delete-asset dev $asset.name -y
+                }
+            }
+        }
+
+    - name: Publish Dev Pre-Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: dev
+        target_commitish: ${{ github.sha }}
+        name: DEV
+        prerelease: true
+        make_latest: false
+        files: release/cs2importer-v2.0.0-${{ steps.vars.outputs.sha_short }}.zip
+        body: |
+          ### CS2 Map Importer - Development Build (DEV)
+
+          This is an automated development preview build.
+
+          - **Version**: `2.0.0-${{ steps.vars.outputs.sha_short }}`
+          - **Branch**: `${{ github.ref_name }}`
+          - **Commit**: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+          - **Triggered By**: @${{ github.actor }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

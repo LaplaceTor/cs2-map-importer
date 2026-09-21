@@ -9,7 +9,7 @@ if(POLICY CMP0194)
     set(CMAKE_POLICY_DEFAULT_CMP0194 NEW)
 endif()
 
-project(cs2importer VERSION 1.0.0 LANGUAGES CXX)
+project(cs2importer VERSION 2.0.0 LANGUAGES CXX)
 
 if(NOT WIN32)
     message(FATAL_ERROR "CS2 Map Importer is only supported on Windows.")

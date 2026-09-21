@@ -9,7 +9,7 @@
 #include <QPointer>
 
 #ifndef APP_VERSION
-#define APP_VERSION "1.0.0"
+#define APP_VERSION "2.0.0-dev"
 #endif
 
 namespace UI::Controllers {

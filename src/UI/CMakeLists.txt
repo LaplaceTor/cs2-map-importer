@@ -24,5 +24,5 @@ target_include_directories(cs2importer_ui PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
 )
 
-set(APP_VERSION "${PROJECT_VERSION}" CACHE STRING "Application version")
+set(APP_VERSION "${PROJECT_VERSION}-dev" CACHE STRING "Application version")
 target_compile_definitions(cs2importer_ui PRIVATE "APP_VERSION=\"${APP_VERSION}\"")

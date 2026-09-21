@@ -45,7 +45,7 @@ target_include_directories(cs2importer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-set(APP_VERSION "${PROJECT_VERSION}" CACHE STRING "Application version")
+set(APP_VERSION "${PROJECT_VERSION}-dev" CACHE STRING "Application version")
 target_compile_definitions(cs2importer PRIVATE "APP_VERSION=\"${APP_VERSION}\"")
 
 qt_import_qml_plugins(cs2importer)
