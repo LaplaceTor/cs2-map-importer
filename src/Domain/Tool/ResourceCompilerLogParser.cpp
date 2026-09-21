@@ -149,9 +149,10 @@ ResourceCompilerLogResult ResourceCompilerLogParser::parse(
         }
     }
 
-    // Determine success
-    if (exitCode != 0 || hasErrorBanner || result.failedCount > 0 || !result.compileErrors.isEmpty()) {
-        result.success = false;
+    // Determine success:
+    // If at least one file was compiled to .vpcf_c, or compiledCount > 0, consider it a success (even if some failed).
+    if (!result.compiledVpcfCPaths.isEmpty() || result.compiledCount > 0) {
+        result.success = true;
     } else if (hasOkBanner) {
         result.success = (result.failedCount == 0 && (result.compiledCount > 0 || result.skippedCount > 0));
     } else {

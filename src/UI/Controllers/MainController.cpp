@@ -108,7 +108,7 @@ void MainController::startParticleImport(
     const QString& source1GameDir,
     const QString& cs2BaseDir,
     const QString& addonName,
-    const QString& sourcePcfPath,
+    const QStringList& sourcePcfPaths,
     bool allowDepthBlend,
     bool disableDiffuse,
     const QString& s1GameType,
@@ -124,24 +124,31 @@ void MainController::startParticleImport(
 
     const bool isCsgo = (s1GameType.compare(QStringLiteral("CSGO"), Qt::CaseInsensitive) == 0);
 
-    QString sanitizedPcfPath = sourcePcfPath;
-    if (sanitizedPcfPath.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)) {
-        // Normalize malformed Windows file URLs with only 2 slashes, e.g. file://C:/...
-        // where index 7 is the drive letter and index 8 is ':'.
-        // This avoids QUrl interpreting the drive letter as a hostname.
-        if (sanitizedPcfPath.size() >= 9 &&
-            (sanitizedPcfPath.at(5) == QLatin1Char('/') || sanitizedPcfPath.at(5) == QLatin1Char('\\')) &&
-            (sanitizedPcfPath.at(6) == QLatin1Char('/') || sanitizedPcfPath.at(6) == QLatin1Char('\\')) &&
-            sanitizedPcfPath.at(7).isLetter() &&
-            sanitizedPcfPath.at(8) == QLatin1Char(':')) {
-            sanitizedPcfPath = QStringLiteral("file:///") + sanitizedPcfPath.mid(7);
+    QStringList sanitizedPcfPaths;
+    for (const QString& rawPath : sourcePcfPaths) {
+        QString sanitizedPcfPath = rawPath.trimmed();
+        if (sanitizedPcfPath.isEmpty()) {
+            continue;
         }
+        if (sanitizedPcfPath.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)) {
+            // Normalize malformed Windows file URLs with only 2 slashes, e.g. file://C:/...
+            // where index 7 is the drive letter and index 8 is ':'.
+            // This avoids QUrl interpreting the drive letter as a hostname.
+            if (sanitizedPcfPath.size() >= 9 &&
+                (sanitizedPcfPath.at(5) == QLatin1Char('/') || sanitizedPcfPath.at(5) == QLatin1Char('\\')) &&
+                (sanitizedPcfPath.at(6) == QLatin1Char('/') || sanitizedPcfPath.at(6) == QLatin1Char('\\')) &&
+                sanitizedPcfPath.at(7).isLetter() &&
+                sanitizedPcfPath.at(8) == QLatin1Char(':')) {
+                sanitizedPcfPath = QStringLiteral("file:///") + sanitizedPcfPath.mid(7);
+            }
 
-        QUrl pcfUrl(sanitizedPcfPath);
-        QString local = pcfUrl.toLocalFile();
-        if (!local.isEmpty()) {
-            sanitizedPcfPath = local;
+            QUrl pcfUrl(sanitizedPcfPath);
+            QString local = pcfUrl.toLocalFile();
+            if (!local.isEmpty()) {
+                sanitizedPcfPath = local;
+            }
         }
+        sanitizedPcfPaths.append(sanitizedPcfPath);
     }
 
     Application::Particle::ParticleImportRequest request;
@@ -149,7 +156,7 @@ void MainController::startParticleImport(
     request.s1GameInfoDir = s1GameInfoDir;
     request.cs2BaseDir = cs2BaseDir;
     request.addonName = addonName;
-    request.sourcePcfPath = sanitizedPcfPath;
+    request.sourcePcfPaths = sanitizedPcfPaths;
     request.allowDepthBlend = allowDepthBlend;
     request.disableDiffuse = disableDiffuse;
     request.isCsgo = isCsgo;
@@ -178,8 +185,12 @@ void MainController::startParticleImport(
                 emit self->isProcessingChanged();
 
                 if (result.isSuccess()) {
+                    const auto& data = result.valueOr(Application::Particle::ParticleImportResult{});
+                    const QString title = (data.totalFailed > 0)
+                        ? QCoreApplication::translate("MainController", "Particle Import Completed with Warnings")
+                        : QCoreApplication::translate("MainController", "Particle Import Complete");
                     emit self->alertRequested(
-                        QCoreApplication::translate("MainController", "Particle Import Complete"),
+                        title,
                         result.message().isEmpty()
                             ? QCoreApplication::translate("MainController", "All particles were successfully imported and compiled.")
                             : result.message()

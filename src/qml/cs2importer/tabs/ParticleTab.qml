@@ -274,7 +274,7 @@ Item {
                             root.gameViewModel ? root.gameViewModel.s1GamePath : "",
                             root.gameViewModel ? root.gameViewModel.s2GamePath : "",
                             root.gameViewModel ? root.gameViewModel.selectedAddon : "",
-                            root.selectedPcfPath,
+                            root.selectedFiles,
                             allowDepthBlendCheck.checked,
                             disableDiffuseCheck.checked,
                             root.gameViewModel ? root.gameViewModel.selectedS1Type : "",

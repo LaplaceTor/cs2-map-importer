@@ -50,7 +50,7 @@ public:
         const QString& source1GameDir,
         const QString& cs2BaseDir,
         const QString& addonName,
-        const QString& sourcePcfPath,
+        const QStringList& sourcePcfPaths,
         bool allowDepthBlend,
         bool disableDiffuse,
         const QString& s1GameType = QString(),

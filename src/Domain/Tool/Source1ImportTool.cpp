@@ -121,10 +121,11 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
 
     if (procResult.status == Core::Process::ProcessStatus::Crashed) {
         if (childTask) {
+            childTask->error(procResult.errorMessage);
             Core::Logging::LogManager::instance().failTask(childTask->taskId(), procResult.errorMessage);
         }
         if (taskCtx) {
-            taskCtx->error(QCoreApplication::translate("Source1ImportTool", "source1import crashed: %1").arg(procResult.errorMessage));
+            taskCtx->warning(QCoreApplication::translate("Source1ImportTool", "source1import crashed: %1").arg(procResult.errorMessage));
         }
         return Core::Result<Source1ImportToolResult>::failure(
             ToolErrors::crashed(QCoreApplication::translate("Source1ImportTool", "source1import.exe"), procResult.errorMessage),
@@ -133,10 +134,11 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
 
     if (procResult.status == Core::Process::ProcessStatus::TimedOut) {
         if (childTask) {
+            childTask->error(QCoreApplication::translate("Source1ImportTool", "Timed out"));
             Core::Logging::LogManager::instance().failTask(childTask->taskId(), QCoreApplication::translate("Source1ImportTool", "Timed out"));
         }
         if (taskCtx) {
-            taskCtx->error(QCoreApplication::translate("Source1ImportTool", "source1import timed out after %1 ms").arg(procOptions.timeout));
+            taskCtx->warning(QCoreApplication::translate("Source1ImportTool", "source1import timed out after %1 ms").arg(procOptions.timeout));
         }
         return Core::Result<Source1ImportToolResult>::failure(
             ToolErrors::timeout(QCoreApplication::translate("Source1ImportTool", "source1import.exe"), procResult.errorMessage),
@@ -145,10 +147,11 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
 
     if (procResult.status == Core::Process::ProcessStatus::FailedToStart) {
         if (childTask) {
+            childTask->error(procResult.errorMessage);
             Core::Logging::LogManager::instance().failTask(childTask->taskId(), procResult.errorMessage);
         }
         if (taskCtx) {
-            taskCtx->error(QCoreApplication::translate("Source1ImportTool", "source1import failed to start: %1").arg(procResult.errorMessage));
+            taskCtx->warning(QCoreApplication::translate("Source1ImportTool", "source1import failed to start: %1").arg(procResult.errorMessage));
         }
         return Core::Result<Source1ImportToolResult>::failure(
             ToolErrors::executionFailed(QCoreApplication::translate("Source1ImportTool", "source1import.exe"), procResult.exitCode, procResult.errorMessage),
@@ -166,20 +169,27 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
     toolResult.generatedVpcfPaths = logResult.generatedVpcfPaths;
     toolResult.rawOutput = logResult.rawOutput;
 
+    if (childTask) {
+        for (const auto& w : logResult.warnings) {
+            childTask->warning(w);
+        }
+        for (const auto& e : logResult.errorMessages) {
+            childTask->error(e);
+        }
+    }
+
     if (taskCtx) {
         for (const auto& w : logResult.warnings) {
             taskCtx->warning(w);
         }
         for (const auto& e : logResult.errorMessages) {
-            taskCtx->error(e);
-        }
-        for (const auto& p : toolResult.generatedVpcfPaths) {
-            taskCtx->info(QStringLiteral("Generated VPCF: %1").arg(p));
+            taskCtx->warning(e);
         }
     }
 
     if (logResult.hasNoMatchingFiles) {
         if (childTask) {
+            childTask->error(QCoreApplication::translate("Source1ImportTool", "No matching files found"));
             Core::Logging::LogManager::instance().failTask(childTask->taskId(), QCoreApplication::translate("Source1ImportTool", "No matching files found"));
         }
         return Core::Result<Source1ImportToolResult>::failure(
@@ -193,10 +203,11 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
             ? QCoreApplication::translate("Source1ImportTool", "source1import returned failure with exit code %1").arg(procResult.exitCode)
             : logResult.errorMessages.join(QCoreApplication::translate("Source1ImportTool", "; "));
         if (childTask) {
+            childTask->error(failureReason);
             Core::Logging::LogManager::instance().failTask(childTask->taskId(), failureReason);
         }
         if (taskCtx) {
-            taskCtx->error(QCoreApplication::translate("Source1ImportTool", "source1import failed: %1").arg(failureReason));
+            taskCtx->warning(QCoreApplication::translate("Source1ImportTool", "source1import failed: %1").arg(failureReason));
         }
         return Core::Result<Source1ImportToolResult>::failure(
             ToolErrors::importFailed(failureReason, procResult.stdOut),

@@ -17,14 +17,14 @@ namespace {
 Workflow::Particle::ParticleImportOptions toWorkflowOptions(
     const ParticleImportRequest& request,
     const Common::ValidatedBaseImport& base,
-    const QString& trimmedPcfPath)
+    const std::vector<Core::Path::FilesystemPath>& pcfPaths)
 {
     Workflow::Particle::ParticleImportOptions options;
     options.source1GameDir = Core::Path::FilesystemPath(base.source1GameDir);
     options.s1GameInfoDir = Core::Path::FilesystemPath(base.s1GameInfoDir);
     options.cs2BaseDir = Core::Path::FilesystemPath(base.cs2BaseDir);
     options.addonName = base.addonName;
-    options.sourcePcfPath = Core::Path::FilesystemPath(trimmedPcfPath);
+    options.sourcePcfPaths = pcfPaths;
     options.allowDepthBlend = request.allowDepthBlend;
     options.disableDiffuse = request.disableDiffuse;
     options.isCsgo = request.isCsgo;
@@ -36,11 +36,13 @@ Workflow::Particle::ParticleImportOptions toWorkflowOptions(
 ParticleImportResult toApplicationResult(const Workflow::Particle::ParticleImportWorkflowResult& wfVal)
 {
     ParticleImportResult appResult;
-    appResult.succeeded = true;
+    appResult.succeeded = (wfVal.totalCompiled > 0);
     appResult.generatedVpcfFiles = wfVal.generatedVpcfFiles;
     appResult.compiledVpcfCFiles = wfVal.compiledVpcfCFiles;
+    appResult.failedPcfFiles = wfVal.failedPcfFiles;
     appResult.totalConverted = wfVal.totalConverted;
     appResult.totalCompiled = wfVal.totalCompiled;
+    appResult.totalFailed = wfVal.totalFailed;
     return appResult;
 }
 
@@ -84,13 +86,18 @@ Async::TaskHandle ParticleImportService::importParticlesAsync(
     // duration even if the owner drops it mid-flight.
     const auto self = shared_from_this();
 
-    const QString pcfFileName = request.sourcePcfPath.trimmed().isEmpty()
-        ? QStringLiteral("PCF")
-        : QFileInfo(request.sourcePcfPath.trimmed()).fileName();
-    const QString pcfBaseName = request.sourcePcfPath.trimmed().isEmpty()
-        ? QStringLiteral("pcf")
-        : QFileInfo(request.sourcePcfPath.trimmed()).completeBaseName();
-    const QString taskName = QCoreApplication::translate("ParticleImportService", "Import Particle: %1").arg(pcfFileName);
+    QString pcfBaseName;
+    QString taskName;
+    if (request.sourcePcfPaths.size() == 1) {
+        const QString p = request.sourcePcfPaths.first().trimmed();
+        const QString pcfFileName = p.isEmpty() ? QStringLiteral("PCF") : QFileInfo(p).fileName();
+        pcfBaseName = p.isEmpty() ? QStringLiteral("pcf") : QFileInfo(p).completeBaseName();
+        taskName = QCoreApplication::translate("ParticleImportService", "Import Particle: %1").arg(pcfFileName);
+    } else {
+        pcfBaseName = QStringLiteral("particles_batch");
+        taskName = QCoreApplication::translate("ParticleImportService", "Import Particles (%1 files)")
+            .arg(request.sourcePcfPaths.size());
+    }
 
     auto worker = [self, request](std::shared_ptr<Core::Logging::TaskLoggingContext> taskCtx,
                                   Core::Async::CancellationToken token) -> Core::Result<ParticleImportResult> {
@@ -191,24 +198,30 @@ Core::Result<ParticleImportResult> ParticleImportService::executeImport(
         const auto& base = prereqResult.value();
 
         // Step 2: Validate particle-specific request parameters
-        const QString trimmedPcfPath = request.sourcePcfPath.trimmed();
-        if (trimmedPcfPath.isEmpty()) {
+        std::vector<Core::Path::FilesystemPath> validPcfPaths;
+        for (const QString& rawPath : request.sourcePcfPaths) {
+            const QString trimmed = rawPath.trimmed();
+            if (!trimmed.isEmpty()) {
+                if (QFile::exists(trimmed)) {
+                    validPcfPaths.emplace_back(trimmed);
+                } else {
+                    context.warning(QCoreApplication::translate("ParticleImportService", "Source PCF file does not exist: %1")
+                        .arg(trimmed));
+                }
+            }
+        }
+
+        if (validPcfPaths.empty()) {
             return Core::Result<ParticleImportResult>::failure(
                 Core::Error::ErrorCode::InvalidPath,
-                QCoreApplication::translate("ParticleImportService", "Source PCF path cannot be empty"));
-        }
-        if (!QFile::exists(trimmedPcfPath)) {
-            return Core::Result<ParticleImportResult>::failure(
-                Core::Error::ErrorCode::FileNotFound,
-                QCoreApplication::translate("ParticleImportService", "Source PCF file does not exist"),
-                trimmedPcfPath);
+                QCoreApplication::translate("ParticleImportService", "No valid source PCF files specified"));
         }
 
-        context.info(QCoreApplication::translate("ParticleImportService", "Starting particle import for addon '%1' with PCF '%2'")
-            .arg(base.addonName, trimmedPcfPath));
+        context.info(QCoreApplication::translate("ParticleImportService", "Starting particle import for addon '%1' with %2 PCF file(s)")
+            .arg(base.addonName).arg(validPcfPaths.size()));
 
         // Step 3: Build Workflow Options & Invoke Workflow
-        const auto options = toWorkflowOptions(request, base, trimmedPcfPath);
+        const auto options = toWorkflowOptions(request, base, validPcfPaths);
 
         WorkflowRunner runner;
         {
@@ -222,23 +235,35 @@ Core::Result<ParticleImportResult> ParticleImportService::executeImport(
             return Core::Result<ParticleImportResult>::cancelled(wfResult.message());
         }
 
-        if (wfResult.isFailure()) {
-            context.error(QCoreApplication::translate("ParticleImportService", "Particle import workflow failed: %1").arg(wfResult.message()));
-            return Core::Result<ParticleImportResult>::failure(wfResult.error(), wfResult.message());
-        }
-
         if (wfResult.isSkipped()) {
             context.info(QCoreApplication::translate("ParticleImportService", "Particle import workflow was skipped: %1").arg(wfResult.message()));
             return Core::Result<ParticleImportResult>::skipped(wfResult.message());
         }
 
         // Step 4: Map Workflow Result to Application Result DTO
-        const auto appResult = toApplicationResult(wfResult.value());
+        const auto appResult = toApplicationResult(wfResult.valueOr(Workflow::Particle::ParticleImportWorkflowResult{}));
 
-        context.info(QCoreApplication::translate("ParticleImportService", "Particle import workflow finished successfully: %1 converted, %2 compiled")
-            .arg(appResult.totalConverted).arg(appResult.totalCompiled));
+        if (appResult.totalCompiled > 0) {
+            QString summaryMsg;
+            if (appResult.totalFailed == 0) {
+                summaryMsg = QCoreApplication::translate("ParticleImportService", "Successfully compiled %1 particle resource(s).")
+                    .arg(appResult.totalCompiled);
+            } else {
+                summaryMsg = QCoreApplication::translate("ParticleImportService", "%1 particle resource(s) succeeded, %2 failed.")
+                    .arg(appResult.totalCompiled).arg(appResult.totalFailed);
+            }
+            return Core::Result<ParticleImportResult>::success(appResult, summaryMsg);
+        }
 
-        return Core::Result<ParticleImportResult>::success(appResult, wfResult.message());
+        // Failure when 0 resources compiled
+        const QString failureMsg = wfResult.isFailure() && !wfResult.message().isEmpty()
+            ? wfResult.message()
+            : QCoreApplication::translate("ParticleImportService", "Particle import failed: No particle resources could be compiled.");
+        context.error(failureMsg);
+        return Core::Result<ParticleImportResult>::failure(
+            wfResult.isFailure() ? wfResult.error() : Core::Error::Error(Core::Error::ErrorCode::OperationFailed, failureMsg),
+            failureMsg,
+            appResult);
     }, QCoreApplication::translate("ParticleImportService", "Particle import failed"));
 }
 

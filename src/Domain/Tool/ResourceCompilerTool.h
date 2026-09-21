@@ -44,7 +44,7 @@ public:
     explicit ResourceCompilerTool(Core::Path::FilesystemPath toolBinaryPath)
         : m_toolBinaryPath(std::move(toolBinaryPath)) {}
 
-    static QStringList buildArguments(const ResourceCompilerOptions& options);
+    static QStringList buildArguments(const ResourceCompilerOptions& options, const QString& fileListPath = QString());
 
     static Core::Result<ResourceCompilerToolResult> compileResources(
         const Core::Path::FilesystemPath& toolBinaryPath,

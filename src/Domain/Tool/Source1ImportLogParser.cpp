@@ -178,9 +178,12 @@ Source1ImportLogResult Source1ImportLogParser::parse(
         result.errorMessages.append(QStringLiteral("No assets imported; %1 asset(s) skipped").arg(result.skippedCount));
     }
 
-    // Determine success: must not have failed count or errors, and must have imported at least one asset
-    if (result.hasNoMatchingFiles || exitCode != 0 || hasErrorBanner || result.failedCount > 0 || !result.errorMessages.isEmpty()) {
+    // Determine success:
+    // If at least one asset was successfully converted/written, consider it a success (even if some particles failed).
+    if (result.hasNoMatchingFiles) {
         result.success = false;
+    } else if (!result.generatedVpcfPaths.isEmpty() || result.importedCount > 0) {
+        result.success = true;
     } else if (hasOkBanner) {
         result.success = (result.failedCount == 0 && result.importedCount > 0);
     } else {
