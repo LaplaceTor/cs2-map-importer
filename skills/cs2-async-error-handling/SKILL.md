@@ -73,6 +73,7 @@ Workflow Task (Root: createWorkflowTask) -> logs/<workflow>_<timestamp>/workflow
   * **主界面噪音屏蔽**：标记 `isToolTask() == true`，在 UI 主任务树（`LogViewModel`）中静默隐藏，避免大量编译日志刷屏。
   * **命令透传与关联**：自动在父阶段任务注入 `[EXEC] <commandLine>` 日志条目，并绑定 `toolTaskId`。
   * **独立落盘与专项视窗**：日志单独保存为 `<asset>_<tool>_<time>.log`，**写入父任务的日志目录**（父为阶段任务时即 `logs/<workflow>_<ts>/<stage>/` 子目录；父为工作流根时直接落在工作流目录下）；同毫秒命名冲突自动追加 `_2`、`_3` 序号。用户点击父任务中的命令条目时，UI 通过独立的 `ToolLogWindow` 调取该工具的完整输出流。
+  * **原始流式直通与格式精简**：外部工具输出经 `TaskLoggingContext::logExternalToolOutput` 保持原始行直通，不追加 `[INFO]` 等人工修饰，多行文本保留天然换行（不转义 `\n`）；单任务文件首行写入结构化元数据头（`=== Task: %1 (ID: %2) | Started: %3 ===\n\n`），常规任务日志行统一精简为 `[LEVEL] %2`；工具内部错误日志与父阶段任务隔离，避免工具局部错误导致父任务虚假冲突升级。
 
 ### 1.3 日志投递门面 (Application::Logging)
 
@@ -221,7 +222,7 @@ try {
 
 * **负载保全规则**：当 `Result<T>` 因契约冲突转换状态时，已有的部分数据负载（`result.value()`）严格予以保留（`Result::failure/cancelled/skipped` 均提供带 `partialValue` 的重载）。
 * **原始错误保留规则**：因契约违规转换为 `Failure` 时，若原 `Result` 中已含有非成功错误信息，完整保留其错误码与诊断细节；仅当原结果无有效错误（如原为 `Success`）时才合成 `OperationFailed`。
-* **仲裁执行机制**：矩阵由 `AsyncTaskRunner::runTaskInternal` 结合 `LogManager::forceTaskState(taskId, state, message)` 落地（幂等：重复强制同一终态不再重复 flush/通知）。
+* **仲裁执行与进度机制**：矩阵由 `AsyncTaskRunner::runTaskInternal` 结合 `LogManager::forceTaskState(taskId, state, message)` 落地（幂等：重复强制同一终态不再重复 flush/通知）；转移至 `Completed` 终态时，`TaskLoggingContext::forceTerminalState` 保证将进度强制刷新为 100% (1.0)；工作流内部经 `ImportContext::runStep` 编排时，步骤启动时仅设定当前操作摘要（`updateCurrentMessage`），步骤成功且未取消时才递进进度（`updateProgress`），避免进度条提前跳跃虚增。
 * **终态不可逆规则**：`TaskLoggingContext::forceTerminalState` 是执行仲裁覆盖入口（可重判终态，如 `Cancelled → Failed`），但已处于失败类终态的任务**永远不可被重判为 Completed**；终态永不回退为非终态。
 * **取消级联**：`LogManager::cancelTask` 会级联取消全部子孙任务（BFS 遍历，环防护），保证日志树不出现"父已取消而子仍在运行"。
 * **故障屏障（FaultBarrier）**：致命故障路径走 `LogManager::reportFault(taskId, msg)` → `beginFaultDraining()` → `terminateAfterFault()`；任务上下文侧对应 `TaskLoggingContext::reportFault`（返回 `LogSubmissionResult`）。
@@ -262,7 +263,7 @@ if (!procResult.isSuccess()) {
 
 ### 6.3 实时流式捕获与 Tool Task 绑定模式
 
-外部编译/导入工具执行周期通常较长，严禁进行静默无反馈的黑盒调用。必须通过 `ProcessOptions` 的回调将 stdout 与 stderr 实时接入任务上下文：
+外部编译/导入工具执行周期通常较长，严禁进行静默无反馈的黑盒调用。必须通过 `ProcessOptions` 的回调将 stdout 与 stderr 实时直通接入任务上下文（外部工具输出使用 `logExternalToolOutput` 保持原始输出，多文件批处理自适应使用 `-filelist` 临时清单）：
 
 ```cpp
 // 1. 创建隐藏 Tool 任务（LogManager 是唯一创建入口；父阶段任务自动记录 [EXEC]）
@@ -278,11 +279,11 @@ Core::Process::ProcessOptions options;
 options.cancellationToken = cancelToken;
 options.timeout = 180000; // 3 分钟超时
 options.onStdOutLine = [toolTask](const QString& line) {
-    toolTask->info(line);
+    toolTask->logExternalToolOutput(line, Core::Logging::LogLevel::Info);
     toolTask->flush(); // 实时落盘与通知
 };
 options.onStdErrLine = [toolTask](const QString& line) {
-    toolTask->warning(line);
+    toolTask->logExternalToolOutput(line, Core::Logging::LogLevel::Warning);
     toolTask->flush();
 };
 

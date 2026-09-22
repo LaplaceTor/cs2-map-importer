@@ -102,16 +102,17 @@ Application 亦可直接调用 Domain/Core 提供的非工作流服务，但 **U
 
 ### 3.3 Workflow 规则 (`src/Workflow/`)
 
-* **允许：** 定义具体导入流水线（如 `ParticleImportWorkflow`）；使用 `ImportContext` 处理取消与进度；按序调用 Domain 处理器与工具；返回 `Core::Result<T>` 表达单层业务结果。
+* **允许：** 定义具体导入流水线（如 `ParticleImportWorkflow`）；使用 `ImportContext` 处理取消与进度（`runStep` 在步骤成功后延后推进进度）；管理生成的半成品资产生命周期（失败或取消时清理半成品）；导入外部文件需暂存时通过隔离临时文件保障现有用户资产不被覆盖；按序调用 Domain 处理器与工具；返回 `Core::Result<T>` 表达单层业务结果。
 * **严禁：** include 或调用 UI / QML；依赖 Application 策略或全局配置；直接弹出交互对话框；自行发现 Steam 或扫描全局环境。
 
 ### 3.4 Domain 规则 (`src/Domain/`)
 
-* **允许：** 解析与校验 Valve 专属数据格式；抽象 Source 1/2 领域资产与相对路径；材质纹理图像处理（VTF/TGA 解码、PBR 贴图生成、通道打包等确定性纯计算，见 `Domain::Material::TextureProcess`）；封装官方 CLI 工具（`Domain::Tool`）；保持确定性与无状态纯计算。
+* **允许：** 解析与校验 Valve 专属数据格式；抽象 Source 1/2 领域资产与相对路径；S2 插件扫描严格从 `content/csgo_addons` 目录探测（禁止混入 `game/` 目录）；材质纹理图像处理（VTF/TGA 解码、PBR 贴图生成、通道打包等确定性纯计算，见 `Domain::Material::TextureProcess`）；封装官方 CLI 工具（`Domain::Tool`，多资产编译自适应生成 `-filelist` 清单，日志解析器支持资产粒度容错与部分成功统计）；保持确定性与无状态纯计算。
 * **严禁：** include `Application/*`、`Workflow/*`、`UI/*` 或 QML 头文件；发送 UI 通知或弹窗；访问应用全局配置或日志器；自行启动线程。
 
 ### 3.5 Core 规则 (`src/Core/`)
 
+* **允许：** 提供通用跨平台路径抽象（`FilesystemPath::isSubpathOf` 等归属判别）、统一临时资源生命周期管理（`Core::Temp::TempFile` 兼具系统临时文件创建与现有路径 RAII 清理托管双模，支持 `dismiss()`/`release()`/`cleanup()` 控制）、进程抽象、日志与结构化错误。
 * **严禁包含：** 游戏定义与 CS2/CSGO/HL2 专有规则；导入工作流决策；Steam 探测逻辑；VPK 业务策略；材质转码逻辑；UI / QML 代码；Application 服务。Core 必须保持通用性，可无缝脱离本项目复用。
 
 ---
@@ -150,9 +151,10 @@ UI 属性/信号
    - 操作总结 (`Result::message()`)：面向用户的宏观操作概括；
    - 失败原因 (`Error::message()`)：具体领域或系统失败事实；
    - 技术诊断 (`Error::details()`)：绝对路径、CLI 参数、stderr 等技术细节。
-5. **任务导向日志**：严禁使用全局静态 Logger（如 `Logger::info(...)`）。工作流/工具任务必须通过 `TaskLoggingContext` 显式向下传递；系统任务使用 `SystemTaskLog`（见第 2 条）。
-   - **层级化与工作流任务**：顶层导入流程通过 `LogManager::createWorkflowTask` 创建 Workflow 根任务，在 `logs/<workflowName>_<timestamp>/` 下生成独立目录与主工作流日志 `workflow.log`；
-   - **外部工具隐藏任务（Tool Task）**：外部 CLI 工具（如 `resourcecompiler`, `source1import`, `bspsrc`）必须通过 `LogManager::createToolTask` 创建。Tool 任务从主 UI 任务树中隐蔽（避免日志噪音），父任务接收携带 `toolTaskId` 的 `[EXEC]` 启动通知；工具输出实时流式写入独立文件（`<asset>_<tool>_<timestamp>.log`，位于父任务目录下，同毫秒冲突自动追加 `_2` 序号），UI 表现层通过独立 `ToolLogWindow` 按需查看。
+5. **任务导向日志与精简格式**：严禁使用全局静态 Logger（如 `Logger::info(...)`）。工作流/工具任务必须通过 `TaskLoggingContext` 显式向下传递；系统任务使用 `SystemTaskLog`（见第 2 条）。
+   - **层级化与工作流任务**：顶层导入流程通过 `LogManager::createWorkflowTask` 创建 Workflow 根任务，在 `logs/<workflowName>_<timestamp>/` 下生成独立目录与主工作流日志 `workflow.log`；任务终态为 `Completed` 时强制将进度刷新至 100%；
+   - **外部工具隐藏任务（Tool Task）**：外部 CLI 工具（如 `resourcecompiler`, `source1import`, `bspsrc`）必须通过 `LogManager::createToolTask` 创建。Tool 任务从主 UI 任务树中隐蔽（避免日志噪音），父任务接收携带 `toolTaskId` 的 `[EXEC]` 启动通知；工具输出实时流式写入独立文件（`<asset>_<tool>_<timestamp>.log`，位于父任务目录下，同毫秒冲突自动追加 `_2` 序号），经 `logExternalToolOutput` 直通原始行（不加人工等级前缀，保留天然换行），UI 表现层通过独立 `ToolLogWindow` 按需查看；
+   - **日志落盘精简规范**：`TaskFileSink` / `FileSink` 统一单任务日志行格式为 `[LEVEL] %2`，去除冗余时间戳与块序列号；新任务日志首行记录结构化元数据头（`=== Task: %1 (ID: %2) | Started: %3 ===`）。
 6. **异常边界转译**：Application 服务边界统一通过 `ExecutionGuard` 或 `AsyncTaskRunner` 将异常转译为 `Result<T>::failure`，严禁在内部 helper 中静默使用 `catch (...)` 吞没异常。
 7. **消息创建处翻译 (i18n)**：面向用户的消息（`Result::message()`、`Error::message()`、任务日志摘要、对话框文案、QML `qsTr()`）必须在**创建处**翻译——QObject 类用成员 `tr()`，非 QObject 类用 `QCoreApplication::translate("<类名上下文>", "...")`，字符串表用 `QT_TRANSLATE_NOOP` 标记。日志文件内容随界面语言变化。**不翻译**：`Error::details()` 技术诊断、外部工具原始输出、`debug()`/系统日志行、日志等级与导出格式串、游戏产品名。
 
@@ -165,8 +167,9 @@ UI 属性/信号
 1. **禁止直接操作外部进程**：业务代码严禁使用 `QProcess`、`system()`、`popen()` 或 `WinExec()`。
 2. **外部工具强类型封装**：所有外部 CLI 工具（`bspsrc`，官方 `resourcecompiler`, `source1import`）必须封装于 `Domain::Tool` 并通过 `Core::Process::ProcessRunner` 执行。
 3. **流式输出与取消绑定**：`ProcessRunner` 必须支持基于 `onStdOutLine` / `onStdErrLine` 的逐行实时流式日志捕获，并与 `CancellationToken` 强绑定，严禁无超时的静默阻塞式黑盒调用。
-4. **内嵌原生库替代**：严禁再引入或调用外部 `vpkeditcli` 与 `vtfcmd`，归档解包与 VTF 解码/转码已全量由内嵌原生库在进程内完成——`Domain::Package` 基于 `sourcepp`（vpkpp/bsppp）解包 VPK 与 BSP 嵌入包；`Domain::Material` 基于 `vtfpp` 解码 VTF（`VtfCodec` / `VtfConverter`），`TgaCodec` 为自包含 TGA 编解码实现，纹理读写统一收口于 `TextureIO`（宽读取、导出仅 PNG）。
-5. **用户交互解耦**：Domain / Workflow 严禁直接弹出模态对话框。必须通过抽象 Prompt 接口定义契约，由 Application 实现并调度 UI 呈现。
+4. **批量参数清单与长度防护**：调用外部 CLI 编译或处理批量资源时，当文件数量 > 1，必须自适应采用由 `Core::Temp::TempFile` 管理的临时清单文件（如 `-filelist <path>`），严禁将海量文件路径直接拼接入命令行以防超出 Windows 命令行长度上限。
+5. **内嵌原生库替代**：严禁再引入或调用外部 `vpkeditcli` 与 `vtfcmd`，归档解包与 VTF 解码/转码已全量由内嵌原生库在进程内完成——`Domain::Package` 基于 `sourcepp`（vpkpp/bsppp）解包 VPK 与 BSP 嵌入包；`Domain::Material` 基于 `vtfpp` 解码 VTF（`VtfCodec` / `VtfConverter`），`TgaCodec` 为自包含 TGA 编解码实现，纹理读写统一收口于 `TextureIO`（宽读取、导出仅 PNG）。
+6. **用户交互解耦**：Domain / Workflow 严禁直接弹出模态对话框。必须通过抽象 Prompt 接口定义契约，由 Application 实现并调度 UI 呈现。
 
 ---
 

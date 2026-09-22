@@ -41,10 +41,10 @@ description: >-
 
 ### 1.2 核心类与设施
 * `LogManager`：集中管理全局任务注册表、层级树、Sink 分发与 Flush。任务创建入口仅有 `createTask`（含显式 id 重载）、`createWorkflowTask`、`createChildTask`、`createToolTask`。生命周期契约：`cancelTask` 级联取消全部子孙任务（BFS，环防护）；终态转移丢弃对应 sink 块游标；`forceTaskState` 幂等；`clear()` 不重置任务 id 计数（跨会话唯一，防迟到报告误投递）；故障路径 `reportFault` / `beginFaultDraining` / `terminateAfterFault`；块级只读检视 API（`getSealedBlocks` / `getAllBlocks` / `taskSnapshots`）；
-* `TaskLoggingContext`：单任务上下文句柄，提供 `info` / `warning` / `error` / `command`、进度汇报与 `forceTerminalState`（执行仲裁覆盖入口）；**任务创建方法（`createTask` / `createChildTask` / `createToolTask`）仅在 `LogManager` 上，TaskLoggingContext 没有这些方法**；
+* `TaskLoggingContext`：单任务上下文句柄，提供 `info` / `warning` / `error` / `command`、进度汇报、`logExternalToolOutput`（外部 CLI 工具原始流式行直通专用，不加人工等级前缀且保留自然换行）与 `forceTerminalState`（执行仲裁覆盖入口；转移至 `Completed` 终态时强制刷新进度为 100%）；**任务创建方法（`createTask` / `createChildTask` / `createToolTask`）仅在 `LogManager` 上，TaskLoggingContext 没有这些方法**；
 * `LogFileManager`：负责任务日志路径生成、文件名清洗（Windows 安全名）与 Workflow/Tool 独立日志路径推导；同名冲突自动追加 `_2`、`_3` 序号；
-* `TaskFileSink`：实现 `ILogSink`，负责各任务日志文件的即时创建、增量追加写入与优雅关闭；
-* `ApplicationLogger`：应用级日志静态入口（debug/info/warning/error），落盘 `application_<yyyyMMdd_HHmmss_zzz>.log`；`ApplicationLogSink` / `FileSink` / `Logger` 为配套 Sink 设施；
+* `TaskFileSink`：实现 `ILogSink`，负责各任务日志文件的即时创建、增量追加写入与优雅关闭；单任务日志行格式精简为 `[LEVEL] %2`（去除冗余的时间戳、任务名与块序列号），新任务日志首行自动写入结构化元数据头（`=== Task: %1 (ID: %2) | Started: %3 ===\n\n`）；外部工具任务日志（`LogSource::ExternalTool`）保持原始行输出；
+* `ApplicationLogger`：应用级日志静态入口（debug/info/warning/error），落盘 `application_<yyyyMMdd_HHmmss_zzz>.log`；`ApplicationLogSink` / `FileSink` / `Logger` 为配套 Sink 设施，`FileSink` 同样采用 `[LEVEL] %2` 精简行格式；
 * `FaultBarrier`：致命故障屏障（与 `LogManager::reportFault` 配套的日志排空与终止流程）；
 * `TaskRunContext` / `TaskSnapshot`：任务运行上下文与只读快照。
 
@@ -64,8 +64,8 @@ description: >-
 * **`Core::Async`**：
   * `CancellationToken`：基于原子共享标志的协作式取消令牌，显式在调用链间按值拷贝传递，支持 `cancel()` 与 `isCancelled()`。
 * **`Core::Path`**：
-  * `FilesystemPath`：标准化跨平台宿主文件系统路径抽象与操作；
-  * `PathUtils`：通用路径规范化、扩展名提取与安全文件名过滤。
+  * `FilesystemPath`：标准化跨平台宿主文件系统路径抽象与操作，提供 `isSubpathOf(baseDir)` 与 `contains(childPath)` 确定性路径归属判别；
+  * `PathUtils`：通用路径规范化、扩展名提取、安全文件名过滤（`sanitizeFilename`）与路径归属检查（`isSubpath`）。
 * **`Core::KeyValues`**：
   * `KeyValuesDocument` / `KeyValuesNode` / `KeyValuesParser` / `KeyValuesWriter`：通用 Valve KeyValues/VDF AST 解析与序列化器，支持无引号 Token、嵌套节点、同名兄弟节点、保序输出及原子写入。
 * **`Core::FileSystem`**：
@@ -78,7 +78,8 @@ description: >-
   * `ProcessOptions`：进程执行配置参数，集成流式回调、超时与 `CancellationToken`；
   * `ProcessResult`：进程退出码、stdout、stderr 及机械状态载体，提供 `toError()` / `toErrorCode()` 映射。
 * **`Core::Temp`**：
-  * `TempFile` / `TempDirectory`：RAII 临时资源生命周期管理，析构时自动清理。
+  * `TempFile`：统一的 RAII 临时文件生命周期管理设施（冗余的 `TempFileCleanup` 已彻底废弃移除）。兼具系统临时文件创建（`TempFile::create(templatePattern)`）与现有磁盘路径托管清理（`TempFile(path, autoRemove = true)` / `setPath(...)`）双模；提供 `dismiss()`（解除自动删除）、`release()`（解除并提取路径）、`cleanup()`（立即删除）、`exists()`、`isValid()` 原语；
+  * `TempDirectory`：RAII 临时目录生命周期管理，析构时自动递归清理。
 * **`Core::Error`**：
   * `ErrorCode`：跨项目通用底层系统/设施错误码枚举；
   * `Error`：机器可解析的结构化错误值对象（包含 code, message, details, 扩展领域码）；枚举匹配必须走**带域匹配** `error.is(domainName, code)`（同时校验域名与码值，防止不同领域枚举数值混判）；
@@ -127,9 +128,9 @@ description: >-
   * `SoundEventKv3Writer`：序列化生成 Source 2 KeyValues3 (`.vsndevts`) 格式；
   * `SoundLevelMapper` & `DspPresetRegistry`：声音分贝等级映射与 DSP 空间预设注册表。
 * **`Domain::Tool`**：
-  * `ResourceCompilerTool`：Valve CS2 官方资源编译器（`resourcecompiler.exe`）强类型调用封装；
-  * `Source1ImportTool`：Valve CS2 官方导入工具（`source1import.exe`）强类型调用封装（`Source1ImportOptions::workingDirectory` 指定工具工作目录，空则继承调用方 cwd）；
-  * `ResourceCompilerLogParser` / `Source1ImportLogParser`：编译器输出的高性能日志解析器，签名 `parse(stdOut, stdErr = {}, exitCode = 0, workingDirectory = {})`——stdout 中的相对产物路径按工具工作目录解析；stderr 普通行一律记为 `warnings`（仅显式 `WARNING:` 行被跟踪），非零退出且无显式错误行时将最后一条有意义的 stderr/stdout 行晋升为错误以保证失败有具体原因；
+  * `ResourceCompilerTool`：Valve CS2 官方资源编译器（`resourcecompiler.exe`）强类型调用封装；`ResourceCompilerOptions` 接收 `inputFiles` (QStringList) 支持批量资产编译；当编译资源数量 > 1 时自适应在临时目录生成由 `Core::Temp::TempFile` 管理的 `-filelist` 临时清单文件，规避 CLI 参数长度溢出；流式输出经 `logExternalToolOutput` 保持原始输出；
+  * `Source1ImportTool`：Valve CS2 官方导入工具（`source1import.exe`）强类型调用封装（`Source1ImportOptions` 新增 `source1ContentDir` 支持可选 S1 内容路径；`workingDirectory` 指定工具工作目录，空则继承调用方 cwd）；
+  * `ResourceCompilerLogParser` / `Source1ImportLogParser`：编译器输出的高性能日志解析器，签名 `parse(stdOut, stdErr = {}, exitCode = 0, workingDirectory = {})`——stdout 中的相对产物路径按工具工作目录解析；stderr 普通行一律记为 `warnings`（仅显式 `WARNING:` 行被跟踪），支持多资产导入时的资产级容错与部分成功统计（`failedCount`, `skippedCount`, `compiledCount`），当 `>= 1` 个资源成功编译时不判定为整体崩溃；非零退出且无显式错误行时将最后一条有意义的 stderr/stdout 行晋升为错误以保证失败有具体原因；
   * `Cs2PathLayout`：推导 CS2 content 树与 game 树分离的标准资产布局规范；
   * `ToolErrors` (`ToolErrorCode`)：工具专属强类型领域错误模型，提供 `ToolErrors::is(error, code)` 类型安全匹配器。
 * **`Domain::Game`**：
@@ -139,7 +140,7 @@ description: >-
   * `SearchTarget` / `SearchPathResolver`：搜索路径多层级解析推导；
   * `GameValidator`：游戏安装目录确定性校验器；
   * `GameErrors` (`GameErrorCode`)：游戏领域强类型错误模型，提供 `GameErrors::is(error, code)` 类型安全匹配器；
-  * `GameInstallationResolver` / `SteamGameLocator`：游戏安装信息解析与 Steam 定位的纯领域逻辑。
+  * `GameInstallationResolver` / `SteamGameLocator`：游戏安装信息解析与 Steam 定位的纯领域逻辑；`listSource2Addons` 严格从 `content/csgo_addons` 目录探测可用插件（严格遵守 Content / Game 目录分离规范）。
 
 ---
 
@@ -148,13 +149,13 @@ description: >-
 实现具体资产导入用例与流水线编排，依赖 Domain 与 Core，严禁依赖 UI / Application。
 
 * **`Workflow::Common`**：
-  * `ImportContext`：组合 `Core::Logging::TaskLoggingContext*` 与 `Core::Async::CancellationToken`，提供统一的任务日志、进度汇报与取消状态检查（`checkCancelled()`）；
+  * `ImportContext`：组合 `Core::Logging::TaskLoggingContext*` 与 `Core::Async::CancellationToken`，提供统一的任务日志、进度汇报与取消状态检查（`checkCancelled()`）；`runStep` 保证进度在步骤成功后延后推进（步骤启动时更新 `currentMessage`，步骤成功且未取消时才递进 `updateProgress`，消除进度虚假超前）；
   * `AssetExtractor`：按 `SearchTarget` 列表定位并提取资产（目录松散文件 → 目标 `pak01_dir.vpk` → VPK 目标），结合 `PackArchivePool` 进行归档复用；
   * `BspEmbeddedExtractor`：经 `Domain::Package::PackArchive` 与 `BspPackExtractor` 枚举并提取 BSP 内部嵌入资产；
   * `VtfExtractor`：组合 `AssetExtractor` 与 `Domain::Material::VtfConverter`，按 `SearchTarget` 列表定位 VTF、解码并**固定导出为 PNG**（用例层锁定格式，`VtfConverter` 本身保持格式无关）；中间 VTF 文件解包至 RAII 临时目录自动清理；失败语义沿用 `AssetExtractor::extract`，图像编码步骤额外引入 `OperationFailed` 失败原因。
 * **`Workflow::Particle`**：
-  * `ParticleImportWorkflow`：Source 1 `.pcf` 到 Source 2 `.vpcf` 的完整导入工作流，编排依赖提取、content 目录资产生成与 `Domain::Tool::ResourceCompilerTool` 编译；以 `Cs2PathLayout::gameDirectory` 作为两个工具的工作目录锚点（保证 stdout 相对产物路径可解析）；**产物生命周期归属工作流**——编译步骤被取消或失败时清理半成品 `.vpcf` / `.vpcf_c`（`cleanupGeneratedArtifacts`）；
-  * `ParticleImportOptions`：粒子导入配置参数（深度混合、禁用漫反射、`toolTimeoutMs` 单工具超时覆盖（0 = 沿用各工具默认 120s）等）。
+  * `ParticleImportWorkflow`：Source 1 `.pcf` 到 Source 2 `.vpcf` 的完整导入工作流，支持多 PCF 批量导入（`ParticleImportOptions::sourcePcfPaths`）；针对每个 PCF 独立执行 `source1import` 转换与暂存保护（若 S1 `particles/` 目标已存在同名文件，分配隔离的 `_cs2import_tmp_<uuid>_<file>` 临时文件名，转换后即刻清理，杜绝破坏用户既有资产）；汇总生成的所有 `.vpcf` 后批量调用 `Domain::Tool::ResourceCompilerTool` 编译；**产物生命周期归属工作流**——编译步骤被取消或失败时清理半成品 `.vpcf` / `.vpcf_c`（`cleanupGeneratedArtifacts`）；
+  * `ParticleImportOptions` / `ParticleImportWorkflowResult`：粒子导入配置参数与详细统计结果（包含 `sourcePcfPaths`、`toolTimeoutMs`、`totalConverted`、`totalCompiled`、`totalFailed`、`failedPcfFiles`、`compiledVpcfCFiles` 等）。
 
 ---
 
@@ -180,7 +181,7 @@ description: >-
   * `TaskLogDTOs`：UI 侧值类型——`TaskState` / `LogLevel` 枚举（**UI 代码一律使用此层枚举，禁止使用 Core 侧枚举**）、`taskStateToString` / `logLevelToString`、`TaskLogMessage{sequence, timestamp, level, message, toolTaskId}`、`TaskInfo{taskId, parentTaskId, startTimestamp, taskName, state, progress, currentMessage, isToolTask, logFilePath, workflowDirectory, isValid}`；
   * **红线**：`src/UI/` 严禁 include `Core/Logging/*`，日志一律经本门面获取。
 * **专项业务服务**：
-  * `ParticleImportService` (`Application::Particle`)：粒子导入高层业务编排服务，对外暴露面向 UI 的 DTO 契约（`ParticleImportRequest`, `ParticleImportResult`）；签名 `importParticlesAsync(request, callback)`（无 loggingCtx 参数），恒经 `runWorkflowTask` 执行；并发导入快速失败（第二个调用经回调返回 `InvalidState`，句柄无效）；`enable_shared_from_this` 保证任务期间服务存活；
+  * `ParticleImportService` (`Application::Particle`)：粒子导入高层业务编排服务，对外暴露面向 UI 的 DTO 契约（`ParticleImportRequest{sourcePcfPaths, ...}`, `ParticleImportResult{succeeded, generatedVpcfFiles, compiledVpcfCFiles, failedPcfFiles, totalConverted, totalCompiled, totalFailed}`）；签名 `importParticlesAsync(request, callback)`（无 loggingCtx 参数），恒经 `runWorkflowTask` 执行；并发导入快速失败（第二个调用经回调返回 `InvalidState`，句柄无效）；`enable_shared_from_this` 保证任务期间服务存活；
   * `SoundscapeConvertService` (`Application::Soundscape`)：声音景观批量转换服务，将 Source 1 脚本转为 CS2 KV3 音效事件文件；签名 `convertMapSoundscapesAsync(request, callback)`（无 loggingCtx 参数），经 `runWorkflowTask` 执行（以地图名为资产基名，拥有独立工作流日志目录与可见任务树节点）。
 
 ---
@@ -195,11 +196,12 @@ description: >-
   * `LogMessageListModel`：单任务内部日志条目列表模型（包含 `MessageRole`, `LevelStringRole`, `ToolTaskIdRole` 等；`level` 为 `Application::Logging::LogLevel`）；
   * `GameViewModel`：游戏检测与路径选择状态绑定 ViewModel；`refreshS2Addons()` 异步列举插件（经 `listSource2AddonsAsync`，带过期结果丢弃守卫）；VPK 租约（`updateVpkLease` / `retryVpkLease`）为**有意同步**的 UI 线程调用（单次 Win32 排他文件打开，结果经 `vpkLeaseStatusChanged` 信号上报，严禁在 Worker 线程调用）。
 * **控制器与交互门面 (`UI::Controllers`)**：
-  * `MainController`：主窗口业务编排中枢，聚合 Application 服务与 `LogViewModel`（无独立 Tab 控制器层）；提供 `startImport` / `startParticleImport`（启动前全局 `collapseAll()`）、`stopImport`、`cancelAllOperations()`（组合根关停时先于线程池清理调用）、`setActiveTab(int)` 公共槽（QML TabBar 直连，带 isProcessing 守卫）。对话框标题与正文等用户可见文案一律经 `tr()`（上下文 = 类名）。
+  * `MainController`：主窗口业务编排中枢，聚合 Application 服务与 `LogViewModel`（无独立 Tab 控制器层）；提供 `startImport` / `startParticleImport(..., sourcePcfPaths, ...)`（批量导入接口，启动前全局 `collapseAll()`）、`stopImport`、`cancelAllOperations()`（组合根关停时先于线程池清理调用）、`setActiveTab(int)` 公共槽（QML TabBar 直连，带 isProcessing 守卫）。对话框标题与正文等用户可见文案一律经 `tr()`（上下文 = 类名）。
 * **QML 专用日志视窗与组件 (`src/qml/cs2importer/`)**：
-  * `LogWindow.qml`：宏观导入工作流与任务卡片列表窗口（集成任务树平铺与平滑滚动）；
-  * `ToolLogWindow.qml`：专用外部 CLI 工具（如 resourcecompiler）独立控制台实时日志窗口；窗口可见且任务未达终态期间以 250ms 定时器轮询 `getToolMessagesModel` / `getToolTaskState` / `getToolTaskLogFilePath`（弥合隐藏工具任务节点首次日志块到达才投影的时序差）；
-  * `components/LogTaskCard.qml`：支持层次缩进与手风琴折叠交互的任务卡片组件。
+  * `LogWindow.qml`：宏观导入工作流与任务卡片列表窗口（集成任务树平铺与平滑滚动，手动滚轮时自动中断外层滚动动画）；
+  * `ToolLogWindow.qml`：专用外部 CLI 工具（如 resourcecompiler）独立控制台实时日志窗口；滚轮区域集成 `WheelHandler`，向上滚动查阅历史日志时自动暂停底部平滑滚动，滚回底部自动恢复；窗口可见且任务未达终态期间以 250ms 定时器轮询（弥合时序差）；
+  * `components/LogTaskCard.qml`：支持层次缩进与手风琴折叠交互的任务卡片组件；内部日志消息区域集成 `WheelHandler` 阻断向外冒泡，并实现智能滚动暂停/恢复；
+  * `components/SourceFileListBox.qml`：通用半透明文件列表管理组件，支持多文件选择、拖拽（Drag & Drop）导入与单项移除；MapTab、ModelTab、ParticleTab 统一重构为文件列表与选项区左右并排布局。
 
 ---
 
