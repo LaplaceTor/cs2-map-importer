@@ -14,6 +14,8 @@
 #include "Core/Logging/TaskLoggingContext.h"
 #include "Core/Logging/TaskState.h"
 #include "Core/Logging/TaskFileSink.h"
+#include "Core/Logging/FileSink.h"
+#include "Core/Logging/ApplicationLogSink.h"
 #include "Core/Logging/ILogSink.h"
 #include "Core/Result/Result.h"
 #include "Core/Error/Error.h"
@@ -162,6 +164,9 @@ private slots:
     // Result & Error tests
     void testStructuredResultPayload();
     void testResultOutcomes();
+
+    // Log formatting tests
+    void testCleanLogFormatting();
 };
 
 void TestCoreLogging::initTestCase()
@@ -597,6 +602,34 @@ void TestCoreLogging::testResultOutcomes()
     auto sk = Result<void>::skipped(QStringLiteral("Already imported"));
     QVERIFY(sk.isSkipped());
     QCOMPARE(sk.message(), QStringLiteral("Already imported"));
+}
+
+void TestCoreLogging::testCleanLogFormatting()
+{
+    // 1. TaskFileSink regular task entry: [LEVEL] message
+    const QString regularLine = TaskFileSink::formatEntry(
+        1000, 1, QStringLiteral("TaskName"), 0, 1,
+        LogSource::Workflow, LogLevel::Info, QStringLiteral("Hello task"));
+    QCOMPARE(regularLine, QStringLiteral("[INFO] Hello task"));
+
+    // 2. TaskFileSink external tool entry: message (pure raw text)
+    const QString toolLine = TaskFileSink::formatEntry(
+        1000, 2, QStringLiteral("ToolName"), 0, 1,
+        LogSource::ExternalTool, LogLevel::Info, QStringLiteral("Compiling asset..."));
+    QCOMPARE(toolLine, QStringLiteral("Compiling asset..."));
+
+    // 3. FileSink entry: [LEVEL] message
+    const QString fileSinkLine = FileSink::formatEntry(
+        1000, 1, QStringLiteral("TaskName"), 0, 1,
+        LogLevel::Warning, QStringLiteral("Warning message"));
+    QCOMPARE(fileSinkLine, QStringLiteral("[WARNING] Warning message"));
+
+    // 4. ApplicationLogSink entry: [time] [LEVEL] message (no [Application] token)
+    const QString appSinkLine = ApplicationLogSink::formatEntry(
+        1700000000000, LogLevel::Error, QStringLiteral("App error"));
+    QVERIFY(!appSinkLine.contains(QStringLiteral("[Application]")));
+    QVERIFY(appSinkLine.contains(QStringLiteral("[ERROR] App error")));
+    QVERIFY(appSinkLine.startsWith(QLatin1Char('[')));
 }
 
 QTEST_GUILESS_MAIN(TestCoreLogging)

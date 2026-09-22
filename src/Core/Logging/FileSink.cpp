@@ -94,10 +94,7 @@ bool FileSink::writeBlock(const LogBlock& block, const QString& taskName)
             return false;
         }
 
-        QString message = entry.message;
-        message.replace(QLatin1Char('\n'), QStringLiteral("\\n"));
-        message.replace(QLatin1Char('\r'), QStringLiteral("\\r"));
-        blockBuffer += formatEntry(entry.timestamp, taskId, taskName, blockIndex, entry.sequence, entry.level, message);
+        blockBuffer += formatEntry(entry.timestamp, taskId, taskName, blockIndex, entry.sequence, entry.level, entry.message);
         blockBuffer += QLatin1Char('\n');
     }
 
@@ -131,18 +128,14 @@ bool FileSink::flush()
 
 QString FileSink::formatEntry(qint64 timestamp, quint64 taskId, const QString& taskName, quint64 blockIndex, quint64 sequence, LogLevel level, const QString& message)
 {
-    QString timeStr = QDateTime::fromMSecsSinceEpoch(timestamp, QTimeZone::utc()).toString("yyyy-MM-dd HH:mm:ss.zzz");
-    QString levelStr = logLevelToString(level);
+    Q_UNUSED(timestamp);
+    Q_UNUSED(taskId);
+    Q_UNUSED(taskName);
+    Q_UNUSED(blockIndex);
+    Q_UNUSED(sequence);
 
-    QString namePart = taskName.isEmpty() ? QString("Task %1").arg(taskId) : QString("Task %1 - %2").arg(taskId).arg(taskName);
-
-    return QString("[%1] [%2] [Block %3] [Seq %4] [%5] %6")
-        .arg(timeStr)
-        .arg(namePart)
-        .arg(blockIndex)
-        .arg(sequence)
-        .arg(levelStr)
-        .arg(message);
+    const QString levelStr = logLevelToString(level);
+    return QStringLiteral("[%1] %2").arg(levelStr, message);
 }
 
 } // namespace Core::Logging

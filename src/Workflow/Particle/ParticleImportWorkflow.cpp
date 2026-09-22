@@ -10,6 +10,7 @@
 #include <QFile>
 #include <QDir>
 #include <QFileInfo>
+#include <QUuid>
 
 namespace Workflow::Particle {
 
@@ -106,10 +107,16 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
                 continue;
             }
 
-            const QString targetPcfPathStr = s1ParticlesDir.filePath(pcfFileName);
-            if (QFile::exists(targetPcfPathStr)) {
-                QFile::remove(targetPcfPathStr);
+            QString targetPcfPathStr;
+            const QString candidatePath = s1ParticlesDir.filePath(pcfFileName);
+            if (!QFile::exists(candidatePath)) {
+                targetPcfPathStr = candidatePath;
+            } else {
+                const QString uniqueTempName = QStringLiteral("_cs2import_tmp_%1_%2")
+                    .arg(QUuid::createUuid().toString(QUuid::WithoutBraces).left(8), pcfFileName);
+                targetPcfPathStr = s1ParticlesDir.filePath(uniqueTempName);
             }
+
             if (!QFile::copy(pcfPath.toString(), targetPcfPathStr)) {
                 context.warning(QCoreApplication::translate("ParticleImportWorkflow", "Failed to copy PCF file to Source 1 particles folder: %1")
                     .arg(targetPcfPathStr));

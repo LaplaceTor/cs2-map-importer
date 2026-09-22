@@ -85,7 +85,7 @@ public:
 
     /**
      * @brief Formats a single log entry line.
-     * Format: [2026-08-27 21:30:01.012] [Task 42 - Map Import] [Block 1] [Seq 1] [Source: Workflow] [INFO] message
+     * Regular tasks format as "[<LEVEL>] <message>". Tool tasks return raw message without prefix.
      */
     static QString formatEntry(qint64 timestamp, quint64 taskId, const QString& taskName,
                                quint64 blockIndex, quint64 sequence, LogSource source,

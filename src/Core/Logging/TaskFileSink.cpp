@@ -101,6 +101,17 @@ bool TaskFileSink::ensureTaskFileOpenLocked(quint64 taskId, const QString& taskN
         return false;
     }
 
+    if (file->size() == 0) {
+        const QString startTimeStr = QDateTime::fromMSecsSinceEpoch(
+            startTimestamp > 0 ? startTimestamp : QDateTime::currentMSecsSinceEpoch(),
+            QTimeZone::systemTimeZone()).toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"));
+        const QString header = QStringLiteral("=== Task: %1 (ID: %2) | Started: %3 ===\n\n")
+            .arg(taskName.isEmpty() ? QStringLiteral("Task %1").arg(taskId) : taskName)
+            .arg(taskId)
+            .arg(startTimeStr);
+        file->write(header.toUtf8());
+    }
+
     auto handle = std::make_shared<TaskFileHandle>();
     handle->filePath = filePath;
     handle->file = std::move(file);
@@ -143,12 +154,8 @@ bool TaskFileSink::writeBlock(const LogBlock& block, const QString& taskName)
             return false;
         }
 
-        QString message = entry.message;
-        message.replace(QLatin1Char('\n'), QStringLiteral("\\n"));
-        message.replace(QLatin1Char('\r'), QStringLiteral("\\r"));
-
         blockBuffer += formatEntry(entry.timestamp, taskId, taskName, blockIndex,
-                                   entry.sequence, entry.source, entry.level, message);
+                                   entry.sequence, entry.source, entry.level, entry.message);
         blockBuffer += QLatin1Char('\n');
     }
 
@@ -222,16 +229,18 @@ QString TaskFileSink::formatEntry(qint64 timestamp, quint64 taskId, const QStrin
                                   quint64 blockIndex, quint64 sequence, LogSource source,
                                   LogLevel level, const QString& message)
 {
-    const QString timeStr = QDateTime::fromMSecsSinceEpoch(timestamp, QTimeZone::utc()).toString(QStringLiteral("yyyy-MM-dd HH:mm:ss.zzz"));
-    const QString levelStr = logLevelToString(level);
-    const QString sourceStr = logSourceToString(source);
-    const QString namePart = taskName.isEmpty() ? QStringLiteral("Task %1").arg(taskId) : QStringLiteral("Task %1 - %2").arg(taskId).arg(taskName);
+    Q_UNUSED(timestamp);
+    Q_UNUSED(taskId);
+    Q_UNUSED(taskName);
+    Q_UNUSED(blockIndex);
+    Q_UNUSED(sequence);
 
-    return QStringLiteral("[%1] [%2] [Block %3] [Seq %4] [Source: %5] [%6] %7")
-        .arg(timeStr, namePart)
-        .arg(blockIndex)
-        .arg(sequence)
-        .arg(sourceStr, levelStr, message);
+    if (source == LogSource::ExternalTool) {
+        return message;
+    }
+
+    const QString levelStr = logLevelToString(level);
+    return QStringLiteral("[%1] %2").arg(levelStr, message);
 }
 
 } // namespace Core::Logging

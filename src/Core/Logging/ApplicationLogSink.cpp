@@ -78,11 +78,7 @@ bool ApplicationLogSink::writeEntry(LogLevel level, const QString& message, qint
     }
 
     const qint64 entryTime = (timestamp > 0) ? timestamp : QDateTime::currentMSecsSinceEpoch();
-    QString sanitizedMessage = message;
-    sanitizedMessage.replace(QLatin1Char('\n'), QStringLiteral("\\n"));
-    sanitizedMessage.replace(QLatin1Char('\r'), QStringLiteral("\\r"));
-
-    const QString formatted = formatEntry(entryTime, level, sanitizedMessage);
+    const QString formatted = formatEntry(entryTime, level, message);
     const QByteArray utf8Data = (formatted + QLatin1Char('\n')).toUtf8();
 
     const qint64 bytesWritten = m_file.write(utf8Data);
@@ -110,9 +106,8 @@ QString ApplicationLogSink::formatEntry(qint64 timestamp, LogLevel level, const 
     const QString timeStr = QDateTime::fromMSecsSinceEpoch(timestamp, QTimeZone::utc()).toString(QStringLiteral("yyyy-MM-dd HH:mm:ss.zzz"));
     const QString levelStr = logLevelToString(level);
 
-    return QStringLiteral("[%1] [Application] [%2] %3")
+    return QStringLiteral("[%1] [%2] %3")
         .arg(timeStr, levelStr, message);
 }
 
 } // namespace Core::Logging
-
