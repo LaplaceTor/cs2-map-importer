@@ -187,14 +187,14 @@ jobs:
         $global:LASTEXITCODE = 0
 
         $commitSectionHeader = if ($isFallback) {
-            "### 提交变更 (最近 10 条提交)"
+            "### Last 10 commits"
         } else {
-            "### 提交变更 (Changes since last build)"
+            "### Changes since last build"
         }
 
         $shortCurrent = $env:CURRENT_SHA.Substring(0, [Math]::Min(7, $env:CURRENT_SHA.Length))
         $bodyLines = @(
-            "### CS2 Map Importer - Development Build (DEV)"
+            "### CS2 Map Importer - Development Build (DEV) - Don't download this if you're not interest in contribute on code"
             "Build ``$($env:APP_VERSION)`` | [$shortCurrent]($repoUrl/commit/$($env:CURRENT_SHA)) | Branch ``$($env:BRANCH_NAME)`` | Triggered by @$($env:TRIGGERED_BY)"
             ""
             $commitSectionHeader
