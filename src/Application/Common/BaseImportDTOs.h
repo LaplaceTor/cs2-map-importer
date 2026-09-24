@@ -1,7 +1,12 @@
 #pragma once
 
+#include <memory>
 #include <QString>
 #include "Core/Path/FilesystemPath.h"
+
+namespace Domain::Package {
+class VpkIndex;
+}
 
 namespace Application::Common {
 
@@ -13,6 +18,7 @@ struct BaseImportRequest {
     QString cs2BaseDir;
     QString addonName;
     QString s1GameInfoDir;
+    QString gameId;
 
     bool operator==(const BaseImportRequest& other) const = default;
 };
@@ -29,6 +35,8 @@ struct ValidatedBaseImport {
     QString addonName;
     Core::Path::FilesystemPath source1ImportExe;
     Core::Path::FilesystemPath resourceCompilerExe;
+    std::shared_ptr<const Domain::Package::VpkIndex> vpkIndex;
+    std::shared_ptr<const Domain::Package::VpkIndex> cs2Index;
 };
 
 } // namespace Application::Common

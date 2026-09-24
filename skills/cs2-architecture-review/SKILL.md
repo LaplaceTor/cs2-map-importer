@@ -18,18 +18,18 @@ description: >-
 | `VmfBspProcess` | `Domain::Vmf` / `Domain::Bsp` | `src/Domain/Vmf/`, `src/Domain/Bsp/` | VMF 处理与 BSP 反编译行为。 |
 | `MaterialFix` | `Domain::Material` | `src/Domain/Material/` | VMT/VMAT 材质转换与修正；VTF 解码（`VtfCodec` / `VtfConverter`）与纹理处理管线（`TextureProcess` PBR 贴图生成、通道打包，`TextureIO` 宽读取 / 仅 PNG 导出）。[已落地] |
 | `SoundscapeImport` | `Domain::Audio` + `Application::Soundscape` | 对应目录 | Source 1 Soundscape 脚本解析、KV3 Soundevents 转换与批量服务。[已落地] |
-| `FileExtractFromVPK`, Pakfile 提取 | `Domain::Package` + `Workflow::Common` | 对应目录 | 基于 `sourcepp` 的内嵌包解析与提取（`PackArchive`, `BspPackExtractor`, `PackArchivePool` 归档池化缓存）及 `AssetExtractor`，完全移除外部 VPKEdit CLI 依赖。[已落地] |
+| `FileExtractFromVPK`, 跨包盲猜撞库与解包 | `Domain::Package` + `Workflow::Common` + `Application::Package` | 对应目录 | 基于 `sourcepp` 的内嵌包解析与提取（`PackArchive`, `BspPackExtractor`, `PackArchivePool` 归档池化缓存）；VPK 全量树持久化二进制索引（`VpkIndex`, `VpkIndexBuilder`, `VpkIndexService` [后台预热与 SHA-256 校验]）及 `AssetExtractor`（松散文件优先、索引点查直接命中、CS2 原生规整去重），完全移除外部 VPKEdit CLI 依赖并根除盲目撞库试探开销。[已落地] |
 | `Miscellaneous::ParseGameInfo`, `SearchTarget` | `Domain::Game` | `src/Domain/Game/` | GameInfo 解析、校验与搜索路径解析；S2 插件扫描严格收口至 `content/csgo_addons`。[已落地] |
 | `ModelImporter` | `Workflow::Model` | `src/Workflow/Model/` | `.mdl → .vmdl` 导入流水线。 |
 | `ParticleImporter` | `Workflow::Particle` + `Application::Particle` | 对应目录 | `.pcf → .vpcf` 导入流水线（`ParticleImportWorkflow` + `ParticleImportService`），支持多 PCF 批量导入、暂存防重名隔离保护、调用官方资源编译器自适应清单编译及半成品清理。[已落地] |
 | `MapImporter` | `Workflow::Map` | `src/Workflow/Map/` | BSP → VMF → 编译/资产提取流水线。 |
 | `Ui::AutoDetectPaths`, `IsValid*` | `Application::Environment` + `Domain::Game` | 对应目录 | Application 编排 + Domain 校验。[已落地] |
-| `vpk.signatures` 锁定 / 导入前置保障 | `Application::Common` + `Application::Environment` | 对应目录 | `ImportPrerequisiteService` 统一校验基础参数并获取 CS2 文件租约。[已落地] |
+| `vpk.signatures` 锁定 / 导入前置保障 | `Application::Common` + `Application::Environment` + `Application::Package` | 对应目录 | `ImportPrerequisiteService` 统一校验基础参数、独占获取 CS2 文件租约，并双重保障 VPK 索引处于可用就绪状态。[已落地] |
 | `Ui::CheckForUpdate` | `Application::Update` | `src/Application/Update/` | 自动更新检测。 |
 | `Ui::LoadFromCfg`, `SaveToCfg` | `Application::Config` | `src/Application/Config/` | 配置持久化。 |
 | `Ui::Start`, 工作线程, `CancelAll` | `Application::Async`（任务服务 `Application::Task`【规划】） | 对应目录 | `AsyncTaskRunner`（`runTask` / `runWorkflowTask` / `runSystemTask`）、`TaskHandle`、`SystemTaskLog`（系统任务平面）与协作式取消及任务生命周期管理。[已落地] |
 | `LogViewModel` 直连 `Core::Logging`（`registerWithLogManager` 时代） | `Application::Logging` | `src/Application/Logging/` | `TaskLogService` 日志投递门面 + `TaskLogDTOs` UI 侧值类型；UI 消费日志唯一通道（订阅制投递、陈旧批次抑制），`src/UI/` 严禁 include `Core/Logging/*`。[已落地] |
-| `Ui.h/.cpp` Q_PROPERTY/slots | `UI` | `src/UI/` | 极薄的表现层适配器（`MainController`, `LogViewModel` 等），通用 `SourceFileListBox` 组件与左右并排 Tab 布局重构，滚轮防冒泡与智能自动滚动暂停机制。[重构中] |
+| `Ui.h/.cpp` Q_PROPERTY/slots | `UI` | `src/UI/` | 极薄的表现层适配器（`MainController`, `LogViewModel`, `GameViewModel` 联动 `VpkIndexService` 预热），通用 `SourceFileListBox` 组件与左右并排 Tab 布局重构，滚轮防冒泡与智能自动滚动暂停机制。[重构中] |
 
 ---
 
@@ -37,10 +37,10 @@ description: >-
 
 重构按阶段逐步推进，**严禁为了让临时代码通过编译而跨阶段混杂实现**。
 
-1. **Stage 1 — Core 基础设施解耦提取**（已完成：错误体系、文件系统、KeyValues、任务导向日志与格式精简、异步取消令牌 `CancellationToken`、`Core::Temp::TempFile` 统一生命周期管理、`Core::Path::FilesystemPath` 路径归属判别）
-2. **Stage 2 — Domain 领域基础迁移**（已完成：游戏模型/注册表/校验器/插件目录扫描、`Domain::Package` [PackArchive, BspPackExtractor, PackArchivePool]、`Domain::Material` [VtfConverter, VtfCodec/TextureIO/TgaCodec 纹理 IO 与 `TextureProcess` 纹理处理后端]、`Domain::Audio` [Soundscape 解析与转换]、`Domain::Tool` [CS2 官方工具自适应清单与日志解析器]）
-3. **Stage 3 — 导入器与领域逻辑迁移**（进行中：`Workflow::Particle` 已落地 [支持多 PCF 批量导入、暂存防重名保护、自适应 `-filelist` 资源编译器批量编译]；`Workflow::Common` 资产提取与 `ImportContext` [延后进度递进] 已就绪；待推进：ModelImporter → `Workflow::Model`、VmfBspProcess → `Domain::Vmf` + `Domain::Bsp`）
-4. **Stage 4 — Application 应用编排重构**（进行中：`AsyncTaskRunner`、`TaskHandle`、`runWorkflowTask` / `runSystemTask` / `SystemTaskLog`、`TaskLogService` 日志门面、`ImportPrerequisiteService`、`ParticleImportService`、`SoundscapeConvertService`、`GameEnvironmentService`、`GameInstallationValidator` 已落地；待补齐：统一 ConfigService、UpdateService）
+1. **Stage 1 — Core 基础设施解耦提取**（已完成：错误体系、文件系统、KeyValues、任务导向日志与格式精简、异步取消令牌 `CancellationToken`、`Core::Hash::Sha256` 64KB 流式分块散列校验、`Core::Temp::TempFile` 统一生命周期管理、`Core::Path::FilesystemPath` 路径归属判别）
+2. **Stage 2 — Domain 领域基础迁移**（已完成：游戏模型/注册表/校验器/插件目录扫描、`Domain::Package` [PackArchive, BspPackExtractor, PackArchivePool, VpkIndex/VpkIndexBuilder]、`Domain::Material` [VtfConverter, VtfCodec/TextureIO/TgaCodec 纹理 IO 与 `TextureProcess` 纹理处理后端]、`Domain::Audio` [Soundscape 解析与转换]、`Domain::Tool` [CS2 官方工具自适应清单与日志解析器]）
+3. **Stage 3 — 导入器与领域逻辑迁移**（进行中：`Workflow::Particle` 已落地 [支持多 PCF 批量导入、暂存防重名保护、自适应 `-filelist` 资源编译器批量编译]；`Workflow::Common` 资产提取 [VpkIndex 点查直接命中与 CS2 原生规整去重] 与 `ImportContext` [延后进度递进] 已就绪；待推进：ModelImporter → `Workflow::Model`、VmfBspProcess → `Domain::Vmf` + `Domain::Bsp`）
+4. **Stage 4 — Application 应用编排重构**（进行中：`AsyncTaskRunner`、`TaskHandle`、`runWorkflowTask` / `runSystemTask` / `SystemTaskLog`、`TaskLogService` 日志门面、`ImportPrerequisiteService`、`VpkIndexService`、`ParticleImportService`、`SoundscapeConvertService`、`GameEnvironmentService`、`GameInstallationValidator` 已落地；待补齐：统一 ConfigService、UpdateService）
 5. **Stage 5 — MapImporter 重构与 UI 瘦身**（进行中：Map/Model/Particle Tab 统一采用 `SourceFileListBox` 与左右并排布局；待推进：MapImporter → `Workflow::Map`、UI 彻底收敛为纯展示与 Application 调用）
 
 ---
@@ -98,6 +98,8 @@ description: >-
 ### 4.4 集成边界
 * [ ] `Domain::Tool` + `Core::Process` 之外无直接 `QProcess` / Shell 调用。
 * [ ] 外部 CLI 工具必须通过 `LogManager::createToolTask` 封装为隐藏任务，多文件编译采用自适应 `-filelist` 临时清单文件，并经 `ProcessOptions` 回调实现流式日志直通重定向（`logExternalToolOutput`）与取消令牌绑定。
+* [ ] VPK 资产提取严格基于 `VpkIndex` $O(1)$ 点查或松散文件优先策略，严禁遍历全部 VPK 盲目撞库；CS2 原生资源仅索引 `gameinfo.gi` 定义的 `SearchPaths -> Game` 目录 VPK。
+* [ ] VPK 索引后台构建与校验走 `AsyncTaskRunner::runSystemTask` 系统任务平面，不占用可见 UI 任务树。
 * [ ] Application / UI 弹窗桥接之外无直接模态对话框调用。
 * [ ] 未引入全局静态日志器。
 * [ ] 未引入新的全局可变状态。
@@ -138,6 +140,7 @@ Workflow → Application
 任何业务文件 → QProcess / system() / Shell
 任何业务文件 → 全局 Logger::info/error/warning
 任何业务文件 → 硬编码 QStringLiteral 用户可见文案（应经 tr() / QCoreApplication::translate）
+任何业务文件 → 遍历或试探打开多个 VPK 检索单个文件 (盲目撞库试探)
 
 tests/ 常驻测试目标 → 链接 cs2importer_domain / cs2importer_workflow / cs2importer_application / cs2importer_ui
 非 Core 临时任务测试 → 任务结束后残留于代码库中

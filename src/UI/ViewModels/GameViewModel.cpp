@@ -1,5 +1,6 @@
 #include <QCoreApplication>
 #include "UI/ViewModels/GameViewModel.h"
+#include "Application/Package/VpkIndexService.h"
 #include <QQmlEngine>
 
 namespace UI::ViewModels {
@@ -60,6 +61,11 @@ void GameViewModel::applyS1Installation(const Application::Environment::GameInst
     emit s1GameInfoDirChanged();
     emit s1GameTitleChanged();
     emit s1ValidityChanged();
+
+    if (m_vpkIndexService && inst.isValid && !inst.gameInfoDir.isEmpty()) {
+        const QString gameId = !inst.gameId.isEmpty() ? inst.gameId : m_selectedS1Type;
+        m_vpkIndexService->setActiveSource1Game(gameId, inst.gameInfoDir);
+    }
 }
 
 void GameViewModel::applyS2Installation(const Application::Environment::GameInstallationInfo& inst) {
@@ -79,6 +85,10 @@ void GameViewModel::applyS2Installation(const Application::Environment::GameInst
     // must not be invoked from worker threads. Outcome is reported via vpkLeaseStatusChanged.
     if (m_envService) {
         (void)m_envService->updateVpkLease(inst);
+    }
+
+    if (m_vpkIndexService && inst.isValid && !inst.basePath.isEmpty()) {
+        m_vpkIndexService->ensureCs2IndexFromGameInfoAsync(inst.basePath);
     }
 }
 

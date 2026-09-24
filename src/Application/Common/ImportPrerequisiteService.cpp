@@ -3,6 +3,7 @@
 
 #include <QDir>
 #include "Application/Environment/VpkSignatureLeaseService.h"
+#include "Application/Package/VpkIndexService.h"
 #include "Domain/Game/GameInstallationResolver.h"
 #include "Domain/Tool/Cs2PathLayout.h"
 #include "Core/Error/ErrorCode.h"
@@ -10,8 +11,10 @@
 namespace Application::Common {
 
 ImportPrerequisiteService::ImportPrerequisiteService(
-    std::shared_ptr<Environment::VpkSignatureLeaseService> leaseService)
+    std::shared_ptr<Environment::VpkSignatureLeaseService> leaseService,
+    std::shared_ptr<Package::VpkIndexService> vpkIndexService)
     : m_leaseService(std::move(leaseService))
+    , m_vpkIndexService(std::move(vpkIndexService))
 {
 }
 
@@ -26,6 +29,19 @@ void ImportPrerequisiteService::setLeaseService(
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_leaseService = std::move(leaseService);
+}
+
+std::shared_ptr<Package::VpkIndexService> ImportPrerequisiteService::vpkIndexService() const noexcept
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_vpkIndexService;
+}
+
+void ImportPrerequisiteService::setVpkIndexService(
+    std::shared_ptr<Package::VpkIndexService> vpkIndexService) noexcept
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_vpkIndexService = std::move(vpkIndexService);
 }
 
 Core::Result<ValidatedBaseImport> ImportPrerequisiteService::prepare(
@@ -109,13 +125,55 @@ Core::Result<ValidatedBaseImport> ImportPrerequisiteService::prepare(
         }
     }
 
-    // Tools are fixed relative to the CS2 root directory and automatically generated
+    // Step 6: Coordinate VpkIndexService
+    std::shared_ptr<Package::VpkIndexService> vpkService;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        vpkService = m_vpkIndexService;
+    }
+
+    std::shared_ptr<const Domain::Package::VpkIndex> vpkIndex;
+    std::shared_ptr<const Domain::Package::VpkIndex> cs2Index;
+
     const Core::Path::FilesystemPath cs2Path(trimmedCs2Dir);
+
+    if (vpkService) {
+        context.info(QCoreApplication::translate("ImportPrerequisiteService", "Ensuring VPK asset indices..."));
+
+        // 1. Ensure CS2 Index
+        auto cs2IndexRes = vpkService->ensureCs2IndexFromGameInfoSync(cs2Path, context.token());
+        if (cs2IndexRes.isSuccess()) {
+            cs2Index = cs2IndexRes.value();
+        } else {
+            context.warning(QCoreApplication::translate("ImportPrerequisiteService", "Could not load CS2 VPK index: %1")
+                                .arg(cs2IndexRes.message()));
+        }
+
+        // 2. Ensure Source 1 Index
+        QString s1GameId = request.gameId.trimmed();
+        if (s1GameId.isEmpty()) {
+            s1GameId = vpkService->activeSource1GameId();
+        }
+        if (s1GameId.isEmpty()) {
+            s1GameId = QStringLiteral("custom");
+        }
+
+        auto s1IndexRes = vpkService->ensureSource1IndexFromGameInfoSync(
+            s1GameId, Core::Path::FilesystemPath(resolvedS1GameInfoDir), context.token());
+        if (s1IndexRes.isSuccess()) {
+            vpkIndex = s1IndexRes.value();
+        } else {
+            context.warning(QCoreApplication::translate("ImportPrerequisiteService", "Could not load Source 1 VPK index: %1")
+                                .arg(s1IndexRes.message()));
+        }
+    }
+
+    // Tools are fixed relative to the CS2 root directory and automatically generated
     const Core::Path::FilesystemPath s1ImportExe = Domain::Tool::Cs2PathLayout::source1ImportExecutable(cs2Path);
     const Core::Path::FilesystemPath rcExe = Domain::Tool::Cs2PathLayout::resourceCompilerExecutable(cs2Path);
 
     return Core::Result<ValidatedBaseImport>::success(
-        ValidatedBaseImport{trimmedS1Dir, resolvedS1GameInfoDir, trimmedCs2Dir, trimmedAddon, s1ImportExe, rcExe});
+        ValidatedBaseImport{trimmedS1Dir, resolvedS1GameInfoDir, trimmedCs2Dir, trimmedAddon, s1ImportExe, rcExe, std::move(vpkIndex), std::move(cs2Index)});
 }
 
 } // namespace Application::Common

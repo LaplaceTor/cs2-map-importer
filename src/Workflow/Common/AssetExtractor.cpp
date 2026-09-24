@@ -10,6 +10,7 @@
 #include "Core/FileSystem/FileSystem.h"
 #include "Domain/Package/PackArchive.h"
 #include "Domain/Package/PackArchivePool.h"
+#include "Domain/Package/VpkIndex.h"
 
 namespace {
 
@@ -158,6 +159,87 @@ Core::Result<AssetExtraction> AssetExtractor::extract(
         const QString entryPath = normalizeRelativePath(relativeAssetPath);
         const Core::Path::FilesystemPath destFile = destContentDir / entryPath;
 
+        // 1. CS2 native asset deduplication check
+        if (options.cs2Index && options.cs2Index->hasCs2NativeAsset(entryPath)) {
+            if (taskCtx) {
+                taskCtx->info(QCoreApplication::translate("AssetExtractor", "Asset '%1' exists natively in CS2, skipping extraction").arg(entryPath));
+            }
+            return Core::Result<AssetExtraction>::skipped(
+                QCoreApplication::translate("AssetExtractor", "Asset '%1' exists natively in CS2, skipping extraction").arg(entryPath));
+        }
+
+        // 2. Search loose files on disk across directory targets first
+        for (const auto& target : targets) {
+            if (token.isCancelled()) {
+                return Core::Result<AssetExtraction>::cancelled(
+                    QCoreApplication::translate("AssetExtractor", "Asset extraction cancelled"));
+            }
+
+            if (target.isDirectory()) {
+                const Core::Path::FilesystemPath looseFile = target.path() / entryPath;
+                if (looseFile.exists()) {
+                    try {
+                        Core::FileSystem::FileSystem::copy(looseFile.toString(), destFile.toString(), true);
+                    } catch (const Core::Error::Exception& ex) {
+                        return Core::Result<AssetExtraction>::failure(ex.error());
+                    } catch (const std::exception& ex) {
+                        return Core::Result<AssetExtraction>::failure(
+                            Core::Error::ErrorCode::WriteFailed,
+                            QString::fromUtf8(ex.what()));
+                    }
+
+                    if (taskCtx) {
+                        taskCtx->info(QCoreApplication::translate("AssetExtractor", "Extracted '%1' from loose folder '%2'")
+                                          .arg(entryPath, target.pathString()));
+                    }
+                    extractCompanions(pool, target, false, entryPath, options.companionExtensions, destContentDir, token, taskCtx);
+
+                    AssetExtraction extraction;
+                    extraction.extractedFilePath = destFile;
+                    extraction.sourceTargetPath = target.path();
+                    extraction.fromPack = false;
+                    return Core::Result<AssetExtraction>::success(std::move(extraction));
+                }
+            }
+        }
+
+        // 3. Fast-lookup via VpkIndex (eliminates blind search / misses)
+        if (options.vpkIndex) {
+            auto winningVpkOpt = options.vpkIndex->findVpkForEntry(entryPath);
+            if (!winningVpkOpt.has_value()) {
+                if (taskCtx) {
+                    taskCtx->debug(QCoreApplication::translate("AssetExtractor", "Asset '%1' not in VPK index").arg(entryPath));
+                }
+                return Core::Result<AssetExtraction>::skipped(
+                    QCoreApplication::translate("AssetExtractor", "Asset '%1' was not found in any search target").arg(entryPath));
+            }
+
+            const Core::Path::FilesystemPath& winningVpk = winningVpkOpt.value();
+            Core::Result<LookupHit> outcome = extractEntryFromPack(pool, winningVpk, entryPath, destFile);
+            if (outcome.isFailure()) {
+                return Core::Result<AssetExtraction>::failure(
+                    outcome.error(),
+                    QCoreApplication::translate("AssetExtractor", "Asset extraction failed while searching '%1'").arg(winningVpk.toString()));
+            }
+            if (outcome.value().found) {
+                if (taskCtx) {
+                    taskCtx->info(QCoreApplication::translate("AssetExtractor", "Extracted '%1' from '%2'")
+                                      .arg(entryPath, winningVpk.toString()));
+                }
+                extractCompanions(pool, Domain::Game::SearchTarget::makeVpk(winningVpk), true, entryPath, options.companionExtensions, destContentDir, token, taskCtx);
+
+                AssetExtraction extraction;
+                extraction.extractedFilePath = destFile;
+                extraction.sourceTargetPath = winningVpk;
+                extraction.fromPack = true;
+                return Core::Result<AssetExtraction>::success(std::move(extraction));
+            }
+
+            return Core::Result<AssetExtraction>::skipped(
+                QCoreApplication::translate("AssetExtractor", "Asset '%1' was not found in winning VPK").arg(entryPath));
+        }
+
+        // 4. Fallback search (when no VpkIndex is provided)
         for (const auto& target : targets) {
             if (token.isCancelled()) {
                 return Core::Result<AssetExtraction>::cancelled(
@@ -166,7 +248,7 @@ Core::Result<AssetExtraction> AssetExtractor::extract(
 
             Core::Result<LookupHit> outcome = target.isVpk()
                 ? extractEntryFromPack(pool, target.path(), entryPath, destFile)
-                : extractFromDirectoryTarget(pool, target, entryPath, destFile);
+                : extractEntryFromPack(pool, target.path() / QStringLiteral("pak01_dir.vpk"), entryPath, destFile);
 
             if (outcome.isFailure()) {
                 return Core::Result<AssetExtraction>::failure(

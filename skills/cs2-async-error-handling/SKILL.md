@@ -49,7 +49,7 @@ description: >-
 2. Worker 返回单层 `Result<T>`。
 3. `AsyncTaskRunner` 结合业务结果、日志报错与捕获的异常，驱动 `LogManager` 中的 `TaskState` 状态转移。
 4. 回调函数接收 `const Result<T>&`，并线程安全地投递至调用方所在线程。
-5. **平面归属规则**：面向用户的导入工作流（粒子导入、音景转换等）一律走 `runWorkflowTask` / `runTask` 平面（进任务树、有独立日志）；环境检测、安装校验、插件列举等非导入后台任务必须走 `runSystemTask`，严禁占用可见任务树。
+5. **平面归属规则**：面向用户的导入工作流（粒子导入、音景转换等）一律走 `runWorkflowTask` / `runTask` 平面（进任务树、有独立日志）；环境检测、安装校验、插件列举、VPK 索引后台校验与构建（`VpkIndexService`）等非导入后台任务必须走 `runSystemTask`，严禁占用可见任务树。
 
 ### 1.2 层级化任务日志树与外部工具任务 (Workflow Task vs Tool Task)
 

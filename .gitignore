@@ -5,6 +5,8 @@
 release
 build/
 particles/
+models/
+materials/
 build/
 build_dir/
 _build/
@@ -24,4 +26,5 @@ release_test/
 dist/
 *.zip
 logs/
-.zcode/
+data/
+.zcode/

@@ -28,47 +28,72 @@
 <context>
     <name>AssetExtractor</name>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="120"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="121"/>
         <source>Companion extraction failed for &apos;%1&apos;: %2</source>
         <translation>提取伴随文件失败：&apos;%1&apos;：%2</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="126"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="127"/>
         <source>Companion &apos;%1&apos; not present in target &apos;%2&apos;</source>
         <translation>目标 &apos;%2&apos; 中不存在伴随文件 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="147"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="148"/>
         <source>relative asset path is empty</source>
         <translation>资源相对路径为空</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="152"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="153"/>
         <source>destination content directory is empty or invalid</source>
         <translation>目标 content 目录为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="164"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="165"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="168"/>
+        <source>Asset &apos;%1&apos; exists natively in CS2, skipping extraction</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="175"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="246"/>
         <source>Asset extraction cancelled</source>
         <translation>资源提取已取消</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="174"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="192"/>
+        <source>Extracted &apos;%1&apos; from loose folder &apos;%2&apos;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="211"/>
+        <source>Asset &apos;%1&apos; not in VPK index</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="222"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="256"/>
         <source>Asset extraction failed while searching &apos;%1&apos;</source>
         <translation>在 &apos;%1&apos; 中搜索资源时提取失败</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="178"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="239"/>
+        <source>Asset &apos;%1&apos; was not found in winning VPK</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="260"/>
         <source>Asset &apos;%1&apos; not found in target &apos;%2&apos;</source>
         <translation>目标 &apos;%2&apos; 中未找到资源 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="185"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="226"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="267"/>
         <source>Extracted &apos;%1&apos; from &apos;%2&apos;</source>
         <translation>已从 &apos;%2&apos; 提取 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="198"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="214"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="280"/>
         <source>Asset &apos;%1&apos; was not found in any search target</source>
         <translation>在任何搜索目标中都未找到资源 &apos;%1&apos;</translation>
     </message>
@@ -1144,12 +1169,12 @@
 <context>
     <name>GameViewModel</name>
     <message>
-        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="99"/>
+        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="109"/>
         <source>Counter-Strike 2 is Running</source>
         <translation>Counter-Strike 2 正在运行</translation>
     </message>
     <message>
-        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="100"/>
+        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="110"/>
         <source>vpk.signatures is currently in use by Counter-Strike 2 or another application.
 
 Please close the occupying application and click Retry, or Exit to quit.</source>
@@ -1158,12 +1183,12 @@ Please close the occupying application and click Retry, or Exit to quit.</source
 请关闭占用该文件的程序后点击“重试”，或点击“退出”。</translation>
     </message>
     <message>
-        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="105"/>
+        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="115"/>
         <source>Access Denied</source>
         <translation>访问被拒绝</translation>
     </message>
     <message>
-        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="106"/>
+        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="116"/>
         <source>Permission denied when trying to access vpk.signatures:
 %1
 
@@ -1174,54 +1199,54 @@ Please check file permissions or run as administrator.</source>
 请检查文件权限或以管理员身份运行。</translation>
     </message>
     <message>
-        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="111"/>
+        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="121"/>
         <source>File Lease Failed</source>
         <translation>文件租约失败</translation>
     </message>
     <message>
-        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="112"/>
+        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="122"/>
         <source>Failed to acquire exclusive lease on vpk.signatures:
 %1</source>
         <translation>获取 vpk.signatures 独占租约失败：
 %1</translation>
     </message>
     <message>
-        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="272"/>
+        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="282"/>
         <source>The selected directory is not a valid installation for the selected game.
 Please verify that it contains the expected game files and gameinfo.txt.</source>
         <translation>所选目录不是所选游戏的有效安装。
 请确认其中包含预期的游戏文件和 gameinfo.txt。</translation>
     </message>
     <message>
-        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="276"/>
+        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="286"/>
         <source>Invalid Source 1 Installation</source>
         <translation>Source 1 安装无效</translation>
     </message>
     <message>
-        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="307"/>
+        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="317"/>
         <source>The selected folder is not a valid Source 2 installation.
 Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.</source>
         <translation>所选文件夹不是有效的 Source 2 安装。
 请确认其中包含 game/csgo/gameinfo.gi 或有效的 Source 2 目录结构。</translation>
     </message>
     <message>
-        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="311"/>
+        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="321"/>
         <source>Invalid Source 2 Installation</source>
         <translation>Source 2 安装无效</translation>
     </message>
     <message>
-        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="327"/>
-        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="343"/>
+        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="337"/>
+        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="353"/>
         <source>Steam Validation Unavailable</source>
         <translation>Steam 校验不可用</translation>
     </message>
     <message>
-        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="329"/>
+        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="339"/>
         <source>Could not initiate Steam validation. Make sure Steam is running and the game is installed.</source>
         <translation>无法启动 Steam 校验。请确保 Steam 正在运行且已安装该游戏。</translation>
     </message>
     <message>
-        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="345"/>
+        <location filename="../src/UI/ViewModels/GameViewModel.cpp" line="355"/>
         <source>Could not initiate Steam validation for Source 2. Make sure Steam is running and Counter-Strike 2 is installed.</source>
         <translation>无法为 Source 2 启动 Steam 校验。请确保 Steam 正在运行且已安装 Counter-Strike 2。</translation>
     </message>
@@ -1264,12 +1289,12 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
         <translation>操作已取消</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/ImportContext.h" line="103"/>
+        <location filename="../src/Workflow/Common/ImportContext.h" line="111"/>
         <source>Cancelled before step: %1</source>
         <translation>步骤 %1 开始前已取消</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/ImportContext.h" line="113"/>
+        <location filename="../src/Workflow/Common/ImportContext.h" line="121"/>
         <source>Cancelled during step: %1</source>
         <translation>步骤 %1 执行期间已取消</translation>
     </message>
@@ -1277,44 +1302,59 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
 <context>
     <name>ImportPrerequisiteService</name>
     <message>
-        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="38"/>
+        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="54"/>
         <source>Import cancelled before start</source>
         <translation>导入在开始前已取消</translation>
     </message>
     <message>
-        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="46"/>
+        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="62"/>
         <source>Source 1 game directory cannot be empty</source>
         <translation>Source 1 游戏目录不能为空</translation>
     </message>
     <message>
-        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="51"/>
+        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="67"/>
         <source>Source 1 game directory does not exist</source>
         <translation>Source 1 游戏目录不存在</translation>
     </message>
     <message>
-        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="79"/>
+        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="95"/>
         <source>CS2 base directory cannot be empty</source>
         <translation>CS2 根目录不能为空</translation>
     </message>
     <message>
-        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="84"/>
+        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="100"/>
         <source>CS2 base directory does not exist</source>
         <translation>CS2 根目录不存在</translation>
     </message>
     <message>
-        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="93"/>
+        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="109"/>
         <source>Target addon name cannot be empty</source>
         <translation>目标附加内容（Addon）名称不能为空</translation>
     </message>
     <message>
-        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="105"/>
+        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="121"/>
         <source>Could not acquire vpk.signatures lease at &apos;%1&apos;: %2</source>
         <translation>无法获取 &apos;%1&apos; 的 vpk.signatures 租约：%2</translation>
     </message>
     <message>
-        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="108"/>
+        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="124"/>
         <source>Acquired vpk.signatures exclusive lease</source>
         <translation>已获取 vpk.signatures 独占租约</translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="141"/>
+        <source>Ensuring VPK asset indices...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="148"/>
+        <source>Could not load CS2 VPK index: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Common/ImportPrerequisiteService.cpp" line="166"/>
+        <source>Could not load Source 1 VPK index: %1</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1381,47 +1421,47 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
 <context>
     <name>LogTaskCard</name>
     <message>
-        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="178"/>
+        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="184"/>
         <source>PENDING</source>
         <translation>等待中</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="179"/>
+        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="185"/>
         <source>RUNNING</source>
         <translation>运行中</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="180"/>
+        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="186"/>
         <source>COMPLETED</source>
         <translation>已完成</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="181"/>
+        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="187"/>
         <source>FAILED</source>
         <translation>失败</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="182"/>
+        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="188"/>
         <source>CANCELLED</source>
         <translation>已取消</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="183"/>
+        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="189"/>
         <source>SKIPPED</source>
         <translation>已跳过</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="203"/>
+        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="209"/>
         <source>%1 sub-task(s)</source>
         <translation>%1 个子任务</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="212"/>
+        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="218"/>
         <source>%1 log(s)</source>
         <translation>%1 条日志</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="373"/>
+        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="431"/>
         <source>Detailed Log</source>
         <translation>详细日志</translation>
     </message>
@@ -1599,67 +1639,67 @@ Do you want to proceed?</source>
 <context>
     <name>MainController</name>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="47"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="48"/>
         <source>Task in Progress</source>
         <translation>任务进行中</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="48"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="49"/>
         <source>An operation is currently executing. You cannot change tabs until the current operation completes.</source>
         <translation>当前有操作正在执行。在该操作完成前无法切换标签页。</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="102"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="103"/>
         <source>Feature in Development</source>
         <translation>功能开发中</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="103"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="104"/>
         <source>Import execution will be connected in the upcoming Workflow integration stage.</source>
         <translation>导入执行将在后续的 Workflow 集成阶段接入。</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="190"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="193"/>
         <source>Particle Import Completed with Warnings</source>
         <translation>粒子导入完成（包含警告）</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="191"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="194"/>
         <source>Particle Import Complete</source>
         <translation>粒子导入完成</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="195"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="198"/>
         <source>All particles were successfully imported and compiled.</source>
         <translation>所有粒子已成功导入并编译。</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="200"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="203"/>
         <source>Import Cancelled</source>
         <translation>导入已取消</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="201"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="204"/>
         <source>Particle import was cancelled by user.</source>
         <translation>粒子导入已被用户取消。</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="205"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="208"/>
         <source>Particle Import Failed</source>
         <translation>粒子导入失败</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="207"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="210"/>
         <source>An error occurred during particle import.</source>
         <translation>粒子导入过程中发生错误。</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="225"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="228"/>
         <source>Check for Updates</source>
         <translation>检查更新</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="226"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="229"/>
         <source>You are currently running the latest development version (v%1).</source>
         <translation>当前已是最新开发版本（v%1）。</translation>
     </message>
@@ -1986,47 +2026,47 @@ Do you want to proceed?</source>
 <context>
     <name>ParticleImportService</name>
     <message>
-        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="79"/>
+        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="80"/>
         <source>Another import operation is already in progress</source>
         <translation>已有导入操作正在进行</translation>
     </message>
     <message>
-        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="95"/>
+        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="96"/>
         <source>Import Particle: %1</source>
         <translation>导入粒子：%1</translation>
     </message>
     <message>
-        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="98"/>
+        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="99"/>
         <source>Import Particles (%1 files)</source>
         <translation>导入粒子（%1 个文件）</translation>
     </message>
     <message>
-        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="208"/>
+        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="209"/>
         <source>Source PCF file does not exist: %1</source>
         <translation>源 PCF 文件不存在：%1</translation>
     </message>
     <message>
-        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="217"/>
+        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="218"/>
         <source>No valid source PCF files specified</source>
         <translation>未指定有效的源 PCF 文件</translation>
     </message>
     <message>
-        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="220"/>
+        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="221"/>
         <source>Starting particle import for addon &apos;%1&apos; with %2 PCF file(s)</source>
         <translation>开始为附加内容 &apos;%1&apos; 导入粒子（%2 个 PCF 文件）</translation>
     </message>
     <message>
-        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="249"/>
+        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="250"/>
         <source>Successfully compiled %1 particle resource(s).</source>
         <translation>成功编译 %1 个粒子资源。</translation>
     </message>
     <message>
-        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="252"/>
+        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="253"/>
         <source>%1 particle resource(s) succeeded, %2 failed.</source>
         <translation>%1 个粒子资源成功，%2 个失败。</translation>
     </message>
     <message>
-        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="261"/>
+        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="262"/>
         <source>Particle import failed: No particle resources could be compiled.</source>
         <translation>粒子导入失败：无法编译任何粒子资源。</translation>
     </message>
@@ -2043,7 +2083,7 @@ Do you want to proceed?</source>
         <translation type="vanished">开始为附加内容 &apos;%1&apos; 导入粒子（PCF：&apos;%2&apos;）</translation>
     </message>
     <message>
-        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="234"/>
+        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="235"/>
         <source>Particle import workflow was cancelled</source>
         <translation>粒子导入工作流已取消</translation>
     </message>
@@ -2052,7 +2092,7 @@ Do you want to proceed?</source>
         <translation type="vanished">粒子导入工作流失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="239"/>
+        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="240"/>
         <source>Particle import workflow was skipped: %1</source>
         <translation>粒子导入工作流已跳过：%1</translation>
     </message>
@@ -2061,7 +2101,7 @@ Do you want to proceed?</source>
         <translation type="vanished">粒子导入工作流成功完成：%1 个已转换，%2 个已编译</translation>
     </message>
     <message>
-        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="267"/>
+        <location filename="../src/Application/Particle/ParticleImportService.cpp" line="268"/>
         <source>Particle import failed</source>
         <translation>粒子导入失败</translation>
     </message>
@@ -2069,79 +2109,79 @@ Do you want to proceed?</source>
 <context>
     <name>ParticleImportWorkflow</name>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="33"/>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="42"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="34"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="43"/>
         <source>Failed to clean up generated artifact: %1 (%2)</source>
         <translation>清理生成的产物失败：%1（%2）</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="48"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="49"/>
         <source>Cleaned up %1 half-finished artifact(s) after cancelled/failed import</source>
         <translation>在导入取消/失败后清理了 %1 个未完成的产物</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="61"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="62"/>
         <source>No source PCF files specified</source>
         <translation>未指定源 PCF 文件</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="84"/>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="201"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="85"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="210"/>
         <source>Particle import was cancelled</source>
         <translation>粒子导入已取消</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="100"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="102"/>
         <source>Failed to create Source 1 particles directory: %1</source>
         <translation>创建 Source 1 粒子目录失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="112"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="121"/>
         <source>Failed to copy PCF file to Source 1 particles folder: %1</source>
         <translation>复制 PCF 文件至 Source 1 粒子文件夹失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="120"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="130"/>
         <source>Staged PCF file to Source 1 particles folder: %1</source>
         <translation>已暂存 PCF 文件至 Source 1 粒子文件夹：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="129"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="138"/>
         <source>Converting PCF (%1/%2): %3</source>
         <translation>正在转换 PCF（%1/%2）：%3</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="131"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="140"/>
         <source>Converting PCF with source1import: %1</source>
         <translation>正在使用 source1import 转换 PCF：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="170"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="179"/>
         <source>No .vpcf files generated from PCF: %1</source>
         <translation>未从 PCF 生成任何 .vpcf 文件：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="182"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="191"/>
         <source>PCF &apos;%1&apos;: %2 .vpcf generated, %3 failed</source>
         <translation>PCF &apos;%1&apos;：生成了 %2 个 .vpcf，%3 个失败</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="185"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="194"/>
         <source>PCF &apos;%1&apos;: %2 .vpcf generated</source>
         <translation>PCF &apos;%1&apos;：生成了 %2 个 .vpcf</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="193"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="202"/>
         <source>PCF conversion failed for &apos;%1&apos;: %2</source>
         <translation>PCF &apos;%1&apos; 转换失败：%2</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="207"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="216"/>
         <source>No .vpcf files were generated from the selected PCF files</source>
         <translation>未能从所选 PCF 文件中生成任何 .vpcf 文件</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="213"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="222"/>
         <source>Compiling %1 generated .vpcf resource(s)</source>
         <translation>正在编译 %1 个生成的 .vpcf 资源</translation>
     </message>
@@ -2150,7 +2190,7 @@ Do you want to proceed?</source>
         <translation type="vanished">已复制 PCF 文件至 Source 1 粒子文件夹：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="122"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="132"/>
         <source>PCF file is already inside Source 1 particles folder: %1</source>
         <translation>PCF 文件已位于 Source 1 粒子文件夹内：%1</translation>
     </message>
@@ -2171,17 +2211,17 @@ Do you want to proceed?</source>
         <translation type="vanished">编译生成的 .vpcf 资源</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="230"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="239"/>
         <source>Resource compilation failed: %1</source>
         <translation>资源编译失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="256"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="265"/>
         <source>No particle resources were successfully compiled</source>
         <translation>未能成功编译任何粒子资源</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="262"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="271"/>
         <source>Particle import and compilation completed successfully</source>
         <translation>粒子导入与编译成功完成</translation>
     </message>
@@ -2415,6 +2455,29 @@ Do you want to proceed?</source>
         <location filename="../src/Core/Result/Result.h" line="231"/>
         <source>Operation skipped</source>
         <translation>操作已跳过</translation>
+    </message>
+</context>
+<context>
+    <name>Sha256</name>
+    <message>
+        <location filename="../src/Core/Hash/Sha256.cpp" line="13"/>
+        <source>File path is empty or invalid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Core/Hash/Sha256.cpp" line="21"/>
+        <source>File not found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Core/Hash/Sha256.cpp" line="28"/>
+        <source>Failed to open file for reading: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Core/Hash/Sha256.cpp" line="42"/>
+        <source>Failed to read file: %1</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2978,34 +3041,155 @@ or click Add</source>
 <context>
     <name>ToolLogWindow</name>
     <message>
-        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="45"/>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="46"/>
         <source>External Tool Log - %1</source>
         <translation>外部工具日志 - %1</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="64"/>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="65"/>
         <source>Open log file</source>
         <translation>打开日志文件</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="74"/>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="75"/>
         <source>Copy all</source>
         <translation>全部复制</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="86"/>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="87"/>
         <source>Auto-scroll</source>
         <translation>自动滚动</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="128"/>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="132"/>
         <source>Lines: %1</source>
         <translation>行数：%1</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="150"/>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="154"/>
         <source>CMD:</source>
         <translation>命令：</translation>
+    </message>
+</context>
+<context>
+    <name>VpkIndex</name>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="106"/>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="174"/>
+        <source>Index file path is empty or invalid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="119"/>
+        <source>Failed to open index file for writing: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="163"/>
+        <source>Stream write failed while writing index data</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="181"/>
+        <source>Index file does not exist</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="188"/>
+        <source>Failed to open index file for reading: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="202"/>
+        <source>Index file has invalid magic header</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="211"/>
+        <source>Index file version mismatch (expected %1, got %2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="265"/>
+        <source>Failed to deserialize index: data stream is corrupted or truncated</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>VpkIndexBuilder</name>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="19"/>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="37"/>
+        <source>VPK index building cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="42"/>
+        <source>Skipping missing VPK: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="49"/>
+        <source>Indexing VPK: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="58"/>
+        <source>Failed to compute SHA-256 for VPK: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="74"/>
+        <source>Failed to parse VPK with sourcepp: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="110"/>
+        <source>VPK index built successfully: %1 archives, %2 total entries</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>VpkIndexService</name>
+    <message>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="95"/>
+        <source>Index build cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="103"/>
+        <source>Failed to build VPK index for %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="153"/>
+        <source>CS2 base path is invalid or empty</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="160"/>
+        <source>CS2 gameinfo.gi not found at %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="167"/>
+        <source>Failed to parse CS2 gameinfo.gi</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="232"/>
+        <source>Game path is invalid or empty</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="255"/>
+        <source>gameinfo.txt not found at %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="262"/>
+        <source>Failed to parse gameinfo.txt</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

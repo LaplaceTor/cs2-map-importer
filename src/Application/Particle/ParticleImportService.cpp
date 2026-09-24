@@ -7,6 +7,7 @@
 #include "Application/Execution/ExecutionGuard.h"
 #include "Application/Async/AsyncTaskRunner.h"
 #include "Application/Common/ImportPrerequisiteService.h"
+#include "Application/Package/VpkIndexService.h"
 #include "Workflow/Particle/ParticleImportWorkflow.h"
 #include "Core/Error/ErrorCode.h"
 
@@ -55,7 +56,7 @@ ParticleImportService::ParticleImportService(
     : QObject(parent)
     , m_prerequisiteService(prerequisiteService
           ? std::move(prerequisiteService)
-          : std::make_shared<Common::ImportPrerequisiteService>())
+          : std::make_shared<Common::ImportPrerequisiteService>(nullptr, std::make_shared<Package::VpkIndexService>()))
     , m_workflowRunner(&Workflow::Particle::ParticleImportWorkflow::run)
 {
 }

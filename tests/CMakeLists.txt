@@ -29,3 +29,20 @@ target_include_directories(test_core_logging PRIVATE
 )
 
 add_test(NAME test_core_logging COMMAND test_core_logging)
+
+qt_add_executable(test_core_sha256
+    TestCoreSha256.cpp
+)
+
+target_link_libraries(test_core_sha256 PRIVATE
+    cs2importer_core
+    Qt6::Core
+    Qt6::Test
+)
+
+target_include_directories(test_core_sha256 PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+add_test(NAME test_core_sha256 COMMAND test_core_sha256)
+

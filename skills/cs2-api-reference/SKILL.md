@@ -63,6 +63,8 @@ description: >-
 
 * **`Core::Async`**：
   * `CancellationToken`：基于原子共享标志的协作式取消令牌，显式在调用链间按值拷贝传递，支持 `cancel()` 与 `isCancelled()`。
+* **`Core::Hash`**：
+  * `Sha256`：通用低开销流式 SHA-256 散列计算设施，支持对磁盘文件（64KB 分块流式读取，内存占用恒定，集成 `CancellationToken` 协作取消）或内存字节缓冲区（`QByteArray`）计算散列，统一输出 64 位小写十六进制字符串（`compute(path, token)` / `compute(data)`）。
 * **`Core::Path`**：
   * `FilesystemPath`：标准化跨平台宿主文件系统路径抽象与操作，提供 `isSubpathOf(baseDir)` 与 `contains(childPath)` 确定性路径归属判别；
   * `PathUtils`：通用路径规范化、扩展名提取、安全文件名过滤（`sanitizeFilename`）与路径归属检查（`isSubpath`）。
@@ -104,7 +106,9 @@ description: >-
 * **`Domain::Package`**：
   * `PackArchive`：基于 `sourcepp` (vpkpp/bsppp) 的统一资产包抽象，直接在进程内读取/枚举/提取 VPK 与 BSP 嵌入包内容；
   * `BspPackExtractor`：专职从 Source 1 BSP 文件提取嵌入的 Pakfile 资产包；
-  * `PackArchivePool`：归档池化缓存机制（LRU 缓存），复用打开的文件句柄，提供线程安全的高性能解包。已彻底废弃外部 VPKEdit CLI。
+  * `PackArchivePool`：归档池化缓存机制（LRU 缓存），复用打开的文件句柄，提供线程安全的高性能解包。已彻底废弃外部 VPKEdit CLI；
+  * `VpkIndex`：针对游戏所有 VPK 资产包的轻量只读内存索引与高效二进制持久化载体。文件头魔数 `CS2VPKID` (v1)，记录全部 VPK 路径、文件大小、修改时间与 `_dir.vpk` SHA-256 哈希校验；条目映射表以资产绝对路径映射到 `(vpkIndex, internalPath)`，支持 $O(1)$ 精确点查；持有 `isCs2()` 标志与 CS2 资产规范化主干名哈希集合（`cs2Stems`），用于跨引擎资产去重与避免重复解包编译；
+  * `VpkIndexBuilder`：多 VPK 全量文件树快速构建器。基于 `sourcepp::vpkpp::runForAllEntries` 瞬时抓取内部资产树并排序，规避低优先包覆盖高优先包，自适应区分 CS2 与 S1 资产提取规整主干名，输出 `std::shared_ptr<VpkIndex>`。
 * **`Domain::Material`**：
   * `VtfConverter`：基于 `vtfpp` 的 VTF 纹理图像解码器（mip 0、首帧/首面），支持转码导出为 PNG、TGA、JPG、BMP、HDR 格式（内存缓冲区或直接落盘）；
   * `VtfCodec`：vtfpp 只读 VTF 解码器，压缩存储格式（DXT/BCn）解码为 RGBA8888 `QImage`；VTF 输出不在范围（导出仅 PNG）；
@@ -150,7 +154,7 @@ description: >-
 
 * **`Workflow::Common`**：
   * `ImportContext`：组合 `Core::Logging::TaskLoggingContext*` 与 `Core::Async::CancellationToken`，提供统一的任务日志、进度汇报与取消状态检查（`checkCancelled()`）；`runStep` 保证进度在步骤成功后延后推进（步骤启动时更新 `currentMessage`，步骤成功且未取消时才递进 `updateProgress`，消除进度虚假超前）；
-  * `AssetExtractor`：按 `SearchTarget` 列表定位并提取资产（目录松散文件 → 目标 `pak01_dir.vpk` → VPK 目标），结合 `PackArchivePool` 进行归档复用；
+  * `AssetExtractor`：资产定位与提取中枢。组合 `SearchTarget` 列表、`Domain::Package::VpkIndex`（点查直接命中）与 `PackArchivePool`。执行策略：1. CS2 原生资产规整树判断（已由 CS2 原生提供则跳过解包与重编译）；2. 优先检索磁盘松散文件；3. 优先通过 `VpkIndex` 精确查询目标归档，若命中直接定位提取；4. 仅在未建立索引或点查失配时回退到旧式全包线性搜索。彻底杜绝盲目打开与撞库试探；
   * `BspEmbeddedExtractor`：经 `Domain::Package::PackArchive` 与 `BspPackExtractor` 枚举并提取 BSP 内部嵌入资产；
   * `VtfExtractor`：组合 `AssetExtractor` 与 `Domain::Material::VtfConverter`，按 `SearchTarget` 列表定位 VTF、解码并**固定导出为 PNG**（用例层锁定格式，`VtfConverter` 本身保持格式无关）；中间 VTF 文件解包至 RAII 临时目录自动清理；失败语义沿用 `AssetExtractor::extract`，图像编码步骤额外引入 `OperationFailed` 失败原因。
 * **`Workflow::Particle`**：
@@ -169,7 +173,9 @@ description: >-
   * `TaskHandle`：异步任务生命周期句柄（`[[nodiscard]]`），配合 `CancellationToken` 支持协作式取消；系统任务句柄 taskId=0，`cancel()` 仅触发令牌；
   * `ExecutionGuard` (`Application::Execution`)：在应用服务边界安全捕获异常并转译为 `Result<T>::failure`。
 * **通用导入前置服务 (`Application::Common`)**：
-  * `ImportPrerequisiteService`：Map、Model、Particle 导入共用的前置保障服务，校验基础参数（`BaseImportRequest`）并在必要时独占获取 CS2 `vpk.signatures` 文件租约。
+  * `ImportPrerequisiteService`：Map、Model、Particle 导入共用的前置保障服务，统一编排校验基础参数（`BaseImportRequest`）、独占获取 CS2 `vpk.signatures` 文件租约，并在导入流水线执行前步进校验与同步确保 VPK 索引（`VpkIndexService`）就绪（双重保险）。
+* **VPK 索引应用服务 (`Application::Package`)**：
+  * `VpkIndexService`：统一管理游戏 VPK 持久化二进制索引的服务与门面。管理 `<AppDir>/data/indices/<game_id>.idx` 二进制缓存；联动 `AsyncTaskRunner::runSystemTask` 执行非阻塞后台构建与 SHA-256 完整性校验；解析 `gameinfo.gi`（仅提取 CS2 `SearchPaths -> Game` 目录 VPK，规避无用扫描）与 `gameinfo.txt`；提供面向 UI 的轻量 `QString` 便捷调用接口（`setActiveSource1Game` / `ensureCs2IndexFromGameInfoAsync`）；供工作流准备阶段同步获取。
 * **环境与检测服务 (`Application::Environment`)**：
   * `SteamService`：Steam 安装目录与库探测，读取 App Manifest；
   * `GameInstallation` / `GameInstallationInfo`：探测到的游戏安装应用层数据表示；
@@ -194,9 +200,9 @@ description: >-
   * `LogViewModel`：集中管理面向界面的任务树平铺投影、树节点动态增删、同级排他手风琴折叠（`toggleTaskExpanded` / `toggleTaskExpandedById`）、Tool 任务专项提取（`getToolMessagesModel` / `getToolTaskState` / `getToolTaskLogFilePath`）；构造注入 `Application::Logging::TaskLogService*`，经 `attachToLogService()` / `detachFromLogService()` 挂接门面，以订阅 id 抑制陈旧批次（严禁 include `Core/Logging`）；展开默认规则：根任务展开、子任务收起，无任何"完成触发自动折叠"行为；
   * `LogTaskModel`：层次化任务项列表模型（`LogViewModel` 的基类，亦作为每节点 `subTasksModel` 使用），角色含 `ParentTaskIdRole`, `DepthRole`, `TaskNameRole`, `StateRole`, `StateStringRole`, `ProgressRole`, `CurrentMessageRole`, `ExpandedRole`, `MessageCountRole`, `SubTasksCountRole`, `HasSubTasksRole`, `MessagesModelRole`, `SubTasksModelRole` 等（**不含 ToolTaskIdRole**，该角色在 LogMessageListModel 上）；
   * `LogMessageListModel`：单任务内部日志条目列表模型（包含 `MessageRole`, `LevelStringRole`, `ToolTaskIdRole` 等；`level` 为 `Application::Logging::LogLevel`）；
-  * `GameViewModel`：游戏检测与路径选择状态绑定 ViewModel；`refreshS2Addons()` 异步列举插件（经 `listSource2AddonsAsync`，带过期结果丢弃守卫）；VPK 租约（`updateVpkLease` / `retryVpkLease`）为**有意同步**的 UI 线程调用（单次 Win32 排他文件打开，结果经 `vpkLeaseStatusChanged` 信号上报，严禁在 Worker 线程调用）。
+  * `GameViewModel`：游戏检测与路径选择状态绑定 ViewModel；注入 `Application::Package::VpkIndexService*`，在 `applyS1Installation` 与 `applyS2Installation` 时自动触发后台预热与索引就绪；`refreshS2Addons()` 异步列举插件（经 `listSource2AddonsAsync`，带过期结果丢弃守卫）；VPK 租约（`updateVpkLease` / `retryVpkLease`）为**有意同步**的 UI 线程调用（单次 Win32 排他文件打开，结果经 `vpkLeaseStatusChanged` 信号上报，严禁在 Worker 线程调用）。
 * **控制器与交互门面 (`UI::Controllers`)**：
-  * `MainController`：主窗口业务编排中枢，聚合 Application 服务与 `LogViewModel`（无独立 Tab 控制器层）；提供 `startImport` / `startParticleImport(..., sourcePcfPaths, ...)`（批量导入接口，启动前全局 `collapseAll()`）、`stopImport`、`cancelAllOperations()`（组合根关停时先于线程池清理调用）、`setActiveTab(int)` 公共槽（QML TabBar 直连，带 isProcessing 守卫）。对话框标题与正文等用户可见文案一律经 `tr()`（上下文 = 类名）。
+  * `MainController`：主窗口业务编排中枢，聚合 Application 服务、`LogViewModel` 与 `VpkIndexService`（无独立 Tab 控制器层）；提供 `startImport` / `startParticleImport(..., sourcePcfPaths, ...)`（批量导入接口，启动前全局 `collapseAll()`，内部向 `ImportPrerequisiteService` 传递 `m_vpkIndexService` 确保索引就绪）、`stopImport`、`cancelAllOperations()`（组合根关停时先于线程池清理调用）、`setActiveTab(int)` 公共槽（QML TabBar 直连，带 isProcessing 守卫）。对话框标题与正文等用户可见文案一律经 `tr()`（上下文 = 类名）。
 * **QML 专用日志视窗与组件 (`src/qml/cs2importer/`)**：
   * `LogWindow.qml`：宏观导入工作流与任务卡片列表窗口（集成任务树平铺与平滑滚动，手动滚轮时自动中断外层滚动动画）；
   * `ToolLogWindow.qml`：专用外部 CLI 工具（如 resourcecompiler）独立控制台实时日志窗口；滚轮区域集成 `WheelHandler`，向上滚动查阅历史日志时自动暂停底部平滑滚动，滚回底部自动恢复；窗口可见且任务未达终态期间以 250ms 定时器轮询（弥合时序差）；
@@ -210,9 +216,9 @@ description: >-
 测试代码库严格按生命周期隔离：
 
 * **常驻单元测试 (`test_core_*`)**：
-  * 目标可执行文件：`test_core_logging`；
+  * 目标可执行文件：`test_core_logging`, `test_core_sha256`；
   * 链接契约：`PRIVATE cs2importer_core Qt6::Core Qt6::Test`；
-  * 范围：仅测试 Core 层基础设施（`LogManager`, `TaskLoggingContext`, `TaskFileSink`, `LogFileManager`, `ProcessRunner`, `Result`, `Error`）。
+  * 范围：仅测试 Core 层基础设施（`LogManager`, `TaskLoggingContext`, `TaskFileSink`, `LogFileManager`, `ProcessRunner`, `Result`, `Error`, `Core::Hash::Sha256`）。
 * **临时单任务测试（Task-Scoped / Ephemeral Tests）**：
   * 任何针对 Domain、Workflow、Application、UI 层的单元或集成测试，仅在对应特性研发任务中临时存在；
   * 目标以 `test_tmp_` 前缀命名，并在 `tests/CMakeLists.txt` 中以显式注释块标注任务范围与删除义务（AGENTS.md §9.1）；

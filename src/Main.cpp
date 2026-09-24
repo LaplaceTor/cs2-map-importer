@@ -12,6 +12,7 @@
 #include "Application/Environment/GameEnvironmentService.h"
 #include "Application/Environment/VpkSignatureLeaseService.h"
 #include "Application/Logging/TaskLogService.h"
+#include "Application/Package/VpkIndexService.h"
 #include "Core/Logging/ApplicationLogger.h"
 #include "Core/Logging/LogManager.h"
 #include "Core/Logging/TaskFileSink.h"
@@ -61,10 +62,13 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 
     auto gameEnvService = std::make_unique<Application::Environment::GameEnvironmentService>();
+    auto vpkIndexService = std::make_shared<Application::Package::VpkIndexService>();
     auto gameViewModel = std::make_unique<UI::ViewModels::GameViewModel>(gameEnvService.get());
+    gameViewModel->setVpkIndexService(vpkIndexService.get());
     auto taskLogService = std::make_shared<Application::Logging::TaskLogService>();
     auto logViewModel = std::make_shared<UI::ViewModels::LogViewModel>(taskLogService.get());
     auto mainController = std::make_unique<UI::Controllers::MainController>(logViewModel.get());
+    mainController->setVpkIndexService(vpkIndexService);
 
     logViewModel->attachToLogService(taskLogService.get());
 

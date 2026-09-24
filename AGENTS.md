@@ -102,17 +102,17 @@ Application 亦可直接调用 Domain/Core 提供的非工作流服务，但 **U
 
 ### 3.3 Workflow 规则 (`src/Workflow/`)
 
-* **允许：** 定义具体导入流水线（如 `ParticleImportWorkflow`）；使用 `ImportContext` 处理取消与进度（`runStep` 在步骤成功后延后推进进度）；管理生成的半成品资产生命周期（失败或取消时清理半成品）；导入外部文件需暂存时通过隔离临时文件保障现有用户资产不被覆盖；按序调用 Domain 处理器与工具；返回 `Core::Result<T>` 表达单层业务结果。
+* **允许：** 定义具体导入流水线（如 `ParticleImportWorkflow`）；使用 `ImportContext` 处理取消与进度（`runStep` 在步骤成功后延后推进进度）；管理生成的半成品资产生命周期（失败或取消时清理半成品）；导入外部文件需暂存时通过隔离临时文件保障现有用户资产不被覆盖；资产定位与提取严格遵循“松散文件优先、VPK 索引点查直接命中”策略（`Workflow::Common::AssetExtractor` 联动 `VpkIndex`，杜绝跨 VPK 盲目撞库与多次打开），配合 CS2 原生资产规整树对原生已有的基础资源跳过重复解包与编译；按序调用 Domain 处理器与工具；返回 `Core::Result<T>` 表达单层业务结果。
 * **严禁：** include 或调用 UI / QML；依赖 Application 策略或全局配置；直接弹出交互对话框；自行发现 Steam 或扫描全局环境。
 
 ### 3.4 Domain 规则 (`src/Domain/`)
 
-* **允许：** 解析与校验 Valve 专属数据格式；抽象 Source 1/2 领域资产与相对路径；S2 插件扫描严格从 `content/csgo_addons` 目录探测（禁止混入 `game/` 目录）；材质纹理图像处理（VTF/TGA 解码、PBR 贴图生成、通道打包等确定性纯计算，见 `Domain::Material::TextureProcess`）；封装官方 CLI 工具（`Domain::Tool`，多资产编译自适应生成 `-filelist` 清单，日志解析器支持资产粒度容错与部分成功统计）；保持确定性与无状态纯计算。
+* **允许：** 解析与校验 Valve 专属数据格式；抽象 Source 1/2 领域资产与相对路径；S2 插件扫描严格从 `content/csgo_addons` 目录探测（禁止混入 `game/` 目录）；VPK 资产包索引机制（`Domain::Package::VpkIndex` / `VpkIndexBuilder`，基于 `sourcepp` API 快速构建全量文件树，序列化为紧凑二进制 `.idx`，集成文件大小/修改时间与 `_dir.vpk` SHA-256 完整性快速校验，生成绝对路径 $O(1)$ 路由映射与 CS2 资产主干名集合）；材质纹理图像处理（VTF/TGA 解码、PBR 贴图生成、通道打包等确定性纯计算，见 `Domain::Material::TextureProcess`）；封装官方 CLI 工具（`Domain::Tool`，多资产编译自适应生成 `-filelist` 清单，日志解析器支持资产粒度容错与部分成功统计）；保持确定性与无状态纯计算。
 * **严禁：** include `Application/*`、`Workflow/*`、`UI/*` 或 QML 头文件；发送 UI 通知或弹窗；访问应用全局配置或日志器；自行启动线程。
 
 ### 3.5 Core 规则 (`src/Core/`)
 
-* **允许：** 提供通用跨平台路径抽象（`FilesystemPath::isSubpathOf` 等归属判别）、统一临时资源生命周期管理（`Core::Temp::TempFile` 兼具系统临时文件创建与现有路径 RAII 清理托管双模，支持 `dismiss()`/`release()`/`cleanup()` 控制）、进程抽象、日志与结构化错误。
+* **允许：** 提供通用跨平台路径抽象（`FilesystemPath::isSubpathOf` 等归属判别）、统一临时资源生命周期管理（`Core::Temp::TempFile` 兼具系统临时文件创建与现有路径 RAII 清理托管双模，支持 `dismiss()`/`release()`/`cleanup()` 控制）、进程抽象、通用高效的 64KB 流式分块 SHA-256 校验计算（`Core::Hash::Sha256`，支持取消与大文件恒定内存占用）、日志与结构化错误。
 * **严禁包含：** 游戏定义与 CS2/CSGO/HL2 专有规则；导入工作流决策；Steam 探测逻辑；VPK 业务策略；材质转码逻辑；UI / QML 代码；Application 服务。Core 必须保持通用性，可无缝脱离本项目复用。
 
 ---
@@ -168,7 +168,7 @@ UI 属性/信号
 2. **外部工具强类型封装**：所有外部 CLI 工具（`bspsrc`，官方 `resourcecompiler`, `source1import`）必须封装于 `Domain::Tool` 并通过 `Core::Process::ProcessRunner` 执行。
 3. **流式输出与取消绑定**：`ProcessRunner` 必须支持基于 `onStdOutLine` / `onStdErrLine` 的逐行实时流式日志捕获，并与 `CancellationToken` 强绑定，严禁无超时的静默阻塞式黑盒调用。
 4. **批量参数清单与长度防护**：调用外部 CLI 编译或处理批量资源时，当文件数量 > 1，必须自适应采用由 `Core::Temp::TempFile` 管理的临时清单文件（如 `-filelist <path>`），严禁将海量文件路径直接拼接入命令行以防超出 Windows 命令行长度上限。
-5. **内嵌原生库替代**：严禁再引入或调用外部 `vpkeditcli` 与 `vtfcmd`，归档解包与 VTF 解码/转码已全量由内嵌原生库在进程内完成——`Domain::Package` 基于 `sourcepp`（vpkpp/bsppp）解包 VPK 与 BSP 嵌入包；`Domain::Material` 基于 `vtfpp` 解码 VTF（`VtfCodec` / `VtfConverter`），`TgaCodec` 为自包含 TGA 编解码实现，纹理读写统一收口于 `TextureIO`（宽读取、导出仅 PNG）。
+5. **内嵌原生库与持久化索引替代**：严禁再引入或调用外部 `vpkeditcli` 与 `vtfcmd`，归档解包与 VTF 解码/转码已全量由内嵌原生库在进程内完成——`Domain::Package` 基于 `sourcepp`（vpkpp/bsppp）解包 VPK 与 BSP 嵌入包；严禁使用盲目打开 VPK 碰撞试探文件是否存在的方式，必须通过 `Domain::Package::VpkIndex` / `Application::Package::VpkIndexService` 建立持久化二进制索引并基于 `AssetExtractor` 执行 $O(1)$ 点查直接命中；CS2 原生资源仅检索 `gameinfo.gi` 中定义的 `SearchPaths -> Game` 目录 VPK，规避海量无用扫描；`Domain::Material` 基于 `vtfpp` 解码 VTF（`VtfCodec` / `VtfConverter`），`TgaCodec` 为自包含 TGA 编解码实现，纹理读写统一收口于 `TextureIO`（宽读取、导出仅 PNG）。
 6. **用户交互解耦**：Domain / Workflow 严禁直接弹出模态对话框。必须通过抽象 Prompt 接口定义契约，由 Application 实现并调度 UI 呈现。
 
 ---
@@ -177,10 +177,10 @@ UI 属性/信号
 
 ```text
 src/
-├── Core/             # 通用基础设施 (Async, Error, FileSystem, KeyValues, Logging, Path, Process, Result, Temp)【全部已有】
-├── Domain/           # Valve/Source 专有领域模型 (Asset, Audio, Game, Material（含 TextureProcess 纹理处理后端）, Package, Tool【已有】; Bsp, Vmf【规划】)
+├── Core/             # 通用基础设施 (Async, Error, FileSystem, Hash, KeyValues, Logging, Path, Process, Result, Temp)【全部已有】
+├── Domain/           # Valve/Source 专有领域模型 (Asset, Audio, Game, Material（含 TextureProcess 纹理处理后端）, Package（含 VpkIndex/VpkIndexBuilder）, Tool【已有】; Bsp, Vmf【规划】)
 ├── Workflow/         # 具体导入流水线 (Common, Particle【已有】; Map, Model【规划】)
-├── Application/      # 应用服务与任务调度 (Async, Common, Environment, Execution, Logging, Particle, Soundscape【已有】; Config, Task, Update【规划】)
+├── Application/      # 应用服务与任务调度 (Async, Common, Environment, Execution, Logging, Package, Particle, Soundscape【已有】; Config, Task, Update【规划】)
 ├── UI/               # 表现层 ViewModel 与控制器 (Controllers, ViewModels)【全部已有】
 └── qml/              # QML 界面视图与组件 (cs2importer/components, cs2importer/tabs, Main.qml)【全部已有】
 ```

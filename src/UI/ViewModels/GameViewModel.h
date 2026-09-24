@@ -8,6 +8,10 @@
 #include "Application/Environment/GameEnvironmentService.h"
 #include "Application/Environment/GameInstallationInfo.h"
 
+namespace Application::Package {
+class VpkIndexService;
+}
+
 namespace UI::ViewModels {
 
 class GameViewModel : public QObject {
@@ -58,6 +62,13 @@ public:
 
     void setEnvironmentService(Application::Environment::GameEnvironmentService* envService);
     Application::Environment::GameEnvironmentService* environmentService() const noexcept { return m_envService; }
+
+    void setVpkIndexService(Application::Package::VpkIndexService* vpkIndexService) noexcept {
+        m_vpkIndexService = vpkIndexService;
+    }
+    Application::Package::VpkIndexService* vpkIndexService() const noexcept {
+        return m_vpkIndexService;
+    }
 
     const Application::Environment::GameInstallationInfo& s1Installation() const noexcept { return m_s1Installation; }
     const Application::Environment::GameInstallationInfo& s2Installation() const noexcept { return m_s2Installation; }
@@ -120,6 +131,7 @@ private:
 
     std::unique_ptr<Application::Environment::GameEnvironmentService> m_ownedEnvService;
     Application::Environment::GameEnvironmentService* m_envService = nullptr;
+    Application::Package::VpkIndexService* m_vpkIndexService = nullptr;
 
     // Cache for detected installations across Steam libraries: [normalized identifier -> GameInstallationInfo]
     QHash<QString, Application::Environment::GameInstallationInfo> m_detectedGames;

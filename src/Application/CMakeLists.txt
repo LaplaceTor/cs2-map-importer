@@ -23,6 +23,8 @@ qt_add_library(cs2importer_application STATIC
     Logging/TaskLogDTOs.h
     Logging/TaskLogService.h
     Logging/TaskLogService.cpp
+    Package/VpkIndexService.h
+    Package/VpkIndexService.cpp
     Particle/ParticleImportDTOs.h
     Particle/ParticleImportService.h
     Particle/ParticleImportService.cpp

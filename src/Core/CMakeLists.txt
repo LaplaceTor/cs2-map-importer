@@ -12,6 +12,8 @@ qt_add_library(cs2importer_core STATIC
     FileSystem/FileLease.cpp
     FileSystem/FileSystem.h
     FileSystem/FileSystem.cpp
+    Hash/Sha256.h
+    Hash/Sha256.cpp
     KeyValues/KeyValuesNode.h
     KeyValues/KeyValuesNode.cpp
     KeyValues/KeyValuesLexer.h

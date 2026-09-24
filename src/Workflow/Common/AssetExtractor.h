@@ -13,6 +13,7 @@
 
 namespace Domain::Package {
 class PackArchivePool;
+class VpkIndex;
 }
 
 namespace Workflow::Common {
@@ -43,6 +44,18 @@ struct AssetExtractOptions {
      *        If nullptr, a call-scoped pool is used.
      */
     Domain::Package::PackArchivePool* archivePool = nullptr;
+
+    /**
+     * @brief Optional VpkIndex for fast Source 1 VPK point-lookup.
+     *        When provided, eliminates blind trial-and-error across multiple VPKs.
+     */
+    const Domain::Package::VpkIndex* vpkIndex = nullptr;
+
+    /**
+     * @brief Optional CS2 VpkIndex for deduplication.
+     *        When provided, if the asset exists natively in CS2, extraction is skipped.
+     */
+    const Domain::Package::VpkIndex* cs2Index = nullptr;
 };
 
 /**

@@ -107,6 +107,10 @@ qt_add_library(cs2importer_domain STATIC
     Package/PackArchive.cpp
     Package/PackArchivePool.h
     Package/PackArchivePool.cpp
+    Package/VpkIndex.h
+    Package/VpkIndex.cpp
+    Package/VpkIndexBuilder.h
+    Package/VpkIndexBuilder.cpp
     Tool/Cs2PathLayout.h
     Tool/ToolErrors.h
     Tool/Source1ImportLogParser.h

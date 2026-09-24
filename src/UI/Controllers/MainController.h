@@ -7,6 +7,10 @@
 #include "Application/Particle/ParticleImportDTOs.h"
 #include "Application/Particle/ParticleImportService.h"
 
+namespace Application::Package {
+class VpkIndexService;
+}
+
 namespace UI::ViewModels {
 class LogViewModel;
 }
@@ -64,6 +68,13 @@ public:
         return m_particleImportService.get();
     }
 
+    void setVpkIndexService(std::shared_ptr<Application::Package::VpkIndexService> service) noexcept {
+        m_vpkIndexService = std::move(service);
+    }
+    Application::Package::VpkIndexService* vpkIndexService() const noexcept {
+        return m_vpkIndexService.get();
+    }
+
 public slots:
     // Write accessor of the activeTab property; called directly from QML
     // (Main.qml TabBar.onCurrentIndexChanged) and enforces the isProcessing guard.
@@ -91,6 +102,7 @@ private:
     bool m_canStart = false;
     UI::ViewModels::LogViewModel* m_logViewModel = nullptr;
     std::shared_ptr<Application::Particle::ParticleImportService> m_particleImportService;
+    std::shared_ptr<Application::Package::VpkIndexService> m_vpkIndexService;
 };
 
 } // namespace UI::Controllers

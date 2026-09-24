@@ -1,6 +1,7 @@
 #include <QCoreApplication>
 #include "UI/Controllers/MainController.h"
 #include "UI/ViewModels/LogViewModel.h"
+#include "Application/Common/ImportPrerequisiteService.h"
 #include <QGuiApplication>
 #include <QQmlEngine>
 #include <QStyleHints>
@@ -160,12 +161,14 @@ void MainController::startParticleImport(
     request.allowDepthBlend = allowDepthBlend;
     request.disableDiffuse = disableDiffuse;
     request.isCsgo = isCsgo;
+    request.gameId = s1GameType;
 
     m_isProcessing = true;
     emit isProcessingChanged();
 
     if (!m_particleImportService) {
-        m_particleImportService = std::make_shared<Application::Particle::ParticleImportService>();
+        auto prereq = std::make_shared<Application::Common::ImportPrerequisiteService>(nullptr, m_vpkIndexService);
+        m_particleImportService = std::make_shared<Application::Particle::ParticleImportService>(std::move(prereq));
     }
 
     QPointer<MainController> self(this);
