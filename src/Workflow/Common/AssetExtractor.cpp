@@ -10,7 +10,6 @@
 #include "Core/FileSystem/FileSystem.h"
 #include "Domain/Package/PackArchive.h"
 #include "Domain/Package/PackArchivePool.h"
-#include "Domain/Package/VpkIndex.h"
 
 namespace {
 
@@ -32,21 +31,11 @@ auto runGuarded(Fn&& fn) -> decltype(fn()) {
     }
 }
 
-QString normalizeRelativePath(const QString& relativePath) {
-    QString normalized = relativePath;
-    normalized.replace(u'\\', u'/');
-    while (normalized.startsWith(u'/')) {
-        normalized.remove(0, 1);
-    }
-    return normalized;
-}
-
-/**
- * @brief Extracts one entry from a pack archive into destFile using the provided pool.
- * A missing archive file counts as a benign miss; a present but unparseable
- * archive is a real failure and is surfaced.
- */
-Core::Result<LookupHit> extractEntryFromPack(Domain::Package::PackArchivePool& pool, const Core::Path::FilesystemPath& packPath, const QString& entryPath, const Core::Path::FilesystemPath& destFile) {
+Core::Result<LookupHit> extractEntryFromPack(
+    Domain::Package::PackArchivePool& pool,
+    const Core::Path::FilesystemPath& packPath,
+    const QString& entryPath,
+    const Core::Path::FilesystemPath& destFile) {
     if (!packPath.exists()) {
         return Core::Result<LookupHit>::success({});
     }
@@ -67,12 +56,12 @@ Core::Result<LookupHit> extractEntryFromPack(Domain::Package::PackArchivePool& p
     return Core::Result<LookupHit>::success(LookupHit{true, true});
 }
 
-/**
- * @brief Searches a single directory target for the entry: loose file first,
- *        then the target's own pak01_dir.vpk.
- */
-Core::Result<LookupHit> extractFromDirectoryTarget(Domain::Package::PackArchivePool& pool, const Domain::Game::SearchTarget& target, const QString& entryPath, const Core::Path::FilesystemPath& destFile) {
-    const Core::Path::FilesystemPath looseFile = target.path() / entryPath;
+Core::Result<LookupHit> extractFromDirectoryTarget(
+    Domain::Package::PackArchivePool& pool,
+    const Core::Path::FilesystemPath& targetDir,
+    const QString& entryPath,
+    const Core::Path::FilesystemPath& destFile) {
+    const Core::Path::FilesystemPath looseFile = targetDir / entryPath;
     if (looseFile.exists()) {
         try {
             Core::FileSystem::FileSystem::copy(looseFile.toString(), destFile.toString(), true);
@@ -86,14 +75,18 @@ Core::Result<LookupHit> extractFromDirectoryTarget(Domain::Package::PackArchiveP
         return Core::Result<LookupHit>::success(LookupHit{true, false});
     }
 
-    return extractEntryFromPack(pool, target.path() / QStringLiteral("pak01_dir.vpk"), entryPath, destFile);
+    return extractEntryFromPack(pool, targetDir / QStringLiteral("pak01_dir.vpk"), entryPath, destFile);
 }
 
-/**
- * @brief Extracts companion files (e.g. model vertex data) from the winning
- *        target. Best-effort: misses and failures are logged, never fatal.
- */
-void extractCompanions(Domain::Package::PackArchivePool& pool, const Domain::Game::SearchTarget& winner, bool winnerFromPack, const QString& relativeAssetPath, const std::vector<QString>& companionExtensions, const Core::Path::FilesystemPath& destContentDir, const Core::Async::CancellationToken& token, Core::Logging::TaskLoggingContext* taskCtx) {
+void extractCompanions(
+    Domain::Package::PackArchivePool& pool,
+    const Core::Path::FilesystemPath& winnerPath,
+    bool winnerFromPack,
+    const QString& relativeAssetPath,
+    const std::vector<QString>& companionExtensions,
+    const Core::Path::FilesystemPath& destContentDir,
+    const Core::Async::CancellationToken& token,
+    Core::Logging::TaskLoggingContext* taskCtx) {
     if (companionExtensions.empty()) {
         return;
     }
@@ -113,8 +106,8 @@ void extractCompanions(Domain::Package::PackArchivePool& pool, const Domain::Gam
 
         const Core::Path::FilesystemPath companionDest = destContentDir / companionRelative;
         Core::Result<LookupHit> outcome = winnerFromPack
-            ? extractEntryFromPack(pool, winner.path(), companionRelative, companionDest)
-            : extractFromDirectoryTarget(pool, winner, companionRelative, companionDest);
+            ? extractEntryFromPack(pool, winnerPath, companionRelative, companionDest)
+            : extractFromDirectoryTarget(pool, winnerPath, companionRelative, companionDest);
 
         if (outcome.isFailure()) {
             if (taskCtx) {
@@ -125,7 +118,7 @@ void extractCompanions(Domain::Package::PackArchivePool& pool, const Domain::Gam
         }
         if (!outcome.value().found && taskCtx) {
             taskCtx->debug(QCoreApplication::translate("AssetExtractor", "Companion '%1' not present in target '%2'")
-                               .arg(companionRelative, winner.pathString()));
+                               .arg(companionRelative, winnerPath.toString()));
         }
     }
 }
@@ -134,6 +127,91 @@ void extractCompanions(Domain::Package::PackArchivePool& pool, const Domain::Gam
 
 namespace Workflow::Common {
 
+Core::Result<AssetExtraction> AssetExtractor::extractLocated(
+    const Domain::Asset::AssetLocation& location,
+    const Core::Path::FilesystemPath& destContentDir,
+    const std::vector<QString>& companionExtensions,
+    Domain::Package::PackArchivePool* archivePool,
+    const Core::Async::CancellationToken& token,
+    Core::Logging::TaskLoggingContext* taskCtx) {
+    return runGuarded([&]() -> Core::Result<AssetExtraction> {
+        if (destContentDir.isEmpty() || !destContentDir.isValid()) {
+            return Core::Result<AssetExtraction>::failure(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("AssetExtractor", "destination content directory is empty or invalid"));
+        }
+
+        if (token.isCancelled()) {
+            return Core::Result<AssetExtraction>::cancelled(
+                QCoreApplication::translate("AssetExtractor", "Asset extraction cancelled"));
+        }
+
+        Domain::Package::PackArchivePool localPool;
+        Domain::Package::PackArchivePool& pool = archivePool ? *archivePool : localPool;
+
+        const Core::Path::FilesystemPath destFile = destContentDir / location.relativePath;
+
+        if (!location.isInsidePack) {
+            const Core::Path::FilesystemPath sourceFile = location.looseFilePath.isValid() && !location.looseFilePath.isEmpty()
+                ? location.looseFilePath
+                : location.sourceTargetPath / location.relativePath;
+
+            try {
+                Core::FileSystem::FileSystem::copy(sourceFile.toString(), destFile.toString(), true);
+            } catch (const Core::Error::Exception& ex) {
+                return Core::Result<AssetExtraction>::failure(ex.error());
+            } catch (const std::exception& ex) {
+                return Core::Result<AssetExtraction>::failure(
+                    Core::Error::ErrorCode::WriteFailed,
+                    QString::fromUtf8(ex.what()));
+            }
+
+            if (taskCtx) {
+                taskCtx->info(QCoreApplication::translate("AssetExtractor", "Extracted '%1' from loose folder '%2'")
+                                  .arg(location.relativePath, location.sourceTargetPath.toString()));
+            }
+
+            extractCompanions(pool, location.sourceTargetPath, false, location.relativePath,
+                              companionExtensions, destContentDir, token, taskCtx);
+
+            AssetExtraction extraction;
+            extraction.extractedFilePath = destFile;
+            extraction.sourceTargetPath = location.sourceTargetPath;
+            extraction.fromPack = false;
+            return Core::Result<AssetExtraction>::success(std::move(extraction));
+        }
+
+        // Inside pack archive
+        auto outcome = extractEntryFromPack(pool, location.sourceTargetPath, location.relativePath, destFile);
+        if (outcome.isFailure()) {
+            return Core::Result<AssetExtraction>::failure(
+                outcome.error(),
+                QCoreApplication::translate("AssetExtractor", "Asset extraction failed while searching '%1'")
+                    .arg(location.sourceTargetPath.toString()));
+        }
+
+        if (!outcome.value().found) {
+            return Core::Result<AssetExtraction>::skipped(
+                QCoreApplication::translate("AssetExtractor", "Asset '%1' was not found in winning VPK")
+                    .arg(location.relativePath));
+        }
+
+        if (taskCtx) {
+            taskCtx->info(QCoreApplication::translate("AssetExtractor", "Extracted '%1' from '%2'")
+                              .arg(location.relativePath, location.sourceTargetPath.toString()));
+        }
+
+        extractCompanions(pool, location.sourceTargetPath, true, location.relativePath,
+                          companionExtensions, destContentDir, token, taskCtx);
+
+        AssetExtraction extraction;
+        extraction.extractedFilePath = destFile;
+        extraction.sourceTargetPath = location.sourceTargetPath;
+        extraction.fromPack = true;
+        return Core::Result<AssetExtraction>::success(std::move(extraction));
+    });
+}
+
 Core::Result<AssetExtraction> AssetExtractor::extract(
     const std::vector<Domain::Game::SearchTarget>& targets,
     const QString& relativeAssetPath,
@@ -141,144 +219,31 @@ Core::Result<AssetExtraction> AssetExtractor::extract(
     const AssetExtractOptions& options,
     const Core::Async::CancellationToken& token,
     Core::Logging::TaskLoggingContext* taskCtx) {
-    return runGuarded([&]() -> Core::Result<AssetExtraction> {
-        if (relativeAssetPath.isEmpty()) {
-            return Core::Result<AssetExtraction>::failure(
-                Core::Error::ErrorCode::InvalidArgument,
-                QCoreApplication::translate("AssetExtractor", "relative asset path is empty"));
-        }
-        if (destContentDir.isEmpty() || !destContentDir.isValid()) {
-            return Core::Result<AssetExtraction>::failure(
-                Core::Error::ErrorCode::InvalidPath,
-                QCoreApplication::translate("AssetExtractor", "destination content directory is empty or invalid"));
-        }
+    auto locateRes = Domain::Asset::AssetLocator::locate(targets, relativeAssetPath, options.locateOptions, token, taskCtx);
+    if (!locateRes.isSuccess()) {
+        return Core::Result<AssetExtraction>::failure(locateRes.error(), locateRes.message());
+    }
+    if (locateRes.isSkipped()) {
+        return Core::Result<AssetExtraction>::skipped(locateRes.message());
+    }
+    if (locateRes.isCancelled()) {
+        return Core::Result<AssetExtraction>::cancelled(locateRes.message());
+    }
 
-        Domain::Package::PackArchivePool localPool;
-        Domain::Package::PackArchivePool& pool = options.archivePool ? *options.archivePool : localPool;
-
-        const QString entryPath = normalizeRelativePath(relativeAssetPath);
-        const Core::Path::FilesystemPath destFile = destContentDir / entryPath;
-
-        // 1. CS2 native asset deduplication check
-        if (options.cs2Index && options.cs2Index->hasCs2NativeAsset(entryPath)) {
-            if (taskCtx) {
-                taskCtx->info(QCoreApplication::translate("AssetExtractor", "Asset '%1' exists natively in CS2, skipping extraction").arg(entryPath));
-            }
-            return Core::Result<AssetExtraction>::skipped(
-                QCoreApplication::translate("AssetExtractor", "Asset '%1' exists natively in CS2, skipping extraction").arg(entryPath));
-        }
-
-        // 2. Search loose files on disk across directory targets first
-        for (const auto& target : targets) {
-            if (token.isCancelled()) {
-                return Core::Result<AssetExtraction>::cancelled(
-                    QCoreApplication::translate("AssetExtractor", "Asset extraction cancelled"));
-            }
-
-            if (target.isDirectory()) {
-                const Core::Path::FilesystemPath looseFile = target.path() / entryPath;
-                if (looseFile.exists()) {
-                    try {
-                        Core::FileSystem::FileSystem::copy(looseFile.toString(), destFile.toString(), true);
-                    } catch (const Core::Error::Exception& ex) {
-                        return Core::Result<AssetExtraction>::failure(ex.error());
-                    } catch (const std::exception& ex) {
-                        return Core::Result<AssetExtraction>::failure(
-                            Core::Error::ErrorCode::WriteFailed,
-                            QString::fromUtf8(ex.what()));
-                    }
-
-                    if (taskCtx) {
-                        taskCtx->info(QCoreApplication::translate("AssetExtractor", "Extracted '%1' from loose folder '%2'")
-                                          .arg(entryPath, target.pathString()));
-                    }
-                    extractCompanions(pool, target, false, entryPath, options.companionExtensions, destContentDir, token, taskCtx);
-
-                    AssetExtraction extraction;
-                    extraction.extractedFilePath = destFile;
-                    extraction.sourceTargetPath = target.path();
-                    extraction.fromPack = false;
-                    return Core::Result<AssetExtraction>::success(std::move(extraction));
-                }
-            }
-        }
-
-        // 3. Fast-lookup via VpkIndex (eliminates blind search / misses)
-        if (options.vpkIndex) {
-            auto winningVpkOpt = options.vpkIndex->findVpkForEntry(entryPath);
-            if (!winningVpkOpt.has_value()) {
-                if (taskCtx) {
-                    taskCtx->debug(QCoreApplication::translate("AssetExtractor", "Asset '%1' not in VPK index").arg(entryPath));
-                }
-                return Core::Result<AssetExtraction>::skipped(
-                    QCoreApplication::translate("AssetExtractor", "Asset '%1' was not found in any search target").arg(entryPath));
-            }
-
-            const Core::Path::FilesystemPath& winningVpk = winningVpkOpt.value();
-            Core::Result<LookupHit> outcome = extractEntryFromPack(pool, winningVpk, entryPath, destFile);
-            if (outcome.isFailure()) {
-                return Core::Result<AssetExtraction>::failure(
-                    outcome.error(),
-                    QCoreApplication::translate("AssetExtractor", "Asset extraction failed while searching '%1'").arg(winningVpk.toString()));
-            }
-            if (outcome.value().found) {
-                if (taskCtx) {
-                    taskCtx->info(QCoreApplication::translate("AssetExtractor", "Extracted '%1' from '%2'")
-                                      .arg(entryPath, winningVpk.toString()));
-                }
-                extractCompanions(pool, Domain::Game::SearchTarget::makeVpk(winningVpk), true, entryPath, options.companionExtensions, destContentDir, token, taskCtx);
-
-                AssetExtraction extraction;
-                extraction.extractedFilePath = destFile;
-                extraction.sourceTargetPath = winningVpk;
-                extraction.fromPack = true;
-                return Core::Result<AssetExtraction>::success(std::move(extraction));
-            }
-
-            return Core::Result<AssetExtraction>::skipped(
-                QCoreApplication::translate("AssetExtractor", "Asset '%1' was not found in winning VPK").arg(entryPath));
-        }
-
-        // 4. Fallback search (when no VpkIndex is provided)
-        for (const auto& target : targets) {
-            if (token.isCancelled()) {
-                return Core::Result<AssetExtraction>::cancelled(
-                    QCoreApplication::translate("AssetExtractor", "Asset extraction cancelled"));
-            }
-
-            Core::Result<LookupHit> outcome = target.isVpk()
-                ? extractEntryFromPack(pool, target.path(), entryPath, destFile)
-                : extractEntryFromPack(pool, target.path() / QStringLiteral("pak01_dir.vpk"), entryPath, destFile);
-
-            if (outcome.isFailure()) {
-                return Core::Result<AssetExtraction>::failure(
-                    outcome.error(),
-                    QCoreApplication::translate("AssetExtractor", "Asset extraction failed while searching '%1'").arg(target.pathString()));
-            }
-            if (!outcome.value().found) {
-                if (taskCtx) {
-                    taskCtx->debug(QCoreApplication::translate("AssetExtractor", "Asset '%1' not found in target '%2'")
-                                       .arg(entryPath, target.pathString()));
-                }
-                continue;
-            }
-
-            if (taskCtx) {
-                taskCtx->info(QCoreApplication::translate("AssetExtractor", "Extracted '%1' from '%2'")
-                                  .arg(entryPath, target.pathString()));
-            }
-            extractCompanions(pool, target, outcome.value().fromPack, entryPath, options.companionExtensions, destContentDir, token, taskCtx);
-
-            AssetExtraction extraction;
-            extraction.extractedFilePath = destFile;
-            extraction.sourceTargetPath = target.path();
-            extraction.fromPack = outcome.value().fromPack;
-            return Core::Result<AssetExtraction>::success(std::move(extraction));
-        }
-
+    const auto& locationOpt = locateRes.value();
+    if (!locationOpt.has_value()) {
         return Core::Result<AssetExtraction>::skipped(
-            QCoreApplication::translate("AssetExtractor", "Asset '%1' was not found in any search target").arg(entryPath));
-    });
+            QCoreApplication::translate("AssetExtractor", "Asset '%1' was not found in any search target")
+                .arg(relativeAssetPath));
+    }
+
+    return extractLocated(
+        locationOpt.value(),
+        destContentDir,
+        options.companionExtensions,
+        options.locateOptions.archivePool,
+        token,
+        taskCtx);
 }
 
 } // namespace Workflow::Common

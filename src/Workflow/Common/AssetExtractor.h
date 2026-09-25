@@ -1,19 +1,18 @@
 #pragma once
 
-#include <optional>
 #include <vector>
 
 #include <QString>
 
+#include "Core/Async/CancellationToken.h"
 #include "Core/Logging/TaskLoggingContext.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
+#include "Domain/Asset/AssetLocator.h"
 #include "Domain/Game/SearchTarget.h"
-#include "Core/Async/CancellationToken.h"
 
 namespace Domain::Package {
 class PackArchivePool;
-class VpkIndex;
 }
 
 namespace Workflow::Common {
@@ -31,6 +30,7 @@ struct AssetExtraction {
 };
 
 struct AssetExtractOptions {
+    Domain::Asset::AssetLocateOptions locateOptions;
     /**
      * @brief Additional file extensions (without dot) extracted alongside the
      *        asset from the winning target, e.g. model companion files
@@ -38,41 +38,28 @@ struct AssetExtractOptions {
      *        failing companions are logged as warnings, never failures.
      */
     std::vector<QString> companionExtensions;
-
-    /**
-     * @brief Optional archive pool for session-wide reuse of open pack files (VPKs).
-     *        If nullptr, a call-scoped pool is used.
-     */
-    Domain::Package::PackArchivePool* archivePool = nullptr;
-
-    /**
-     * @brief Optional VpkIndex for fast Source 1 VPK point-lookup.
-     *        When provided, eliminates blind trial-and-error across multiple VPKs.
-     */
-    const Domain::Package::VpkIndex* vpkIndex = nullptr;
-
-    /**
-     * @brief Optional CS2 VpkIndex for deduplication.
-     *        When provided, if the asset exists natively in CS2, extraction is skipped.
-     */
-    const Domain::Package::VpkIndex* cs2Index = nullptr;
 };
 
 /**
- * @brief Use case: locate an asset by its game-relative path across search
- *        targets and extract it into a destination content directory.
- *
- * Mirrors the legacy FileExtractFromVPK behaviour: directory targets are
- * searched for loose files first (then their pak01_dir.vpk), VPK targets are
- * searched through the pack archive. The first hit wins and companion files
- * are pulled from the winning target only.
- *
- * Result semantics: Success = extracted; Skipped = present in no search
- * target (benign, message names the asset); Failure = I/O or pack errors;
- * Cancelled = token triggered.
+ * @brief Use case: extract an asset into a destination content directory,
+ *        either from an already determined AssetLocation or by discovering it first.
  */
 class AssetExtractor {
 public:
+    /**
+     * @brief Extracts an already located asset directly without repeating discovery.
+     */
+    static Core::Result<AssetExtraction> extractLocated(
+        const Domain::Asset::AssetLocation& location,
+        const Core::Path::FilesystemPath& destContentDir,
+        const std::vector<QString>& companionExtensions = {},
+        Domain::Package::PackArchivePool* archivePool = nullptr,
+        const Core::Async::CancellationToken& token = {},
+        Core::Logging::TaskLoggingContext* taskCtx = nullptr);
+
+    /**
+     * @brief Locates an asset across search targets and extracts it into destContentDir.
+     */
     static Core::Result<AssetExtraction> extract(
         const std::vector<Domain::Game::SearchTarget>& targets,
         const QString& relativeAssetPath,

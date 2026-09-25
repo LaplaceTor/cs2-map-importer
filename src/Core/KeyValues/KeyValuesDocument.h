@@ -65,6 +65,42 @@ public:
         return m_root.addProperty(key, value);
     }
 
+    int indexOfChild(const QString& name, Qt::CaseSensitivity cs = Qt::CaseInsensitive) const {
+        return m_root.indexOfChild(name, cs);
+    }
+
+    int indexOfProperty(const QString& key, Qt::CaseSensitivity cs = Qt::CaseInsensitive) const {
+        return m_root.indexOfProperty(key, cs);
+    }
+
+    KeyValuesNode& insertChild(int index, KeyValuesNode child) {
+        return m_root.insertChild(index, std::move(child));
+    }
+
+    KeyValuesNode& insertProperty(int index, const QString& key, const QString& value) {
+        return m_root.insertProperty(index, key, value);
+    }
+
+    KeyValuesNode& insertSection(int index, const QString& name) {
+        return m_root.insertSection(index, name);
+    }
+
+    bool insertPropertyAfter(const QString& targetKey, const QString& key, const QString& value, Qt::CaseSensitivity cs = Qt::CaseInsensitive) {
+        return m_root.insertPropertyAfter(targetKey, key, value, cs);
+    }
+
+    bool insertPropertyBefore(const QString& targetKey, const QString& key, const QString& value, Qt::CaseSensitivity cs = Qt::CaseInsensitive) {
+        return m_root.insertPropertyBefore(targetKey, key, value, cs);
+    }
+
+    bool insertChildAfter(const QString& targetName, KeyValuesNode child, Qt::CaseSensitivity cs = Qt::CaseInsensitive) {
+        return m_root.insertChildAfter(targetName, std::move(child), cs);
+    }
+
+    bool insertChildBefore(const QString& targetName, KeyValuesNode child, Qt::CaseSensitivity cs = Qt::CaseInsensitive) {
+        return m_root.insertChildBefore(targetName, std::move(child), cs);
+    }
+
     void clear() {
         m_root.clear();
     }

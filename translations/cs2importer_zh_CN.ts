@@ -28,74 +28,109 @@
 <context>
     <name>AssetExtractor</name>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="121"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="114"/>
         <source>Companion extraction failed for &apos;%1&apos;: %2</source>
         <translation>提取伴随文件失败：&apos;%1&apos;：%2</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="127"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="120"/>
         <source>Companion &apos;%1&apos; not present in target &apos;%2&apos;</source>
         <translation>目标 &apos;%2&apos; 中不存在伴随文件 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="148"/>
         <source>relative asset path is empty</source>
-        <translation>资源相对路径为空</translation>
+        <translation type="vanished">资源相对路径为空</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="153"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="141"/>
         <source>destination content directory is empty or invalid</source>
         <translation>目标 content 目录为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="165"/>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="168"/>
-        <source>Asset &apos;%1&apos; exists natively in CS2, skipping extraction</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="175"/>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="246"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="146"/>
         <source>Asset extraction cancelled</source>
         <translation>资源提取已取消</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="192"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="170"/>
         <source>Extracted &apos;%1&apos; from loose folder &apos;%2&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>已从松散文件夹 &apos;%2&apos; 提取 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="211"/>
-        <source>Asset &apos;%1&apos; not in VPK index</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="222"/>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="256"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="189"/>
         <source>Asset extraction failed while searching &apos;%1&apos;</source>
         <translation>在 &apos;%1&apos; 中搜索资源时提取失败</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="239"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="195"/>
         <source>Asset &apos;%1&apos; was not found in winning VPK</source>
-        <translation type="unfinished"></translation>
+        <translation>在命中 VPK 中未找到资源 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="260"/>
         <source>Asset &apos;%1&apos; not found in target &apos;%2&apos;</source>
-        <translation>目标 &apos;%2&apos; 中未找到资源 &apos;%1&apos;</translation>
+        <translation type="vanished">目标 &apos;%2&apos; 中未找到资源 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="226"/>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="267"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="200"/>
         <source>Extracted &apos;%1&apos; from &apos;%2&apos;</source>
         <translation>已从 &apos;%2&apos; 提取 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="214"/>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="280"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="236"/>
         <source>Asset &apos;%1&apos; was not found in any search target</source>
         <translation>在任何搜索目标中都未找到资源 &apos;%1&apos;</translation>
+    </message>
+</context>
+<context>
+    <name>AssetLocator</name>
+    <message>
+        <location filename="../src/Domain/Asset/AssetLocator.cpp" line="65"/>
+        <source>relative asset path is empty</source>
+        <translation>资源相对路径为空</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Asset/AssetLocator.cpp" line="76"/>
+        <location filename="../src/Domain/Asset/AssetLocator.cpp" line="79"/>
+        <source>Asset &apos;%1&apos; exists natively in CS2, skipping extraction</source>
+        <translation>资源 &apos;%1&apos; 在 CS2 原生已存在，跳过提取</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Asset/AssetLocator.cpp" line="86"/>
+        <location filename="../src/Domain/Asset/AssetLocator.cpp" line="142"/>
+        <source>Asset extraction cancelled</source>
+        <translation>资源提取已取消</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Asset/AssetLocator.cpp" line="93"/>
+        <source>Found loose file &apos;%1&apos; in &apos;%2&apos;</source>
+        <translation>在 &apos;%2&apos; 中找到松散文件 &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Asset/AssetLocator.cpp" line="112"/>
+        <source>Asset &apos;%1&apos; not in VPK index</source>
+        <translation>资源 &apos;%1&apos; 不在 VPK 索引中</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Asset/AssetLocator.cpp" line="115"/>
+        <location filename="../src/Domain/Asset/AssetLocator.cpp" line="172"/>
+        <source>Asset &apos;%1&apos; was not found in any search target</source>
+        <translation>在任何搜索目标中都未找到资源 &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Asset/AssetLocator.cpp" line="123"/>
+        <location filename="../src/Domain/Asset/AssetLocator.cpp" line="153"/>
+        <source>Failed to probe archive &apos;%1&apos;</source>
+        <translation>探测归档 &apos;%1&apos; 失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Asset/AssetLocator.cpp" line="135"/>
+        <source>Asset &apos;%1&apos; was not found in winning VPK</source>
+        <translation>在命中 VPK 中未找到资源 &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Asset/AssetLocator.cpp" line="158"/>
+        <source>Asset &apos;%1&apos; not found in target &apos;%2&apos;</source>
+        <translation>目标 &apos;%2&apos; 中未找到资源 &apos;%1&apos;</translation>
     </message>
 </context>
 <context>

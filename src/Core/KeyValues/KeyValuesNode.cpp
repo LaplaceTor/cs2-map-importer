@@ -190,6 +190,96 @@ void KeyValuesNode::setProperty(const QString& key, const QString& value, Qt::Ca
     addProperty(key, value);
 }
 
+int KeyValuesNode::indexOfChild(const QString& name, Qt::CaseSensitivity cs) const {
+    for (size_t i = 0; i < m_children.size(); ++i) {
+        if (m_children[i].name().compare(name, cs) == 0) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
+int KeyValuesNode::indexOfProperty(const QString& key, Qt::CaseSensitivity cs) const {
+    for (size_t i = 0; i < m_children.size(); ++i) {
+        if (!m_children[i].isSection() && m_children[i].name().compare(key, cs) == 0) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
+KeyValuesNode& KeyValuesNode::insertChild(int index, KeyValuesNode child) {
+    m_isSection = true;
+    if (index < 0) {
+        index = 0;
+    }
+    if (index > static_cast<int>(m_children.size())) {
+        index = static_cast<int>(m_children.size());
+    }
+    auto it = m_children.insert(m_children.begin() + index, std::move(child));
+    return *it;
+}
+
+KeyValuesNode& KeyValuesNode::insertProperty(int index, const QString& key, const QString& value) {
+    return insertChild(index, KeyValuesNode(key, value));
+}
+
+KeyValuesNode& KeyValuesNode::insertSection(int index, const QString& name) {
+    return insertChild(index, KeyValuesNode(name));
+}
+
+bool KeyValuesNode::insertPropertyAfter(const QString& targetKey, const QString& key, const QString& value, Qt::CaseSensitivity cs) {
+    int idx = indexOfProperty(targetKey, cs);
+    if (idx == -1) {
+        return false;
+    }
+    insertProperty(idx + 1, key, value);
+    return true;
+}
+
+bool KeyValuesNode::insertPropertyBefore(const QString& targetKey, const QString& key, const QString& value, Qt::CaseSensitivity cs) {
+    int idx = indexOfProperty(targetKey, cs);
+    if (idx == -1) {
+        return false;
+    }
+    insertProperty(idx, key, value);
+    return true;
+}
+
+bool KeyValuesNode::insertChildAfter(const QString& targetName, KeyValuesNode child, Qt::CaseSensitivity cs) {
+    int idx = indexOfChild(targetName, cs);
+    if (idx == -1) {
+        return false;
+    }
+    insertChild(idx + 1, std::move(child));
+    return true;
+}
+
+bool KeyValuesNode::insertChildBefore(const QString& targetName, KeyValuesNode child, Qt::CaseSensitivity cs) {
+    int idx = indexOfChild(targetName, cs);
+    if (idx == -1) {
+        return false;
+    }
+    insertChild(idx, std::move(child));
+    return true;
+}
+
+bool KeyValuesNode::setPropertyAt(int index, const QString& key, const QString& value) {
+    if (index < 0 || index >= static_cast<int>(m_children.size())) {
+        return false;
+    }
+    m_children[index] = KeyValuesNode(key, value);
+    return true;
+}
+
+bool KeyValuesNode::setChildAt(int index, KeyValuesNode child) {
+    if (index < 0 || index >= static_cast<int>(m_children.size())) {
+        return false;
+    }
+    m_children[index] = std::move(child);
+    return true;
+}
+
 bool KeyValuesNode::removeChild(int index) {
     if (index >= 0 && index < static_cast<int>(m_children.size())) {
         m_children.erase(m_children.begin() + index);
