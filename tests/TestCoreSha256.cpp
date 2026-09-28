@@ -30,6 +30,20 @@ private slots:
         QVERIFY(result.isFailure());
         QCOMPARE(result.error().code(), Core::Error::ErrorCode::FileNotFound);
     }
+
+    void testCancellation() {
+        QTemporaryFile tempFile;
+        QVERIFY(tempFile.open());
+        tempFile.write("hello world");
+        tempFile.flush();
+        tempFile.close();
+
+        Core::Async::CancellationToken token;
+        token.cancel();
+
+        auto result = Core::Hash::Sha256::computeFileHash(Core::Path::FilesystemPath(tempFile.fileName()), token);
+        QVERIFY(result.isCancelled());
+    }
 };
 
 QTEST_MAIN(TestCoreSha256)

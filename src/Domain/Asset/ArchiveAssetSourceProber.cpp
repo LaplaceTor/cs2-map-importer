@@ -17,8 +17,11 @@ bool ArchiveAssetSourceProber::isNativeCs2Asset(const QString& entryPath) const 
     return m_cs2Index && m_cs2Index->hasCs2NativeAsset(entryPath);
 }
 
-bool ArchiveAssetSourceProber::hasLooseFile(const Domain::Game::SearchTarget& target, const QString& entryPath) {
-    if (!target.isDirectory()) {
+bool ArchiveAssetSourceProber::hasLooseFile(
+    const Domain::Game::SearchTarget& target,
+    const QString& entryPath,
+    const Core::Async::CancellationToken& token) {
+    if (token.isCancelled() || !target.isDirectory()) {
         return false;
     }
     return (target.path() / entryPath).exists();
@@ -31,15 +34,18 @@ std::optional<Core::Path::FilesystemPath> ArchiveAssetSourceProber::queryVpkInde
     return m_vpkIndex->findVpkForEntry(entryPath);
 }
 
-bool ArchiveAssetSourceProber::hasPackEntry(const Core::Path::FilesystemPath& packPath, const QString& entryPath) {
-    if (!packPath.exists()) {
+bool ArchiveAssetSourceProber::hasPackEntry(
+    const Core::Path::FilesystemPath& packPath,
+    const QString& entryPath,
+    const Core::Async::CancellationToken& token) {
+    if (token.isCancelled() || !packPath.exists()) {
         return false;
     }
-    auto archiveRes = m_pool.getOrOpen(packPath);
-    if (archiveRes.isFailure()) {
+    auto archiveRes = m_pool.getOrOpen(packPath, token);
+    if (archiveRes.isFailure() || archiveRes.isCancelled()) {
         return false;
     }
-    return archiveRes.value()->hasEntry(entryPath);
+    return archiveRes.value()->hasEntry(entryPath, token);
 }
 
 } // namespace Domain::Asset

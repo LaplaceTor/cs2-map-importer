@@ -2,6 +2,7 @@
 
 #include "Application/Soundscape/SoundscapeConvertDTOs.h"
 #include "Domain/Audio/SoundscapeToSoundEventConverter.h"
+#include "Core/Async/CancellationToken.h"
 #include "Core/Result/Result.h"
 #include "Core/Logging/TaskLoggingContext.h"
 #include <functional>
@@ -29,8 +30,10 @@ public:
     /**
      * @brief Discovers and converts all soundscape files for a map based on the request.
      */
-    Core::Result<ConvertSoundscapeResult> convertMapSoundscapes(const ConvertSoundscapeRequest& request,
-                                                              Core::Logging::TaskLoggingContext* loggingCtx = nullptr);
+    Core::Result<ConvertSoundscapeResult> convertMapSoundscapes(
+        const ConvertSoundscapeRequest& request,
+        const Core::Async::CancellationToken& token = {},
+        Core::Logging::TaskLoggingContext* loggingCtx = nullptr);
 
     /**
      * @brief Asynchronously converts all soundscapes for a map as a workflow task

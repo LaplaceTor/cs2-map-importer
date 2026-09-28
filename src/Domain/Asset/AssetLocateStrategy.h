@@ -5,6 +5,7 @@
 #include <vector>
 #include <QString>
 
+#include "Core/Async/CancellationToken.h"
 #include "Domain/Asset/AssetLocation.h"
 #include "Domain/Asset/IAssetSourceProber.h"
 #include "Domain/Game/SearchTarget.h"
@@ -55,7 +56,7 @@ public:
         const QString& relativeAssetPath,
         const std::vector<Domain::Game::SearchTarget>& targets,
         IAssetSourceProber& prober,
-        const std::function<bool()>& isCancelled = nullptr,
+        const Core::Async::CancellationToken& token = {},
         ILocateObserver* observer = nullptr);
 };
 

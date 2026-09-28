@@ -125,6 +125,7 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertFile(
 
 Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertMapSoundscapes(
     const ConvertSoundscapeRequest& request,
+    const Core::Async::CancellationToken& token,
     Core::Logging::TaskLoggingContext* loggingCtx)
 {
     return Execution::ExecutionGuard::guard([&]() -> Core::Result<ConvertSoundscapeResult> {
@@ -189,8 +190,10 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertMapSounds
         QSet<QString> uniqueAssets;
 
         for (const auto& sourceFile : candidateFiles) {
-            if (loggingCtx && loggingCtx->state() == Core::Logging::TaskState::Cancelled) {
-                loggingCtx->info(QCoreApplication::translate("SoundscapeConvertService", "Soundscape conversion cancelled by user"));
+            if (token.isCancelled()) {
+                if (loggingCtx) {
+                    loggingCtx->info(QCoreApplication::translate("SoundscapeConvertService", "Soundscape conversion cancelled by user"));
+                }
                 return Core::Result<ConvertSoundscapeResult>::cancelled();
             }
 
@@ -253,8 +256,8 @@ void SoundscapeConvertService::convertMapSoundscapesAsync(
         taskName,
         request.mapName,
         nullptr,
-        [this, request](std::shared_ptr<Core::Logging::TaskLoggingContext> ctx) -> Core::Result<ConvertSoundscapeResult> {
-            return convertMapSoundscapes(request, ctx.get());
+        [this, request](std::shared_ptr<Core::Logging::TaskLoggingContext> ctx, Core::Async::CancellationToken token) -> Core::Result<ConvertSoundscapeResult> {
+            return convertMapSoundscapes(request, token, ctx.get());
         },
         std::move(callback),
         QThreadPool::globalInstance());

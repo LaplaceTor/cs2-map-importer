@@ -35,21 +35,32 @@ Core::Result<LookupHit> extractEntryFromPack(
     Domain::Package::PackArchivePool& pool,
     const Core::Path::FilesystemPath& packPath,
     const QString& entryPath,
-    const Core::Path::FilesystemPath& destFile) {
+    const Core::Path::FilesystemPath& destFile,
+    const Core::Async::CancellationToken& token) {
+    if (token.isCancelled()) {
+        return Core::Result<LookupHit>::cancelled(
+            QCoreApplication::translate("AssetExtractor", "Asset extraction cancelled"));
+    }
     if (!packPath.exists()) {
         return Core::Result<LookupHit>::success({});
     }
 
-    auto archiveRes = pool.getOrOpen(packPath);
+    auto archiveRes = pool.getOrOpen(packPath, token);
+    if (archiveRes.isCancelled()) {
+        return Core::Result<LookupHit>::cancelled(archiveRes.message());
+    }
     if (archiveRes.isFailure()) {
         return Core::Result<LookupHit>::failure(archiveRes.error());
     }
     auto archive = archiveRes.value();
-    if (!archive->hasEntry(entryPath)) {
+    if (!archive->hasEntry(entryPath, token)) {
         return Core::Result<LookupHit>::success({});
     }
 
-    auto extracted = archive->extractEntryToFile(entryPath, destFile);
+    auto extracted = archive->extractEntryToFile(entryPath, destFile, token);
+    if (extracted.isCancelled()) {
+        return Core::Result<LookupHit>::cancelled(extracted.message());
+    }
     if (extracted.isFailure()) {
         return Core::Result<LookupHit>::failure(extracted.error());
     }
@@ -60,12 +71,21 @@ Core::Result<LookupHit> extractFromDirectoryTarget(
     Domain::Package::PackArchivePool& pool,
     const Core::Path::FilesystemPath& targetDir,
     const QString& entryPath,
-    const Core::Path::FilesystemPath& destFile) {
+    const Core::Path::FilesystemPath& destFile,
+    const Core::Async::CancellationToken& token) {
+    if (token.isCancelled()) {
+        return Core::Result<LookupHit>::cancelled(
+            QCoreApplication::translate("AssetExtractor", "Asset extraction cancelled"));
+    }
+
     const Core::Path::FilesystemPath looseFile = targetDir / entryPath;
     if (looseFile.exists()) {
         try {
-            Core::FileSystem::FileSystem::copy(looseFile.toString(), destFile.toString(), true);
+            Core::FileSystem::FileSystem::copy(looseFile.toString(), destFile.toString(), true, token);
         } catch (const Core::Error::Exception& ex) {
+            if (ex.error().code() == Core::Error::ErrorCode::Cancelled) {
+                return Core::Result<LookupHit>::cancelled(ex.error().message());
+            }
             return Core::Result<LookupHit>::failure(ex.error());
         } catch (const std::exception& ex) {
             return Core::Result<LookupHit>::failure(
@@ -75,7 +95,7 @@ Core::Result<LookupHit> extractFromDirectoryTarget(
         return Core::Result<LookupHit>::success(LookupHit{true, false});
     }
 
-    return extractEntryFromPack(pool, targetDir / QStringLiteral("pak01_dir.vpk"), entryPath, destFile);
+    return extractEntryFromPack(pool, targetDir / QStringLiteral("pak01_dir.vpk"), entryPath, destFile, token);
 }
 
 void extractCompanions(
@@ -106,8 +126,12 @@ void extractCompanions(
 
         const Core::Path::FilesystemPath companionDest = destContentDir / companionRelative;
         Core::Result<LookupHit> outcome = winnerFromPack
-            ? extractEntryFromPack(pool, winnerPath, companionRelative, companionDest)
-            : extractFromDirectoryTarget(pool, winnerPath, companionRelative, companionDest);
+            ? extractEntryFromPack(pool, winnerPath, companionRelative, companionDest, token)
+            : extractFromDirectoryTarget(pool, winnerPath, companionRelative, companionDest, token);
+
+        if (outcome.isCancelled()) {
+            return;
+        }
 
         if (outcome.isFailure()) {
             if (taskCtx) {
@@ -157,8 +181,11 @@ Core::Result<AssetExtraction> AssetExtractor::extractLocated(
                 : location.sourceTargetPath / location.relativePath;
 
             try {
-                Core::FileSystem::FileSystem::copy(sourceFile.toString(), destFile.toString(), true);
+                Core::FileSystem::FileSystem::copy(sourceFile.toString(), destFile.toString(), true, token);
             } catch (const Core::Error::Exception& ex) {
+                if (ex.error().code() == Core::Error::ErrorCode::Cancelled) {
+                    return Core::Result<AssetExtraction>::cancelled(ex.error().message());
+                }
                 return Core::Result<AssetExtraction>::failure(ex.error());
             } catch (const std::exception& ex) {
                 return Core::Result<AssetExtraction>::failure(
@@ -182,7 +209,10 @@ Core::Result<AssetExtraction> AssetExtractor::extractLocated(
         }
 
         // Inside pack archive
-        auto outcome = extractEntryFromPack(pool, location.sourceTargetPath, location.relativePath, destFile);
+        auto outcome = extractEntryFromPack(pool, location.sourceTargetPath, location.relativePath, destFile, token);
+        if (outcome.isCancelled()) {
+            return Core::Result<AssetExtraction>::cancelled(outcome.message());
+        }
         if (outcome.isFailure()) {
             return Core::Result<AssetExtraction>::failure(
                 outcome.error(),

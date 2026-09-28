@@ -94,7 +94,7 @@ Core::Result<std::optional<Domain::Asset::AssetLocation>> AssetLocator::locate(
             relativeAssetPath,
             targets,
             prober,
-            [&token] { return token.isCancelled(); },
+            token,
             &observer);
 
         const QString entryPath = Domain::Asset::AssetLocateStrategy::normalizeRelativePath(relativeAssetPath);

@@ -5,6 +5,7 @@
 
 #include <QString>
 
+#include "Core/Async/CancellationToken.h"
 #include "Core/Error/ErrorCode.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
@@ -35,9 +36,12 @@ public:
      * @brief Opens a pack archive (.vpk or .bsp embedded pack).
      *
      * Failure reasons: empty or invalid path (InvalidPath), missing file
-     * (FileNotFound), unsupported format or parse failure (InvalidFile).
+     * (FileNotFound), unsupported format or parse failure (InvalidFile),
+     * or cancellation (Cancelled).
      */
-    static Core::Result<PackArchive> open(const Core::Path::FilesystemPath& archivePath);
+    static Core::Result<PackArchive> open(
+        const Core::Path::FilesystemPath& archivePath,
+        const Core::Async::CancellationToken& token = {});
 
     bool isOpen() const noexcept;
 
@@ -48,8 +52,11 @@ public:
 
     /**
      * @brief Checks whether an entry exists (case-insensitive).
+     * Returns false if token is cancelled.
      */
-    bool hasEntry(const QString& entryPath) const;
+    bool hasEntry(
+        const QString& entryPath,
+        const Core::Async::CancellationToken& token = {}) const;
 
     /**
      * @brief Reads an entry's full contents into memory.
@@ -59,14 +66,20 @@ public:
     /**
      * @brief Extracts an entry to the given destination file path,
      *        creating parent directories as needed.
+     * Supports cancellation and cleans up partial output files.
      */
-    Core::Result<void> extractEntryToFile(const QString& entryPath, const Core::Path::FilesystemPath& destFile) const;
+    Core::Result<void> extractEntryToFile(
+        const QString& entryPath,
+        const Core::Path::FilesystemPath& destFile,
+        const Core::Async::CancellationToken& token = {}) const;
 
     /**
      * @brief Extracts every entry below the given directory, preserving the
      *        pack-relative structure.
      */
-    Core::Result<void> extractAllToDirectory(const Core::Path::FilesystemPath& destDir) const;
+    Core::Result<void> extractAllToDirectory(
+        const Core::Path::FilesystemPath& destDir,
+        const Core::Async::CancellationToken& token = {}) const;
 
 private:
     PackArchive() = default;

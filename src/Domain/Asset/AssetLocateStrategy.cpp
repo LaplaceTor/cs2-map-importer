@@ -15,14 +15,14 @@ LocateResult AssetLocateStrategy::locate(
     const QString& relativeAssetPath,
     const std::vector<Domain::Game::SearchTarget>& targets,
     IAssetSourceProber& prober,
-    const std::function<bool()>& isCancelled,
+    const Core::Async::CancellationToken& token,
     ILocateObserver* observer) {
 
     if (relativeAssetPath.isEmpty()) {
         return LocateResult{LocateStatus::EmptyPath, std::nullopt, {}};
     }
 
-    if (isCancelled && isCancelled()) {
+    if (token.isCancelled()) {
         return LocateResult{LocateStatus::Cancelled, std::nullopt, {}};
     }
 
@@ -38,11 +38,11 @@ LocateResult AssetLocateStrategy::locate(
 
     // 2. Loose files across directory targets (highest precedence)
     for (const auto& target : targets) {
-        if (isCancelled && isCancelled()) {
+        if (token.isCancelled()) {
             return LocateResult{LocateStatus::Cancelled, std::nullopt, {}};
         }
 
-        if (target.isDirectory() && prober.hasLooseFile(target, entryPath)) {
+        if (target.isDirectory() && prober.hasLooseFile(target, entryPath, token)) {
             const Core::Path::FilesystemPath looseFile = target.path() / entryPath;
             if (observer) {
                 observer->onLooseFileFound(entryPath, target.path());
@@ -61,14 +61,14 @@ LocateResult AssetLocateStrategy::locate(
     Core::Path::FilesystemPath probedWinnerVpk;
     auto winningVpkOpt = prober.queryVpkIndex(entryPath);
     if (winningVpkOpt.has_value()) {
-        if (isCancelled && isCancelled()) {
+        if (token.isCancelled()) {
             return LocateResult{LocateStatus::Cancelled, std::nullopt, {}};
         }
 
         const Core::Path::FilesystemPath& winningVpk = winningVpkOpt.value();
         probedWinnerVpk = winningVpk;
 
-        if (prober.hasPackEntry(winningVpk, entryPath)) {
+        if (prober.hasPackEntry(winningVpk, entryPath, token)) {
             AssetLocation location;
             location.sourceTargetPath = winningVpk;
             location.relativePath = entryPath;
@@ -87,7 +87,7 @@ LocateResult AssetLocateStrategy::locate(
 
     // 4. Fallback search across search targets
     for (const auto& target : targets) {
-        if (isCancelled && isCancelled()) {
+        if (token.isCancelled()) {
             return LocateResult{LocateStatus::Cancelled, std::nullopt, probedWinnerVpk};
         }
 
@@ -99,7 +99,7 @@ LocateResult AssetLocateStrategy::locate(
             continue;
         }
 
-        if (prober.hasPackEntry(packPath, entryPath)) {
+        if (prober.hasPackEntry(packPath, entryPath, token)) {
             AssetLocation location;
             location.sourceTargetPath = packPath;
             location.relativePath = entryPath;

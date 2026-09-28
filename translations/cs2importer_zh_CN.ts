@@ -28,12 +28,12 @@
 <context>
     <name>AssetExtractor</name>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="114"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="138"/>
         <source>Companion extraction failed for &apos;%1&apos;: %2</source>
         <translation>提取伴随文件失败：&apos;%1&apos;：%2</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="120"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="144"/>
         <source>Companion &apos;%1&apos; not present in target &apos;%2&apos;</source>
         <translation>目标 &apos;%2&apos; 中不存在伴随文件 &apos;%1&apos;</translation>
     </message>
@@ -42,27 +42,29 @@
         <translation type="vanished">资源相对路径为空</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="141"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="165"/>
         <source>destination content directory is empty or invalid</source>
         <translation>目标 content 目录为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="146"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="42"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="78"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="170"/>
         <source>Asset extraction cancelled</source>
         <translation>资源提取已取消</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="170"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="197"/>
         <source>Extracted &apos;%1&apos; from loose folder &apos;%2&apos;</source>
         <translation>已从松散文件夹 &apos;%2&apos; 提取 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="189"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="219"/>
         <source>Asset extraction failed while searching &apos;%1&apos;</source>
         <translation>在 &apos;%1&apos; 中搜索资源时提取失败</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="195"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="225"/>
         <source>Asset &apos;%1&apos; was not found in winning VPK</source>
         <translation>在命中 VPK 中未找到资源 &apos;%1&apos;</translation>
     </message>
@@ -71,12 +73,12 @@
         <translation type="vanished">目标 &apos;%2&apos; 中未找到资源 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="200"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="230"/>
         <source>Extracted &apos;%1&apos; from &apos;%2&apos;</source>
         <translation>已从 &apos;%2&apos; 提取 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="236"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="266"/>
         <source>Asset &apos;%1&apos; was not found in any search target</source>
         <translation>在任何搜索目标中都未找到资源 &apos;%1&apos;</translation>
     </message>
@@ -657,92 +659,133 @@
     </message>
     <message>
         <location filename="../src/Core/FileSystem/FileSystem.cpp" line="112"/>
+        <source>Copy cancelled</source>
+        <translation>复制已取消</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="118"/>
         <source>Cannot copy: Source or destination path is empty</source>
         <translation>无法复制：源路径或目标路径为空</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="119"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="125"/>
         <source>Cannot copy: Source path does not exist: %1</source>
         <translation>无法复制：源路径不存在：%1</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="131"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="137"/>
         <source>Cannot copy directory: Destination is inside source directory (%1 -&gt; %2)</source>
         <translation>无法复制目录：目标位于源目录内部（%1 -&gt; %2）</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="136"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="142"/>
         <source>Cannot copy directory: Source is inside destination directory (%1 -&gt; %2)</source>
         <translation>无法复制目录：源位于目标目录内部（%1 -&gt; %2）</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="148"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="154"/>
         <source>Cannot copy: Destination file already exists: %1</source>
         <translation>无法复制：目标文件已存在：%1</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="154"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="160"/>
         <source>Cannot copy: Failed to overwrite existing destination file: %1</source>
         <translation>无法复制：覆盖已有目标文件失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="166"/>
-        <source>Failed to copy file from %1 to %2</source>
-        <translation>从 %1 复制文件到 %2 失败</translation>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="174"/>
+        <source>Failed to open source file for reading: %1 (%2)</source>
+        <translation>无法打开源文件进行读取：%1（%2）</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="181"/>
+        <source>Failed to open destination file for writing: %1 (%2)</source>
+        <translation>无法打开目标文件进行写入：%1（%2）</translation>
     </message>
     <message>
         <location filename="../src/Core/FileSystem/FileSystem.cpp" line="193"/>
+        <source>File copy cancelled</source>
+        <translation>文件复制已取消</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="202"/>
+        <source>Failed reading from %1: %2</source>
+        <translation>从 %1 读取失败：%2</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="212"/>
+        <source>Failed writing to %1: %2</source>
+        <translation>写入到 %1 失败：%2</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="222"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="233"/>
+        <source>Directory copy cancelled</source>
+        <translation>目录复制已取消</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="257"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="349"/>
+        <source>Move cancelled</source>
+        <translation>移动已取消</translation>
+    </message>
+    <message>
+        <source>Failed to copy file from %1 to %2</source>
+        <translation type="vanished">从 %1 复制文件到 %2 失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="263"/>
         <source>Cannot move: Source or destination path is empty</source>
         <translation>无法移动：源路径或目标路径为空</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="200"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="270"/>
         <source>Cannot move: Source path does not exist: %1</source>
         <translation>无法移动：源路径不存在：%1</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="212"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="282"/>
         <source>Cannot move directory: Destination is inside source directory (%1 -&gt; %2)</source>
         <translation>无法移动目录：目标位于源目录内部（%1 -&gt; %2）</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="217"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="287"/>
         <source>Cannot move directory: Source is inside destination directory (%1 -&gt; %2)</source>
         <translation>无法移动目录：源位于目标目录内部（%1 -&gt; %2）</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="227"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="297"/>
         <source>Cannot move: Destination path already exists: %1</source>
         <translation>无法移动：目标路径已存在：%1</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="239"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="309"/>
         <source>Cannot move: Failed to create temporary backup for existing destination: %1</source>
         <translation>无法移动：为已有目标创建临时备份失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="279"/>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="288"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="361"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="370"/>
         <source>Move partially completed: destination copy kept, source removal failed</source>
         <translation>移动部分完成：已保留目标副本，但删除源失败</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="305"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="387"/>
         <source>Cannot read file: Path is empty</source>
         <translation>无法读取文件：路径为空</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="312"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="394"/>
         <source>Cannot read file: File does not exist: %1</source>
         <translation>无法读取文件：文件不存在：%1</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="319"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="401"/>
         <source>Cannot open file for reading: %1 (%2)</source>
         <translation>无法打开文件进行读取：%1（%2）</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="329"/>
+        <location filename="../src/Core/FileSystem/FileSystem.cpp" line="411"/>
         <source>Cannot write file: Path is empty</source>
         <translation>无法写入文件：路径为空</translation>
     </message>
@@ -1998,59 +2041,92 @@ Do you want to proceed?</source>
 <context>
     <name>PackArchive</name>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="60"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="62"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="78"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="86"/>
+        <source>pack archive open cancelled</source>
+        <translation>打开打包归档已取消</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="67"/>
         <source>pack archive path is empty or invalid</source>
         <translation>打包归档路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="65"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="72"/>
         <source>pack archive file not found</source>
         <translation>未找到打包归档文件</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="75"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="91"/>
         <source>file is not a supported pack archive or failed to parse</source>
         <translation>文件不是受支持的打包归档，或解析失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="93"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="116"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="135"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="167"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="109"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="132"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="158"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="249"/>
         <source>pack archive is not open</source>
         <translation>打包归档未打开</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="123"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="147"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="139"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="170"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="187"/>
         <source>entry not found in pack archive</source>
         <translation>在打包归档中未找到该条目</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="140"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="153"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="176"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="182"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="218"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="244"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="265"/>
+        <source>pack extraction cancelled</source>
+        <translation>提取打包归档已取消</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="163"/>
         <source>destination file path is empty or invalid</source>
         <translation>目标文件路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="155"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="196"/>
+        <source>failed to create destination directory</source>
+        <translation>创建目标目录失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="204"/>
+        <source>failed to open destination file for writing</source>
+        <translation>无法打开目标文件进行写入</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="228"/>
         <source>failed to extract entry to destination file</source>
         <translation>提取条目到目标文件失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="172"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="254"/>
         <source>destination directory path is empty or invalid</source>
         <translation>目标目录路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="179"/>
         <source>failed to extract one or more entries</source>
-        <translation>提取一个或多个条目失败</translation>
+        <translation type="vanished">提取一个或多个条目失败</translation>
     </message>
 </context>
 <context>
     <name>PackArchivePool</name>
     <message>
-        <location filename="../src/Domain/Package/PackArchivePool.cpp" line="25"/>
+        <location filename="../src/Domain/Package/PackArchivePool.cpp" line="26"/>
+        <location filename="../src/Domain/Package/PackArchivePool.cpp" line="43"/>
+        <source>archive open cancelled</source>
+        <translation>打开归档已取消</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/PackArchivePool.cpp" line="32"/>
         <source>pack archive path is empty or invalid</source>
         <translation>打包归档路径为空或无效</translation>
     </message>
@@ -2141,79 +2217,80 @@ Do you want to proceed?</source>
 <context>
     <name>ParticleImportWorkflow</name>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="34"/>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="43"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="35"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="44"/>
         <source>Failed to clean up generated artifact: %1 (%2)</source>
         <translation>清理生成的产物失败：%1（%2）</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="49"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="50"/>
         <source>Cleaned up %1 half-finished artifact(s) after cancelled/failed import</source>
         <translation>在导入取消/失败后清理了 %1 个未完成的产物</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="62"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="63"/>
         <source>No source PCF files specified</source>
         <translation>未指定源 PCF 文件</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="85"/>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="210"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="86"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="224"/>
         <source>Particle import was cancelled</source>
         <translation>粒子导入已取消</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="102"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="103"/>
         <source>Failed to create Source 1 particles directory: %1</source>
         <translation>创建 Source 1 粒子目录失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="121"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="128"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="135"/>
         <source>Failed to copy PCF file to Source 1 particles folder: %1</source>
         <translation>复制 PCF 文件至 Source 1 粒子文件夹失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="130"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="144"/>
         <source>Staged PCF file to Source 1 particles folder: %1</source>
         <translation>已暂存 PCF 文件至 Source 1 粒子文件夹：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="138"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="152"/>
         <source>Converting PCF (%1/%2): %3</source>
         <translation>正在转换 PCF（%1/%2）：%3</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="140"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="154"/>
         <source>Converting PCF with source1import: %1</source>
         <translation>正在使用 source1import 转换 PCF：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="179"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="193"/>
         <source>No .vpcf files generated from PCF: %1</source>
         <translation>未从 PCF 生成任何 .vpcf 文件：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="191"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="205"/>
         <source>PCF &apos;%1&apos;: %2 .vpcf generated, %3 failed</source>
         <translation>PCF &apos;%1&apos;：生成了 %2 个 .vpcf，%3 个失败</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="194"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="208"/>
         <source>PCF &apos;%1&apos;: %2 .vpcf generated</source>
         <translation>PCF &apos;%1&apos;：生成了 %2 个 .vpcf</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="202"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="216"/>
         <source>PCF conversion failed for &apos;%1&apos;: %2</source>
         <translation>PCF &apos;%1&apos; 转换失败：%2</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="216"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="230"/>
         <source>No .vpcf files were generated from the selected PCF files</source>
         <translation>未能从所选 PCF 文件中生成任何 .vpcf 文件</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="222"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="236"/>
         <source>Compiling %1 generated .vpcf resource(s)</source>
         <translation>正在编译 %1 个生成的 .vpcf 资源</translation>
     </message>
@@ -2222,7 +2299,7 @@ Do you want to proceed?</source>
         <translation type="vanished">已复制 PCF 文件至 Source 1 粒子文件夹：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="132"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="146"/>
         <source>PCF file is already inside Source 1 particles folder: %1</source>
         <translation>PCF 文件已位于 Source 1 粒子文件夹内：%1</translation>
     </message>
@@ -2243,17 +2320,17 @@ Do you want to proceed?</source>
         <translation type="vanished">编译生成的 .vpcf 资源</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="239"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="253"/>
         <source>Resource compilation failed: %1</source>
         <translation>资源编译失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="265"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="279"/>
         <source>No particle resources were successfully compiled</source>
         <translation>未能成功编译任何粒子资源</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="271"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="285"/>
         <source>Particle import and compilation completed successfully</source>
         <translation>粒子导入与编译成功完成</translation>
     </message>
@@ -2492,24 +2569,30 @@ Do you want to proceed?</source>
 <context>
     <name>Sha256</name>
     <message>
-        <location filename="../src/Core/Hash/Sha256.cpp" line="13"/>
-        <source>File path is empty or invalid</source>
-        <translation type="unfinished"></translation>
+        <location filename="../src/Core/Hash/Sha256.cpp" line="14"/>
+        <location filename="../src/Core/Hash/Sha256.cpp" line="47"/>
+        <source>SHA-256 calculation cancelled</source>
+        <translation>SHA-256 计算已取消</translation>
     </message>
     <message>
-        <location filename="../src/Core/Hash/Sha256.cpp" line="21"/>
-        <source>File not found</source>
-        <translation type="unfinished"></translation>
+        <location filename="../src/Core/Hash/Sha256.cpp" line="20"/>
+        <source>File path is empty or invalid</source>
+        <translation>文件路径为空或无效</translation>
     </message>
     <message>
         <location filename="../src/Core/Hash/Sha256.cpp" line="28"/>
-        <source>Failed to open file for reading: %1</source>
-        <translation type="unfinished"></translation>
+        <source>File not found</source>
+        <translation>未找到文件</translation>
     </message>
     <message>
-        <location filename="../src/Core/Hash/Sha256.cpp" line="42"/>
+        <location filename="../src/Core/Hash/Sha256.cpp" line="35"/>
+        <source>Failed to open file for reading: %1</source>
+        <translation>无法打开文件进行读取：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/Hash/Sha256.cpp" line="53"/>
         <source>Failed to read file: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>读取文件失败：%1</translation>
     </message>
 </context>
 <context>
@@ -2586,78 +2669,78 @@ Do you want to proceed?</source>
         <translation>转换 soundscape 文件失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="132"/>
+        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="133"/>
         <source>Starting soundscape conversion for map &apos;%1&apos;</source>
         <translation>开始为地图 &apos;%1&apos; 转换 soundscape</translation>
     </message>
     <message>
-        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="142"/>
+        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="143"/>
         <source>Scripts directory not found: %1</source>
         <translation>未找到脚本目录：%1</translation>
     </message>
     <message>
-        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="144"/>
+        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="145"/>
         <source>No scripts directory found to convert</source>
         <translation>未找到可转换的脚本目录</translation>
     </message>
     <message>
-        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="154"/>
+        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="155"/>
         <source>soundscapes.txt</source>
         <translation>soundscapes.txt</translation>
     </message>
     <message>
-        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="155"/>
+        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="156"/>
         <source>soundscapes.vsc</source>
         <translation>soundscapes.vsc</translation>
     </message>
     <message>
-        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="169"/>
+        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="170"/>
         <source>No soundscape files found to convert for map &apos;%1&apos;</source>
         <translation>地图 &apos;%1&apos; 没有可转换的 soundscape 文件</translation>
     </message>
     <message>
-        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="171"/>
+        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="172"/>
         <source>No soundscape files found</source>
         <translation>未找到 soundscape 文件</translation>
     </message>
     <message>
-        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="175"/>
         <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="176"/>
+        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="177"/>
         <source>soundevents</source>
         <translation>soundevents</translation>
     </message>
     <message>
-        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="193"/>
+        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="195"/>
         <source>Soundscape conversion cancelled by user</source>
         <translation>soundscape 转换已被用户取消</translation>
     </message>
     <message>
-        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="208"/>
+        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="211"/>
         <source>Failed to convert %1: %2</source>
         <translation>转换 %1 失败：%2</translation>
     </message>
     <message>
-        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="232"/>
+        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="235"/>
         <source>Soundscape conversion completed: %1 soundscapes converted, %2 soundevents generated, %3 files written, %4 unique raw sound assets referenced.</source>
         <translation>soundscape 转换完成：转换了 %1 个 soundscape，生成了 %2 个 soundevent，写入了 %3 个文件，引用了 %4 个唯一的原始声音资源。</translation>
     </message>
     <message>
-        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="241"/>
+        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="244"/>
         <source>Soundscape conversion completed successfully</source>
         <translation>soundscape 转换成功完成</translation>
     </message>
     <message>
-        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="242"/>
+        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="245"/>
         <source>Soundscape conversion failed for map &apos;%1&apos;</source>
         <translation>地图 &apos;%1&apos; 的 soundscape 转换失败</translation>
     </message>
     <message>
-        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="249"/>
+        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="252"/>
         <source>All</source>
         <translation>全部</translation>
     </message>
     <message>
-        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="250"/>
+        <location filename="../src/Application/Soundscape/SoundscapeConvertService.cpp" line="253"/>
         <source>Convert Soundscapes: %1</source>
         <translation>转换 Soundscape：%1</translation>
     </message>
@@ -3158,27 +3241,27 @@ or click Add</source>
     <message>
         <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="42"/>
         <source>Skipping missing VPK: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>跳过缺失的 VPK：%1</translation>
     </message>
     <message>
         <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="49"/>
         <source>Indexing VPK: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>正在索引 VPK：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="58"/>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="61"/>
         <source>Failed to compute SHA-256 for VPK: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>计算 VPK 的 SHA-256 失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="74"/>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="77"/>
         <source>Failed to parse VPK with sourcepp: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>使用 sourcepp 解析 VPK 失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="110"/>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="113"/>
         <source>VPK index built successfully: %1 archives, %2 total entries</source>
-        <translation type="unfinished"></translation>
+        <translation>VPK 索引构建成功：%1 个归档，共 %2 个条目</translation>
     </message>
 </context>
 <context>
@@ -3186,7 +3269,7 @@ or click Add</source>
     <message>
         <location filename="../src/Application/Package/VpkIndexService.cpp" line="95"/>
         <source>Index build cancelled</source>
-        <translation type="unfinished"></translation>
+        <translation>索引构建已取消</translation>
     </message>
     <message>
         <location filename="../src/Application/Package/VpkIndexService.cpp" line="103"/>

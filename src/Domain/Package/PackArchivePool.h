@@ -6,6 +6,7 @@
 #include <QHash>
 #include <QString>
 
+#include "Core/Async/CancellationToken.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
 #include "Domain/Package/PackArchive.h"
@@ -35,9 +36,12 @@ public:
      *        and caches it if not yet loaded.
      *
      * @param archivePath Path to the pack archive.
-     * @return Result containing shared pointer to the open PackArchive, or failure.
+     * @param token Optional cancellation token to abort long-running archive open operations.
+     * @return Result containing shared pointer to the open PackArchive, or failure/cancelled.
      */
-    Core::Result<std::shared_ptr<PackArchive>> getOrOpen(const Core::Path::FilesystemPath& archivePath);
+    Core::Result<std::shared_ptr<PackArchive>> getOrOpen(
+        const Core::Path::FilesystemPath& archivePath,
+        const Core::Async::CancellationToken& token = {});
 
     /**
      * @brief Checks whether an archive for the given path is currently loaded.

@@ -6,8 +6,9 @@
 #include <QDir>
 #include <QFileInfo>
 
-#include "Core/Error/Exception.h"
+#include "Core/Async/CancellationToken.h"
 #include "Core/Error/ErrorCode.h"
+#include "Core/Error/Exception.h"
 
 namespace Core::FileSystem {
 
@@ -27,16 +28,31 @@ public:
      * For directories: performs a recursive merge copy (creates target subdirectories if missing
      * and overwrites individual files within destination if overwrite is true).
      *
-     * Throws Core::Error::Exception on failure.
+     * Supports cooperative cancellation via CancellationToken. Chunked file copy cleans up
+     * partially written destination files on cancellation.
+     *
+     * Throws Core::Error::Exception on failure or cancellation.
      */
-    static void copy(const QString& source, const QString& destination, bool overwrite = true);
+    static void copy(
+        const QString& source,
+        const QString& destination,
+        bool overwrite = true,
+        const Core::Async::CancellationToken& token = {});
 
-    static void move(const QString& source, const QString& destination, bool overwrite = true);
+    static void move(
+        const QString& source,
+        const QString& destination,
+        bool overwrite = true,
+        const Core::Async::CancellationToken& token = {});
     static QByteArray readAll(const QString& filePath);
     static void writeAll(const QString& filePath, const QByteArray& data);
 
 private:
-    static void copyDirectoryHelper(const QString& source, const QString& destination, bool overwrite);
+    static void copyDirectoryHelper(
+        const QString& source,
+        const QString& destination,
+        bool overwrite,
+        const Core::Async::CancellationToken& token);
 };
 
 } // namespace Core::FileSystem

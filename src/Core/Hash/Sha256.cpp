@@ -6,7 +6,14 @@
 
 namespace Core::Hash {
 
-Core::Result<QString> Sha256::computeFileHash(const Path::FilesystemPath& filePath) {
+Core::Result<QString> Sha256::computeFileHash(
+    const Path::FilesystemPath& filePath,
+    const Core::Async::CancellationToken& token) {
+    if (token.isCancelled()) {
+        return Core::Result<QString>::cancelled(
+            QCoreApplication::translate("Sha256", "SHA-256 calculation cancelled"));
+    }
+
     if (filePath.isEmpty() || !filePath.isValid()) {
         return Core::Result<QString>::failure(
             Core::Error::ErrorCode::InvalidPath,
@@ -35,6 +42,10 @@ Core::Result<QString> Sha256::computeFileHash(const Path::FilesystemPath& filePa
     buffer.resize(ChunkSize);
 
     while (!file.atEnd()) {
+        if (token.isCancelled()) {
+            return Core::Result<QString>::cancelled(
+                QCoreApplication::translate("Sha256", "SHA-256 calculation cancelled"));
+        }
         const qint64 bytesRead = file.read(buffer.data(), ChunkSize);
         if (bytesRead < 0) {
             return Core::Result<QString>::failure(

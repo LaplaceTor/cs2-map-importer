@@ -21,9 +21,15 @@ public:
         const Domain::Package::VpkIndex* cs2Index = nullptr);
 
     bool isNativeCs2Asset(const QString& entryPath) const override;
-    bool hasLooseFile(const Domain::Game::SearchTarget& target, const QString& entryPath) override;
+    bool hasLooseFile(
+        const Domain::Game::SearchTarget& target,
+        const QString& entryPath,
+        const Core::Async::CancellationToken& token = {}) override;
     std::optional<Core::Path::FilesystemPath> queryVpkIndex(const QString& entryPath) const override;
-    bool hasPackEntry(const Core::Path::FilesystemPath& packPath, const QString& entryPath) override;
+    bool hasPackEntry(
+        const Core::Path::FilesystemPath& packPath,
+        const QString& entryPath,
+        const Core::Async::CancellationToken& token = {}) override;
 
 private:
     Domain::Package::PackArchivePool& m_pool;

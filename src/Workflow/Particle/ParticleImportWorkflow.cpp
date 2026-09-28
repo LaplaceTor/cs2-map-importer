@@ -6,6 +6,7 @@
 #include "Domain/Tool/Cs2PathLayout.h"
 #include "Domain/Tool/ToolErrors.h"
 #include "Core/Error/ErrorCode.h"
+#include "Core/FileSystem/FileSystem.h"
 #include "Core/Temp/TempFile.h"
 #include <QFile>
 #include <QDir>
@@ -117,7 +118,20 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
                 targetPcfPathStr = s1ParticlesDir.filePath(uniqueTempName);
             }
 
-            if (!QFile::copy(pcfPath.toString(), targetPcfPathStr)) {
+            try {
+                Core::FileSystem::FileSystem::copy(pcfPath.toString(), targetPcfPathStr, true, context.token());
+            } catch (const Core::Error::Exception& ex) {
+                if (ex.error().code() == Core::Error::ErrorCode::Cancelled) {
+                    cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context);
+                    return Core::Result<ParticleImportWorkflowResult>::cancelled(ex.error().message());
+                }
+                context.warning(QCoreApplication::translate("ParticleImportWorkflow", "Failed to copy PCF file to Source 1 particles folder: %1")
+                    .arg(targetPcfPathStr));
+                workflowResult.failedPcfFiles.append(pcfPath.toString());
+                workflowResult.totalFailed += 1;
+                context.updateProgress(progress);
+                continue;
+            } catch (const std::exception& ex) {
                 context.warning(QCoreApplication::translate("ParticleImportWorkflow", "Failed to copy PCF file to Source 1 particles folder: %1")
                     .arg(targetPcfPathStr));
                 workflowResult.failedPcfFiles.append(pcfPath.toString());

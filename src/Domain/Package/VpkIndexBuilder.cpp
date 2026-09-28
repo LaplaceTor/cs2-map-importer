@@ -51,7 +51,10 @@ Core::Result<VpkIndex> VpkIndexBuilder::build(
         }
 
         // 1. Compute SHA-256
-        auto shaRes = Core::Hash::Sha256::computeFileHash(vpkPath);
+        auto shaRes = Core::Hash::Sha256::computeFileHash(vpkPath, token);
+        if (shaRes.isCancelled()) {
+            return Core::Result<VpkIndex>::cancelled(shaRes.message());
+        }
         if (shaRes.isFailure()) {
             return Core::Result<VpkIndex>::failure(
                 shaRes.error(),

@@ -18,7 +18,14 @@ PackArchivePool& PackArchivePool::operator=(PackArchivePool&& other) noexcept {
     return *this;
 }
 
-Core::Result<std::shared_ptr<PackArchive>> PackArchivePool::getOrOpen(const Core::Path::FilesystemPath& archivePath) {
+Core::Result<std::shared_ptr<PackArchive>> PackArchivePool::getOrOpen(
+    const Core::Path::FilesystemPath& archivePath,
+    const Core::Async::CancellationToken& token) {
+    if (token.isCancelled()) {
+        return Core::Result<std::shared_ptr<PackArchive>>::cancelled(
+            QCoreApplication::translate("PackArchivePool", "archive open cancelled"));
+    }
+
     if (archivePath.isEmpty() || !archivePath.isValid()) {
         return Core::Result<std::shared_ptr<PackArchive>>::failure(
             Core::Error::ErrorCode::InvalidPath,
@@ -31,11 +38,18 @@ Core::Result<std::shared_ptr<PackArchive>> PackArchivePool::getOrOpen(const Core
         std::lock_guard<std::mutex> lock(m_mutex);
         auto it = m_archives.constFind(normalizedKey);
         if (it != m_archives.constEnd()) {
+            if (token.isCancelled()) {
+                return Core::Result<std::shared_ptr<PackArchive>>::cancelled(
+                    QCoreApplication::translate("PackArchivePool", "archive open cancelled"));
+            }
             return Core::Result<std::shared_ptr<PackArchive>>::success(it.value());
         }
     }
 
-    auto opened = PackArchive::open(archivePath);
+    auto opened = PackArchive::open(archivePath, token);
+    if (opened.isCancelled()) {
+        return Core::Result<std::shared_ptr<PackArchive>>::cancelled(opened.message());
+    }
     if (opened.isFailure()) {
         return Core::Result<std::shared_ptr<PackArchive>>::failure(opened.error());
     }

@@ -105,7 +105,13 @@ void FileSystem::remove(const QString& path) {
     }
 }
 
-void FileSystem::copy(const QString& source, const QString& destination, bool overwrite) {
+void FileSystem::copy(const QString& source, const QString& destination, bool overwrite, const Core::Async::CancellationToken& token) {
+    if (token.isCancelled()) {
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::Cancelled,
+            QCoreApplication::translate("FileSystem", "Copy cancelled"));
+    }
+
     if (source.isEmpty() || destination.isEmpty()) {
         throw Core::Error::Exception(
             Core::Error::ErrorCode::InvalidPath,
@@ -136,7 +142,7 @@ void FileSystem::copy(const QString& source, const QString& destination, bool ov
                 QCoreApplication::translate("FileSystem", "Cannot copy directory: Source is inside destination directory (%1 -> %2)").arg(source, destination));
         }
 
-        copyDirectoryHelper(source, destination, overwrite);
+        copyDirectoryHelper(source, destination, overwrite, token);
         return;
     }
 
@@ -160,19 +166,73 @@ void FileSystem::copy(const QString& source, const QString& destination, bool ov
         }
     }
 
-    if (!QFile::copy(source, destination)) {
+    // Chunked file copying with cancellation checks (64 KB chunks)
+    QFile srcFile(source);
+    if (!srcFile.open(QIODevice::ReadOnly)) {
         throw Core::Error::Exception(
             Core::Error::ErrorCode::OperationFailed,
-            QCoreApplication::translate("FileSystem", "Failed to copy file from %1 to %2").arg(source, destination));
+            QCoreApplication::translate("FileSystem", "Failed to open source file for reading: %1 (%2)").arg(source, srcFile.errorString()));
+    }
+
+    QFile dstFile(destination);
+    if (!dstFile.open(QIODevice::WriteOnly)) {
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::OperationFailed,
+            QCoreApplication::translate("FileSystem", "Failed to open destination file for writing: %1 (%2)").arg(destination, dstFile.errorString()));
+    }
+
+    constexpr qint64 ChunkSize = 64 * 1024;
+    QByteArray buffer(ChunkSize, Qt::Uninitialized);
+
+    while (!srcFile.atEnd()) {
+        if (token.isCancelled()) {
+            dstFile.close();
+            dstFile.remove(); // Clean up partial destination file on cancel
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::Cancelled,
+                QCoreApplication::translate("FileSystem", "File copy cancelled"));
+        }
+
+        qint64 bytesRead = srcFile.read(buffer.data(), ChunkSize);
+        if (bytesRead < 0) {
+            dstFile.close();
+            dstFile.remove();
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::OperationFailed,
+                QCoreApplication::translate("FileSystem", "Failed reading from %1: %2").arg(source, srcFile.errorString()));
+        }
+
+        if (bytesRead > 0) {
+            qint64 bytesWritten = dstFile.write(buffer.constData(), bytesRead);
+            if (bytesWritten != bytesRead) {
+                dstFile.close();
+                dstFile.remove();
+                throw Core::Error::Exception(
+                    Core::Error::ErrorCode::OperationFailed,
+                    QCoreApplication::translate("FileSystem", "Failed writing to %1: %2").arg(destination, dstFile.errorString()));
+            }
+        }
     }
 }
 
-void FileSystem::copyDirectoryHelper(const QString& source, const QString& destination, bool overwrite) {
+void FileSystem::copyDirectoryHelper(const QString& source, const QString& destination, bool overwrite, const Core::Async::CancellationToken& token) {
+    if (token.isCancelled()) {
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::Cancelled,
+            QCoreApplication::translate("FileSystem", "Directory copy cancelled"));
+    }
+
     QDir srcDir(source);
     createDirectory(destination);
 
     QDirIterator it(source, QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
     while (it.hasNext()) {
+        if (token.isCancelled()) {
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::Cancelled,
+                QCoreApplication::translate("FileSystem", "Directory copy cancelled"));
+        }
+
         it.next();
         QString relPath = srcDir.relativeFilePath(it.filePath());
         QString targetPath = QDir(destination).filePath(relPath);
@@ -181,12 +241,22 @@ void FileSystem::copyDirectoryHelper(const QString& source, const QString& desti
         if (itemInfo.isDir()) {
             createDirectory(targetPath);
         } else if (itemInfo.isFile()) {
-            copy(it.filePath(), targetPath, overwrite);
+            copy(it.filePath(), targetPath, overwrite, token);
         }
     }
 }
 
-void FileSystem::move(const QString& source, const QString& destination, bool overwrite) {
+void FileSystem::move(
+    const QString& source,
+    const QString& destination,
+    bool overwrite,
+    const Core::Async::CancellationToken& token) {
+    if (token.isCancelled()) {
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::Cancelled,
+            QCoreApplication::translate("FileSystem", "Move cancelled"));
+    }
+
     if (source.isEmpty() || destination.isEmpty()) {
         throw Core::Error::Exception(
             Core::Error::ErrorCode::InvalidPath,
@@ -255,7 +325,7 @@ void FileSystem::move(const QString& source, const QString& destination, bool ov
 
     // QDir::rename failed (e.g. cross-volume move), fallback to copy & delete
     try {
-        copy(source, destination, overwrite);
+        copy(source, destination, overwrite, token);
     } catch (...) {
         // Copy failed: clean up partial destination and restore backup if it existed
         if (exists(destination)) {
@@ -265,6 +335,18 @@ void FileSystem::move(const QString& source, const QString& destination, bool ov
             dir.rename(backupPath, destination);
         }
         throw;
+    }
+
+    if (token.isCancelled()) {
+        if (exists(destination)) {
+            remove(destination);
+        }
+        if (!backupPath.isEmpty() && exists(backupPath)) {
+            dir.rename(backupPath, destination);
+        }
+        throw Core::Error::Exception(
+            Core::Error::ErrorCode::Cancelled,
+            QCoreApplication::translate("FileSystem", "Move cancelled"));
     }
 
     // Copy succeeded: remove source. If removal fails, the destination copy is
