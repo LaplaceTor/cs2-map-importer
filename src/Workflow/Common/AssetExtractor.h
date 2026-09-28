@@ -8,8 +8,9 @@
 #include "Core/Logging/TaskLoggingContext.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
-#include "Domain/Asset/AssetLocator.h"
+#include "Domain/Asset/AssetLocation.h"
 #include "Domain/Game/SearchTarget.h"
+#include "Workflow/Common/AssetLocator.h"
 
 namespace Domain::Package {
 class PackArchivePool;
@@ -30,7 +31,7 @@ struct AssetExtraction {
 };
 
 struct AssetExtractOptions {
-    Domain::Asset::AssetLocateOptions locateOptions;
+    AssetLocateOptions locateOptions;
     /**
      * @brief Additional file extensions (without dot) extracted alongside the
      *        asset from the winning target, e.g. model companion files

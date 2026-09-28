@@ -219,15 +219,15 @@ Core::Result<AssetExtraction> AssetExtractor::extract(
     const AssetExtractOptions& options,
     const Core::Async::CancellationToken& token,
     Core::Logging::TaskLoggingContext* taskCtx) {
-    auto locateRes = Domain::Asset::AssetLocator::locate(targets, relativeAssetPath, options.locateOptions, token, taskCtx);
-    if (!locateRes.isSuccess()) {
-        return Core::Result<AssetExtraction>::failure(locateRes.error(), locateRes.message());
+    auto locateRes = AssetLocator::locate(targets, relativeAssetPath, options.locateOptions, token, taskCtx);
+    if (locateRes.isCancelled()) {
+        return Core::Result<AssetExtraction>::cancelled(locateRes.message());
     }
     if (locateRes.isSkipped()) {
         return Core::Result<AssetExtraction>::skipped(locateRes.message());
     }
-    if (locateRes.isCancelled()) {
-        return Core::Result<AssetExtraction>::cancelled(locateRes.message());
+    if (!locateRes.isSuccess()) {
+        return Core::Result<AssetExtraction>::failure(locateRes.error(), locateRes.message());
     }
 
     const auto& locationOpt = locateRes.value();

@@ -2,13 +2,12 @@
 
 #include <optional>
 #include <vector>
-
 #include <QString>
 
 #include "Core/Async/CancellationToken.h"
 #include "Core/Logging/TaskLoggingContext.h"
-#include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
+#include "Domain/Asset/AssetLocation.h"
 #include "Domain/Game/SearchTarget.h"
 
 namespace Domain::Package {
@@ -16,7 +15,7 @@ class PackArchivePool;
 class VpkIndex;
 }
 
-namespace Domain::Asset {
+namespace Workflow::Common {
 
 struct AssetLocateOptions {
     /**
@@ -39,26 +38,13 @@ struct AssetLocateOptions {
 };
 
 /**
- * @brief Represents the discovery location of an asset across search targets.
- */
-struct AssetLocation {
-    /** Target path (directory or VPK) where the asset resides. */
-    Core::Path::FilesystemPath sourceTargetPath;
-    /** Game-relative normalized asset path. */
-    QString relativePath;
-    /** True if found inside a VPK archive, false if on disk as a loose file. */
-    bool isInsidePack = false;
-    /** Full filesystem path on disk if it is a loose file. */
-    Core::Path::FilesystemPath looseFilePath;
-};
-
-/**
- * @brief Pure detection/location service: probes search targets for an asset
- *        without performing any extraction, unpacking, or write I/O.
+ * @brief Workflow service for asset discovery and reporting.
+ * Coordinates Domain::Asset::AssetLocateStrategy with Domain::Asset::ArchiveAssetSourceProber,
+ * handling CancellationToken checks, user-visible translations, and TaskLoggingContext output.
  */
 class AssetLocator {
 public:
-    static Core::Result<std::optional<AssetLocation>> locate(
+    static Core::Result<std::optional<Domain::Asset::AssetLocation>> locate(
         const std::vector<Domain::Game::SearchTarget>& targets,
         const QString& relativeAssetPath,
         const AssetLocateOptions& options = {},
@@ -77,4 +63,4 @@ public:
     }
 };
 
-} // namespace Domain::Asset
+} // namespace Workflow::Common
