@@ -1435,22 +1435,22 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
 <context>
     <name>KeyValuesDocument</name>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="26"/>
+        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="27"/>
         <source>Failed to load KeyValues document from %1: %2</source>
         <translation>从 %1 加载 KeyValues 文档失败：%2</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="39"/>
+        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="40"/>
         <source>Failed to parse KeyValues string: %1</source>
         <translation>解析 KeyValues 字符串失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="53"/>
+        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="54"/>
         <source>Path is empty or invalid</source>
         <translation>路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="59"/>
+        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="60"/>
         <source>File does not exist</source>
         <translation>文件不存在</translation>
     </message>

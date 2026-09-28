@@ -4,6 +4,7 @@
 #include <QStringList>
 #include <vector>
 #include <memory>
+#include <optional>
 
 namespace Core::KeyValues {
 
@@ -41,7 +42,7 @@ public:
     // Children & hierarchy
     const std::vector<KeyValuesNode>& children() const noexcept { return m_children; }
     std::vector<KeyValuesNode>& children() noexcept { return m_children; }
-    int childCount() const noexcept { return static_cast<int>(m_children.size()); }
+    qsizetype childCount() const noexcept { return static_cast<qsizetype>(m_children.size()); }
     bool hasChildren() const noexcept { return !m_children.empty(); }
 
     // Queries
@@ -60,8 +61,8 @@ public:
     bool propertyBool(const QString& key, bool defaultValue = false, Qt::CaseSensitivity cs = Qt::CaseInsensitive) const;
 
     // Positional queries
-    int indexOfChild(const QString& name, Qt::CaseSensitivity cs = Qt::CaseInsensitive) const;
-    int indexOfProperty(const QString& key, Qt::CaseSensitivity cs = Qt::CaseInsensitive) const;
+    std::optional<qsizetype> indexOfChild(const QString& name, Qt::CaseSensitivity cs = Qt::CaseInsensitive) const;
+    std::optional<qsizetype> indexOfProperty(const QString& key, Qt::CaseSensitivity cs = Qt::CaseInsensitive) const;
 
     // Mutation
     KeyValuesNode& addChild(KeyValuesNode child);
@@ -69,22 +70,22 @@ public:
     KeyValuesNode& addSection(const QString& name);
     void setProperty(const QString& key, const QString& value, Qt::CaseSensitivity cs = Qt::CaseInsensitive);
 
-    // Positional insertion
-    KeyValuesNode& insertChild(int index, KeyValuesNode child);
-    KeyValuesNode& insertProperty(int index, const QString& key, const QString& value);
-    KeyValuesNode& insertSection(int index, const QString& name);
+    // Positional insertion (fails and returns false if index < 0 or index > childCount())
+    bool insertChild(qsizetype index, KeyValuesNode child);
+    bool insertProperty(qsizetype index, const QString& key, const QString& value);
+    bool insertSection(qsizetype index, const QString& name);
     bool insertPropertyAfter(const QString& targetKey, const QString& key, const QString& value, Qt::CaseSensitivity cs = Qt::CaseInsensitive);
     bool insertPropertyBefore(const QString& targetKey, const QString& key, const QString& value, Qt::CaseSensitivity cs = Qt::CaseInsensitive);
     bool insertChildAfter(const QString& targetName, KeyValuesNode child, Qt::CaseSensitivity cs = Qt::CaseInsensitive);
     bool insertChildBefore(const QString& targetName, KeyValuesNode child, Qt::CaseSensitivity cs = Qt::CaseInsensitive);
 
     // Positional mutation
-    bool setPropertyAt(int index, const QString& key, const QString& value);
-    bool setChildAt(int index, KeyValuesNode child);
+    bool setPropertyAt(qsizetype index, const QString& key, const QString& value);
+    bool setChildAt(qsizetype index, KeyValuesNode child);
 
-    bool removeChild(int index);
-    int removeChildren(const QString& name, Qt::CaseSensitivity cs = Qt::CaseInsensitive);
-    int removeProperties(const QString& key, Qt::CaseSensitivity cs = Qt::CaseInsensitive);
+    bool removeChild(qsizetype index);
+    qsizetype removeChildren(const QString& name, Qt::CaseSensitivity cs = Qt::CaseInsensitive);
+    qsizetype removeProperties(const QString& key, Qt::CaseSensitivity cs = Qt::CaseInsensitive);
     void clear();
 
 private:

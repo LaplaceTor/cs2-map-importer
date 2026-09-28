@@ -1,6 +1,7 @@
 #include <QCoreApplication>
 #include "Core/KeyValues/KeyValuesDocument.h"
 #include "Core/KeyValues/KeyValuesParser.h"
+#include "Core/KeyValues/KeyValuesWriter.h"
 #include "Core/FileSystem/FileSystem.h"
 #include "Core/FileSystem/AtomicFile.h"
 #include "Core/Error/Exception.h"
@@ -81,8 +82,8 @@ Core::Result<void> KeyValuesDocument::loadFromData(const QByteArray& data) {
     return loadFromString(QString::fromUtf8(data));
 }
 
-Core::Result<void> KeyValuesDocument::saveToFile(const Path::FilesystemPath& path, const KeyValuesWriter::Options& options) const {
-    const QString text = saveToString(options);
+Core::Result<void> KeyValuesDocument::saveToFile(const Path::FilesystemPath& path) const {
+    const QString text = saveToString();
     const QByteArray data = text.toUtf8();
     try {
         FileSystem::AtomicFile::writeAtomic(path.toString(), data);
@@ -96,12 +97,28 @@ Core::Result<void> KeyValuesDocument::saveToFile(const Path::FilesystemPath& pat
     }
 }
 
-QString KeyValuesDocument::saveToString(const KeyValuesWriter::Options& options) const {
-    return KeyValuesWriter::toString(m_root, options);
+QString KeyValuesDocument::saveToString() const {
+    return KeyValuesWriter::toString(m_root);
 }
 
-QByteArray KeyValuesDocument::saveToData(const KeyValuesWriter::Options& options) const {
-    return saveToString(options).toUtf8();
+QByteArray KeyValuesDocument::saveToData() const {
+    return saveToString().toUtf8();
+}
+
+const KeyValuesNode* KeyValuesDocument::findChild(const QString& name, Qt::CaseSensitivity cs) const {
+    return m_root.findChild(name, cs);
+}
+
+KeyValuesNode* KeyValuesDocument::findChild(const QString& name, Qt::CaseSensitivity cs) {
+    return m_root.findChild(name, cs);
+}
+
+bool KeyValuesDocument::hasChild(const QString& name, Qt::CaseSensitivity cs) const {
+    return m_root.hasChild(name, cs);
+}
+
+void KeyValuesDocument::clear() {
+    m_root.clear();
 }
 
 } // namespace Core::KeyValues

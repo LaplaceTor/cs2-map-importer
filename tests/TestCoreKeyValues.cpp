@@ -22,9 +22,16 @@ private slots:
         QVERIFY(root != nullptr);
         QCOMPARE(root->property(QStringLiteral("Key1")), QStringLiteral("Value1"));
         QCOMPARE(root->property(QStringLiteral("Key2")), QStringLiteral("Value2"));
-        QCOMPARE(root->indexOfProperty(QStringLiteral("Key1")), 0);
-        QCOMPARE(root->indexOfProperty(QStringLiteral("Key2")), 1);
-        QCOMPARE(root->indexOfProperty(QStringLiteral("NonExistent")), -1);
+        QVERIFY(root->indexOfProperty(QStringLiteral("Key1")).has_value());
+        QCOMPARE(*root->indexOfProperty(QStringLiteral("Key1")), 0);
+        QVERIFY(root->indexOfProperty(QStringLiteral("Key2")).has_value());
+        QCOMPARE(*root->indexOfProperty(QStringLiteral("Key2")), 1);
+        QVERIFY(!root->indexOfProperty(QStringLiteral("NonExistent")).has_value());
+
+        // Document-level direct query helpers
+        QVERIFY(doc.findChild(QStringLiteral("Root")) != nullptr);
+        QVERIFY(doc.hasChild(QStringLiteral("Root")));
+        QVERIFY(!doc.hasChild(QStringLiteral("NonExistent")));
     }
 
     void testInsertPropertyPositional() {
@@ -33,7 +40,8 @@ private slots:
         node.addProperty(QStringLiteral("PropC"), QStringLiteral("3"));
 
         // Insert PropB at index 1
-        node.insertProperty(1, QStringLiteral("PropB"), QStringLiteral("2"));
+        bool okB = node.insertProperty(1, QStringLiteral("PropB"), QStringLiteral("2"));
+        QVERIFY(okB);
 
         QCOMPARE(node.childCount(), 3);
         QCOMPARE(node.children()[0].name(), QStringLiteral("PropA"));
@@ -41,12 +49,19 @@ private slots:
         QCOMPARE(node.children()[2].name(), QStringLiteral("PropC"));
 
         // Insert at beginning (index 0)
-        node.insertProperty(0, QStringLiteral("PropStart"), QStringLiteral("0"));
+        bool okStart = node.insertProperty(0, QStringLiteral("PropStart"), QStringLiteral("0"));
+        QVERIFY(okStart);
         QCOMPARE(node.childCount(), 4);
         QCOMPARE(node.children()[0].name(), QStringLiteral("PropStart"));
 
-        // Insert at end (index >= count)
-        node.insertProperty(100, QStringLiteral("PropEnd"), QStringLiteral("4"));
+        // Out-of-bounds rejection (negative and greater than count must fail, no silent clamping)
+        QVERIFY(!node.insertProperty(-1, QStringLiteral("BadNeg"), QStringLiteral("-1")));
+        QVERIFY(!node.insertProperty(100, QStringLiteral("BadLarge"), QStringLiteral("100")));
+        QCOMPARE(node.childCount(), 4);
+
+        // Insert at exact end (index == count)
+        bool okEnd = node.insertProperty(node.childCount(), QStringLiteral("PropEnd"), QStringLiteral("4"));
+        QVERIFY(okEnd);
         QCOMPARE(node.childCount(), 5);
         QCOMPARE(node.children()[4].name(), QStringLiteral("PropEnd"));
     }
@@ -82,11 +97,19 @@ private slots:
         node.addSection(QStringLiteral("Section1"));
         node.addSection(QStringLiteral("Section3"));
 
-        QCOMPARE(node.indexOfChild(QStringLiteral("Section1")), 0);
-        QCOMPARE(node.indexOfChild(QStringLiteral("Section3")), 1);
-        QCOMPARE(node.indexOfChild(QStringLiteral("Missing")), -1);
+        QVERIFY(node.indexOfChild(QStringLiteral("Section1")).has_value());
+        QCOMPARE(*node.indexOfChild(QStringLiteral("Section1")), 0);
+        QVERIFY(node.indexOfChild(QStringLiteral("Section3")).has_value());
+        QCOMPARE(*node.indexOfChild(QStringLiteral("Section3")), 1);
+        QVERIFY(!node.indexOfChild(QStringLiteral("Missing")).has_value());
 
-        node.insertSection(1, QStringLiteral("Section2"));
+        // Out-of-bounds rejection
+        QVERIFY(!node.insertSection(-1, QStringLiteral("Invalid")));
+        QVERIFY(!node.insertSection(999, QStringLiteral("Invalid")));
+
+        // Valid positional insertion
+        bool okSec2 = node.insertSection(1, QStringLiteral("Section2"));
+        QVERIFY(okSec2);
         QCOMPARE(node.childCount(), 3);
         QCOMPARE(node.children()[1].name(), QStringLiteral("Section2"));
 
@@ -96,8 +119,9 @@ private slots:
 
         bool okBefore = node.insertChildBefore(QStringLiteral("Section3"), KeyValuesNode::makeSection(QStringLiteral("Section2_5")));
         QVERIFY(okBefore);
-        int idx = node.indexOfChild(QStringLiteral("Section2_5"));
-        QCOMPARE(idx, 3);
+        auto idxOpt = node.indexOfChild(QStringLiteral("Section2_5"));
+        QVERIFY(idxOpt.has_value());
+        QCOMPARE(*idxOpt, 3);
     }
 
     void testSetPropertyAndChildAt() {
@@ -177,7 +201,7 @@ private slots:
         node.addProperty(QStringLiteral("P1"), QStringLiteral("V3"));
 
         QCOMPARE(node.childCount(), 3);
-        int removedProps = node.removeProperties(QStringLiteral("P1"));
+        qsizetype removedProps = node.removeProperties(QStringLiteral("P1"));
         QCOMPARE(removedProps, 2);
         QCOMPARE(node.childCount(), 1);
         QCOMPARE(node.children()[0].name(), QStringLiteral("P2"));
