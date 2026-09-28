@@ -28,12 +28,12 @@
 <context>
     <name>AssetExtractor</name>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="138"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="128"/>
         <source>Companion extraction failed for &apos;%1&apos;: %2</source>
         <translation>提取伴随文件失败：&apos;%1&apos;：%2</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="144"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="134"/>
         <source>Companion &apos;%1&apos; not present in target &apos;%2&apos;</source>
         <translation>目标 &apos;%2&apos; 中不存在伴随文件 &apos;%1&apos;</translation>
     </message>
@@ -47,24 +47,26 @@
         <translation>目标 content 目录为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="42"/>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="78"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="28"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="64"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="152"/>
         <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="170"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="259"/>
         <source>Asset extraction cancelled</source>
         <translation>资源提取已取消</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="197"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="202"/>
         <source>Extracted &apos;%1&apos; from loose folder &apos;%2&apos;</source>
         <translation>已从松散文件夹 &apos;%2&apos; 提取 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="219"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="224"/>
         <source>Asset extraction failed while searching &apos;%1&apos;</source>
         <translation>在 &apos;%1&apos; 中搜索资源时提取失败</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="225"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="230"/>
         <source>Asset &apos;%1&apos; was not found in winning VPK</source>
         <translation>在命中 VPK 中未找到资源 &apos;%1&apos;</translation>
     </message>
@@ -73,12 +75,12 @@
         <translation type="vanished">目标 &apos;%2&apos; 中未找到资源 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="230"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="235"/>
         <source>Extracted &apos;%1&apos; from &apos;%2&apos;</source>
         <translation>已从 &apos;%2&apos; 提取 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="266"/>
+        <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="283"/>
         <source>Asset &apos;%1&apos; was not found in any search target</source>
         <translation>在任何搜索目标中都未找到资源 &apos;%1&apos;</translation>
     </message>
@@ -86,34 +88,35 @@
 <context>
     <name>AssetLocator</name>
     <message>
-        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="84"/>
-        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="117"/>
+        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="80"/>
+        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="113"/>
         <source>relative asset path is empty</source>
         <translation>资源相对路径为空</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="62"/>
-        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="108"/>
+        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="48"/>
+        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="104"/>
         <source>Asset &apos;%1&apos; exists natively in CS2, skipping extraction</source>
         <translation>资源 &apos;%1&apos; 在 CS2 原生已存在，跳过提取</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="112"/>
+        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="68"/>
+        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="108"/>
         <source>Asset extraction cancelled</source>
         <translation>资源提取已取消</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="34"/>
+        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="20"/>
         <source>Found loose file &apos;%1&apos; in &apos;%2&apos;</source>
         <translation>在 &apos;%2&apos; 中找到松散文件 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="41"/>
+        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="27"/>
         <source>Asset &apos;%1&apos; not in VPK index</source>
         <translation>资源 &apos;%1&apos; 不在 VPK 索引中</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="122"/>
+        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="118"/>
         <source>Asset &apos;%1&apos; was not found in any search target</source>
         <translation>在任何搜索目标中都未找到资源 &apos;%1&apos;</translation>
     </message>
@@ -122,12 +125,12 @@
         <translation type="vanished">探测归档 &apos;%1&apos; 失败</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="48"/>
+        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="34"/>
         <source>Asset &apos;%1&apos; was not found in winning VPK</source>
         <translation>在命中 VPK 中未找到资源 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="55"/>
+        <location filename="../src/Workflow/Common/AssetLocator.cpp" line="41"/>
         <source>Asset &apos;%1&apos; not found in target &apos;%2&apos;</source>
         <translation>目标 &apos;%2&apos; 中未找到资源 &apos;%1&apos;</translation>
     </message>
@@ -596,13 +599,11 @@
 <context>
     <name>ExecutionGuard</name>
     <message>
-        <location filename="../src/Application/Execution/ExecutionGuard.h" line="49"/>
         <source>Unhandled standard exception</source>
-        <translation>未处理的标准异常</translation>
+        <translation type="vanished">未处理的标准异常</translation>
     </message>
     <message>
-        <location filename="../src/Application/Execution/ExecutionGuard.h" line="62"/>
-        <location filename="../src/Application/Execution/ExecutionGuard.h" line="63"/>
+        <location filename="../src/Core/Error/ExecutionGuard.h" line="101"/>
         <source>Unhandled unknown exception</source>
         <translation>未处理的未知异常</translation>
     </message>
@@ -2041,74 +2042,78 @@ Do you want to proceed?</source>
 <context>
     <name>PackArchive</name>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="62"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="78"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="86"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="44"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="60"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="74"/>
         <source>pack archive open cancelled</source>
         <translation>打开打包归档已取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="67"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="49"/>
         <source>pack archive path is empty or invalid</source>
         <translation>打包归档路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="72"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="54"/>
         <source>pack archive file not found</source>
         <translation>未找到打包归档文件</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="91"/>
         <source>file is not a supported pack archive or failed to parse</source>
-        <translation>文件不是受支持的打包归档，或解析失败</translation>
+        <translation type="vanished">文件不是受支持的打包归档，或解析失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="109"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="132"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="158"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="249"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="79"/>
+        <source>failed to open pack archive</source>
+        <translation>打开打包归档失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="102"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="130"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="162"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="258"/>
         <source>pack archive is not open</source>
         <translation>打包归档未打开</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="139"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="170"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="187"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="137"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="174"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="191"/>
         <source>entry not found in pack archive</source>
         <translation>在打包归档中未找到该条目</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="153"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="176"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="182"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="218"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="244"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="265"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="157"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="180"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="186"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="222"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="253"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="274"/>
         <source>pack extraction cancelled</source>
         <translation>提取打包归档已取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="163"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="167"/>
         <source>destination file path is empty or invalid</source>
         <translation>目标文件路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="196"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="200"/>
         <source>failed to create destination directory</source>
         <translation>创建目标目录失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="204"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="208"/>
         <source>failed to open destination file for writing</source>
         <translation>无法打开目标文件进行写入</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="228"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="232"/>
         <source>failed to extract entry to destination file</source>
         <translation>提取条目到目标文件失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="254"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="263"/>
         <source>destination directory path is empty or invalid</source>
         <translation>目标目录路径为空或无效</translation>
     </message>
@@ -3395,12 +3400,17 @@ or click Add</source>
 <context>
     <name>VtfExtractor</name>
     <message>
-        <location filename="../src/Workflow/Common/VtfExtractor.cpp" line="41"/>
+        <location filename="../src/Workflow/Common/VtfExtractor.cpp" line="20"/>
+        <source>VTF extraction cancelled</source>
+        <translation>VTF 提取已取消</translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Common/VtfExtractor.cpp" line="33"/>
         <source>relative VTF path is empty</source>
         <translation>VTF 相对路径为空</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/VtfExtractor.cpp" line="46"/>
+        <location filename="../src/Workflow/Common/VtfExtractor.cpp" line="38"/>
         <source>destination image directory is empty or invalid</source>
         <translation>目标图像目录为空或无效</translation>
     </message>

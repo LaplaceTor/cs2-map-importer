@@ -1,28 +1,14 @@
 #include <QCoreApplication>
 #include "Workflow/Common/AssetLocator.h"
 
-#include <exception>
 #include <utility>
 
-#include "Core/Error/Exception.h"
+#include "Core/Error/ExecutionGuard.h"
 #include "Domain/Asset/ArchiveAssetSourceProber.h"
 #include "Domain/Asset/AssetLocateStrategy.h"
 #include "Domain/Package/PackArchivePool.h"
 
 namespace {
-
-template<typename Fn>
-auto runGuarded(Fn&& fn) -> decltype(fn()) {
-    try {
-        return fn();
-    } catch (const Core::Error::Exception& ex) {
-        return decltype(fn())::failure(ex.error());
-    } catch (const std::exception& ex) {
-        return decltype(fn())::failure(
-            Core::Error::ErrorCode::OperationFailed,
-            QString::fromUtf8(ex.what()));
-    }
-}
 
 class WorkflowLocateObserver : public Domain::Asset::ILocateObserver {
 public:
@@ -77,7 +63,17 @@ Core::Result<std::optional<Domain::Asset::AssetLocation>> AssetLocator::locate(
     const AssetLocateOptions& options,
     const Core::Async::CancellationToken& token,
     Core::Logging::TaskLoggingContext* taskCtx) {
-    return runGuarded([&]() -> Core::Result<std::optional<Domain::Asset::AssetLocation>> {
+    if (token.isCancelled()) {
+        return Core::Result<std::optional<Domain::Asset::AssetLocation>>::cancelled(
+            QCoreApplication::translate("AssetLocator", "Asset extraction cancelled"));
+    }
+
+    Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Locating asset"),
+        .resourcePath = relativeAssetPath
+    };
+
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<std::optional<Domain::Asset::AssetLocation>> {
         if (relativeAssetPath.isEmpty()) {
             return Core::Result<std::optional<Domain::Asset::AssetLocation>>::failure(
                 Core::Error::ErrorCode::InvalidArgument,
@@ -121,7 +117,26 @@ Core::Result<std::optional<Domain::Asset::AssetLocation>> AssetLocator::locate(
             return Core::Result<std::optional<Domain::Asset::AssetLocation>>::skipped(
                 QCoreApplication::translate("AssetLocator", "Asset '%1' was not found in any search target").arg(entryPath));
         }
-    });
+    }, ctx);
+}
+
+Core::Result<bool> AssetLocator::exists(
+    const std::vector<Domain::Game::SearchTarget>& targets,
+    const QString& relativeAssetPath,
+    const AssetLocateOptions& options,
+    const Core::Async::CancellationToken& token,
+    Core::Logging::TaskLoggingContext* taskCtx) {
+    auto res = locate(targets, relativeAssetPath, options, token, taskCtx);
+    if (res.isCancelled()) {
+        return Core::Result<bool>::cancelled(res.message());
+    }
+    if (res.isSkipped()) {
+        return Core::Result<bool>::skipped(res.message(), false);
+    }
+    if (!res.isSuccess()) {
+        return Core::Result<bool>::failure(res.error(), res.message());
+    }
+    return Core::Result<bool>::success(res.value().has_value(), res.message());
 }
 
 } // namespace Workflow::Common

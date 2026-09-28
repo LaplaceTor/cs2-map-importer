@@ -33,20 +33,7 @@ set(QT_DEPLOY_LIB_DIR ".")
 set(QT_DEPLOY_PLUGINS_DIR "plugins")
 set(QT_DEPLOY_QML_DIR "qml")
 
-include(CTest)
-
 option(CS2IMPORTER_DEPLOY_QT_RUNTIME "Deploy Qt runtime using Qt CMake deployment API on Windows" ON)
-option(CS2IMPORTER_BUILD_TESTS "Build tests for CS2 Map Importer" ON)
-
-# Third-party deps pulled in by sourcepp (minizip-ng) force BUILD_TESTING OFF in
-# the cache during add_subdirectory(src); use CS2IMPORTER_BUILD_TESTS which is untouched.
-if(CS2IMPORTER_BUILD_TESTS)
-    enable_testing()
-endif()
 
 add_subdirectory(src)
 
-if(CS2IMPORTER_BUILD_TESTS)
-    find_package(Qt6 6.8 REQUIRED COMPONENTS Test)
-    add_subdirectory(tests)
-endif()

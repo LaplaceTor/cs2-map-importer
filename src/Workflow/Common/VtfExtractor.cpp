@@ -1,30 +1,11 @@
 #include <QCoreApplication>
 #include "Workflow/Common/VtfExtractor.h"
 
-#include <exception>
-
 #include <QFileInfo>
 
-#include "Core/Error/Exception.h"
+#include "Core/Error/ExecutionGuard.h"
 #include "Core/Temp/TempDirectory.h"
 #include "Domain/Material/VtfConverter.h"
-
-namespace {
-
-template<typename Fn>
-auto runGuarded(Fn&& fn) -> decltype(fn()) {
-    try {
-        return fn();
-    } catch (const Core::Error::Exception& ex) {
-        return decltype(fn())::failure(ex.error());
-    } catch (const std::exception& ex) {
-        return decltype(fn())::failure(
-            Core::Error::ErrorCode::OperationFailed,
-            QString::fromUtf8(ex.what()));
-    }
-}
-
-} // namespace
 
 namespace Workflow::Common {
 
@@ -34,7 +15,18 @@ Core::Result<AssetExtraction> VtfExtractor::extract(
     const Core::Path::FilesystemPath& destImageDir,
     const Core::Async::CancellationToken& token,
     Core::Logging::TaskLoggingContext* taskCtx) {
-    return runGuarded([&]() -> Core::Result<AssetExtraction> {
+    if (token.isCancelled()) {
+        return Core::Result<AssetExtraction>::cancelled(
+            QCoreApplication::translate("VtfExtractor", "VTF extraction cancelled"));
+    }
+
+    Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Extracting and converting VTF to image"),
+        .resourcePath = relativeVtfPath,
+        .targetPath = destImageDir.toString()
+    };
+
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<AssetExtraction> {
         if (relativeVtfPath.isEmpty()) {
             return Core::Result<AssetExtraction>::failure(
                 Core::Error::ErrorCode::InvalidArgument,
@@ -67,7 +59,7 @@ Core::Result<AssetExtraction> VtfExtractor::extract(
 
         extraction.value().extractedFilePath = destImageFile;
         return extraction;
-    });
+    }, ctx);
 }
 
 } // namespace Workflow::Common

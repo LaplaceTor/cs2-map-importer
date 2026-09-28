@@ -1,12 +1,11 @@
 #include <QCoreApplication>
 #include "Workflow/Common/AssetExtractor.h"
 
-#include <exception>
 #include <utility>
 
 #include <QFileInfo>
 
-#include "Core/Error/Exception.h"
+#include "Core/Error/ExecutionGuard.h"
 #include "Core/FileSystem/FileSystem.h"
 #include "Domain/Package/PackArchive.h"
 #include "Domain/Package/PackArchivePool.h"
@@ -17,19 +16,6 @@ struct LookupHit {
     bool found = false;
     bool fromPack = false;
 };
-
-template<typename Fn>
-auto runGuarded(Fn&& fn) -> decltype(fn()) {
-    try {
-        return fn();
-    } catch (const Core::Error::Exception& ex) {
-        return decltype(fn())::failure(ex.error());
-    } catch (const std::exception& ex) {
-        return decltype(fn())::failure(
-            Core::Error::ErrorCode::OperationFailed,
-            QString::fromUtf8(ex.what()));
-    }
-}
 
 Core::Result<LookupHit> extractEntryFromPack(
     Domain::Package::PackArchivePool& pool,
@@ -80,17 +66,21 @@ Core::Result<LookupHit> extractFromDirectoryTarget(
 
     const Core::Path::FilesystemPath looseFile = targetDir / entryPath;
     if (looseFile.exists()) {
-        try {
+        Core::Error::ExecutionContext copyCtx{
+            .stage = QStringLiteral("Copying loose file"),
+            .resourcePath = entryPath,
+            .targetPath = destFile.toString()
+        };
+        auto copyRes = Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
             Core::FileSystem::FileSystem::copy(looseFile.toString(), destFile.toString(), true, token);
-        } catch (const Core::Error::Exception& ex) {
-            if (ex.error().code() == Core::Error::ErrorCode::Cancelled) {
-                return Core::Result<LookupHit>::cancelled(ex.error().message());
-            }
-            return Core::Result<LookupHit>::failure(ex.error());
-        } catch (const std::exception& ex) {
-            return Core::Result<LookupHit>::failure(
-                Core::Error::ErrorCode::WriteFailed,
-                QString::fromUtf8(ex.what()));
+            return Core::Result<void>::success();
+        }, copyCtx);
+
+        if (copyRes.isCancelled()) {
+            return Core::Result<LookupHit>::cancelled(copyRes.message());
+        }
+        if (copyRes.isFailure()) {
+            return Core::Result<LookupHit>::failure(copyRes.error());
         }
         return Core::Result<LookupHit>::success(LookupHit{true, false});
     }
@@ -154,11 +144,21 @@ namespace Workflow::Common {
 Core::Result<AssetExtraction> AssetExtractor::extractLocated(
     const Domain::Asset::AssetLocation& location,
     const Core::Path::FilesystemPath& destContentDir,
-    const std::vector<QString>& companionExtensions,
-    Domain::Package::PackArchivePool* archivePool,
+    const AssetExtractOptions& options,
     const Core::Async::CancellationToken& token,
     Core::Logging::TaskLoggingContext* taskCtx) {
-    return runGuarded([&]() -> Core::Result<AssetExtraction> {
+    if (token.isCancelled()) {
+        return Core::Result<AssetExtraction>::cancelled(
+            QCoreApplication::translate("AssetExtractor", "Asset extraction cancelled"));
+    }
+
+    Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Extracting located asset"),
+        .resourcePath = location.relativePath,
+        .targetPath = location.sourceTargetPath.toString()
+    };
+
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<AssetExtraction> {
         if (destContentDir.isEmpty() || !destContentDir.isValid()) {
             return Core::Result<AssetExtraction>::failure(
                 Core::Error::ErrorCode::InvalidPath,
@@ -171,6 +171,7 @@ Core::Result<AssetExtraction> AssetExtractor::extractLocated(
         }
 
         Domain::Package::PackArchivePool localPool;
+        Domain::Package::PackArchivePool* archivePool = options.locateOptions.archivePool;
         Domain::Package::PackArchivePool& pool = archivePool ? *archivePool : localPool;
 
         const Core::Path::FilesystemPath destFile = destContentDir / location.relativePath;
@@ -180,17 +181,21 @@ Core::Result<AssetExtraction> AssetExtractor::extractLocated(
                 ? location.looseFilePath
                 : location.sourceTargetPath / location.relativePath;
 
-            try {
+            Core::Error::ExecutionContext copyCtx{
+                .stage = QStringLiteral("Copying loose asset file"),
+                .resourcePath = location.relativePath,
+                .targetPath = destFile.toString()
+            };
+            auto copyRes = Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
                 Core::FileSystem::FileSystem::copy(sourceFile.toString(), destFile.toString(), true, token);
-            } catch (const Core::Error::Exception& ex) {
-                if (ex.error().code() == Core::Error::ErrorCode::Cancelled) {
-                    return Core::Result<AssetExtraction>::cancelled(ex.error().message());
-                }
-                return Core::Result<AssetExtraction>::failure(ex.error());
-            } catch (const std::exception& ex) {
-                return Core::Result<AssetExtraction>::failure(
-                    Core::Error::ErrorCode::WriteFailed,
-                    QString::fromUtf8(ex.what()));
+                return Core::Result<void>::success();
+            }, copyCtx);
+
+            if (copyRes.isCancelled()) {
+                return Core::Result<AssetExtraction>::cancelled(copyRes.message());
+            }
+            if (copyRes.isFailure()) {
+                return Core::Result<AssetExtraction>::failure(copyRes.error());
             }
 
             if (taskCtx) {
@@ -199,7 +204,7 @@ Core::Result<AssetExtraction> AssetExtractor::extractLocated(
             }
 
             extractCompanions(pool, location.sourceTargetPath, false, location.relativePath,
-                              companionExtensions, destContentDir, token, taskCtx);
+                              options.companionExtensions, destContentDir, token, taskCtx);
 
             AssetExtraction extraction;
             extraction.extractedFilePath = destFile;
@@ -232,14 +237,14 @@ Core::Result<AssetExtraction> AssetExtractor::extractLocated(
         }
 
         extractCompanions(pool, location.sourceTargetPath, true, location.relativePath,
-                          companionExtensions, destContentDir, token, taskCtx);
+                          options.companionExtensions, destContentDir, token, taskCtx);
 
         AssetExtraction extraction;
         extraction.extractedFilePath = destFile;
         extraction.sourceTargetPath = location.sourceTargetPath;
         extraction.fromPack = true;
         return Core::Result<AssetExtraction>::success(std::move(extraction));
-    });
+    }, ctx);
 }
 
 Core::Result<AssetExtraction> AssetExtractor::extract(
@@ -249,31 +254,43 @@ Core::Result<AssetExtraction> AssetExtractor::extract(
     const AssetExtractOptions& options,
     const Core::Async::CancellationToken& token,
     Core::Logging::TaskLoggingContext* taskCtx) {
-    auto locateRes = AssetLocator::locate(targets, relativeAssetPath, options.locateOptions, token, taskCtx);
-    if (locateRes.isCancelled()) {
-        return Core::Result<AssetExtraction>::cancelled(locateRes.message());
-    }
-    if (locateRes.isSkipped()) {
-        return Core::Result<AssetExtraction>::skipped(locateRes.message());
-    }
-    if (!locateRes.isSuccess()) {
-        return Core::Result<AssetExtraction>::failure(locateRes.error(), locateRes.message());
+    if (token.isCancelled()) {
+        return Core::Result<AssetExtraction>::cancelled(
+            QCoreApplication::translate("AssetExtractor", "Asset extraction cancelled"));
     }
 
-    const auto& locationOpt = locateRes.value();
-    if (!locationOpt.has_value()) {
-        return Core::Result<AssetExtraction>::skipped(
-            QCoreApplication::translate("AssetExtractor", "Asset '%1' was not found in any search target")
-                .arg(relativeAssetPath));
-    }
+    Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Locating and extracting asset"),
+        .resourcePath = relativeAssetPath,
+        .targetPath = destContentDir.toString()
+    };
 
-    return extractLocated(
-        locationOpt.value(),
-        destContentDir,
-        options.companionExtensions,
-        options.locateOptions.archivePool,
-        token,
-        taskCtx);
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<AssetExtraction> {
+        auto locateRes = AssetLocator::locate(targets, relativeAssetPath, options.locateOptions, token, taskCtx);
+        if (locateRes.isCancelled()) {
+            return Core::Result<AssetExtraction>::cancelled(locateRes.message());
+        }
+        if (locateRes.isSkipped()) {
+            return Core::Result<AssetExtraction>::skipped(locateRes.message());
+        }
+        if (!locateRes.isSuccess()) {
+            return Core::Result<AssetExtraction>::failure(locateRes.error(), locateRes.message());
+        }
+
+        const auto& locationOpt = locateRes.value();
+        if (!locationOpt.has_value()) {
+            return Core::Result<AssetExtraction>::skipped(
+                QCoreApplication::translate("AssetExtractor", "Asset '%1' was not found in any search target")
+                    .arg(relativeAssetPath));
+        }
+
+        return extractLocated(
+            locationOpt.value(),
+            destContentDir,
+            options,
+            token,
+            taskCtx);
+    }, ctx);
 }
 
 } // namespace Workflow::Common

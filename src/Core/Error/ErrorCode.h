@@ -25,6 +25,10 @@ enum class ErrorCode {
     InvalidFile,
     CorruptedData,
 
+    // Archive and Container
+    ArchiveOpenFailed,
+    EntryNotFound,
+
     // External Process
     ProcessFailed,
     ProcessTimeout,

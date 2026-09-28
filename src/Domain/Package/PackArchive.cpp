@@ -1,7 +1,6 @@
 #include <QCoreApplication>
 #include "Domain/Package/PackArchive.h"
 
-#include <exception>
 #include <utility>
 
 // bsppp/PakLump.h registers the .bsp open factory; including it here makes
@@ -12,26 +11,9 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include "Core/Error/Exception.h"
+#include "Core/Error/ExecutionGuard.h"
 
 namespace {
-
-/**
- * @brief Exception boundary: translates Core/third-party/std exceptions into
- *        structured Result failures instead of letting them escape Domain.
- */
-template<typename Fn>
-auto runGuarded(Fn&& fn) -> decltype(fn()) {
-    try {
-        return fn();
-    } catch (const Core::Error::Exception& ex) {
-        return decltype(fn())::failure(ex.error());
-    } catch (const std::exception& ex) {
-        return decltype(fn())::failure(
-            Core::Error::ErrorCode::OperationFailed,
-            QString::fromUtf8(ex.what()));
-    }
-}
 
 /**
  * @brief Normalizes a caller-provided entry path to pack-relative form
@@ -78,23 +60,30 @@ Core::Result<PackArchive> PackArchive::open(const Core::Path::FilesystemPath& ar
             QCoreApplication::translate("PackArchive", "pack archive open cancelled"));
     }
 
-    // vpkpp interprets std::string paths in the system's native narrow encoding;
-    // non-ASCII paths are a known sourcepp limitation and fail cleanly here.
-    auto packFile = vpkpp::PackFile::open(archivePath.toString().toStdString());
-    if (token.isCancelled()) {
-        return Core::Result<PackArchive>::cancelled(
-            QCoreApplication::translate("PackArchive", "pack archive open cancelled"));
-    }
-    if (!packFile) {
-        return Core::Result<PackArchive>::failure(
-            Core::Error::ErrorCode::InvalidFile,
-            QCoreApplication::translate("PackArchive", "file is not a supported pack archive or failed to parse"),
-            archivePath.toString());
-    }
+    Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Opening pack archive"),
+        .targetPath = archivePath.toString()
+    };
 
-    PackArchive archive;
-    archive.m_packFile = std::move(packFile);
-    return Core::Result<PackArchive>::success(std::move(archive));
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<PackArchive> {
+        // vpkpp interprets std::string paths in the system's native narrow encoding;
+        // non-ASCII paths are a known sourcepp limitation and fail cleanly here.
+        auto packFile = vpkpp::PackFile::open(archivePath.toString().toStdString());
+        if (token.isCancelled()) {
+            return Core::Result<PackArchive>::cancelled(
+                QCoreApplication::translate("PackArchive", "pack archive open cancelled"));
+        }
+        if (!packFile) {
+            return Core::Result<PackArchive>::failure(
+                Core::Error::ErrorCode::ArchiveOpenFailed,
+                QCoreApplication::translate("PackArchive", "failed to open pack archive"),
+                archivePath.toString());
+        }
+
+        PackArchive archive;
+        archive.m_packFile = std::move(packFile);
+        return Core::Result<PackArchive>::success(std::move(archive));
+    }, ctx);
 }
 
 bool PackArchive::isOpen() const noexcept {
@@ -102,7 +91,11 @@ bool PackArchive::isOpen() const noexcept {
 }
 
 Core::Result<std::vector<QString>> PackArchive::listEntries() const {
-    return runGuarded([&]() -> Core::Result<std::vector<QString>> {
+    Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Listing pack entries")
+    };
+
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<std::vector<QString>> {
         if (!m_packFile) {
             return Core::Result<std::vector<QString>>::failure(
                 Core::Error::ErrorCode::InvalidState,
@@ -114,7 +107,7 @@ Core::Result<std::vector<QString>> PackArchive::listEntries() const {
             entries.push_back(QString::fromStdString(path));
         });
         return Core::Result<std::vector<QString>>::success(std::move(entries));
-    });
+    }, ctx);
 }
 
 bool PackArchive::hasEntry(const QString& entryPath, const Core::Async::CancellationToken& token) const {
@@ -125,7 +118,12 @@ bool PackArchive::hasEntry(const QString& entryPath, const Core::Async::Cancella
 }
 
 Core::Result<std::vector<std::byte>> PackArchive::readEntry(const QString& entryPath) const {
-    return runGuarded([&]() -> Core::Result<std::vector<std::byte>> {
+    Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Reading pack entry"),
+        .resourcePath = entryPath
+    };
+
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<std::vector<std::byte>> {
         if (!m_packFile) {
             return Core::Result<std::vector<std::byte>>::failure(
                 Core::Error::ErrorCode::InvalidState,
@@ -135,19 +133,25 @@ Core::Result<std::vector<std::byte>> PackArchive::readEntry(const QString& entry
         auto data = m_packFile->readEntry(normalizeEntryPath(entryPath).toStdString());
         if (!data) {
             return Core::Result<std::vector<std::byte>>::failure(
-                Core::Error::ErrorCode::FileNotFound,
+                Core::Error::ErrorCode::EntryNotFound,
                 QCoreApplication::translate("PackArchive", "entry not found in pack archive"),
                 entryPath);
         }
         return Core::Result<std::vector<std::byte>>::success(std::move(*data));
-    });
+    }, ctx);
 }
 
 Core::Result<void> PackArchive::extractEntryToFile(
     const QString& entryPath,
     const Core::Path::FilesystemPath& destFile,
     const Core::Async::CancellationToken& token) const {
-    return runGuarded([&]() -> Core::Result<void> {
+    Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Extracting pack entry to file"),
+        .resourcePath = entryPath,
+        .targetPath = destFile.toString()
+    };
+
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
         if (token.isCancelled()) {
             return Core::Result<void>::cancelled(
                 QCoreApplication::translate("PackArchive", "pack extraction cancelled"));
@@ -166,7 +170,7 @@ Core::Result<void> PackArchive::extractEntryToFile(
         const QString normalized = normalizeEntryPath(entryPath);
         if (!m_packFile->hasEntry(normalized.toStdString())) {
             return Core::Result<void>::failure(
-                Core::Error::ErrorCode::FileNotFound,
+                Core::Error::ErrorCode::EntryNotFound,
                 QCoreApplication::translate("PackArchive", "entry not found in pack archive"),
                 entryPath);
         }
@@ -183,7 +187,7 @@ Core::Result<void> PackArchive::extractEntryToFile(
         }
         if (!dataOpt) {
             return Core::Result<void>::failure(
-                Core::Error::ErrorCode::FileNotFound,
+                Core::Error::ErrorCode::EntryNotFound,
                 QCoreApplication::translate("PackArchive", "entry not found in pack archive"),
                 entryPath);
         }
@@ -232,13 +236,18 @@ Core::Result<void> PackArchive::extractEntryToFile(
         }
 
         return Core::Result<void>::success();
-    });
+    }, ctx);
 }
 
 Core::Result<void> PackArchive::extractAllToDirectory(
     const Core::Path::FilesystemPath& destDir,
     const Core::Async::CancellationToken& token) const {
-    return runGuarded([&]() -> Core::Result<void> {
+    Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Extracting all entries from pack archive"),
+        .targetPath = destDir.toString()
+    };
+
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
         if (token.isCancelled()) {
             return Core::Result<void>::cancelled(
                 QCoreApplication::translate("PackArchive", "pack extraction cancelled"));
@@ -273,7 +282,7 @@ Core::Result<void> PackArchive::extractAllToDirectory(
             }
         }
         return Core::Result<void>::success();
-    });
+    }, ctx);
 }
 
 } // namespace Domain::Package

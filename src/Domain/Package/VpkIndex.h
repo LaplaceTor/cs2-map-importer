@@ -29,6 +29,15 @@ struct VpkArchiveMeta {
  * Provides O(1) point-lookup for asset paths to their winning VPK file,
  * preventing blind search/miss trial across multiple VPKs.
  * Also stores CS2 native asset stems for deduplication.
+ *
+ * ### Concurrency & Lifecycle Contract:
+ * - **Immutability & Thread Safety**: Once loaded or populated, VpkIndex is completely
+ *   IMMUTABLE. All query APIs (findVpkForEntry, hasEntry, hasCs2NativeAsset) are const
+ *   and thread-safe without requiring external synchronization. A single instance may
+ *   be safely shared across concurrent worker threads and workflow tasks.
+ * - **Lifecycle**: When passed as a borrowed pointer (e.g. to AssetLocateOptions or
+ *   ArchiveAssetSourceProber), the caller retains ownership and must ensure the index
+ *   remains allocated and unchanged throughout the duration of the call.
  */
 class VpkIndex {
 public:

@@ -67,6 +67,16 @@ public:
         return Error(ErrorCode::InvalidFile, msg, details);
     }
 
+    static Error archiveOpenFailed(const QString& msg = QString(), const QString& details = QString())
+    {
+        return Error(ErrorCode::ArchiveOpenFailed, msg, details);
+    }
+
+    static Error entryNotFound(const QString& msg = QString(), const QString& details = QString())
+    {
+        return Error(ErrorCode::EntryNotFound, msg, details);
+    }
+
     static Error processFailed(const QString& msg = QString(), const QString& details = QString())
     {
         return Error(ErrorCode::ProcessFailed, msg, details);

@@ -19,6 +19,15 @@ namespace Domain::Package {
  * Prevents redundant opening and reparsing of large pack archives (e.g. VPKs)
  * during repeated asset lookups. Archives are opened lazily on first access
  * and retained in memory until clear() or destruction.
+ *
+ * ### Concurrency & Lifecycle Contract:
+ * - **Thread Safety**: Fully thread-safe and reentrant. All member access is guarded
+ *   by an internal mutex. A single instance may be shared concurrently across worker
+ *   threads and workflow tasks without external locking.
+ * - **Lifecycle**: The pool owns cached archive instances. When passed by pointer to
+ *   options or context structures (e.g. AssetLocateOptions, AssetExtractOptions), the
+ *   caller retains ownership of the pool and must ensure its lifetime encompasses all
+ *   calls borrowing it.
  */
 class PackArchivePool {
 public:
