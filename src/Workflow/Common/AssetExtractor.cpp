@@ -39,7 +39,14 @@ Core::Result<LookupHit> extractEntryFromPack(
         return Core::Result<LookupHit>::failure(archiveRes.error());
     }
     auto archive = archiveRes.value();
-    if (!archive->hasEntry(entryPath, token)) {
+    auto hasRes = archive->hasEntry(entryPath, token);
+    if (hasRes.isCancelled()) {
+        return Core::Result<LookupHit>::cancelled(hasRes.message());
+    }
+    if (hasRes.isFailure()) {
+        return Core::Result<LookupHit>::failure(hasRes.error());
+    }
+    if (!hasRes.value()) {
         return Core::Result<LookupHit>::success({});
     }
 
@@ -114,7 +121,15 @@ void extractCompanions(
             companionRelative = assetDir + u'/' + companionRelative;
         }
 
-        const Core::Path::FilesystemPath companionDest = destContentDir / companionRelative;
+        auto companionDestOpt = destContentDir.resolveBelow(companionRelative);
+        if (!companionDestOpt.has_value()) {
+            if (taskCtx) {
+                taskCtx->warning(QCoreApplication::translate("AssetExtractor", "Companion path '%1' traverses outside destination directory")
+                                     .arg(companionRelative));
+            }
+            continue;
+        }
+        const Core::Path::FilesystemPath companionDest = *companionDestOpt;
         Core::Result<LookupHit> outcome = winnerFromPack
             ? extractEntryFromPack(pool, winnerPath, companionRelative, companionDest, token)
             : extractFromDirectoryTarget(pool, winnerPath, companionRelative, companionDest, token);
@@ -165,6 +180,20 @@ Core::Result<AssetExtraction> AssetExtractor::extractLocated(
                 QCoreApplication::translate("AssetExtractor", "destination content directory is empty or invalid"));
         }
 
+        if (location.relativePath.isEmpty()) {
+            return Core::Result<AssetExtraction>::failure(
+                Core::Error::ErrorCode::InvalidArgument,
+                QCoreApplication::translate("AssetExtractor", "asset relative path is empty"));
+        }
+
+        auto destFileOpt = destContentDir.resolveBelow(location.relativePath);
+        if (!destFileOpt.has_value()) {
+            return Core::Result<AssetExtraction>::failure(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("AssetExtractor", "asset path traverses outside destination directory"),
+                location.relativePath);
+        }
+
         if (token.isCancelled()) {
             return Core::Result<AssetExtraction>::cancelled(
                 QCoreApplication::translate("AssetExtractor", "Asset extraction cancelled"));
@@ -174,7 +203,7 @@ Core::Result<AssetExtraction> AssetExtractor::extractLocated(
         Domain::Package::PackArchivePool* archivePool = options.locateOptions.archivePool;
         Domain::Package::PackArchivePool& pool = archivePool ? *archivePool : localPool;
 
-        const Core::Path::FilesystemPath destFile = destContentDir / location.relativePath;
+        const Core::Path::FilesystemPath destFile = *destFileOpt;
 
         if (!location.isInsidePack) {
             const Core::Path::FilesystemPath sourceFile = location.looseFilePath.isValid() && !location.looseFilePath.isEmpty()

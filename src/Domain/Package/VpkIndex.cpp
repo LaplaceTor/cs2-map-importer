@@ -1,5 +1,6 @@
 #include "Domain/Package/VpkIndex.h"
 
+#include <limits>
 #include <QCoreApplication>
 #include <QDataStream>
 #include <QDateTime>
@@ -108,8 +109,33 @@ Core::Result<void> VpkIndex::saveToFile(const Core::Path::FilesystemPath& filePa
 
     // Ensure parent directory exists
     const Core::Path::FilesystemPath parentDir = filePath.parentPath();
-    if (parentDir.isValid()) {
-        QDir().mkpath(parentDir.toString());
+    if (parentDir.isValid() && !parentDir.exists()) {
+        if (!QDir().mkpath(parentDir.toString())) {
+            return Core::Result<void>::failure(
+                Core::Error::ErrorCode::WriteFailed,
+                QCoreApplication::translate("VpkIndex", "Failed to create directory for index file: %1")
+                    .arg(parentDir.toString()),
+                filePath.toString());
+        }
+    }
+
+    if (m_vpks.size() > std::numeric_limits<quint16>::max()) {
+        return Core::Result<void>::failure(
+            Core::Error::ErrorCode::InvalidState,
+            QCoreApplication::translate("VpkIndex", "VPK archive count exceeds maximum supported format limit (65535)"),
+            filePath.toString());
+    }
+    if (static_cast<quint64>(m_entryToVpk.size()) > std::numeric_limits<quint32>::max()) {
+        return Core::Result<void>::failure(
+            Core::Error::ErrorCode::InvalidState,
+            QCoreApplication::translate("VpkIndex", "Entry count exceeds maximum supported format limit"),
+            filePath.toString());
+    }
+    if (static_cast<quint64>(m_cs2NativeStems.size()) > std::numeric_limits<quint32>::max()) {
+        return Core::Result<void>::failure(
+            Core::Error::ErrorCode::InvalidState,
+            QCoreApplication::translate("VpkIndex", "Native stem count exceeds maximum supported format limit"),
+            filePath.toString());
     }
 
     QFile file(filePath.toString());
@@ -189,6 +215,17 @@ Core::Result<VpkIndex> VpkIndex::loadFromFile(const Core::Path::FilesystemPath& 
             filePath.toString());
     }
 
+    const qint64 fileSize = file.size();
+    // Header (magic: 8, version: 4, flags: 4, timestamp: 8) = 24 bytes
+    // Table counters: vpkCount: 2 bytes, entryCount: 4 bytes, stemCount: 4 bytes -> total 34 bytes minimum
+    constexpr qint64 MinHeaderSize = 34;
+    if (fileSize < MinHeaderSize) {
+        return Core::Result<VpkIndex>::failure(
+            Core::Error::ErrorCode::CorruptedData,
+            QCoreApplication::translate("VpkIndex", "Index file is smaller than minimum header size"),
+            filePath.toString());
+    }
+
     QDataStream in(&file);
     in.setByteOrder(QDataStream::LittleEndian);
     in.setVersion(QDataStream::Qt_6_8);
@@ -224,6 +261,13 @@ Core::Result<VpkIndex> VpkIndex::loadFromFile(const Core::Path::FilesystemPath& 
     // 2. VPK table
     quint16 vpkCount = 0;
     in >> vpkCount;
+    // Each VPK record requires at least: id(2) + pathStr length(4) + size(8) + lastModified(8) + sha256 length(4) = 26 bytes
+    if (static_cast<qint64>(vpkCount) > fileSize / 26) {
+        return Core::Result<VpkIndex>::failure(
+            Core::Error::ErrorCode::CorruptedData,
+            QCoreApplication::translate("VpkIndex", "VPK archive count exceeds maximum possible records for file size"),
+            filePath.toString());
+    }
     index.m_vpks.reserve(vpkCount);
     for (quint16 i = 0; i < vpkCount; ++i) {
         VpkArchiveMeta meta;
@@ -240,6 +284,13 @@ Core::Result<VpkIndex> VpkIndex::loadFromFile(const Core::Path::FilesystemPath& 
     // 3. Entries
     quint32 entryCount = 0;
     in >> entryCount;
+    // Each entry requires at least: key length(4) + vpkId(2) = 6 bytes
+    if (static_cast<qint64>(entryCount) > fileSize / 6) {
+        return Core::Result<VpkIndex>::failure(
+            Core::Error::ErrorCode::CorruptedData,
+            QCoreApplication::translate("VpkIndex", "Entry count exceeds maximum possible entries for file size"),
+            filePath.toString());
+    }
     index.m_entryToVpk.reserve(static_cast<qsizetype>(entryCount));
     for (quint32 i = 0; i < entryCount; ++i) {
         QString key;
@@ -252,6 +303,13 @@ Core::Result<VpkIndex> VpkIndex::loadFromFile(const Core::Path::FilesystemPath& 
     // 4. CS2 Native Stems
     quint32 stemCount = 0;
     in >> stemCount;
+    // Each stem requires at least: stem length(4) = 4 bytes
+    if (static_cast<qint64>(stemCount) > fileSize / 4) {
+        return Core::Result<VpkIndex>::failure(
+            Core::Error::ErrorCode::CorruptedData,
+            QCoreApplication::translate("VpkIndex", "Native stem count exceeds maximum possible stems for file size"),
+            filePath.toString());
+    }
     index.m_cs2NativeStems.reserve(static_cast<qsizetype>(stemCount));
     for (quint32 i = 0; i < stemCount; ++i) {
         QString stem;

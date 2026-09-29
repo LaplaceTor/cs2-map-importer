@@ -139,6 +139,11 @@ Core::Result<std::optional<Domain::Asset::AssetLocation>> AssetLocator::locate(
             Core::Error::ErrorCode::InvalidArgument,
             QCoreApplication::translate("AssetLocator", "relative asset path is empty"));
 
+    case Domain::Asset::LocateStatus::Failure:
+        return Core::Result<std::optional<Domain::Asset::AssetLocation>>::failure(
+            result.error,
+            result.error.message());
+
     case Domain::Asset::LocateStatus::NotFound:
     default:
         return Core::Result<std::optional<Domain::Asset::AssetLocation>>::skipped(
@@ -184,6 +189,11 @@ Core::Result<bool> AssetLocator::exists(
         return Core::Result<bool>::failure(
             Core::Error::ErrorCode::InvalidArgument,
             QCoreApplication::translate("AssetLocator", "relative asset path is empty"));
+
+    case Domain::Asset::LocateStatus::Failure:
+        return Core::Result<bool>::failure(
+            result.error,
+            result.error.message());
 
     default:
         return Core::Result<bool>::success(false);

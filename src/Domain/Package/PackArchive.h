@@ -52,9 +52,9 @@ public:
 
     /**
      * @brief Checks whether an entry exists (case-insensitive).
-     * Returns false if token is cancelled.
+     * Returns cancelled result if token is cancelled.
      */
-    bool hasEntry(
+    Core::Result<bool> hasEntry(
         const QString& entryPath,
         const Core::Async::CancellationToken& token = {}) const;
 

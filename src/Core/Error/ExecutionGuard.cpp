@@ -41,10 +41,10 @@ ErrorCode ExecutionGuard::classifyStdException(const std::exception& ex)
         if (ec == std::errc::invalid_argument) {
             return ErrorCode::InvalidArgument;
         }
-        if (ec == std::errc::read_only_file_system || ec == std::errc::io_error) {
+        if (ec == std::errc::read_only_file_system) {
             return ErrorCode::WriteFailed;
         }
-        return ErrorCode::ReadFailed;
+        return ErrorCode::OperationFailed;
     }
 
     if (dynamic_cast<const std::invalid_argument*>(&ex) || dynamic_cast<const std::out_of_range*>(&ex)) {
@@ -52,7 +52,7 @@ ErrorCode ExecutionGuard::classifyStdException(const std::exception& ex)
     }
 
     if (dynamic_cast<const std::bad_alloc*>(&ex)) {
-        return ErrorCode::ResourceBusy;
+        return ErrorCode::OutOfMemory;
     }
 
     return ErrorCode::OperationFailed;

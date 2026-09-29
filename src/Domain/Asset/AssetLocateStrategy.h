@@ -6,6 +6,7 @@
 #include <QString>
 
 #include "Core/Async/CancellationToken.h"
+#include "Core/Error/Error.h"
 #include "Domain/Asset/AssetLocation.h"
 #include "Domain/Asset/IAssetSourceProber.h"
 #include "Domain/Game/SearchTarget.h"
@@ -17,13 +18,15 @@ enum class LocateStatus {
     NativeCs2,
     NotFound,
     EmptyPath,
-    Cancelled
+    Cancelled,
+    Failure
 };
 
 struct LocateResult {
     LocateStatus status = LocateStatus::NotFound;
     std::optional<AssetLocation> location;
     Core::Path::FilesystemPath probedWinnerVpk;
+    Core::Error::Error error = Core::Error::Error::success();
 };
 
 /**

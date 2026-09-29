@@ -92,6 +92,11 @@ public:
         return Error(ErrorCode::OperationFailed, msg, details);
     }
 
+    static Error outOfMemory(const QString& msg = QString(), const QString& details = QString())
+    {
+        return Error(ErrorCode::OutOfMemory, msg, details);
+    }
+
     template <typename EnumT>
     static Error domain(const QString& domainName, EnumT domainCode, const QString& message = QString(), const QString& details = QString(), ErrorCode highLevelCode = ErrorCode::DomainError)
     {

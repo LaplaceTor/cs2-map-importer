@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <QString>
 
 namespace Core::Path {
@@ -18,6 +19,14 @@ public:
     bool isRelative() const;
     bool isSubpathOf(const FilesystemPath& baseDir) const;
     bool contains(const FilesystemPath& childPath) const;
+
+    /**
+     * @brief Safely resolves a subpath strictly underneath this directory.
+     * Prevents path traversal (e.g. "../outside", absolute paths, escaping symlinks).
+     * @return Resolved FilesystemPath if safely below this directory, or std::nullopt.
+     */
+    std::optional<FilesystemPath> resolveBelow(const QString& subpath) const;
+    std::optional<FilesystemPath> resolveBelow(const FilesystemPath& subpath) const;
 
     QString fileName() const;
     QString extension() const;

@@ -42,6 +42,7 @@ enum class ErrorCode {
     Timeout,
     ResourceBusy,
     NetworkError,
+    OutOfMemory,
 
     // Domain Specific Fallback
     DomainError

@@ -42,18 +42,27 @@ LocateResult AssetLocateStrategy::locate(
             return LocateResult{LocateStatus::Cancelled, std::nullopt, {}};
         }
 
-        if (target.isDirectory() && prober.hasLooseFile(target, entryPath, token)) {
-            const Core::Path::FilesystemPath looseFile = target.path() / entryPath;
-            if (observer) {
-                observer->onLooseFileFound(entryPath, target.path());
+        if (target.isDirectory()) {
+            auto looseRes = prober.hasLooseFile(target, entryPath, token);
+            if (looseRes.isCancelled()) {
+                return LocateResult{LocateStatus::Cancelled, std::nullopt, {}};
             }
+            if (looseRes.isFailure()) {
+                return LocateResult{LocateStatus::Failure, std::nullopt, {}, looseRes.error()};
+            }
+            if (looseRes.value()) {
+                const Core::Path::FilesystemPath looseFile = target.path() / entryPath;
+                if (observer) {
+                    observer->onLooseFileFound(entryPath, target.path());
+                }
 
-            AssetLocation location;
-            location.sourceTargetPath = target.path();
-            location.relativePath = entryPath;
-            location.isInsidePack = false;
-            location.looseFilePath = looseFile;
-            return LocateResult{LocateStatus::Found, std::move(location), {}};
+                AssetLocation location;
+                location.sourceTargetPath = target.path();
+                location.relativePath = entryPath;
+                location.isInsidePack = false;
+                location.looseFilePath = looseFile;
+                return LocateResult{LocateStatus::Found, std::move(location), {}};
+            }
         }
     }
 
@@ -68,7 +77,17 @@ LocateResult AssetLocateStrategy::locate(
         const Core::Path::FilesystemPath& winningVpk = winningVpkOpt.value();
         probedWinnerVpk = winningVpk;
 
-        if (prober.hasPackEntry(winningVpk, entryPath, token)) {
+        auto packRes = prober.hasPackEntry(winningVpk, entryPath, token);
+        if (packRes.isCancelled()) {
+            return LocateResult{LocateStatus::Cancelled, std::nullopt, probedWinnerVpk};
+        }
+        if (packRes.isFailure()) {
+            if (observer) {
+                observer->onWinnerVpkNotFound(entryPath, winningVpk);
+            }
+            return LocateResult{LocateStatus::Failure, std::nullopt, probedWinnerVpk, packRes.error()};
+        }
+        if (packRes.value()) {
             AssetLocation location;
             location.sourceTargetPath = winningVpk;
             location.relativePath = entryPath;
@@ -99,7 +118,17 @@ LocateResult AssetLocateStrategy::locate(
             continue;
         }
 
-        if (prober.hasPackEntry(packPath, entryPath, token)) {
+        auto packRes = prober.hasPackEntry(packPath, entryPath, token);
+        if (packRes.isCancelled()) {
+            return LocateResult{LocateStatus::Cancelled, std::nullopt, probedWinnerVpk};
+        }
+        if (packRes.isFailure()) {
+            if (observer) {
+                observer->onTargetVpkNotFound(entryPath, target.path());
+            }
+            return LocateResult{LocateStatus::Failure, std::nullopt, probedWinnerVpk, packRes.error()};
+        }
+        if (packRes.value()) {
             AssetLocation location;
             location.sourceTargetPath = packPath;
             location.relativePath = entryPath;

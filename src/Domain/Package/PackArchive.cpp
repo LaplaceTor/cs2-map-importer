@@ -110,11 +110,29 @@ Core::Result<std::vector<QString>> PackArchive::listEntries() const {
     }, ctx);
 }
 
-bool PackArchive::hasEntry(const QString& entryPath, const Core::Async::CancellationToken& token) const {
-    if (token.isCancelled() || !m_packFile) {
-        return false;
+Core::Result<bool> PackArchive::hasEntry(const QString& entryPath, const Core::Async::CancellationToken& token) const {
+    if (token.isCancelled()) {
+        return Core::Result<bool>::cancelled(
+            QCoreApplication::translate("PackArchive", "check pack entry cancelled"));
     }
-    return m_packFile->hasEntry(normalizeEntryPath(entryPath).toStdString());
+    if (!m_packFile) {
+        return Core::Result<bool>::failure(
+            Core::Error::ErrorCode::InvalidState,
+            QCoreApplication::translate("PackArchive", "pack archive is not open"));
+    }
+    if (entryPath.isEmpty()) {
+        return Core::Result<bool>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QCoreApplication::translate("PackArchive", "entry path is empty"));
+    }
+    const QString normalized = normalizeEntryPath(entryPath);
+    if (normalized.startsWith(QStringLiteral("../")) || normalized == QStringLiteral("..") || QDir::isAbsolutePath(normalized)) {
+        return Core::Result<bool>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QCoreApplication::translate("PackArchive", "entry path is invalid or traverses outside directory"),
+            entryPath);
+    }
+    return Core::Result<bool>::success(m_packFile->hasEntry(normalized.toStdString()));
 }
 
 Core::Result<std::vector<std::byte>> PackArchive::readEntry(const QString& entryPath) const {
@@ -129,8 +147,21 @@ Core::Result<std::vector<std::byte>> PackArchive::readEntry(const QString& entry
                 Core::Error::ErrorCode::InvalidState,
                 QCoreApplication::translate("PackArchive", "pack archive is not open"));
         }
+        if (entryPath.isEmpty()) {
+            return Core::Result<std::vector<std::byte>>::failure(
+                Core::Error::ErrorCode::InvalidArgument,
+                QCoreApplication::translate("PackArchive", "entry path is empty"));
+        }
 
-        auto data = m_packFile->readEntry(normalizeEntryPath(entryPath).toStdString());
+        const QString normalized = normalizeEntryPath(entryPath);
+        if (normalized.startsWith(QStringLiteral("../")) || normalized == QStringLiteral("..") || QDir::isAbsolutePath(normalized)) {
+            return Core::Result<std::vector<std::byte>>::failure(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("PackArchive", "entry path is invalid or traverses outside directory"),
+                entryPath);
+        }
+
+        auto data = m_packFile->readEntry(normalized.toStdString());
         if (!data) {
             return Core::Result<std::vector<std::byte>>::failure(
                 Core::Error::ErrorCode::EntryNotFound,
@@ -166,8 +197,20 @@ Core::Result<void> PackArchive::extractEntryToFile(
                 Core::Error::ErrorCode::InvalidPath,
                 QCoreApplication::translate("PackArchive", "destination file path is empty or invalid"));
         }
+        if (entryPath.isEmpty()) {
+            return Core::Result<void>::failure(
+                Core::Error::ErrorCode::InvalidArgument,
+                QCoreApplication::translate("PackArchive", "entry path is empty"));
+        }
 
         const QString normalized = normalizeEntryPath(entryPath);
+        if (normalized.startsWith(QStringLiteral("../")) || normalized == QStringLiteral("..") || QDir::isAbsolutePath(normalized)) {
+            return Core::Result<void>::failure(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("PackArchive", "entry path is invalid or traverses outside directory"),
+                entryPath);
+        }
+
         if (!m_packFile->hasEntry(normalized.toStdString())) {
             return Core::Result<void>::failure(
                 Core::Error::ErrorCode::EntryNotFound,
@@ -273,7 +316,14 @@ Core::Result<void> PackArchive::extractAllToDirectory(
                 return Core::Result<void>::cancelled(
                     QCoreApplication::translate("PackArchive", "pack extraction cancelled"));
             }
-            auto extractRes = extractEntryToFile(entry, destDir / entry, token);
+            auto destFileOpt = destDir.resolveBelow(entry);
+            if (!destFileOpt.has_value()) {
+                return Core::Result<void>::failure(
+                    Core::Error::ErrorCode::InvalidPath,
+                    QCoreApplication::translate("PackArchive", "archive entry traverses outside destination directory"),
+                    entry);
+            }
+            auto extractRes = extractEntryToFile(entry, *destFileOpt, token);
             if (extractRes.isCancelled()) {
                 return extractRes;
             }

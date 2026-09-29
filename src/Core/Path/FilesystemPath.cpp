@@ -71,6 +71,32 @@ bool FilesystemPath::contains(const FilesystemPath& childPath) const {
     return childPath.isSubpathOf(*this);
 }
 
+std::optional<FilesystemPath> FilesystemPath::resolveBelow(const QString& subpath) const {
+    if (m_path.isEmpty() || subpath.isEmpty()) {
+        return std::nullopt;
+    }
+    FilesystemPath sub(subpath);
+    if (sub.isAbsolute()) {
+        return std::nullopt;
+    }
+    QString cleanSub = QDir::cleanPath(subpath);
+    while (cleanSub.startsWith(u'/') || cleanSub.startsWith(u'\\')) {
+        cleanSub.remove(0, 1);
+    }
+    if (cleanSub.isEmpty() || cleanSub.startsWith(QStringLiteral("../")) || cleanSub == QStringLiteral("..")) {
+        return std::nullopt;
+    }
+    FilesystemPath resolved = *this / cleanSub;
+    if (!resolved.isSubpathOf(*this)) {
+        return std::nullopt;
+    }
+    return resolved;
+}
+
+std::optional<FilesystemPath> FilesystemPath::resolveBelow(const FilesystemPath& subpath) const {
+    return resolveBelow(subpath.toString());
+}
+
 QString FilesystemPath::fileName() const {
     if (m_path.isEmpty()) {
         return QString();

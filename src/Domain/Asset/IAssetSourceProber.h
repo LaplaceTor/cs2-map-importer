@@ -4,6 +4,7 @@
 #include <QString>
 #include "Core/Async/CancellationToken.h"
 #include "Core/Path/FilesystemPath.h"
+#include "Core/Result/Result.h"
 #include "Domain/Game/SearchTarget.h"
 
 namespace Domain::Asset {
@@ -24,7 +25,7 @@ public:
     /**
      * @brief Checks whether a loose file exists on disk within the given directory target.
      */
-    virtual bool hasLooseFile(
+    virtual Core::Result<bool> hasLooseFile(
         const Domain::Game::SearchTarget& target,
         const QString& entryPath,
         const Core::Async::CancellationToken& token = {}) = 0;
@@ -38,7 +39,7 @@ public:
     /**
      * @brief Checks whether the entry exists inside the specified pack archive (VPK).
      */
-    virtual bool hasPackEntry(
+    virtual Core::Result<bool> hasPackEntry(
         const Core::Path::FilesystemPath& packPath,
         const QString& entryPath,
         const Core::Async::CancellationToken& token = {}) = 0;

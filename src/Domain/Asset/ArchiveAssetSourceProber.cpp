@@ -17,14 +17,21 @@ bool ArchiveAssetSourceProber::isNativeCs2Asset(const QString& entryPath) const 
     return m_cs2Index && m_cs2Index->hasCs2NativeAsset(entryPath);
 }
 
-bool ArchiveAssetSourceProber::hasLooseFile(
+Core::Result<bool> ArchiveAssetSourceProber::hasLooseFile(
     const Domain::Game::SearchTarget& target,
     const QString& entryPath,
     const Core::Async::CancellationToken& token) {
-    if (token.isCancelled() || !target.isDirectory()) {
-        return false;
+    if (token.isCancelled()) {
+        return Core::Result<bool>::cancelled();
     }
-    return (target.path() / entryPath).exists();
+    if (!target.isDirectory() || entryPath.isEmpty()) {
+        return Core::Result<bool>::success(false);
+    }
+    auto resolvedOpt = target.path().resolveBelow(entryPath);
+    if (!resolvedOpt.has_value()) {
+        return Core::Result<bool>::success(false);
+    }
+    return Core::Result<bool>::success(resolvedOpt->exists());
 }
 
 std::optional<Core::Path::FilesystemPath> ArchiveAssetSourceProber::queryVpkIndex(const QString& entryPath) const {
@@ -34,16 +41,22 @@ std::optional<Core::Path::FilesystemPath> ArchiveAssetSourceProber::queryVpkInde
     return m_vpkIndex->findVpkForEntry(entryPath);
 }
 
-bool ArchiveAssetSourceProber::hasPackEntry(
+Core::Result<bool> ArchiveAssetSourceProber::hasPackEntry(
     const Core::Path::FilesystemPath& packPath,
     const QString& entryPath,
     const Core::Async::CancellationToken& token) {
-    if (token.isCancelled() || !packPath.exists()) {
-        return false;
+    if (token.isCancelled()) {
+        return Core::Result<bool>::cancelled();
+    }
+    if (entryPath.isEmpty() || !packPath.exists()) {
+        return Core::Result<bool>::success(false);
     }
     auto archiveRes = m_pool.getOrOpen(packPath, token);
-    if (archiveRes.isFailure() || archiveRes.isCancelled()) {
-        return false;
+    if (archiveRes.isCancelled()) {
+        return Core::Result<bool>::cancelled(archiveRes.message());
+    }
+    if (archiveRes.isFailure()) {
+        return Core::Result<bool>::failure(archiveRes.error(), archiveRes.message());
     }
     return archiveRes.value()->hasEntry(entryPath, token);
 }
