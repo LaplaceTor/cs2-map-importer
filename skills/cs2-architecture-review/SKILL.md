@@ -18,7 +18,10 @@ description: >-
 | `VmfBspProcess` | `Domain::Vmf` / `Domain::Bsp` | `src/Domain/Vmf/`, `src/Domain/Bsp/` | VMF 处理与 BSP 反编译行为。 |
 | `MaterialFix` | `Domain::Material` | `src/Domain/Material/` | VMT/VMAT 材质转换与修正；VTF 解码（`VtfCodec` / `VtfConverter`）与纹理处理管线（`TextureProcess` PBR 贴图生成、通道打包，`TextureIO` 宽读取 / 仅 PNG 导出）。[已落地] |
 | `SoundscapeImport` | `Domain::Audio` + `Application::Soundscape` | 对应目录 | Source 1 Soundscape 脚本解析、KV3 Soundevents 转换与批量服务。[已落地] |
-| `FileExtractFromVPK`, 跨包盲猜撞库与解包 | `Domain::Package` + `Workflow::Common` + `Application::Package` | 对应目录 | 基于 `sourcepp` 的内嵌包解析与提取（`PackArchive`, `BspPackExtractor`, `PackArchivePool` 归档池化缓存）；VPK 全量树持久化二进制索引（`VpkIndex`, `VpkIndexBuilder`, `VpkIndexService` [后台预热与 SHA-256 校验]）及 `AssetExtractor`（松散文件优先、索引点查直接命中、CS2 原生规整去重），完全移除外部 VPKEdit CLI 依赖并根除盲目撞库试探开销。[已落地] |
+| `FileExtractFromVPK`, 跨包盲猜撞库与解包 | `Domain::Package` + `Workflow::Common` + `Application::Package` | 对应目录 | 基于 `sourcepp` 的内嵌包解析与提取（`PackArchive`, `BspPackExtractor`, `PackArchivePool` 细粒度 `OpeningEntry` 条件变量并发同步与防重入缓存）；VPK 全量树持久化二进制索引（`VpkIndex`, `VpkIndexBuilder`, `VpkIndexService` [后台预热与 SHA-256 校验]）及 `AssetExtractor`（统一 `AssetExtractOptions` 配置、松散文件优先、索引点查直接命中、CS2 原生规整去重、解压目标句柄 `expectedBaseDir` 目录防穿越与伴生资源取消感知），完全移除外部 VPKEdit CLI 依赖并根除盲目撞库试探开销。[已落地] |
+| 资产定位与来源探测 | `Domain::Asset` + `Workflow::Common` | `src/Domain/Asset/`, `src/Workflow/Common/` | 资产定位三层抽象：Domain 纯策略解耦（`IAssetSourceProber`, `ArchiveAssetSourceProber`, `AssetLocateStrategy`, `AssetLocation`）；Workflow 消费层（`AssetLocator` 提供高保真 API `exists()` 返回 `Result<bool>`，CS2 原生存在即视为 `true`，`locate()` 精确区分松散/归档/原生/未找到/取消/失败）。[已落地] |
+| 异常转译与上下文边界 | `Core::Error` | `src/Core/Error/` | 通用异常边界防护（`Core::Error::ExecutionGuard` 与 `ExecutionContext`），零业务关键字猜测，直接保留强类型 `Core::Error::Exception` 错误码并归一化标准异常转译。[已落地] |
+| 路径安全与边界判定 | `Core::Path` | `src/Core/Path/` | `FilesystemPath` 扩展 `weakly_canonical` 物理路径包含性判定、冒号/ADS 校验，以及 Win32 目录句柄与规范化路径严格边界校验（`verifyHandleWithinBase`, `verifyFileWithinBase`），防范符号链接与目录联接（Junction）穿越漏洞与 TOCTOU 竞态。[已落地] |
 | `Miscellaneous::ParseGameInfo`, `SearchTarget` | `Domain::Game` | `src/Domain/Game/` | GameInfo 解析、校验与搜索路径解析；S2 插件扫描严格收口至 `content/csgo_addons`。[已落地] |
 | `ModelImporter` | `Workflow::Model` | `src/Workflow/Model/` | `.mdl → .vmdl` 导入流水线。 |
 | `ParticleImporter` | `Workflow::Particle` + `Application::Particle` | 对应目录 | `.pcf → .vpcf` 导入流水线（`ParticleImportWorkflow` + `ParticleImportService`），支持多 PCF 批量导入、暂存防重名隔离保护、调用官方资源编译器自适应清单编译及半成品清理。[已落地] |
@@ -27,7 +30,7 @@ description: >-
 | `vpk.signatures` 锁定 / 导入前置保障 | `Application::Common` + `Application::Environment` + `Application::Package` | 对应目录 | `ImportPrerequisiteService` 统一校验基础参数、独占获取 CS2 文件租约，并双重保障 VPK 索引处于可用就绪状态。[已落地] |
 | `Ui::CheckForUpdate` | `Application::Update` | `src/Application/Update/` | 自动更新检测。 |
 | `Ui::LoadFromCfg`, `SaveToCfg` | `Application::Config` | `src/Application/Config/` | 配置持久化。 |
-| `Ui::Start`, 工作线程, `CancelAll` | `Application::Async`（任务服务 `Application::Task`【规划】） | 对应目录 | `AsyncTaskRunner`（`runTask` / `runWorkflowTask` / `runSystemTask`）、`TaskHandle`、`SystemTaskLog`（系统任务平面）与协作式取消及任务生命周期管理。[已落地] |
+| `Ui::Start`, 工作线程, `CancelAll` | `Application::Async`（任务服务 `Application::Task`【规划】） | 对应目录 | `AsyncTaskRunner`（`runTask` / `runWorkflowTask` / `runSystemTask`）、`TaskHandle`、`SystemTaskLog`（系统任务平面）与协作式取消；内置异常终态兜底（`fallbackTerminalStateOnFatalException`）与回调异常安全隔离（`invokeCallbackSafely`）。[已落地] |
 | `LogViewModel` 直连 `Core::Logging`（`registerWithLogManager` 时代） | `Application::Logging` | `src/Application/Logging/` | `TaskLogService` 日志投递门面 + `TaskLogDTOs` UI 侧值类型；UI 消费日志唯一通道（订阅制投递、陈旧批次抑制），`src/UI/` 严禁 include `Core/Logging/*`。[已落地] |
 | `Ui.h/.cpp` Q_PROPERTY/slots | `UI` | `src/UI/` | 极薄的表现层适配器（`MainController`, `LogViewModel`, `GameViewModel` 联动 `VpkIndexService` 预热），通用 `SourceFileListBox` 组件与左右并排 Tab 布局重构，滚轮防冒泡与智能自动滚动暂停机制。[重构中] |
 
@@ -37,10 +40,10 @@ description: >-
 
 重构按阶段逐步推进，**严禁为了让临时代码通过编译而跨阶段混杂实现**。
 
-1. **Stage 1 — Core 基础设施解耦提取**（已完成：错误体系、文件系统、KeyValues、任务导向日志与格式精简、异步取消令牌 `CancellationToken`、`Core::Hash::Sha256` 64KB 流式分块散列校验、`Core::Temp::TempFile` 统一生命周期管理、`Core::Path::FilesystemPath` 路径归属判别）
-2. **Stage 2 — Domain 领域基础迁移**（已完成：游戏模型/注册表/校验器/插件目录扫描、`Domain::Package` [PackArchive, BspPackExtractor, PackArchivePool, VpkIndex/VpkIndexBuilder]、`Domain::Material` [VtfConverter, VtfCodec/TextureIO/TgaCodec 纹理 IO 与 `TextureProcess` 纹理处理后端]、`Domain::Audio` [Soundscape 解析与转换]、`Domain::Tool` [CS2 官方工具自适应清单与日志解析器]）
-3. **Stage 3 — 导入器与领域逻辑迁移**（进行中：`Workflow::Particle` 已落地 [支持多 PCF 批量导入、暂存防重名保护、自适应 `-filelist` 资源编译器批量编译]；`Workflow::Common` 资产提取 [VpkIndex 点查直接命中与 CS2 原生规整去重] 与 `ImportContext` [延后进度递进] 已就绪；待推进：ModelImporter → `Workflow::Model`、VmfBspProcess → `Domain::Vmf` + `Domain::Bsp`）
-4. **Stage 4 — Application 应用编排重构**（进行中：`AsyncTaskRunner`、`TaskHandle`、`runWorkflowTask` / `runSystemTask` / `SystemTaskLog`、`TaskLogService` 日志门面、`ImportPrerequisiteService`、`VpkIndexService`、`ParticleImportService`、`SoundscapeConvertService`、`GameEnvironmentService`、`GameInstallationValidator` 已落地；待补齐：统一 ConfigService、UpdateService）
+1. **Stage 1 — Core 基础设施解耦提取**（已完成：错误体系与 `Core::Error::ExecutionGuard` 边界防护、文件系统与流式散列取消支持、KeyValues 节点操作、任务导向日志与格式精简、异步取消令牌 `CancellationToken`、`Core::Hash::Sha256` 64KB 流式分块散列校验、`Core::Temp::TempFile` 统一生命周期管理、`Core::Path::FilesystemPath` 路径归属判别与 Win32 目录句柄/Junction 越界防护）
+2. **Stage 2 — Domain 领域基础迁移**（已完成：游戏模型/注册表/校验器/插件目录扫描、`Domain::Asset` 资产定位策略解耦 [IAssetSourceProber, ArchiveAssetSourceProber, AssetLocateStrategy]、`Domain::Package` [PackArchive 目录句柄校验, BspPackExtractor, PackArchivePool 细粒度并发同步与防重入缓存, VpkIndex/VpkIndexBuilder]、`Domain::Material` [VtfConverter, VtfCodec/TextureIO/TgaCodec 纹理 IO 与 `TextureProcess` 纹理处理后端]、`Domain::Audio` [Soundscape 解析与转换]、`Domain::Tool` [CS2 官方工具自适应清单与日志解析器]）
+3. **Stage 3 — 导入器与领域逻辑迁移**（进行中：`Workflow::Particle` 已落地 [支持多 PCF 批量导入、暂存防重名保护、自适应 `-filelist` 资源编译器批量编译]；`Workflow::Common` 资产定位与提取 [AssetLocator 高保真 exists() 语义、AssetExtractor 统一提取选项 AssetExtractOptions、目标句柄校验与伴生资源取消感知、VpkIndex 点查直接命中与 CS2 原生规整去重] 与 `ImportContext` [延后进度递进] 已就绪；待推进：ModelImporter → `Workflow::Model`、VmfBspProcess → `Domain::Vmf` + `Domain::Bsp`）
+4. **Stage 4 — Application 应用编排重构**（进行中：`AsyncTaskRunner` [runWorkflowTask / runSystemTask / SystemTaskLog、致命异常终态回退防护 fallbackTerminalStateOnFatalException、回调异常安全隔离 invokeCallbackSafely]、`TaskHandle`、`TaskLogService` 日志门面、`ImportPrerequisiteService`、`VpkIndexService`、`ParticleImportService`、`SoundscapeConvertService`、`GameEnvironmentService`、`GameInstallationValidator` 已落地；待补齐：统一 ConfigService、UpdateService）
 5. **Stage 5 — MapImporter 重构与 UI 瘦身**（进行中：Map/Model/Particle Tab 统一采用 `SourceFileListBox` 与左右并排布局；待推进：MapImporter → `Workflow::Map`、UI 彻底收敛为纯展示与 Application 调用）
 
 ---
@@ -107,14 +110,15 @@ description: >-
 ### 4.5 API 规范
 * [ ] UI 接收 Application 契约对象，而非 Domain AST / 底层设施对象。
 * [ ] Domain API 使用强领域类型。
-* [ ] 错误处理结构化并保留诊断上下文。
+* [ ] 错误处理结构化并保留诊断上下文；`Core::Error::ExecutionGuard` 保持通用基础设施特性，严禁猜词推断领域错误码。
+* [ ] 底层探测器（如 `ArchiveAssetSourceProber`）严禁将失败或取消压制吞没为 `false`；工作流资产定位契约（`AssetLocator::exists()`）高保真反映存在性（CS2 原生存在返回 `true`）。
 * [ ] 未重复编写已有 Core 基础设施的功能。
 * [ ] 用户可见文案已包裹 `tr()` / `QCoreApplication::translate` 且上下文为类名（i18n 契约，见 AGENTS.md §5.7）；`details()` 与外部工具原始输出保持英文原文。
 
 ### 4.6 测试生命周期与分层契约
-* [ ] `tests/` 目录中的长期常驻测试仅限于 Core 层（`test_core_*`），仅链接 `cs2importer_core` 与 Qt6::Core/Test。
-* [ ] 非 Core 层（Domain / Workflow / Application / UI）测试仅作为开发验证期间的临时单任务测试（Task-Scoped / Ephemeral Tests）。
-* [ ] 任务完成后，上层临时测试必须彻底清理/删除，严禁合入主线或在 CMakeLists.txt 中残留对非 Core 模块的测试链接。
+* [ ] 长期零常驻测试：代码库默认不包含任何常驻测试目标，`CMakeLists.txt` 不默认启用 `enable_testing()`。
+* [ ] 临时单任务测试（Task-Scoped / Ephemeral Tests）：仅在单任务开发/修复期间创建以验证行为（`test_tmp_*` 前缀）。
+* [ ] 任务完成后用完即删：临时测试及其配置必须在任务完成提交前彻底从代码库和 CMakeLists.txt 中清除，严禁残留任何测试代码。
 
 ---
 
@@ -142,8 +146,10 @@ Workflow → Application
 任何业务文件 → 硬编码 QStringLiteral 用户可见文案（应经 tr() / QCoreApplication::translate）
 任何业务文件 → 遍历或试探打开多个 VPK 检索单个文件 (盲目撞库试探)
 
-tests/ 常驻测试目标 → 链接 cs2importer_domain / cs2importer_workflow / cs2importer_application / cs2importer_ui
-非 Core 临时任务测试 → 任务结束后残留于代码库中
+Core 层 → 自然语言关键词猜词推断领域错误（如 msg.contains("vpk") -> ArchiveOpenFailed）
+探测/定位层 → 将底层真实错误或取消静默吞没为 false，导致上层将异常误判为 NotFound
+异步调度层 → 在回调调用处使用 catch (...) {} 静默吞没异常，缺乏诊断记录
+测试管理 → 任务完成后将临时测试目标或测试代码长期残留于代码库中
 
 承担众多杂项职责的庞大静态 Application 服务
 无明确移除计划的临时跨层 include

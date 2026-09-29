@@ -50,6 +50,8 @@ description: >-
 3. `AsyncTaskRunner` 结合业务结果、日志报错与捕获的异常，驱动 `LogManager` 中的 `TaskState` 状态转移。
 4. 回调函数接收 `const Result<T>&`，并线程安全地投递至调用方所在线程。
 5. **平面归属规则**：面向用户的导入工作流（粒子导入、音景转换等）一律走 `runWorkflowTask` / `runTask` 平面（进任务树、有独立日志）；环境检测、安装校验、插件列举、VPK 索引后台校验与构建（`VpkIndexService`）等非导入后台任务必须走 `runSystemTask`，严禁占用可见任务树。
+6. **致命异常终态回退防护 (`fallbackTerminalStateOnFatalException`)**：当 Worker 内部出现无法预料的严重异常或故障中断时，若任务仍停留于非终态（如 `Running`），Runner 强制触发回退仲裁，调用 `LogManager::forceTaskState(taskId, TaskState::Failed, ...)` 并将进度刷新为 1.0，杜绝任务在 UI 界面永久挂死在运行中状态。
+7. **回调异常安全隔离 (`invokeCallbackSafely`)**：在向 UI / 调用方线程派发回调时，使用两阶段结构化捕获（`catch (const std::exception& ex)` 与 `catch (...)`），将异常记录至应用诊断日志。严禁直接使用空 `catch (...) {}` 静默吞没异常，同时确保 UI 逻辑异常绝不逆向污染 Worker 线程池生命周期。
 
 ### 1.2 层级化任务日志树与外部工具任务 (Workflow Task vs Tool Task)
 
@@ -164,24 +166,47 @@ UI 层消费日志的**唯一通道**是 Application 层门面 `Application::Log
 
 ## 4. 异常处理与转译边界契约
 
-业务主干使用 `Result<T>` 显式单层传递，底层异常在系统边界统一转译：
+业务主干使用 `Result<T>` 显式单层传递，底层异常在系统边界统一通过 `Core::Error::ExecutionGuard` 转译为 `Result<T>::failure`：
 * **`Core::Error::Exception`**：项目专用的结构化异常传输类型（派生自 `std::exception` / `QException`），携带强类型 `Core::Error::Error`。用于深层调用栈快速跳出。
-* **`std::exception`**：标准库与第三方库异常兜底。
+* **`std::exception`**：标准库与第三方库异常兜底，由 `ExecutionGuard::classifyStdException` 进行标准分类。
 * **`catch (...)`**：未知系统异常最终防线。
 
-在异步调度入口（`AsyncTaskRunner`）或服务边界处通过 `ExecutionGuard` 统一转译为 `Result<T>::failure`：
+### 4.1 通用异常边界防护 (`Core::Error::ExecutionGuard` & `ExecutionContext`)
+
+`ExecutionGuard` 位于通用基础设施 Core 层，为 Core、Domain 与 Workflow 提供通用的异常屏障与上下文丰富能力：
+
+```cpp
+// 1. 带上下文描述符的闭包守卫
+Core::Error::ExecutionContext ctx{
+    .stage = QStringLiteral("Extracting pack entry"),
+    .resourcePath = QStringLiteral("materials/models/crate.vmt"),
+    .targetPath = outputFilePath
+};
+
+return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
+    // 业务代码执行...
+    return Core::Result<void>::success();
+}, ctx, QCoreApplication::translate("AssetExtractor", "Failed to extract asset entry"));
+```
+
+或在常规异常捕获处手动转译：
 ```cpp
 try {
     return executeOperation();
 } catch (const Core::Error::Exception& ex) {
-    return Result<T>::failure(ex.error());
+    return Core::Error::ExecutionGuard::handleException<T>(ex, ctx, operationSummary);
 } catch (const std::exception& ex) {
-    return Result<T>::failure(Core::Error::ErrorCode::OperationFailed, QString::fromUtf8(ex.what()));
+    return Core::Error::ExecutionGuard::handleException<T>(ex, ctx, operationSummary);
 } catch (...) {
-    return Result<T>::failure(Core::Error::ErrorCode::Unknown,
-        QCoreApplication::translate("ExecutionGuard", "Unhandled unknown exception"));
+    return Core::Error::ExecutionGuard::handleUnknownException<T>(ctx, operationSummary);
 }
 ```
+
+### 4.2 Core 通用性与零领域猜测契约 (Zero Domain Knowledge in Core)
+
+* **严禁在 Core 中猜词推断领域错误**：Core 层保持完全通用，严禁在 `ExecutionGuard` 中针对异常文本进行自然语言关键词模式匹配（例如严禁使用 `msg.contains("vpk")` 或 `msg.contains("bsp")` 猜测 `ArchiveOpenFailed` 或 `EntryNotFound`）。
+* **标准异常归一化**：`classifyStdException` 仅对标准异常（`std::filesystem::filesystem_error`, `std::invalid_argument`, `std::out_of_range`, `std::bad_alloc`）进行标准 Core `ErrorCode` 归纳（`FileNotFound`, `PermissionDenied`, `FileAlreadyExists`, `InvalidArgument`, `WriteFailed`, `OutOfMemory`, `OperationFailed`）。
+* **领域异常强类型透传**：Domain/Workflow 层的特定错误（如归档打开失败、包内条目缺失等），必须由 Domain 层显式返回包含对应 `ErrorCode` 的 `Result<T>::failure`，或抛出封装了强类型 `Core::Error::Error` 的 `Core::Error::Exception`。`ExecutionGuard` 原样透传其 `ErrorCode` 并通过 `ExecutionContext` 拼接技术诊断信息（`details`）。
 
 > **边界准则**：异常只能在明确的异常边界被捕获。Application API 边界必须将异常转换为 `Core::Result<T>`；Application 内部 helper 默认不得通过 `catch (...)` 将异常静默转换为空值、空容器、`false` 或 `nullptr`。若异常确实代表合法的 best-effort fallback，必须在注释中说明该 fallback 语义，并确保不会掩盖业务失败。
 
@@ -304,14 +329,13 @@ if (procResult.isSuccess()) {
 
 ## 7. 测试生命周期契约 (Testing Lifecycle Policy)
 
-测试代码必须严格遵守仓库的依赖拓扑与生命周期契约：
+测试代码必须严格遵守仓库的分层依赖拓扑与生命周期契约：
 
-1. **Core 层测试（长期常驻维护）**：
-   - 纯 Core 单元测试（`test_core_*`）长期驻留于 `tests/`；
-   - 必须使用纯 Core 的基础设施（如在测试内实现轻量 `ILogSink` 或使用 `TaskFileSink`）进行断言；
-   - **绝对禁止反向依赖**：常驻测试严禁 include 或 link `Application`、`UI` 或 `Domain`。
-2. **非 Core 层测试（面向单任务，用完即删）**：
-   - 针对 Domain、Workflow、Application、UI 层的验证测试，一律定义为**临时单任务测试（Task-Scoped / Ephemeral Tests）**；
-   - 仅在开发相应功能或排查特定缺陷时编写用于自测验证；
-   - **任务完成后必须在合入代码库前立即删除**，严禁将包含上层复杂依赖（特别是 UI、QML、ViewModel）的测试长期滞留在 `tests/` 中。
+1. **长期零常驻测试契约**：
+   - 代码库默认不保留任何常驻单元测试（`tests/` 目录与 CTest 配置已全量移除）；
+   - 主工程 `CMakeLists.txt` 不默认启用 `enable_testing()`，保障编译与分发环境的绝对纯净。
+2. **临时单任务测试（Task-Scoped / Ephemeral Tests，用完即删）**：
+   - 针对各层（Core / Domain / Workflow / Application / UI）的验证测试，一律定义为**临时单任务测试**；
+   - 仅在开发相应功能、验证重构或排查特定缺陷时按需编写（测试目标采用 `test_tmp_*` 命名前缀）；
+   - **任务完成提交前必须立即彻底删除**：测试源码文件及其在 `CMakeLists.txt` 中的配置必须连同清理，严禁将任何测试代码长期残留滞留在代码库中。
 

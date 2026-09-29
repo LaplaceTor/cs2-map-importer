@@ -22,11 +22,13 @@ Core::Result<LookupHit> extractEntryFromPack(
     const Core::Path::FilesystemPath& packPath,
     const QString& entryPath,
     const Core::Path::FilesystemPath& destFile,
-    const Core::Async::CancellationToken& token) {
+    const Core::Async::CancellationToken& token,
+    const Core::Path::FilesystemPath& expectedBaseDir = {}) {
     if (token.isCancelled()) {
         return Core::Result<LookupHit>::cancelled(
             QCoreApplication::translate("AssetExtractor", "Asset extraction cancelled"));
     }
+
     if (!packPath.exists()) {
         return Core::Result<LookupHit>::success({});
     }
@@ -50,7 +52,7 @@ Core::Result<LookupHit> extractEntryFromPack(
         return Core::Result<LookupHit>::success({});
     }
 
-    auto extracted = archive->extractEntryToFile(entryPath, destFile, token);
+    auto extracted = archive->extractEntryToFile(entryPath, destFile, token, expectedBaseDir);
     if (extracted.isCancelled()) {
         return Core::Result<LookupHit>::cancelled(extracted.message());
     }
@@ -65,7 +67,8 @@ Core::Result<LookupHit> extractFromDirectoryTarget(
     const Core::Path::FilesystemPath& targetDir,
     const QString& entryPath,
     const Core::Path::FilesystemPath& destFile,
-    const Core::Async::CancellationToken& token) {
+    const Core::Async::CancellationToken& token,
+    const Core::Path::FilesystemPath& expectedBaseDir = {}) {
     if (token.isCancelled()) {
         return Core::Result<LookupHit>::cancelled(
             QCoreApplication::translate("AssetExtractor", "Asset extraction cancelled"));
@@ -73,6 +76,13 @@ Core::Result<LookupHit> extractFromDirectoryTarget(
 
     const Core::Path::FilesystemPath looseFile = targetDir / entryPath;
     if (looseFile.exists()) {
+        if (!expectedBaseDir.isEmpty() && !destFile.isSubpathOf(expectedBaseDir)) {
+            return Core::Result<LookupHit>::failure(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("AssetExtractor", "Destination path escapes base directory"),
+                destFile.toString());
+        }
+
         Core::Error::ExecutionContext copyCtx{
             .stage = QStringLiteral("Copying loose file"),
             .resourcePath = entryPath,
@@ -92,7 +102,7 @@ Core::Result<LookupHit> extractFromDirectoryTarget(
         return Core::Result<LookupHit>::success(LookupHit{true, false});
     }
 
-    return extractEntryFromPack(pool, targetDir / QStringLiteral("pak01_dir.vpk"), entryPath, destFile, token);
+    return extractEntryFromPack(pool, targetDir / QStringLiteral("pak01_dir.vpk"), entryPath, destFile, token, expectedBaseDir);
 }
 
 Core::Result<void> extractCompanions(
@@ -132,8 +142,8 @@ Core::Result<void> extractCompanions(
         }
         const Core::Path::FilesystemPath companionDest = *companionDestOpt;
         Core::Result<LookupHit> outcome = winnerFromPack
-            ? extractEntryFromPack(pool, winnerPath, companionRelative, companionDest, token)
-            : extractFromDirectoryTarget(pool, winnerPath, companionRelative, companionDest, token);
+            ? extractEntryFromPack(pool, winnerPath, companionRelative, companionDest, token, destContentDir)
+            : extractFromDirectoryTarget(pool, winnerPath, companionRelative, companionDest, token, destContentDir);
 
         if (outcome.isCancelled()) {
             return Core::Result<void>::cancelled(outcome.message());
@@ -248,7 +258,7 @@ Core::Result<AssetExtraction> AssetExtractor::extractLocated(
         }
 
         // Inside pack archive
-        auto outcome = extractEntryFromPack(pool, location.sourceTargetPath, location.relativePath, destFile, token);
+        auto outcome = extractEntryFromPack(pool, location.sourceTargetPath, location.relativePath, destFile, token, destContentDir);
         if (outcome.isCancelled()) {
             return Core::Result<AssetExtraction>::cancelled(outcome.message());
         }

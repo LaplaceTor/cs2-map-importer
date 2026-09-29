@@ -175,7 +175,8 @@ Core::Result<std::vector<std::byte>> PackArchive::readEntry(const QString& entry
 Core::Result<void> PackArchive::extractEntryToFile(
     const QString& entryPath,
     const Core::Path::FilesystemPath& destFile,
-    const Core::Async::CancellationToken& token) const {
+    const Core::Async::CancellationToken& token,
+    const Core::Path::FilesystemPath& expectedBaseDir) const {
     Core::Error::ExecutionContext ctx{
         .stage = QStringLiteral("Extracting pack entry to file"),
         .resourcePath = entryPath,
@@ -252,6 +253,15 @@ Core::Result<void> PackArchive::extractEntryToFile(
                 destFile.toString());
         }
 
+        if (!expectedBaseDir.isEmpty() && !Core::Path::FilesystemPath::verifyFileWithinBase(outFile, expectedBaseDir)) {
+            outFile.close();
+            outFile.remove();
+            return Core::Result<void>::failure(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("PackArchive", "destination file escapes base directory via reparse point"),
+                destFile.toString());
+        }
+
         const auto& data = *dataOpt;
         constexpr qint64 ChunkSize = 64 * 1024;
         qint64 totalWritten = 0;
@@ -323,7 +333,7 @@ Core::Result<void> PackArchive::extractAllToDirectory(
                     QCoreApplication::translate("PackArchive", "archive entry traverses outside destination directory"),
                     entry);
             }
-            auto extractRes = extractEntryToFile(entry, *destFileOpt, token);
+            auto extractRes = extractEntryToFile(entry, *destFileOpt, token, destDir);
             if (extractRes.isCancelled()) {
                 return extractRes;
             }

@@ -71,7 +71,8 @@ public:
     Core::Result<void> extractEntryToFile(
         const QString& entryPath,
         const Core::Path::FilesystemPath& destFile,
-        const Core::Async::CancellationToken& token = {}) const;
+        const Core::Async::CancellationToken& token = {},
+        const Core::Path::FilesystemPath& expectedBaseDir = {}) const;
 
     /**
      * @brief Extracts every entry below the given directory, preserving the

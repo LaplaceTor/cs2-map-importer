@@ -102,17 +102,17 @@ Application 亦可直接调用 Domain/Core 提供的非工作流服务，但 **U
 
 ### 3.3 Workflow 规则 (`src/Workflow/`)
 
-* **允许：** 定义具体导入流水线（如 `ParticleImportWorkflow`）；使用 `ImportContext` 处理取消与进度（`runStep` 在步骤成功后延后推进进度）；管理生成的半成品资产生命周期（失败或取消时清理半成品）；导入外部文件需暂存时通过隔离临时文件保障现有用户资产不被覆盖；资产定位与提取严格遵循“松散文件优先、VPK 索引点查直接命中”策略（`Workflow::Common::AssetExtractor` 联动 `VpkIndex`，杜绝跨 VPK 盲目撞库与多次打开），配合 CS2 原生资产规整树对原生已有的基础资源跳过重复解包与编译；按序调用 Domain 处理器与工具；返回 `Core::Result<T>` 表达单层业务结果。
+* **允许：** 定义具体导入流水线（如 `ParticleImportWorkflow`）；使用 `ImportContext` 处理取消与进度（`runStep` 在步骤成功后延后推进进度）；管理生成的半成品资产生命周期（失败或取消时清理半成品）；导入外部文件需暂存时通过隔离临时文件保障现有用户资产不被覆盖；资产定位与提取严格遵循“松散文件优先、VPK 索引点查直接命中”策略（`Workflow::Common::AssetExtractor` 联动 `VpkIndex`，杜绝跨 VPK 盲目撞库与多次打开），配合 CS2 原生资产规整树对原生已有的基础资源跳过重复解包与编译；资产存在性查询（`Workflow::Common::AssetLocator::exists()`）忠实返回 `Core::Result<bool>`，对 CS2 原生已有资源返回成功 `true`，真实失败/取消原样上报；资源提取采用 `AssetExtractOptions` 参数规整，针对敏感文件输出向包提取器传递预期根目录以触发内核句柄边界验证（`verifyFileWithinBase`），根除 TOCTOU 符号链接替换漏洞；伴随资源提取（`extractCompanions`）严格穿透协作式取消令牌；按序调用 Domain 处理器与工具；返回 `Core::Result<T>` 表达单层业务结果。
 * **严禁：** include 或调用 UI / QML；依赖 Application 策略或全局配置；直接弹出交互对话框；自行发现 Steam 或扫描全局环境。
 
 ### 3.4 Domain 规则 (`src/Domain/`)
 
-* **允许：** 解析与校验 Valve 专属数据格式；抽象 Source 1/2 领域资产与相对路径；S2 插件扫描严格从 `content/csgo_addons` 目录探测（禁止混入 `game/` 目录）；VPK 资产包索引机制（`Domain::Package::VpkIndex` / `VpkIndexBuilder`，基于 `sourcepp` API 快速构建全量文件树，序列化为紧凑二进制 `.idx`，集成文件大小/修改时间与 `_dir.vpk` SHA-256 完整性快速校验，生成绝对路径 $O(1)$ 路由映射与 CS2 资产主干名集合）；材质纹理图像处理（VTF/TGA 解码、PBR 贴图生成、通道打包等确定性纯计算，见 `Domain::Material::TextureProcess`）；封装官方 CLI 工具（`Domain::Tool`，多资产编译自适应生成 `-filelist` 清单，日志解析器支持资产粒度容错与部分成功统计）；保持确定性与无状态纯计算。
+* **允许：** 解析与校验 Valve 专属数据格式；抽象 Source 1/2 领域资产与相对路径；资产检索三层解耦（`Domain::Asset::IAssetSourceProber` 抽象探测接口、`ArchiveAssetSourceProber` 归档池探测适配、`AssetLocateStrategy` 纯领域优先级策略与 `AssetLocation` 定位载体）；归档池并发硬化（`Domain::Package::PackArchivePool` 基于键粒度 `OpeningEntry` 条件变量同步，根除同一归档并发重复打开并响应取消）；包解包安全（`PackArchive::extractEntryToFile` 接收可选基目录并在打开句柄后执行真实物理路径校验）；S2 插件扫描严格从 `content/csgo_addons` 目录探测（禁止混入 `game/` 目录）；VPK 资产包索引机制（`Domain::Package::VpkIndex` / `VpkIndexBuilder`，基于 `sourcepp` API 快速构建全量文件树，序列化为紧凑二进制 `.idx`，集成文件大小/修改时间与 `_dir.vpk` SHA-256 完整性快速校验，生成绝对路径 $O(1)$ 路由映射与 CS2 资产主干名集合）；材质纹理图像处理（VTF/TGA 解码、PBR 贴图生成、通道打包等确定性纯计算，见 `Domain::Material::TextureProcess`）；封装官方 CLI 工具（`Domain::Tool`，多资产编译自适应生成 `-filelist` 清单，日志解析器支持资产粒度容错与部分成功统计）；保持确定性与无状态纯计算。
 * **严禁：** include `Application/*`、`Workflow/*`、`UI/*` 或 QML 头文件；发送 UI 通知或弹窗；访问应用全局配置或日志器；自行启动线程。
 
 ### 3.5 Core 规则 (`src/Core/`)
 
-* **允许：** 提供通用跨平台路径抽象（`FilesystemPath::isSubpathOf` 等归属判别）、统一临时资源生命周期管理（`Core::Temp::TempFile` 兼具系统临时文件创建与现有路径 RAII 清理托管双模，支持 `dismiss()`/`release()`/`cleanup()` 控制）、进程抽象、通用高效的 64KB 流式分块 SHA-256 校验计算（`Core::Hash::Sha256`，支持取消与大文件恒定内存占用）、日志与结构化错误。
+* **允许：** 提供通用跨平台路径抽象（`FilesystemPath`：基于 `std::filesystem::weakly_canonical` 的 `isSubpathOf` 与 `resolveBelow` 物理边界解析，拦截盘符冒号 `:`、NTFS ADS 流与跨目录穿越，支持未创建目录的穿透判别；提供 `verifyHandleWithinBase` 与 `verifyFileWithinBase` 基于 Win32 `GetFinalPathNameByHandleW` 的内核句柄物理边界校验，免疫 TOCTOU 竞态）；通用异常屏障与诊断富化（`Core::Error::ExecutionGuard` 与 `ExecutionContext`，统一捕获并转译异常为结构化 `Result<T>`，禁止在 Core 中硬编码 Valve 业务关键词推测错误）；通用文件系统与散列取消穿透（`Core::FileSystem::FileSystem` 复制/移动与 `Core::Hash::Sha256` 64KB 流式分块计算全面支持 `CancellationToken`）；通用 KeyValues 增强（`KeyValuesNode` 支持位置感知 CRUD 与有序遍历，`KeyValuesDocument` 保持头部注释与格式）；统一临时资源生命周期管理（`Core::Temp::TempFile` 兼具系统临时文件创建与现有路径 RAII 清理托管双模，支持 `dismiss()`/`release()`/`cleanup()` 控制）、进程抽象、日志与结构化错误。
 * **严禁包含：** 游戏定义与 CS2/CSGO/HL2 专有规则；导入工作流决策；Steam 探测逻辑；VPK 业务策略；材质转码逻辑；UI / QML 代码；Application 服务。Core 必须保持通用性，可无缝脱离本项目复用。
 
 ---
@@ -155,7 +155,7 @@ UI 属性/信号
    - **层级化与工作流任务**：顶层导入流程通过 `LogManager::createWorkflowTask` 创建 Workflow 根任务，在 `logs/<workflowName>_<timestamp>/` 下生成独立目录与主工作流日志 `workflow.log`；任务终态为 `Completed` 时强制将进度刷新至 100%；
    - **外部工具隐藏任务（Tool Task）**：外部 CLI 工具（如 `resourcecompiler`, `source1import`, `bspsrc`）必须通过 `LogManager::createToolTask` 创建。Tool 任务从主 UI 任务树中隐蔽（避免日志噪音），父任务接收携带 `toolTaskId` 的 `[EXEC]` 启动通知；工具输出实时流式写入独立文件（`<asset>_<tool>_<timestamp>.log`，位于父任务目录下，同毫秒冲突自动追加 `_2` 序号），经 `logExternalToolOutput` 直通原始行（不加人工等级前缀，保留天然换行），UI 表现层通过独立 `ToolLogWindow` 按需查看；
    - **日志落盘精简规范**：`TaskFileSink` / `FileSink` 统一单任务日志行格式为 `[LEVEL] %2`，去除冗余时间戳与块序列号；新任务日志首行记录结构化元数据头（`=== Task: %1 (ID: %2) | Started: %3 ===`）。
-6. **异常边界转译**：Application 服务边界统一通过 `ExecutionGuard` 或 `AsyncTaskRunner` 将异常转译为 `Result<T>::failure`，严禁在内部 helper 中静默使用 `catch (...)` 吞没异常。
+6. **异常边界转译与终态兜底**：Application 服务边界统一通过 `Core::Error::ExecutionGuard`（或 `Application::Execution::ExecutionGuard` 门面）或 `AsyncTaskRunner` 将异常转译为 `Result<T>::failure`，严禁在内部 helper 中静默使用 `catch (...)` 吞没异常。`AsyncTaskRunner` 在顶层工作线程建立致命异常兜底守护（`fallbackTerminalStateOnFatalException`）：未终结的任务遭遇逃逸异常时强制流转至 `TaskState::Failed` 终态（避免任务树挂起死锁），对已终结状态（如 `Completed`）严格幂等保留；回调异常经 `invokeCallbackSafely` 隔离记录至 `ApplicationLogger::error`，防止破坏 Worker 线程。
 7. **消息创建处翻译 (i18n)**：面向用户的消息（`Result::message()`、`Error::message()`、任务日志摘要、对话框文案、QML `qsTr()`）必须在**创建处**翻译——QObject 类用成员 `tr()`，非 QObject 类用 `QCoreApplication::translate("<类名上下文>", "...")`，字符串表用 `QT_TRANSLATE_NOOP` 标记。日志文件内容随界面语言变化。**不翻译**：`Error::details()` 技术诊断、外部工具原始输出、`debug()`/系统日志行、日志等级与导出格式串、游戏产品名。
 
 > 💡 **详细规范与完整决策表**：请查阅专用技能 [`skills/cs2-async-error-handling/SKILL.md`](file:///c:/Users/KEY/Documents/GitHub/cs2-map-importer/skills/cs2-async-error-handling/SKILL.md) 获取三平面任务体系、终态冲突仲裁矩阵、构造正反模式代码及进程机械结果转译规则。
@@ -217,7 +217,7 @@ cs2importer (主程序 / QML)
 * `cs2importer_workflow` 链接 Domain + Core；
 * `cs2importer_application` 链接 Workflow + Domain + Core；
 * `cs2importer_ui` 链接 Application 及 Qt 模块。**严禁在 `src/UI/CMakeLists.txt` 中添加对 `cs2importer_domain` 或 `cs2importer_core` 的直接链接。**
-* **测试链接红线**：`tests/` 下的常驻单元测试目标仅限针对 Core 层，仅允许链接 `cs2importer_core` 及 `Qt6::Core`、`Qt6::Test`；**严禁在常驻测试目标中链接 `cs2importer_domain`、`cs2importer_workflow`、`cs2importer_application` 或 `cs2importer_ui`**。
+* **临时测试红线**：代码库无常驻单元测试工程（`tests/` 目录与 CTest 集成已全量移除）；单任务临时测试必须用完即删，**严禁将测试目标或测试依赖残留于 CMakeLists.txt 中**。
 * **翻译构建红线**：`LinguistTools` 仅在根 `CMakeLists.txt` 引入；`qt_add_translations` 仅挂载于主程序目标 `cs2importer`（`SOURCE_TARGETS` 显式列出六个自有层目标，严禁扫描 `third_party` / FetchContent 产物）；部署脚本严禁恢复 `NO_TRANSLATIONS`。新增字符串后通过 `update_translations` 目标运行 lupdate 提取。
 
 ---
@@ -242,8 +242,8 @@ cs2importer (主程序 / QML)
 
 ### 9.1 测试生命周期契约 (Testing Lifecycle Contract)
 
-* **Core 层测试（长期常驻）**：作为系统可复用基础设施的质量底座，纯 Core 单元测试（`test_core_*`）长期驻留于 `tests/` 目录中，用于守护基础原语的向后兼容与确定性；
-* **非 Core 层测试（面向单任务，用完即删）**：针对 Domain、Workflow、Application、UI 层的测试，均严格定义为**临时单任务测试（Task-Scoped / Ephemeral Tests）**。仅用于在研发、重构或定位缺陷的单个任务期间进行即时验证。**一旦任务完成，必须立即清理或删除，严禁将包含上层复杂依赖的测试长期留存在代码库中**。临时测试目标以 `test_tmp_` 前缀命名，并在 `tests/CMakeLists.txt` 中以显式注释块标注任务范围与删除义务；删除时须连同其仅为测试服务的配置（额外链接的第三方夹具、`find_package` 组件、下层目标子目录注入）一并清理。
+* **无常驻单元测试**：仓库当前不维护长期常驻的单元测试目录或工程配置（`tests/` 目录已移除）；
+* **单任务临时验证（用完即删）**：针对 Core、Domain、Workflow、Application、UI 层的验证测试，均严格定义为**临时单任务测试（Task-Scoped / Ephemeral Tests）**。仅用于在研发、重构或定位缺陷的单个任务期间进行即时验证。**一旦任务完成，必须立即清理或删除，严禁将包含上层复杂依赖或临时配置的测试留存在代码库中**。临时测试代码不得合入主分支。
 
 ---
 
@@ -264,7 +264,7 @@ cs2importer (主程序 / QML)
 
 * 严禁任何形式的跨层逆向调用（Core/Domain/Workflow 绝对不感知 Application/UI）。
 * 严禁 UI 为了执行业务直接调用 Domain / Core 或在 UI CMake 中链接底层库。
-* 严禁在 `tests/` 常驻测试目标中反向链接非 Core 模块，严禁将用完的非 Core 临时任务测试残留于主干代码库。
+* 严禁将任何临时任务测试残留于主干代码库。
 * 严禁为配置、服务、取消标志或日志器添加全局静态变量。
 * 严禁在业务代码中直接调用 `QProcess`、`system()` 或 Shell 命令。
 * 严禁从 Domain / Workflow 中弹出模态对话框。

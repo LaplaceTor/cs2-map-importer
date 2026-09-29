@@ -1,8 +1,19 @@
 #include "FilesystemPath.h"
 #include <QFileInfo>
 #include <QDir>
+#include <QFile>
 #include <filesystem>
 #include <system_error>
+#include <string>
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <io.h>
 
 namespace Core::Path {
 
@@ -66,57 +77,50 @@ bool FilesystemPath::isSubpathOf(const FilesystemPath& baseDir) const {
     if (!cleanBase.endsWith(QLatin1Char('/'))) {
         cleanBase.append(QLatin1Char('/'));
     }
-    if (!cleanChild.startsWith(cleanBase, Qt::CaseInsensitive)) {
+
+    const QString cleanChildWithSlash = cleanChild.endsWith(QLatin1Char('/'))
+        ? cleanChild
+        : cleanChild + QLatin1Char('/');
+
+    if (!cleanChildWithSlash.startsWith(cleanBase, Qt::CaseInsensitive)) {
         return false;
     }
 
     // Physical canonical containment check: verify that symlinks / junctions / reparse points
-    // do not escape baseDir's physical boundary
+    // do not escape baseDir's physical boundary, even if baseDir or child elements do not yet exist.
     std::error_code ecBase;
-    auto canonBase = std::filesystem::canonical(baseDir.toString().toStdWString(), ecBase);
-    if (!ecBase) {
-        QString canonicalBase = QString::fromStdWString(canonBase.wstring());
-        if (canonicalBase.startsWith(QStringLiteral("\\\\?\\"))) {
-            canonicalBase.remove(0, 4);
-        }
-        canonicalBase = QDir::fromNativeSeparators(canonicalBase);
-        if (!canonicalBase.endsWith(QLatin1Char('/'))) {
-            canonicalBase.append(QLatin1Char('/'));
-        }
-
-        // Find the deepest existing ancestor of this path
-        QFileInfo childInfo(toString());
-        while (!childInfo.exists()) {
-            const QString parent = childInfo.path();
-            if (parent.isEmpty() || parent == childInfo.filePath()) {
-                break;
-            }
-            childInfo = QFileInfo(parent);
-        }
-
-        if (childInfo.exists()) {
-            std::error_code ecChild;
-            auto canonChild = std::filesystem::canonical(childInfo.filePath().toStdWString(), ecChild);
-            if (ecChild) {
-                // Inaccessible or broken symlink / reparse point
-                return false;
-            }
-            QString canonicalChild = QString::fromStdWString(canonChild.wstring());
-            if (canonicalChild.startsWith(QStringLiteral("\\\\?\\"))) {
-                canonicalChild.remove(0, 4);
-            }
-            canonicalChild = QDir::fromNativeSeparators(canonicalChild);
-            const QString cleanChildWithSlash = canonicalChild.endsWith(QLatin1Char('/'))
-                ? canonicalChild
-                : canonicalChild + QLatin1Char('/');
-            if (!cleanChildWithSlash.startsWith(canonicalBase, Qt::CaseInsensitive) &&
-                canonicalChild.compare(canonicalBase.chopped(1), Qt::CaseInsensitive) != 0) {
-                return false;
-            }
-        }
+    auto canonBaseFs = std::filesystem::weakly_canonical(cleanBase.toStdWString(), ecBase);
+    if (ecBase) {
+        // Base directory or its existing ancestor cannot be resolved (e.g. invalid drive / syntax)
+        return false;
     }
 
-    return true;
+    std::error_code ecChild;
+    auto canonChildFs = std::filesystem::weakly_canonical(cleanChild.toStdWString(), ecChild);
+    if (ecChild) {
+        // Child path cannot be resolved
+        return false;
+    }
+
+    QString canonicalBase = QString::fromStdWString(canonBaseFs.wstring());
+    if (canonicalBase.startsWith(QStringLiteral("\\\\?\\"))) {
+        canonicalBase.remove(0, 4);
+    }
+    canonicalBase = QDir::fromNativeSeparators(canonicalBase);
+    if (!canonicalBase.endsWith(QLatin1Char('/'))) {
+        canonicalBase.append(QLatin1Char('/'));
+    }
+
+    QString canonicalChild = QString::fromStdWString(canonChildFs.wstring());
+    if (canonicalChild.startsWith(QStringLiteral("\\\\?\\"))) {
+        canonicalChild.remove(0, 4);
+    }
+    canonicalChild = QDir::fromNativeSeparators(canonicalChild);
+    const QString canonicalChildWithSlash = canonicalChild.endsWith(QLatin1Char('/'))
+        ? canonicalChild
+        : canonicalChild + QLatin1Char('/');
+
+    return canonicalChildWithSlash.startsWith(canonicalBase, Qt::CaseInsensitive);
 }
 
 bool FilesystemPath::contains(const FilesystemPath& childPath) const {
@@ -216,6 +220,68 @@ FilesystemPath FilesystemPath::operator/(const QString& subpath) const {
 
 FilesystemPath FilesystemPath::operator/(const FilesystemPath& subpath) const {
     return join(subpath.toString());
+}
+
+bool FilesystemPath::verifyHandleWithinBase(void* win32Handle, const FilesystemPath& baseDir) {
+    if (!win32Handle || win32Handle == INVALID_HANDLE_VALUE || baseDir.isEmpty()) {
+        return false;
+    }
+
+    HANDLE hFile = static_cast<HANDLE>(win32Handle);
+    std::wstring finalPath(32768, L'\0');
+    DWORD len = GetFinalPathNameByHandleW(
+        hFile,
+        finalPath.data(),
+        static_cast<DWORD>(finalPath.size()),
+        FILE_NAME_NORMALIZED | VOLUME_NAME_DOS
+    );
+    if (len == 0 || len >= finalPath.size()) {
+        return false;
+    }
+    finalPath.resize(len);
+
+    QString qFinalPath = QString::fromStdWString(finalPath);
+    if (qFinalPath.startsWith(QStringLiteral("\\\\?\\"))) {
+        qFinalPath.remove(0, 4);
+    }
+    qFinalPath = QDir::fromNativeSeparators(qFinalPath);
+
+    std::error_code ec;
+    auto canonBaseFs = std::filesystem::weakly_canonical(
+        baseDir.absolutePath().toString().toStdWString(), ec);
+    if (ec) {
+        return false;
+    }
+
+    QString canonicalBase = QString::fromStdWString(canonBaseFs.wstring());
+    if (canonicalBase.startsWith(QStringLiteral("\\\\?\\"))) {
+        canonicalBase.remove(0, 4);
+    }
+    canonicalBase = QDir::fromNativeSeparators(canonicalBase);
+    if (!canonicalBase.endsWith(QLatin1Char('/'))) {
+        canonicalBase.append(QLatin1Char('/'));
+    }
+
+    const QString finalPathWithSlash = qFinalPath.endsWith(QLatin1Char('/'))
+        ? qFinalPath
+        : qFinalPath + QLatin1Char('/');
+
+    return finalPathWithSlash.startsWith(canonicalBase, Qt::CaseInsensitive);
+}
+
+bool FilesystemPath::verifyFileWithinBase(const QFile& file, const FilesystemPath& baseDir) {
+    if (!file.isOpen()) {
+        return false;
+    }
+    int fd = file.handle();
+    if (fd < 0) {
+        return false;
+    }
+    intptr_t osf = _get_osfhandle(fd);
+    if (osf == -1 || osf == 0) {
+        return false;
+    }
+    return verifyHandleWithinBase(reinterpret_cast<void*>(osf), baseDir);
 }
 
 QString FilesystemPath::toString() const {

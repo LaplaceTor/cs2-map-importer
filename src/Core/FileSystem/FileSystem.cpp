@@ -1,6 +1,7 @@
 #include <QCoreApplication>
 #include "FileSystem.h"
 #include "AtomicFile.h"
+#include "Core/Path/FilesystemPath.h"
 #include <QFileInfo>
 #include <QDir>
 #include <QFile>
@@ -12,30 +13,10 @@ namespace Core::FileSystem {
 namespace {
 
 bool isSubdirectoryOrEqual(const QString& childPath, const QString& parentPath) {
-    QString cleanParent = QDir::cleanPath(parentPath);
-    QString cleanChild = QDir::cleanPath(childPath);
-
-    QFileInfo parentInfo(cleanParent);
-    QFileInfo childInfo(cleanChild);
-
-    if (parentInfo.exists() && childInfo.exists()) {
-        QString canonParent = parentInfo.canonicalFilePath();
-        QString canonChild = childInfo.canonicalFilePath();
-        if (!canonParent.isEmpty() && !canonChild.isEmpty()) {
-            cleanParent = canonParent;
-            cleanChild = canonChild;
-        }
+    if (childPath.isEmpty() || parentPath.isEmpty()) {
+        return false;
     }
-
-    if (cleanParent == cleanChild) {
-        return true;
-    }
-
-    if (!cleanParent.endsWith(QLatin1Char('/')) && !cleanParent.endsWith(QLatin1Char('\\'))) {
-        cleanParent += QLatin1Char('/');
-    }
-
-    return cleanChild.startsWith(cleanParent, Qt::CaseInsensitive);
+    return Core::Path::FilesystemPath(childPath).isSubpathOf(Core::Path::FilesystemPath(parentPath));
 }
 
 } // namespace

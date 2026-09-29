@@ -37,12 +37,7 @@ public:
         if (candidatePath.isEmpty() || baseDir.isEmpty()) {
             return false;
         }
-        QString cleanChild = QDir::cleanPath(QFileInfo(candidatePath).absoluteFilePath());
-        QString cleanBase = QDir::cleanPath(QFileInfo(baseDir).absoluteFilePath());
-        if (!cleanBase.endsWith(QLatin1Char('/'))) {
-            cleanBase.append(QLatin1Char('/'));
-        }
-        return cleanChild.startsWith(cleanBase, Qt::CaseInsensitive);
+        return FilesystemPath(candidatePath).isSubpathOf(FilesystemPath(baseDir));
     }
 
     /**

@@ -66,12 +66,12 @@ description: >-
 * **`Core::Hash`**：
   * `Sha256`：通用低开销流式 SHA-256 散列计算设施，支持对磁盘文件（64KB 分块流式读取，内存占用恒定，集成 `CancellationToken` 协作取消）或内存字节缓冲区（`QByteArray`）计算散列，统一输出 64 位小写十六进制字符串（`compute(path, token)` / `compute(data)`）。
 * **`Core::Path`**：
-  * `FilesystemPath`：标准化跨平台宿主文件系统路径抽象与操作，提供 `isSubpathOf(baseDir)` 与 `contains(childPath)` 确定性路径归属判别；
-  * `PathUtils`：通用路径规范化、扩展名提取、安全文件名过滤（`sanitizeFilename`）与路径归属检查（`isSubpath`）。
+  * `FilesystemPath`：标准化跨平台宿主文件系统路径抽象与操作，基于 `std::filesystem::weakly_canonical` 提供 `isSubpathOf(baseDir)` 与 `contains(childPath)` 物理与词法双重判定（穿透 Windows Directory Junction、NTFS Reparse Point 与符号链接，即使基目录或目标尚不存在亦可精准判别）；`resolveBelow(subpath)` 严格防御绝对路径、`../` 回溯、盘符冒号 `:` 与 NTFS ADS 流穿越；提供 `verifyHandleWithinBase` 与 `verifyFileWithinBase` 基于 Windows `GetFinalPathNameByHandleW` 的文件句柄物理真实路径校验，彻底消除 TOCTOU 目录联接替换竞态；
+  * `PathUtils`：通用路径规范化、扩展名提取、安全文件名过滤（`sanitizeFilename`）与路径归属检查（`isSubpath` 统一代理至 `FilesystemPath::isSubpathOf`）。
 * **`Core::KeyValues`**：
-  * `KeyValuesDocument` / `KeyValuesNode` / `KeyValuesParser` / `KeyValuesWriter`：通用 Valve KeyValues/VDF AST 解析与序列化器，支持无引号 Token、嵌套节点、同名兄弟节点、保序输出及原子写入。
+  * `KeyValuesDocument` / `KeyValuesNode` / `KeyValuesParser` / `KeyValuesWriter`：通用 Valve KeyValues/VDF AST 解析与序列化器，支持无引号 Token、嵌套节点、同名兄弟节点、位置感知 CRUD（插入、替换、移除）与保序输出、保留头部注释与空行。
 * **`Core::FileSystem`**：
-  * `FileSystem`：通用文件系统辅助工具（`move()` 部分完成语义：目标副本成功但源删除失败时保留目标副本并抛出结构化异常上报）；
+  * `FileSystem`：通用文件系统辅助工具（`copy()` 与 `move()` 全面支持 `CancellationToken` 协作取消；`isSubdirectoryOrEqual` 基于 `FilesystemPath::isSubpathOf`）；
   * `AtomicFile`：基于临时文件重命名的原子落盘写入；
   * `DirectorySnapshot`：目录递归快照；
   * `FileLease`：RAII 移动语义的文件排他锁/租约机制。
@@ -83,7 +83,8 @@ description: >-
   * `TempFile`：统一的 RAII 临时文件生命周期管理设施（冗余的 `TempFileCleanup` 已彻底废弃移除）。兼具系统临时文件创建（`TempFile::create(templatePattern)`）与现有磁盘路径托管清理（`TempFile(path, autoRemove = true)` / `setPath(...)`）双模；提供 `dismiss()`（解除自动删除）、`release()`（解除并提取路径）、`cleanup()`（立即删除）、`exists()`、`isValid()` 原语；
   * `TempDirectory`：RAII 临时目录生命周期管理，析构时自动递归清理。
 * **`Core::Error`**：
-  * `ErrorCode`：跨项目通用底层系统/设施错误码枚举；
+  * `ErrorCode`：跨项目通用底层系统/设施错误码枚举（含 `ArchiveOpenFailed`, `EntryNotFound` 等）；
+  * `ExecutionGuard` & `ExecutionContext`：通用异常转译与诊断富化屏障，将未捕获异常统一映射为结构化 `Result<T>`，富化 `stage`, `resourcePath`, `targetPath` 上下文，严禁在 Core 内部通过自然语言猜测试探领域业务错误；
   * `Error`：机器可解析的结构化错误值对象（包含 code, message, details, 扩展领域码）；枚举匹配必须走**带域匹配** `error.is(domainName, code)`（同时校验域名与码值，防止不同领域枚举数值混判）；
   * `Exception`：跨线程异常传输载体（派生自 `std::exception` / `QException`）。
 * **`Core::Result<T>`**：
@@ -101,12 +102,16 @@ description: >-
 封装 Valve / Source 业务规则与确定性领域资产解析，仅依赖 Core 层。
 
 * **`Domain::Asset`**：
+  * `IAssetSourceProber`：纯虚资产探测接口（`hasLooseFile`, `hasPackEntry` 等），解耦资产查找与归档具体实现；
+  * `ArchiveAssetSourceProber`：基于 `PackArchivePool` 与安全路径解析的归档探测器，实现 `IAssetSourceProber`；
+  * `AssetLocateStrategy`：纯领域资产定位策略，按 Valve 资产优先次序（松散文件优先、CS2 原生规整跳过、VPK 包内点查）计算，产出 `LocateStatus` 与 `AssetLocation`；
+  * `AssetLocation`：定位结果强类型值对象（包含 `target`, `relativePath`, `fromPack`, `sourceTargetPath`）；
   * `AssetPath`：Valve 相对资产路径（如 `materials/models/...`）；
   * `AssetTypeDetector`：基于文件名与后缀的资产类型判别。
 * **`Domain::Package`**：
-  * `PackArchive`：基于 `sourcepp` (vpkpp/bsppp) 的统一资产包抽象，直接在进程内读取/枚举/提取 VPK 与 BSP 嵌入包内容；
+  * `PackArchive`：基于 `sourcepp` (vpkpp/bsppp) 的统一资产包抽象，直接在进程内读取/枚举/提取 VPK 与 BSP 嵌入包内容；`extractEntryToFile` 接收 `expectedBaseDir` 并在打开文件后执行 `verifyFileWithinBase` 句柄校验，防范 TOCTOU 越界写入；`readEntry` 与 `hasEntry` 支持 `CancellationToken` 协作取消；
   * `BspPackExtractor`：专职从 Source 1 BSP 文件提取嵌入的 Pakfile 资产包；
-  * `PackArchivePool`：归档池化缓存机制（LRU 缓存），复用打开的文件句柄，提供线程安全的高性能解包。已彻底废弃外部 VPKEdit CLI；
+  * `PackArchivePool`：归档池化缓存机制（LRU 缓存），复用打开的文件句柄，采用键粒度 `OpeningEntry` 条件变量同步（根除并发重复打开并响应取消）。已彻底废弃外部 VPKEdit CLI；
   * `VpkIndex`：针对游戏所有 VPK 资产包的轻量只读内存索引与高效二进制持久化载体。文件头魔数 `CS2VPKID` (v1)，记录全部 VPK 路径、文件大小、修改时间与 `_dir.vpk` SHA-256 哈希校验；条目映射表以资产绝对路径映射到 `(vpkIndex, internalPath)`，支持 $O(1)$ 精确点查；持有 `isCs2()` 标志与 CS2 资产规范化主干名哈希集合（`cs2Stems`），用于跨引擎资产去重与避免重复解包编译；
   * `VpkIndexBuilder`：多 VPK 全量文件树快速构建器。基于 `sourcepp::vpkpp::runForAllEntries` 瞬时抓取内部资产树并排序，规避低优先包覆盖高优先包，自适应区分 CS2 与 S1 资产提取规整主干名，输出 `std::shared_ptr<VpkIndex>`。
 * **`Domain::Material`**：
@@ -154,7 +159,9 @@ description: >-
 
 * **`Workflow::Common`**：
   * `ImportContext`：组合 `Core::Logging::TaskLoggingContext*` 与 `Core::Async::CancellationToken`，提供统一的任务日志、进度汇报与取消状态检查（`checkCancelled()`）；`runStep` 保证进度在步骤成功后延后推进（步骤启动时更新 `currentMessage`，步骤成功且未取消时才递进 `updateProgress`，消除进度虚假超前）；
-  * `AssetExtractor`：资产定位与提取中枢。组合 `SearchTarget` 列表、`Domain::Package::VpkIndex`（点查直接命中）与 `PackArchivePool`。执行策略：1. CS2 原生资产规整树判断（已由 CS2 原生提供则跳过解包与重编译）；2. 优先检索磁盘松散文件；3. 优先通过 `VpkIndex` 精确查询目标归档，若命中直接定位提取；4. 仅在未建立索引或点查失配时回退到旧式全包线性搜索。彻底杜绝盲目打开与撞库试探；
+  * `AssetLocator`：资产定位调度门面，编排 `Domain::Asset::AssetLocateStrategy` 与 `ArchiveAssetSourceProber`；`exists()` 语义严密化：对 CS2 原生已有资源返回 `true`，真实失败/取消原样上报为 `Result<bool>`，杜绝错误将原生资源判定为不存在；
+  * `AssetExtractor`：资产定位与提取中枢。组合 `SearchTarget` 列表、`Domain::Package::VpkIndex`（点查直接命中）与 `PackArchivePool`。执行策略：1. CS2 原生资产规整树判断（已由 CS2 原生提供则跳过解包与重编译）；2. 优先检索磁盘松散文件；3. 优先通过 `VpkIndex` 精确查询目标归档，若命中直接定位提取；4. 仅在未建立索引或点查失配时回退到旧式全包线性搜索。向包提取传递目标基目录启用内核句柄验证（`verifyFileWithinBase`）；`extractCompanions` 穿透取消令牌并返回 `Core::Result<void>`；彻底杜绝盲目打开与撞库试探；
+  * `AssetExtractOptions`：资产提取配置参数结构体；
   * `BspEmbeddedExtractor`：经 `Domain::Package::PackArchive` 与 `BspPackExtractor` 枚举并提取 BSP 内部嵌入资产；
   * `VtfExtractor`：组合 `AssetExtractor` 与 `Domain::Material::VtfConverter`，按 `SearchTarget` 列表定位 VTF、解码并**固定导出为 PNG**（用例层锁定格式，`VtfConverter` 本身保持格式无关）；中间 VTF 文件解包至 RAII 临时目录自动清理；失败语义沿用 `AssetExtractor::extract`，图像编码步骤额外引入 `OperationFailed` 失败原因。
 * **`Workflow::Particle`**：
@@ -168,10 +175,10 @@ description: >-
 应用服务、业务任务编排与生命周期管理，向 UI 暴露轻量 DTO 契约。
 
 * **异步执行基础设施 (`Application::Async`)**：
-  * `AsyncTaskRunner`：三平面异步任务调度器，统一处理生命周期转移、异常安全转译与回调投递；入口含 `runTask` / `runChildTask` / `runBackground` / `runWorkflowTask`（创建工作流日志目录并注册 Workflow 根任务）/ `runSystemTask`（系统任务，taskId=0）；
+  * `AsyncTaskRunner`：三平面异步任务调度器，统一处理生命周期转移、异常安全转译与回调投递；入口含 `runTask` / `runChildTask` / `runBackground` / `runWorkflowTask`（创建工作流日志目录并注册 Workflow 根任务）/ `runSystemTask`（系统任务，taskId=0）；具备致命异常兜底守护（`fallbackTerminalStateOnFatalException`），未终态任务遇未捕获异常强制流转至 `Failed`，严格幂等保留已达成终态；`invokeCallbackSafely` 隔离记录客户端回调异常；
   * `SystemTaskLog` (`Async/SystemTaskLog.h`)：系统任务日志上下文（debug/info/warning/error），仅并入应用日志 `application_<timestamp>.log`（`[TaskName]` 前缀），线程安全；Worker 签名 `(const SystemTaskLog&, [CancellationToken])`，必须返回 `Result<T>`；
-  * `TaskHandle`：异步任务生命周期句柄（`[[nodiscard]]`），配合 `CancellationToken` 支持协作式取消；系统任务句柄 taskId=0，`cancel()` 仅触发令牌；
-  * `ExecutionGuard` (`Application::Execution`)：在应用服务边界安全捕获异常并转译为 `Result<T>::failure`。
+  * `TaskHandle`：异步任务生命周期句柄（`[[nodiscard]]`），配合 `CancellationToken` 支持协作式取消；系统任务句柄 taskId=0，`cancel()` 仅触发取消令牌；
+  * `ExecutionGuard` (`Application::Execution`)：在应用服务边界安全捕获异常并转译为 `Result<T>::failure`，统一转接至 `Core::Error::ExecutionGuard`。
 * **通用导入前置服务 (`Application::Common`)**：
   * `ImportPrerequisiteService`：Map、Model、Particle 导入共用的前置保障服务，统一编排校验基础参数（`BaseImportRequest`）、独占获取 CS2 `vpk.signatures` 文件租约，并在导入流水线执行前步进校验与同步确保 VPK 索引（`VpkIndexService`）就绪（双重保险）。
 * **VPK 索引应用服务 (`Application::Package`)**：
@@ -211,16 +218,10 @@ description: >-
 
 ---
 
-## 7. 测试工程参考 (`tests/`)
+## 7. 测试生命周期规范
 
-测试代码库严格按生命周期隔离：
-
-* **常驻单元测试 (`test_core_*`)**：
-  * 目标可执行文件：`test_core_logging`, `test_core_sha256`；
-  * 链接契约：`PRIVATE cs2importer_core Qt6::Core Qt6::Test`；
-  * 范围：仅测试 Core 层基础设施（`LogManager`, `TaskLoggingContext`, `TaskFileSink`, `LogFileManager`, `ProcessRunner`, `Result`, `Error`, `Core::Hash::Sha256`）。
+* **无常驻单元测试**：当前仓库已全量移除长期常驻的单元测试目录与工程目标（无 `tests/` 目录与 CTest 集成）；
 * **临时单任务测试（Task-Scoped / Ephemeral Tests）**：
-  * 任何针对 Domain、Workflow、Application、UI 层的单元或集成测试，仅在对应特性研发任务中临时存在；
-  * 目标以 `test_tmp_` 前缀命名，并在 `tests/CMakeLists.txt` 中以显式注释块标注任务范围与删除义务（AGENTS.md §9.1）；
-  * **用完即删**——删除时须连同测试源文件、CMake 目标块及其仅为测试服务的配置（额外链接的第三方夹具、`find_package` 组件、下层目标子目录注入）一并清理；严禁合入主线，严禁在 `tests/` 下建立对上层模块的永久性 CMake 链接。
+  * 针对 Core、Domain、Workflow、Application、UI 层的开发或调试测试，仅作为单任务内的即时自测工具；
+  * 任务完成后必须立即清理并删除，严禁将包含上层复杂依赖的测试源码或 CMake 目标长期留存于代码库中。
 
