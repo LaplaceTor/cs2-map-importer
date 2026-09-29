@@ -53,29 +53,26 @@ private:
     Core::Logging::TaskLoggingContext* m_taskCtx = nullptr;
 };
 
-} // namespace
-
-namespace Workflow::Common {
-
-Core::Result<std::optional<Domain::Asset::AssetLocation>> AssetLocator::locate(
+Core::Result<Domain::Asset::LocateResult> executeLocateStrategy(
     const std::vector<Domain::Game::SearchTarget>& targets,
     const QString& relativeAssetPath,
-    const AssetLocateOptions& options,
+    const Workflow::Common::AssetLocateOptions& options,
     const Core::Async::CancellationToken& token,
-    Core::Logging::TaskLoggingContext* taskCtx) {
+    Core::Logging::TaskLoggingContext* taskCtx,
+    const QString& stage) {
     if (token.isCancelled()) {
-        return Core::Result<std::optional<Domain::Asset::AssetLocation>>::cancelled(
+        return Core::Result<Domain::Asset::LocateResult>::cancelled(
             QCoreApplication::translate("AssetLocator", "Asset extraction cancelled"));
     }
 
     Core::Error::ExecutionContext ctx{
-        .stage = QStringLiteral("Locating asset"),
+        .stage = stage,
         .resourcePath = relativeAssetPath
     };
 
-    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<std::optional<Domain::Asset::AssetLocation>> {
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<Domain::Asset::LocateResult> {
         if (relativeAssetPath.isEmpty()) {
-            return Core::Result<std::optional<Domain::Asset::AssetLocation>>::failure(
+            return Core::Result<Domain::Asset::LocateResult>::failure(
                 Core::Error::ErrorCode::InvalidArgument,
                 QCoreApplication::translate("AssetLocator", "relative asset path is empty"));
         }
@@ -93,31 +90,60 @@ Core::Result<std::optional<Domain::Asset::AssetLocation>> AssetLocator::locate(
             token,
             &observer);
 
-        const QString entryPath = Domain::Asset::AssetLocateStrategy::normalizeRelativePath(relativeAssetPath);
-
-        switch (result.status) {
-        case Domain::Asset::LocateStatus::Found:
-            return Core::Result<std::optional<Domain::Asset::AssetLocation>>::success(std::move(result.location));
-
-        case Domain::Asset::LocateStatus::NativeCs2:
-            return Core::Result<std::optional<Domain::Asset::AssetLocation>>::skipped(
-                QCoreApplication::translate("AssetLocator", "Asset '%1' exists natively in CS2, skipping extraction").arg(entryPath));
-
-        case Domain::Asset::LocateStatus::Cancelled:
-            return Core::Result<std::optional<Domain::Asset::AssetLocation>>::cancelled(
-                QCoreApplication::translate("AssetLocator", "Asset extraction cancelled"));
-
-        case Domain::Asset::LocateStatus::EmptyPath:
-            return Core::Result<std::optional<Domain::Asset::AssetLocation>>::failure(
-                Core::Error::ErrorCode::InvalidArgument,
-                QCoreApplication::translate("AssetLocator", "relative asset path is empty"));
-
-        case Domain::Asset::LocateStatus::NotFound:
-        default:
-            return Core::Result<std::optional<Domain::Asset::AssetLocation>>::skipped(
-                QCoreApplication::translate("AssetLocator", "Asset '%1' was not found in any search target").arg(entryPath));
-        }
+        return Core::Result<Domain::Asset::LocateResult>::success(std::move(result));
     }, ctx);
+}
+
+} // namespace
+
+namespace Workflow::Common {
+
+Core::Result<std::optional<Domain::Asset::AssetLocation>> AssetLocator::locate(
+    const std::vector<Domain::Game::SearchTarget>& targets,
+    const QString& relativeAssetPath,
+    const AssetLocateOptions& options,
+    const Core::Async::CancellationToken& token,
+    Core::Logging::TaskLoggingContext* taskCtx) {
+    auto execRes = executeLocateStrategy(
+        targets,
+        relativeAssetPath,
+        options,
+        token,
+        taskCtx,
+        QStringLiteral("Locating asset"));
+
+    if (execRes.isCancelled()) {
+        return Core::Result<std::optional<Domain::Asset::AssetLocation>>::cancelled(execRes.message());
+    }
+    if (!execRes.isSuccess()) {
+        return Core::Result<std::optional<Domain::Asset::AssetLocation>>::failure(execRes.error(), execRes.message());
+    }
+
+    auto result = execRes.value();
+    const QString entryPath = Domain::Asset::AssetLocateStrategy::normalizeRelativePath(relativeAssetPath);
+
+    switch (result.status) {
+    case Domain::Asset::LocateStatus::Found:
+        return Core::Result<std::optional<Domain::Asset::AssetLocation>>::success(std::move(result.location));
+
+    case Domain::Asset::LocateStatus::NativeCs2:
+        return Core::Result<std::optional<Domain::Asset::AssetLocation>>::skipped(
+            QCoreApplication::translate("AssetLocator", "Asset '%1' exists natively in CS2, skipping extraction").arg(entryPath));
+
+    case Domain::Asset::LocateStatus::Cancelled:
+        return Core::Result<std::optional<Domain::Asset::AssetLocation>>::cancelled(
+            QCoreApplication::translate("AssetLocator", "Asset extraction cancelled"));
+
+    case Domain::Asset::LocateStatus::EmptyPath:
+        return Core::Result<std::optional<Domain::Asset::AssetLocation>>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QCoreApplication::translate("AssetLocator", "relative asset path is empty"));
+
+    case Domain::Asset::LocateStatus::NotFound:
+    default:
+        return Core::Result<std::optional<Domain::Asset::AssetLocation>>::skipped(
+            QCoreApplication::translate("AssetLocator", "Asset '%1' was not found in any search target").arg(entryPath));
+    }
 }
 
 Core::Result<bool> AssetLocator::exists(
@@ -126,17 +152,42 @@ Core::Result<bool> AssetLocator::exists(
     const AssetLocateOptions& options,
     const Core::Async::CancellationToken& token,
     Core::Logging::TaskLoggingContext* taskCtx) {
-    auto res = locate(targets, relativeAssetPath, options, token, taskCtx);
-    if (res.isCancelled()) {
-        return Core::Result<bool>::cancelled(res.message());
+    auto execRes = executeLocateStrategy(
+        targets,
+        relativeAssetPath,
+        options,
+        token,
+        taskCtx,
+        QStringLiteral("Checking asset existence"));
+
+    if (execRes.isCancelled()) {
+        return Core::Result<bool>::cancelled(execRes.message());
     }
-    if (res.isSkipped()) {
-        return Core::Result<bool>::skipped(res.message(), false);
+    if (!execRes.isSuccess()) {
+        return Core::Result<bool>::failure(execRes.error(), execRes.message());
     }
-    if (!res.isSuccess()) {
-        return Core::Result<bool>::failure(res.error(), res.message());
+
+    const auto& result = execRes.value();
+    switch (result.status) {
+    case Domain::Asset::LocateStatus::NativeCs2:
+    case Domain::Asset::LocateStatus::Found:
+        return Core::Result<bool>::success(true);
+
+    case Domain::Asset::LocateStatus::NotFound:
+        return Core::Result<bool>::success(false);
+
+    case Domain::Asset::LocateStatus::Cancelled:
+        return Core::Result<bool>::cancelled(
+            QCoreApplication::translate("AssetLocator", "Asset extraction cancelled"));
+
+    case Domain::Asset::LocateStatus::EmptyPath:
+        return Core::Result<bool>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QCoreApplication::translate("AssetLocator", "relative asset path is empty"));
+
+    default:
+        return Core::Result<bool>::success(false);
     }
-    return Core::Result<bool>::success(res.value().has_value(), res.message());
 }
 
 } // namespace Workflow::Common

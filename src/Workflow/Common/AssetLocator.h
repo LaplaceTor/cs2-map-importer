@@ -64,13 +64,13 @@ public:
         Core::Logging::TaskLoggingContext* taskCtx = nullptr);
 
     /**
-     * @brief Checks whether the asset exists in any of the search targets.
+     * @brief Checks whether the asset exists natively in CS2 or in any of the search targets.
      *
      * Unlike a boolean return value, returns Core::Result<bool> to preserve
      * cancellation, invalid argument, or underlying filesystem/archive error diagnostics.
      *
-     * @return Core::Result<bool> containing true if found, false if not found,
-     *         or error / cancelled if discovery encountered a failure or cancellation.
+     * @return Core::Result<bool> containing true if found (including native CS2 assets),
+     *         false if not found, or error / cancelled if discovery encountered a failure or cancellation.
      */
     static Core::Result<bool> exists(
         const std::vector<Domain::Game::SearchTarget>& targets,

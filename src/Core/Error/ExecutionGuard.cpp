@@ -55,32 +55,6 @@ ErrorCode ExecutionGuard::classifyStdException(const std::exception& ex)
         return ErrorCode::ResourceBusy;
     }
 
-    QString msg = QString::fromUtf8(ex.what()).toLower();
-    if (msg.contains(QStringLiteral("cancel"))) {
-        return ErrorCode::Cancelled;
-    }
-    if (msg.contains(QStringLiteral("entry"))) {
-        return ErrorCode::EntryNotFound;
-    }
-    if (msg.contains(QStringLiteral("archive")) || msg.contains(QStringLiteral("vpk")) || msg.contains(QStringLiteral("bsp"))) {
-        return ErrorCode::ArchiveOpenFailed;
-    }
-    if (msg.contains(QStringLiteral("not found")) || msg.contains(QStringLiteral("no such file"))) {
-        return ErrorCode::FileNotFound;
-    }
-    if (msg.contains(QStringLiteral("permission")) || msg.contains(QStringLiteral("access denied"))) {
-        return ErrorCode::PermissionDenied;
-    }
-    if (msg.contains(QStringLiteral("write")) || msg.contains(QStringLiteral("disk"))) {
-        return ErrorCode::WriteFailed;
-    }
-    if (msg.contains(QStringLiteral("read"))) {
-        return ErrorCode::ReadFailed;
-    }
-    if (msg.contains(QStringLiteral("corrupt"))) {
-        return ErrorCode::CorruptedData;
-    }
-
     return ErrorCode::OperationFailed;
 }
 

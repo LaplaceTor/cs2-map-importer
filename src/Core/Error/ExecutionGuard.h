@@ -21,7 +21,7 @@ namespace Core::Error {
 struct ExecutionContext {
     QString stage;          // High-level operation stage (e.g. "Locating asset", "Extracting pack entry")
     QString resourcePath;   // Relative or logical asset/resource path (e.g. "materials/models/crate.vmt")
-    QString targetPath;     // Physical search/output target path (e.g. "C:/csgo/pak01_dir.vpk")
+    QString targetPath;     // Physical search/output target path (e.g. "C:/path/to/archive.zip")
 
     QString formatDetails(const QString& rawDetails = QString()) const;
 };
