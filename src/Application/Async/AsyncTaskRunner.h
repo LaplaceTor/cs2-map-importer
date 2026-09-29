@@ -11,7 +11,9 @@
 #include <functional>
 #include <utility>
 #include <type_traits>
+#include <exception>
 
+#include "Core/Logging/ApplicationLogger.h"
 #include "Core/Logging/LogManager.h"
 #include "Core/Logging/TaskLoggingContext.h"
 #include "Core/Logging/TaskState.h"
@@ -36,6 +38,45 @@ bool isCallableValid(const Fn& fn) {
         return !!fn;
     } else {
         return true;
+    }
+}
+
+template <typename Callback, typename ResultType>
+void invokeCallbackSafely(
+    Callback&& callback,
+    const ResultType& result,
+    const QString& taskName,
+    quint64 taskId = 0)
+{
+    if (!isCallableValid(callback)) {
+        return;
+    }
+
+    try {
+        callback(result);
+    } catch (const Core::Error::Exception& ex) {
+        const QString detailInfo = ex.details().isEmpty()
+            ? (ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message())
+            : QStringLiteral("%1 (%2)").arg(ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message(), ex.details());
+        const QString msg = (taskId != 0)
+            ? QStringLiteral("[AsyncTaskRunner] Unhandled project exception in callback for task '%1' (ID: %2, code %3): %4")
+                .arg(taskName).arg(taskId).arg(static_cast<int>(ex.errorCode())).arg(detailInfo)
+            : QStringLiteral("[AsyncTaskRunner] Unhandled project exception in callback for task '%1' (code %2): %3")
+                .arg(taskName).arg(static_cast<int>(ex.errorCode())).arg(detailInfo);
+        Core::Logging::ApplicationLogger::error(msg);
+    } catch (const std::exception& ex) {
+        const QString msg = (taskId != 0)
+            ? QStringLiteral("[AsyncTaskRunner] Unhandled standard exception in callback for task '%1' (ID: %2): %3")
+                .arg(taskName).arg(taskId).arg(QString::fromUtf8(ex.what()))
+            : QStringLiteral("[AsyncTaskRunner] Unhandled standard exception in callback for task '%1': %2")
+                .arg(taskName, QString::fromUtf8(ex.what()));
+        Core::Logging::ApplicationLogger::error(msg);
+    } catch (...) {
+        const QString msg = (taskId != 0)
+            ? QStringLiteral("[AsyncTaskRunner] Unhandled unknown exception in callback for task '%1' (ID: %2)")
+                .arg(taskName).arg(taskId)
+            : QStringLiteral("[AsyncTaskRunner] Unhandled unknown exception in callback for task '%1'").arg(taskName);
+        Core::Logging::ApplicationLogger::error(msg);
     }
 }
 
@@ -204,70 +245,82 @@ public:
         auto workerLambda = [taskName, contextGuard, context, hasValidCallback, token,
                              worker = DecayedWorker(std::forward<WorkerFn>(worker)),
                              callback = DecayedCallback(std::forward<CallbackFn>(callback))]() mutable {
-            const SystemTaskLog sysLog(taskName);
-            sysLog.info(QStringLiteral("started"));
-
-            Result<T> result{};
             try {
-                if constexpr (std::is_invocable_v<DecayedWorker, const SystemTaskLog&, Core::Async::CancellationToken>) {
-                    result = worker(sysLog, token);
+                const SystemTaskLog sysLog(taskName);
+                sysLog.info(QStringLiteral("started"));
+
+                Result<T> result{};
+                try {
+                    if constexpr (std::is_invocable_v<DecayedWorker, const SystemTaskLog&, Core::Async::CancellationToken>) {
+                        result = worker(sysLog, token);
+                    } else {
+                        result = worker(sysLog);
+                    }
+                } catch (const Core::Error::Exception& ex) {
+                    const QString detailInfo = ex.details().isEmpty()
+                        ? (ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message())
+                        : QCoreApplication::translate("AsyncTaskRunner", "%1 (%2)").arg(ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message(), ex.details());
+                    sysLog.error(QStringLiteral("Task exception [%1]: %2")
+                        .arg(static_cast<int>(ex.errorCode()))
+                        .arg(detailInfo));
+                    result = Execution::ExecutionGuard::handleException<T>(
+                        ex, QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
+                } catch (const std::exception& ex) {
+                    sysLog.error(QStringLiteral("Unhandled standard exception: %1").arg(QString::fromUtf8(ex.what())));
+                    result = Execution::ExecutionGuard::handleException<T>(
+                        ex, QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
+                } catch (...) {
+                    sysLog.error(QStringLiteral("Unhandled unknown exception in task"));
+                    result = Execution::ExecutionGuard::handleUnknownException<T>(
+                        QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
+                }
+
+                // Lifecycle outcome line (no TaskState plane; the application log is the record)
+                if (result.isSuccess()) {
+                    sysLog.info(result.message().isEmpty()
+                        ? QStringLiteral("finished")
+                        : QStringLiteral("finished: %1").arg(result.message()));
+                } else if (result.isCancelled()) {
+                    sysLog.warning(result.message().isEmpty()
+                        ? QStringLiteral("cancelled")
+                        : QStringLiteral("cancelled: %1").arg(result.message()));
+                } else if (result.isSkipped()) {
+                    sysLog.info(result.message().isEmpty()
+                        ? QStringLiteral("skipped")
+                        : QStringLiteral("skipped: %1").arg(result.message()));
                 } else {
-                    result = worker(sysLog);
+                    sysLog.error(result.message().isEmpty()
+                        ? QStringLiteral("failed")
+                        : QStringLiteral("failed: %1").arg(result.message()));
+                }
+
+                if constexpr (std::is_invocable_v<DecayedCallback, Result<T>>) {
+                    if (hasValidCallback) {
+                        if (contextGuard) {
+                            QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, cb = std::move(callback), res = std::move(result), taskName]() {
+                                if (contextGuard) {
+                                    Detail::invokeCallbackSafely(cb, res, taskName, 0);
+                                }
+                            }, Qt::QueuedConnection);
+                        } else if (!context) {
+                            Detail::invokeCallbackSafely(callback, result, taskName, 0);
+                        }
+                    }
                 }
             } catch (const Core::Error::Exception& ex) {
                 const QString detailInfo = ex.details().isEmpty()
                     ? (ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message())
-                    : QCoreApplication::translate("AsyncTaskRunner", "%1 (%2)").arg(ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message(), ex.details());
-                sysLog.error(QStringLiteral("Task exception [%1]: %2")
-                    .arg(static_cast<int>(ex.errorCode()))
-                    .arg(detailInfo));
-                result = Execution::ExecutionGuard::handleException<T>(
-                    ex, QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
+                    : QStringLiteral("%1 (%2)").arg(ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message(), ex.details());
+                Core::Logging::ApplicationLogger::error(
+                    QStringLiteral("[AsyncTaskRunner] Fatal unhandled project exception in system task worker runnable for '%1' (code %2): %3")
+                        .arg(taskName).arg(static_cast<int>(ex.errorCode())).arg(detailInfo));
             } catch (const std::exception& ex) {
-                sysLog.error(QStringLiteral("Unhandled standard exception: %1").arg(QString::fromUtf8(ex.what())));
-                result = Execution::ExecutionGuard::handleException<T>(
-                    ex, QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
+                Core::Logging::ApplicationLogger::error(
+                    QStringLiteral("[AsyncTaskRunner] Fatal unhandled standard exception in system task worker runnable for '%1': %2")
+                        .arg(taskName, QString::fromUtf8(ex.what())));
             } catch (...) {
-                sysLog.error(QStringLiteral("Unhandled unknown exception in task"));
-                result = Execution::ExecutionGuard::handleUnknownException<T>(
-                    QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
-            }
-
-            // Lifecycle outcome line (no TaskState plane; the application log is the record)
-            if (result.isSuccess()) {
-                sysLog.info(result.message().isEmpty()
-                    ? QStringLiteral("finished")
-                    : QStringLiteral("finished: %1").arg(result.message()));
-            } else if (result.isCancelled()) {
-                sysLog.warning(result.message().isEmpty()
-                    ? QStringLiteral("cancelled")
-                    : QStringLiteral("cancelled: %1").arg(result.message()));
-            } else if (result.isSkipped()) {
-                sysLog.info(result.message().isEmpty()
-                    ? QStringLiteral("skipped")
-                    : QStringLiteral("skipped: %1").arg(result.message()));
-            } else {
-                sysLog.error(result.message().isEmpty()
-                    ? QStringLiteral("failed")
-                    : QStringLiteral("failed: %1").arg(result.message()));
-            }
-
-            if constexpr (std::is_invocable_v<DecayedCallback, Result<T>>) {
-                if (hasValidCallback) {
-                    if (contextGuard) {
-                        QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, cb = std::move(callback), res = std::move(result)]() {
-                            try {
-                                if (contextGuard && Detail::isCallableValid(cb)) {
-                                    cb(res);
-                                }
-                            } catch (...) {}
-                        }, Qt::QueuedConnection);
-                    } else if (!context) {
-                        try {
-                            callback(result);
-                        } catch (...) {}
-                    }
-                }
+                Core::Logging::ApplicationLogger::error(
+                    QStringLiteral("[AsyncTaskRunner] Fatal unhandled unknown exception in system task worker runnable for '%1'").arg(taskName));
             }
         };
 
@@ -312,17 +365,13 @@ private:
                             .arg(taskName).arg(parentTaskId));
                     if (context) {
                         QPointer<QObject> guard(context);
-                        QMetaObject::invokeMethod(guard.data(), [guard, cb = DecayedCallback(std::forward<CallbackFn>(callback)), res = std::move(failureResult)]() {
-                            try {
-                                if (guard && Detail::isCallableValid(cb)) {
-                                    cb(res);
-                                }
-                            } catch (...) {}
+                        QMetaObject::invokeMethod(guard.data(), [guard, cb = DecayedCallback(std::forward<CallbackFn>(callback)), res = std::move(failureResult), taskName, parentTaskId]() {
+                            if (guard) {
+                                Detail::invokeCallbackSafely(cb, res, taskName, parentTaskId);
+                            }
                         }, Qt::QueuedConnection);
                     } else {
-                        try {
-                            callback(failureResult);
-                        } catch (...) {}
+                        Detail::invokeCallbackSafely(callback, failureResult, taskName, parentTaskId);
                     }
                 }
             }
@@ -518,22 +567,31 @@ private:
                 if constexpr (std::is_invocable_v<DecayedCallback, Result<T>>) {
                     if (hasValidCallback) {
                         if (contextGuard) {
-                            QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, cb = std::move(callback), res = std::move(result)]() {
-                                try {
-                                    if (contextGuard && Detail::isCallableValid(cb)) {
-                                        cb(res);
-                                    }
-                                } catch (...) {}
+                            QMetaObject::invokeMethod(contextGuard.data(), [contextGuard, cb = std::move(callback), res = std::move(result), taskName, taskId]() {
+                                if (contextGuard) {
+                                    Detail::invokeCallbackSafely(cb, res, taskName, taskId);
+                                }
                             }, Qt::QueuedConnection);
                         } else if (!context) {
-                            try {
-                                callback(result);
-                            } catch (...) {}
+                            Detail::invokeCallbackSafely(callback, result, taskName, taskId);
                         }
                     }
                 }
+            } catch (const Core::Error::Exception& ex) {
+                const QString detailInfo = ex.details().isEmpty()
+                    ? (ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message())
+                    : QStringLiteral("%1 (%2)").arg(ex.message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.message(), ex.details());
+                Core::Logging::ApplicationLogger::error(
+                    QStringLiteral("[AsyncTaskRunner] Fatal unhandled project exception in worker runnable for '%1' (ID: %2, code %3): %4")
+                        .arg(taskName).arg(taskId).arg(static_cast<int>(ex.errorCode())).arg(detailInfo));
+            } catch (const std::exception& ex) {
+                Core::Logging::ApplicationLogger::error(
+                    QStringLiteral("[AsyncTaskRunner] Fatal unhandled standard exception in worker runnable for '%1' (ID: %2): %3")
+                        .arg(taskName).arg(taskId).arg(QString::fromUtf8(ex.what())));
             } catch (...) {
-                // Guaranteed no unhandled exception ever leaks to QThreadPool
+                Core::Logging::ApplicationLogger::error(
+                    QStringLiteral("[AsyncTaskRunner] Fatal unhandled unknown exception in worker runnable for '%1' (ID: %2)")
+                        .arg(taskName).arg(taskId));
             }
         };
 
