@@ -89,7 +89,7 @@ Core::Result<LookupHit> extractFromDirectoryTarget(
             .targetPath = destFile.toString()
         };
         auto copyRes = Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
-            Core::FileSystem::FileSystem::copy(looseFile.toString(), destFile.toString(), true, token);
+            Core::FileSystem::FileSystem::copy(looseFile.toString(), destFile.toString(), true, token, expectedBaseDir);
             return Core::Result<void>::success();
         }, copyCtx);
 
@@ -228,7 +228,7 @@ Core::Result<AssetExtraction> AssetExtractor::extractLocated(
                 .targetPath = destFile.toString()
             };
             auto copyRes = Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
-                Core::FileSystem::FileSystem::copy(sourceFile.toString(), destFile.toString(), true, token);
+                Core::FileSystem::FileSystem::copy(sourceFile.toString(), destFile.toString(), true, token, destContentDir);
                 return Core::Result<void>::success();
             }, copyCtx);
 

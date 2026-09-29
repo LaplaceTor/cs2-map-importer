@@ -168,7 +168,7 @@ void MainController::startParticleImport(
 
     if (!m_particleImportService) {
         auto prereq = std::make_shared<Application::Common::ImportPrerequisiteService>(nullptr, m_vpkIndexService);
-        m_particleImportService = std::make_shared<Application::Particle::ParticleImportService>(std::move(prereq));
+        m_particleImportService = Application::Particle::ParticleImportService::create(std::move(prereq));
     }
 
     QPointer<MainController> self(this);

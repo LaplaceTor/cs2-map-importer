@@ -18,13 +18,13 @@ description: >-
 | `VmfBspProcess` | `Domain::Vmf` / `Domain::Bsp` | `src/Domain/Vmf/`, `src/Domain/Bsp/` | VMF 处理与 BSP 反编译行为。 |
 | `MaterialFix` | `Domain::Material` | `src/Domain/Material/` | VMT/VMAT 材质转换与修正；VTF 解码（`VtfCodec` / `VtfConverter`）与纹理处理管线（`TextureProcess` PBR 贴图生成、通道打包，`TextureIO` 宽读取 / 仅 PNG 导出）。[已落地] |
 | `SoundscapeImport` | `Domain::Audio` + `Application::Soundscape` | 对应目录 | Source 1 Soundscape 脚本解析、KV3 Soundevents 转换与批量服务。[已落地] |
-| `FileExtractFromVPK`, 跨包盲猜撞库与解包 | `Domain::Package` + `Workflow::Common` + `Application::Package` | 对应目录 | 基于 `sourcepp` 的内嵌包解析与提取（`PackArchive`, `BspPackExtractor`, `PackArchivePool` 细粒度 `OpeningEntry` 条件变量并发同步与防重入缓存）；VPK 全量树持久化二进制索引（`VpkIndex`, `VpkIndexBuilder`, `VpkIndexService` [后台预热与 SHA-256 校验]）及 `AssetExtractor`（统一 `AssetExtractOptions` 配置、松散文件优先、索引点查直接命中、CS2 原生规整去重、解压目标句柄 `expectedBaseDir` 目录防穿越与伴生资源取消感知），完全移除外部 VPKEdit CLI 依赖并根除盲目撞库试探开销。[已落地] |
+| `FileExtractFromVPK`, 跨包盲猜撞库与解包 | `Domain::Package` + `Workflow::Common` + `Application::Package` | 对应目录 | 基于 `sourcepp` 的内嵌包解析与提取（`PackArchive`, `BspPackExtractor` [resolveBelow + 目标句柄校验], `PackArchivePool` 细粒度 `OpeningEntry` 条件变量并发同步与防重入缓存）；VPK 全量树持久化二进制索引（`VpkIndex`, `VpkIndexBuilder`, `VpkIndexService` [后台预热与 SHA-256 校验]）及 `AssetExtractor`（统一 `AssetExtractOptions` 配置、松散文件优先、索引点查直接命中、CS2 原生规整去重、解压与复制透传 `expectedBaseDir` 目录防穿越与伴生资源取消感知），完全移除外部 VPKEdit CLI 依赖并根除盲目撞库试探开销。[已落地] |
 | 资产定位与来源探测 | `Domain::Asset` + `Workflow::Common` | `src/Domain/Asset/`, `src/Workflow/Common/` | 资产定位三层抽象：Domain 纯策略解耦（`IAssetSourceProber`, `ArchiveAssetSourceProber`, `AssetLocateStrategy`, `AssetLocation`）；Workflow 消费层（`AssetLocator` 提供高保真 API `exists()` 返回 `Result<bool>`，CS2 原生存在即视为 `true`，`locate()` 精确区分松散/归档/原生/未找到/取消/失败）。[已落地] |
 | 异常转译与上下文边界 | `Core::Error` | `src/Core/Error/` | 通用异常边界防护（`Core::Error::ExecutionGuard` 与 `ExecutionContext`），零业务关键字猜测，直接保留强类型 `Core::Error::Exception` 错误码并归一化标准异常转译。[已落地] |
-| 路径安全与边界判定 | `Core::Path` | `src/Core/Path/` | `FilesystemPath` 扩展 `weakly_canonical` 物理路径包含性判定、冒号/ADS 校验，以及 Win32 目录句柄与规范化路径严格边界校验（`verifyHandleWithinBase`, `verifyFileWithinBase`），防范符号链接与目录联接（Junction）穿越漏洞与 TOCTOU 竞态。[已落地] |
+| 路径安全与边界判定 | `Core::Path` + `Core::FileSystem` | `src/Core/Path/`, `src/Core/FileSystem/` | `FilesystemPath` 双层安全体系（Tier 1 `resolveBelow` / `isSubpathOf` 逻辑前缀与弱规范化判定 + Tier 2 `verifyHandleWithinBase` / `verifyFileWithinBase` 对 `QFileDevice` 物理内核句柄校验），以及 `Core::FileSystem::FileSystem::copy/move` 自动联动 `expectedBaseDir` 执行内核边界验证与越界清理，彻底消除符号链接与 Junction 逃逸漏洞与 TOCTOU 竞态。[已落地] |
 | `Miscellaneous::ParseGameInfo`, `SearchTarget` | `Domain::Game` | `src/Domain/Game/` | GameInfo 解析、校验与搜索路径解析；S2 插件扫描严格收口至 `content/csgo_addons`。[已落地] |
 | `ModelImporter` | `Workflow::Model` | `src/Workflow/Model/` | `.mdl → .vmdl` 导入流水线。 |
-| `ParticleImporter` | `Workflow::Particle` + `Application::Particle` | 对应目录 | `.pcf → .vpcf` 导入流水线（`ParticleImportWorkflow` + `ParticleImportService`），支持多 PCF 批量导入、暂存防重名隔离保护、调用官方资源编译器自适应清单编译及半成品清理。[已落地] |
+| `ParticleImporter` | `Workflow::Particle` + `Application::Particle` | 对应目录 | `.pcf → .vpcf` 导入流水线（`ParticleImportWorkflow` + `ParticleImportService` [PassKey 强制 `std::shared_ptr` 所有权契约、前置 `weak_from_this().lock()` 预检与 `ImportScopeGuard` 状态回滚]），支持多 PCF 批量导入、暂存防重名隔离保护、调用官方资源编译器自适应清单编译及半成品清理。[已落地] |
 | `MapImporter` | `Workflow::Map` | `src/Workflow/Map/` | BSP → VMF → 编译/资产提取流水线。 |
 | `Ui::AutoDetectPaths`, `IsValid*` | `Application::Environment` + `Domain::Game` | 对应目录 | Application 编排 + Domain 校验。[已落地] |
 | `vpk.signatures` 锁定 / 导入前置保障 | `Application::Common` + `Application::Environment` + `Application::Package` | 对应目录 | `ImportPrerequisiteService` 统一校验基础参数、独占获取 CS2 文件租约，并双重保障 VPK 索引处于可用就绪状态。[已落地] |
@@ -103,6 +103,7 @@ description: >-
 * [ ] 外部 CLI 工具必须通过 `LogManager::createToolTask` 封装为隐藏任务，多文件编译采用自适应 `-filelist` 临时清单文件，并经 `ProcessOptions` 回调实现流式日志直通重定向（`logExternalToolOutput`）与取消令牌绑定。
 * [ ] VPK 资产提取严格基于 `VpkIndex` $O(1)$ 点查或松散文件优先策略，严禁遍历全部 VPK 盲目撞库；CS2 原生资源仅索引 `gameinfo.gi` 定义的 `SearchPaths -> Game` 目录 VPK。
 * [ ] VPK 索引后台构建与校验走 `AsyncTaskRunner::runSystemTask` 系统任务平面，不占用可见 UI 任务树。
+* [ ] 敏感文件输出（包提取、文件复制与外部文件暂存）必须显式传入 `expectedBaseDir`，以触发底层物理内核句柄验证（`verifyFileWithinBase`），防范符号链接与 Junction 逃逸漏洞。
 * [ ] Application / UI 弹窗桥接之外无直接模态对话框调用。
 * [ ] 未引入全局静态日志器。
 * [ ] 未引入新的全局可变状态。
@@ -110,6 +111,7 @@ description: >-
 ### 4.5 API 规范
 * [ ] UI 接收 Application 契约对象，而非 Domain AST / 底层设施对象。
 * [ ] Domain API 使用强领域类型。
+* [ ] 继承 `std::enable_shared_from_this` 的异步服务必须通过 PassKey 模式约束 `std::shared_ptr` 所有权，在状态变更前前置校验 `weak_from_this().lock()`，并通过 RAII 守护保障任务派发异常时的状态安全回滚。
 * [ ] 错误处理结构化并保留诊断上下文；`Core::Error::ExecutionGuard` 保持通用基础设施特性，严禁猜词推断领域错误码。
 * [ ] 底层探测器（如 `ArchiveAssetSourceProber`）严禁将失败或取消压制吞没为 `false`；工作流资产定位契约（`AssetLocator::exists()`）高保真反映存在性（CS2 原生存在返回 `true`）。
 * [ ] 未重复编写已有 Core 基础设施的功能。
@@ -149,6 +151,8 @@ Workflow → Application
 Core 层 → 自然语言关键词猜词推断领域错误（如 msg.contains("vpk") -> ArchiveOpenFailed）
 探测/定位层 → 将底层真实错误或取消静默吞没为 false，导致上层将异常误判为 NotFound
 异步调度层 → 在回调调用处使用 catch (...) {} 静默吞没异常，缺乏诊断记录
+异步服务层 → 继承 enable_shared_from_this 的服务允许以普通栈对象或 unique_ptr 构造并直接调用异步方法
+文件写入层 → 敏感文件写入（解包/复制）仅作逻辑路径前缀比对而未传递 expectedBaseDir 进行内核物理句柄边界校验
 测试管理 → 任务完成后将临时测试目标或测试代码长期残留于代码库中
 
 承担众多杂项职责的庞大静态 Application 服务

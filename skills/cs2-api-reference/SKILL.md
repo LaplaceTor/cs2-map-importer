@@ -66,12 +66,14 @@ description: >-
 * **`Core::Hash`**：
   * `Sha256`：通用低开销流式 SHA-256 散列计算设施，支持对磁盘文件（64KB 分块流式读取，内存占用恒定，集成 `CancellationToken` 协作取消）或内存字节缓冲区（`QByteArray`）计算散列，统一输出 64 位小写十六进制字符串（`compute(path, token)` / `compute(data)`）。
 * **`Core::Path`**：
-  * `FilesystemPath`：标准化跨平台宿主文件系统路径抽象与操作，基于 `std::filesystem::weakly_canonical` 提供 `isSubpathOf(baseDir)` 与 `contains(childPath)` 物理与词法双重判定（穿透 Windows Directory Junction、NTFS Reparse Point 与符号链接，即使基目录或目标尚不存在亦可精准判别）；`resolveBelow(subpath)` 严格防御绝对路径、`../` 回溯、盘符冒号 `:` 与 NTFS ADS 流穿越；提供 `verifyHandleWithinBase` 与 `verifyFileWithinBase` 基于 Windows `GetFinalPathNameByHandleW` 的文件句柄物理真实路径校验，彻底消除 TOCTOU 目录联接替换竞态；
+  * `FilesystemPath`：标准化跨平台宿主文件系统路径抽象与双层安全边界：
+    * **Tier 1 逻辑路径包含性**：`isSubpathOf(baseDir)`、`contains(childPath)` 与 `resolveBelow(subpath)`，基于 `std::filesystem::weakly_canonical` 提供物理规范化与词法双重判定（穿透 Windows Directory Junction、NTFS Reparse Point 与符号链接，即使基目录或目标尚不存在亦可精准判别）；严格过滤绝对路径、`../` 回溯、盘符冒号 `:` 与 NTFS ADS 流穿越（`:stream`）；支持 `\\?\UNC\` 网络共享路径前缀规整；用于路径规划与过滤，但不能免疫 TOCTOU 竞态；
+    * **Tier 2 物理内核句柄验证**：`verifyHandleWithinBase` 与接收 `const QFileDevice&`（覆盖 `QFile`、`QSaveFile`、`QTemporaryFile`）的 `verifyFileWithinBase`，在文件打开后通过 Win32 `GetFinalPathNameByHandleW(FILE_NAME_NORMALIZED | VOLUME_NAME_DOS)` 查询内核物理文件对象，彻底消除 TOCTOU 目录联接替换与符号链接逃逸竞态；
   * `PathUtils`：通用路径规范化、扩展名提取、安全文件名过滤（`sanitizeFilename`）与路径归属检查（`isSubpath` 统一代理至 `FilesystemPath::isSubpathOf`）。
 * **`Core::KeyValues`**：
   * `KeyValuesDocument` / `KeyValuesNode` / `KeyValuesParser` / `KeyValuesWriter`：通用 Valve KeyValues/VDF AST 解析与序列化器，支持无引号 Token、嵌套节点、同名兄弟节点、位置感知 CRUD（插入、替换、移除）与保序输出、保留头部注释与空行。
 * **`Core::FileSystem`**：
-  * `FileSystem`：通用文件系统辅助工具（`copy()` 与 `move()` 全面支持 `CancellationToken` 协作取消；`isSubdirectoryOrEqual` 基于 `FilesystemPath::isSubpathOf`）；
+  * `FileSystem`：通用文件系统辅助工具。`copy()` 与 `move()` 全面支持 `CancellationToken` 协作取消与可选 `expectedBaseDir` 参数：当传入 `expectedBaseDir` 时，执行 Tier 1 预检并在打开目标文件句柄后自动触发 Tier 2 `verifyFileWithinBase` 物理句柄验证，一旦发生 Junction/符号链接逃逸即刻安全删除部分写入文件并抛出 `ErrorCode::InvalidPath` 异常；`isSubdirectoryOrEqual` 基于 `FilesystemPath::isSubpathOf`；
   * `AtomicFile`：基于临时文件重命名的原子落盘写入；
   * `DirectorySnapshot`：目录递归快照；
   * `FileLease`：RAII 移动语义的文件排他锁/租约机制。
@@ -110,7 +112,7 @@ description: >-
   * `AssetTypeDetector`：基于文件名与后缀的资产类型判别。
 * **`Domain::Package`**：
   * `PackArchive`：基于 `sourcepp` (vpkpp/bsppp) 的统一资产包抽象，直接在进程内读取/枚举/提取 VPK 与 BSP 嵌入包内容；`extractEntryToFile` 接收 `expectedBaseDir` 并在打开文件后执行 `verifyFileWithinBase` 句柄校验，防范 TOCTOU 越界写入；`readEntry` 与 `hasEntry` 支持 `CancellationToken` 协作取消；
-  * `BspPackExtractor`：专职从 Source 1 BSP 文件提取嵌入的 Pakfile 资产包；
+  * `BspPackExtractor`：专职从 Source 1 BSP 文件提取嵌入的 Pakfile 资产包；目录预创建与提取文件路径均经 `destDir.resolveBelow()` 约束（Tier 1），提取写入打开句柄后强制执行 `verifyFileWithinBase(outFile, destDir)` 内核句柄安全校验（Tier 2），越界时即刻清除残存文件并跳过；
   * `PackArchivePool`：归档池化缓存机制（LRU 缓存），复用打开的文件句柄，采用键粒度 `OpeningEntry` 条件变量同步（根除并发重复打开并响应取消）。已彻底废弃外部 VPKEdit CLI；
   * `VpkIndex`：针对游戏所有 VPK 资产包的轻量只读内存索引与高效二进制持久化载体。文件头魔数 `CS2VPKID` (v1)，记录全部 VPK 路径、文件大小、修改时间与 `_dir.vpk` SHA-256 哈希校验；条目映射表以资产绝对路径映射到 `(vpkIndex, internalPath)`，支持 $O(1)$ 精确点查；持有 `isCs2()` 标志与 CS2 资产规范化主干名哈希集合（`cs2Stems`），用于跨引擎资产去重与避免重复解包编译；
   * `VpkIndexBuilder`：多 VPK 全量文件树快速构建器。基于 `sourcepp::vpkpp::runForAllEntries` 瞬时抓取内部资产树并排序，规避低优先包覆盖高优先包，自适应区分 CS2 与 S1 资产提取规整主干名，输出 `std::shared_ptr<VpkIndex>`。
@@ -160,12 +162,12 @@ description: >-
 * **`Workflow::Common`**：
   * `ImportContext`：组合 `Core::Logging::TaskLoggingContext*` 与 `Core::Async::CancellationToken`，提供统一的任务日志、进度汇报与取消状态检查（`checkCancelled()`）；`runStep` 保证进度在步骤成功后延后推进（步骤启动时更新 `currentMessage`，步骤成功且未取消时才递进 `updateProgress`，消除进度虚假超前）；
   * `AssetLocator`：资产定位调度门面，编排 `Domain::Asset::AssetLocateStrategy` 与 `ArchiveAssetSourceProber`；`exists()` 语义严密化：对 CS2 原生已有资源返回 `true`，真实失败/取消原样上报为 `Result<bool>`，杜绝错误将原生资源判定为不存在；
-  * `AssetExtractor`：资产定位与提取中枢。组合 `SearchTarget` 列表、`Domain::Package::VpkIndex`（点查直接命中）与 `PackArchivePool`。执行策略：1. CS2 原生资产规整树判断（已由 CS2 原生提供则跳过解包与重编译）；2. 优先检索磁盘松散文件；3. 优先通过 `VpkIndex` 精确查询目标归档，若命中直接定位提取；4. 仅在未建立索引或点查失配时回退到旧式全包线性搜索。向包提取传递目标基目录启用内核句柄验证（`verifyFileWithinBase`）；`extractCompanions` 穿透取消令牌并返回 `Core::Result<void>`；彻底杜绝盲目打开与撞库试探；
+  * `AssetExtractor`：资产定位与提取中枢。组合 `SearchTarget` 列表、`Domain::Package::VpkIndex`（点查直接命中）与 `PackArchivePool`。执行策略：1. CS2 原生资产规整树判断（已由 CS2 原生提供则跳过解包与重编译）；2. 优先检索磁盘松散文件；3. 优先通过 `VpkIndex` 精确查询目标归档，若命中直接定位提取；4. 仅在未建立索引或点查失配时回退到旧式全包线性搜索。向包提取传递目标基目录启用内核句柄验证（`verifyFileWithinBase`）；对松散文件复制（`FileSystem::copy`）同样显式透传 `expectedBaseDir` 与 `destContentDir`，保障整个文件落地链路受到物理内核句柄边界防护；`extractCompanions` 穿透取消令牌并返回 `Core::Result<void>`；彻底杜绝盲目打开与撞库试探；
   * `AssetExtractOptions`：资产提取配置参数结构体；
   * `BspEmbeddedExtractor`：经 `Domain::Package::PackArchive` 与 `BspPackExtractor` 枚举并提取 BSP 内部嵌入资产；
   * `VtfExtractor`：组合 `AssetExtractor` 与 `Domain::Material::VtfConverter`，按 `SearchTarget` 列表定位 VTF、解码并**固定导出为 PNG**（用例层锁定格式，`VtfConverter` 本身保持格式无关）；中间 VTF 文件解包至 RAII 临时目录自动清理；失败语义沿用 `AssetExtractor::extract`，图像编码步骤额外引入 `OperationFailed` 失败原因。
 * **`Workflow::Particle`**：
-  * `ParticleImportWorkflow`：Source 1 `.pcf` 到 Source 2 `.vpcf` 的完整导入工作流，支持多 PCF 批量导入（`ParticleImportOptions::sourcePcfPaths`）；针对每个 PCF 独立执行 `source1import` 转换与暂存保护（若 S1 `particles/` 目标已存在同名文件，分配隔离的 `_cs2import_tmp_<uuid>_<file>` 临时文件名，转换后即刻清理，杜绝破坏用户既有资产）；汇总生成的所有 `.vpcf` 后批量调用 `Domain::Tool::ResourceCompilerTool` 编译；**产物生命周期归属工作流**——编译步骤被取消或失败时清理半成品 `.vpcf` / `.vpcf_c`（`cleanupGeneratedArtifacts`）；
+  * `ParticleImportWorkflow`：Source 1 `.pcf` 到 Source 2 `.vpcf` 的完整导入工作流，支持多 PCF 批量导入（`ParticleImportOptions::sourcePcfPaths`）；针对每个 PCF 独立执行 `source1import` 转换与暂存保护（若 S1 `particles/` 目标已存在同名文件，分配隔离的 `_cs2import_tmp_<uuid>_<file>` 临时文件名，调用 `FileSystem::copy` 时传递 `s1ParticlesDir` 校验安全边界，转换后即刻清理，杜绝破坏用户既有资产）；汇总生成的所有 `.vpcf` 后批量调用 `Domain::Tool::ResourceCompilerTool` 编译；**产物生命周期归属工作流**——编译步骤被取消或失败时清理半成品 `.vpcf` / `.vpcf_c`（`cleanupGeneratedArtifacts`）；
   * `ParticleImportOptions` / `ParticleImportWorkflowResult`：粒子导入配置参数与详细统计结果（包含 `sourcePcfPaths`、`toolTimeoutMs`、`totalConverted`、`totalCompiled`、`totalFailed`、`failedPcfFiles`、`compiledVpcfCFiles` 等）。
 
 ---
@@ -194,7 +196,7 @@ description: >-
   * `TaskLogDTOs`：UI 侧值类型——`TaskState` / `LogLevel` 枚举（**UI 代码一律使用此层枚举，禁止使用 Core 侧枚举**）、`taskStateToString` / `logLevelToString`、`TaskLogMessage{sequence, timestamp, level, message, toolTaskId}`、`TaskInfo{taskId, parentTaskId, startTimestamp, taskName, state, progress, currentMessage, isToolTask, logFilePath, workflowDirectory, isValid}`；
   * **红线**：`src/UI/` 严禁 include `Core/Logging/*`，日志一律经本门面获取。
 * **专项业务服务**：
-  * `ParticleImportService` (`Application::Particle`)：粒子导入高层业务编排服务，对外暴露面向 UI 的 DTO 契约（`ParticleImportRequest{sourcePcfPaths, ...}`, `ParticleImportResult{succeeded, generatedVpcfFiles, compiledVpcfCFiles, failedPcfFiles, totalConverted, totalCompiled, totalFailed}`）；签名 `importParticlesAsync(request, callback)`（无 loggingCtx 参数），恒经 `runWorkflowTask` 执行；并发导入快速失败（第二个调用经回调返回 `InvalidState`，句柄无效）；`enable_shared_from_this` 保证任务期间服务存活；
+  * `ParticleImportService` (`Application::Particle`)：粒子导入高层业务编排服务，对外暴露面向 UI 的 DTO 契约（`ParticleImportRequest{sourcePcfPaths, ...}`, `ParticleImportResult{succeeded, generatedVpcfFiles, compiledVpcfCFiles, failedPcfFiles, totalConverted, totalCompiled, totalFailed}`）；强制共享所有权契约（通过 PassKey 限制仅可经静态工厂 `ParticleImportService::create(...)` 构造，禁止栈分配与 `make_unique`）；在 `importParticlesAsync` 中前置安全校验 `weak_from_this().lock()`，杜绝未纳管实例抛出 `bad_weak_ptr`；并发导入原子快速失败（第二个调用经回调返回 `InvalidState`，句柄无效并安全回滚计数）；任务派发异常与失败具备 `ImportScopeGuard` RAII 状态自动回滚与回调保障；签名 `importParticlesAsync(request, callback)`，恒经 `runWorkflowTask` 执行；
   * `SoundscapeConvertService` (`Application::Soundscape`)：声音景观批量转换服务，将 Source 1 脚本转为 CS2 KV3 音效事件文件；签名 `convertMapSoundscapesAsync(request, callback)`（无 loggingCtx 参数），经 `runWorkflowTask` 执行（以地图名为资产基名，拥有独立工作流日志目录与可见任务树节点）。
 
 ---

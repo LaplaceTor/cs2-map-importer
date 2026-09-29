@@ -2,6 +2,7 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QFile>
+#include <QFileDevice>
 #include <filesystem>
 #include <system_error>
 #include <string>
@@ -78,14 +79,6 @@ bool FilesystemPath::isSubpathOf(const FilesystemPath& baseDir) const {
         cleanBase.append(QLatin1Char('/'));
     }
 
-    const QString cleanChildWithSlash = cleanChild.endsWith(QLatin1Char('/'))
-        ? cleanChild
-        : cleanChild + QLatin1Char('/');
-
-    if (!cleanChildWithSlash.startsWith(cleanBase, Qt::CaseInsensitive)) {
-        return false;
-    }
-
     // Physical canonical containment check: verify that symlinks / junctions / reparse points
     // do not escape baseDir's physical boundary, even if baseDir or child elements do not yet exist.
     std::error_code ecBase;
@@ -103,7 +96,9 @@ bool FilesystemPath::isSubpathOf(const FilesystemPath& baseDir) const {
     }
 
     QString canonicalBase = QString::fromStdWString(canonBaseFs.wstring());
-    if (canonicalBase.startsWith(QStringLiteral("\\\\?\\"))) {
+    if (canonicalBase.startsWith(QStringLiteral("\\\\?\\UNC\\"), Qt::CaseInsensitive)) {
+        canonicalBase = QStringLiteral("\\\\") + canonicalBase.mid(8);
+    } else if (canonicalBase.startsWith(QStringLiteral("\\\\?\\"))) {
         canonicalBase.remove(0, 4);
     }
     canonicalBase = QDir::fromNativeSeparators(canonicalBase);
@@ -112,7 +107,9 @@ bool FilesystemPath::isSubpathOf(const FilesystemPath& baseDir) const {
     }
 
     QString canonicalChild = QString::fromStdWString(canonChildFs.wstring());
-    if (canonicalChild.startsWith(QStringLiteral("\\\\?\\"))) {
+    if (canonicalChild.startsWith(QStringLiteral("\\\\?\\UNC\\"), Qt::CaseInsensitive)) {
+        canonicalChild = QStringLiteral("\\\\") + canonicalChild.mid(8);
+    } else if (canonicalChild.startsWith(QStringLiteral("\\\\?\\"))) {
         canonicalChild.remove(0, 4);
     }
     canonicalChild = QDir::fromNativeSeparators(canonicalChild);
@@ -241,7 +238,9 @@ bool FilesystemPath::verifyHandleWithinBase(void* win32Handle, const FilesystemP
     finalPath.resize(len);
 
     QString qFinalPath = QString::fromStdWString(finalPath);
-    if (qFinalPath.startsWith(QStringLiteral("\\\\?\\"))) {
+    if (qFinalPath.startsWith(QStringLiteral("\\\\?\\UNC\\"), Qt::CaseInsensitive)) {
+        qFinalPath = QStringLiteral("\\\\") + qFinalPath.mid(8);
+    } else if (qFinalPath.startsWith(QStringLiteral("\\\\?\\"))) {
         qFinalPath.remove(0, 4);
     }
     qFinalPath = QDir::fromNativeSeparators(qFinalPath);
@@ -254,7 +253,9 @@ bool FilesystemPath::verifyHandleWithinBase(void* win32Handle, const FilesystemP
     }
 
     QString canonicalBase = QString::fromStdWString(canonBaseFs.wstring());
-    if (canonicalBase.startsWith(QStringLiteral("\\\\?\\"))) {
+    if (canonicalBase.startsWith(QStringLiteral("\\\\?\\UNC\\"), Qt::CaseInsensitive)) {
+        canonicalBase = QStringLiteral("\\\\") + canonicalBase.mid(8);
+    } else if (canonicalBase.startsWith(QStringLiteral("\\\\?\\"))) {
         canonicalBase.remove(0, 4);
     }
     canonicalBase = QDir::fromNativeSeparators(canonicalBase);
@@ -269,7 +270,7 @@ bool FilesystemPath::verifyHandleWithinBase(void* win32Handle, const FilesystemP
     return finalPathWithSlash.startsWith(canonicalBase, Qt::CaseInsensitive);
 }
 
-bool FilesystemPath::verifyFileWithinBase(const QFile& file, const FilesystemPath& baseDir) {
+bool FilesystemPath::verifyFileWithinBase(const QFileDevice& file, const FilesystemPath& baseDir) {
     if (!file.isOpen()) {
         return false;
     }

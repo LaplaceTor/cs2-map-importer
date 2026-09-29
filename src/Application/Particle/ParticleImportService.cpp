@@ -50,7 +50,15 @@ ParticleImportResult toApplicationResult(const Workflow::Particle::ParticleImpor
 } // namespace
 
 
+std::shared_ptr<ParticleImportService> ParticleImportService::create(
+    std::shared_ptr<Common::ImportPrerequisiteService> prerequisiteService,
+    QObject* parent)
+{
+    return std::make_shared<ParticleImportService>(PassKey{}, std::move(prerequisiteService), parent);
+}
+
 ParticleImportService::ParticleImportService(
+    PassKey,
     std::shared_ptr<Common::ImportPrerequisiteService> prerequisiteService,
     QObject* parent)
     : QObject(parent)
@@ -70,7 +78,20 @@ Async::TaskHandle ParticleImportService::importParticlesAsync(
     const ParticleImportRequest& request,
     std::function<void(const Core::Result<ParticleImportResult>&)> callback)
 {
-    // Reject overlapping imports atomically: a second concurrent import would
+    // 1. Safe shared ownership check BEFORE modifying any state or counters:
+    // If the instance is not managed by std::shared_ptr, weak_from_this().lock()
+    // returns nullptr without throwing std::bad_weak_ptr.
+    auto self = weak_from_this().lock();
+    if (!self) {
+        if (callback) {
+            callback(Core::Result<ParticleImportResult>::failure(
+                Core::Error::ErrorCode::InvalidState,
+                QCoreApplication::translate("ParticleImportService", "ParticleImportService instance must be managed by std::shared_ptr to start async operations")));
+        }
+        return Async::TaskHandle{};
+    }
+
+    // 2. Reject overlapping imports atomically: a second concurrent import would
     // overwrite m_activeTaskHandle and become uncancellable.
     if (m_activeImportsCount.fetch_add(1, std::memory_order_relaxed) != 0) {
         m_activeImportsCount.fetch_sub(1, std::memory_order_relaxed);
@@ -83,56 +104,85 @@ Async::TaskHandle ParticleImportService::importParticlesAsync(
     }
     emit isImportingChanged(true);
 
-    // Workers hold a shared_ptr so the service stays alive for the whole task
-    // duration even if the owner drops it mid-flight.
-    const auto self = shared_from_this();
+    try {
+        QString pcfBaseName;
+        QString taskName;
+        if (request.sourcePcfPaths.size() == 1) {
+            const QString p = request.sourcePcfPaths.first().trimmed();
+            const QString pcfFileName = p.isEmpty() ? QStringLiteral("PCF") : QFileInfo(p).fileName();
+            pcfBaseName = p.isEmpty() ? QStringLiteral("pcf") : QFileInfo(p).completeBaseName();
+            taskName = QCoreApplication::translate("ParticleImportService", "Import Particle: %1").arg(pcfFileName);
+        } else {
+            pcfBaseName = QStringLiteral("particles_batch");
+            taskName = QCoreApplication::translate("ParticleImportService", "Import Particles (%1 files)")
+                .arg(request.sourcePcfPaths.size());
+        }
 
-    QString pcfBaseName;
-    QString taskName;
-    if (request.sourcePcfPaths.size() == 1) {
-        const QString p = request.sourcePcfPaths.first().trimmed();
-        const QString pcfFileName = p.isEmpty() ? QStringLiteral("PCF") : QFileInfo(p).fileName();
-        pcfBaseName = p.isEmpty() ? QStringLiteral("pcf") : QFileInfo(p).completeBaseName();
-        taskName = QCoreApplication::translate("ParticleImportService", "Import Particle: %1").arg(pcfFileName);
-    } else {
-        pcfBaseName = QStringLiteral("particles_batch");
-        taskName = QCoreApplication::translate("ParticleImportService", "Import Particles (%1 files)")
-            .arg(request.sourcePcfPaths.size());
-    }
+        auto worker = [self, request](std::shared_ptr<Core::Logging::TaskLoggingContext> taskCtx,
+                                      Core::Async::CancellationToken token) -> Core::Result<ParticleImportResult> {
+            Workflow::Common::ImportContext ctx(taskCtx.get(), std::move(token));
+            return self->executeImport(request, ctx);
+        };
 
-    auto worker = [self, request](std::shared_ptr<Core::Logging::TaskLoggingContext> taskCtx,
-                                  Core::Async::CancellationToken token) -> Core::Result<ParticleImportResult> {
-        Workflow::Common::ImportContext ctx(taskCtx.get(), std::move(token));
-        return self->executeImport(request, ctx);
-    };
-
-    auto completionCallback = [self, userCallback = std::move(callback)](const Core::Result<ParticleImportResult>& result) {
-        if (self->m_activeImportsCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
-            {
-                std::lock_guard<std::mutex> lock(self->m_mutex);
-                self->m_activeTaskHandle = Async::TaskHandle{};
+        auto completionCallback = [self, cb = callback](const Core::Result<ParticleImportResult>& result) {
+            if (self->m_activeImportsCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
+                {
+                    std::lock_guard<std::mutex> lock(self->m_mutex);
+                    self->m_activeTaskHandle = Async::TaskHandle{};
+                }
+                emit self->isImportingChanged(false);
             }
-            emit self->isImportingChanged(false);
-        }
-        if (userCallback) {
-            userCallback(result);
-        }
-    };
+            if (cb) {
+                cb(result);
+            }
+        };
 
-    Async::TaskHandle handle = Async::AsyncTaskRunner::runWorkflowTask<ParticleImportResult>(
-        taskName,
-        pcfBaseName,
-        self.get(),
-        std::move(worker),
-        std::move(completionCallback),
-        QThreadPool::globalInstance());
+        Async::TaskHandle handle = Async::AsyncTaskRunner::runWorkflowTask<ParticleImportResult>(
+            taskName,
+            pcfBaseName,
+            self.get(),
+            std::move(worker),
+            std::move(completionCallback),
+            QThreadPool::globalInstance());
 
-    {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_activeTaskHandle = handle;
+        if (handle.isValid()) {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_activeTaskHandle = handle;
+        }
+
+        return handle;
+    } catch (const std::exception& ex) {
+        // Roll back state if task launch failed due to an exception
+        if (m_activeImportsCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                m_activeTaskHandle = Async::TaskHandle{};
+            }
+            emit isImportingChanged(false);
+        }
+        if (callback) {
+            callback(Core::Result<ParticleImportResult>::failure(
+                Core::Error::ErrorCode::OperationFailed,
+                QCoreApplication::translate("ParticleImportService", "Failed to start async import task: %1")
+                    .arg(QString::fromUtf8(ex.what()))));
+        }
+        return Async::TaskHandle{};
+    } catch (...) {
+        // Roll back state if task launch failed due to an unknown exception
+        if (m_activeImportsCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                m_activeTaskHandle = Async::TaskHandle{};
+            }
+            emit isImportingChanged(false);
+        }
+        if (callback) {
+            callback(Core::Result<ParticleImportResult>::failure(
+                Core::Error::ErrorCode::Unknown,
+                QCoreApplication::translate("ParticleImportService", "Failed to start async import task due to an unknown exception")));
+        }
+        return Async::TaskHandle{};
     }
-
-    return handle;
 }
 
 void ParticleImportService::cancelCurrentImport()

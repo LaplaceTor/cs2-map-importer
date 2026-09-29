@@ -86,7 +86,12 @@ void FileSystem::remove(const QString& path) {
     }
 }
 
-void FileSystem::copy(const QString& source, const QString& destination, bool overwrite, const Core::Async::CancellationToken& token) {
+void FileSystem::copy(
+    const QString& source,
+    const QString& destination,
+    bool overwrite,
+    const Core::Async::CancellationToken& token,
+    const Core::Path::FilesystemPath& expectedBaseDir) {
     if (token.isCancelled()) {
         throw Core::Error::Exception(
             Core::Error::ErrorCode::Cancelled,
@@ -97,6 +102,15 @@ void FileSystem::copy(const QString& source, const QString& destination, bool ov
         throw Core::Error::Exception(
             Core::Error::ErrorCode::InvalidPath,
             QCoreApplication::translate("FileSystem", "Cannot copy: Source or destination path is empty"));
+    }
+
+    if (!expectedBaseDir.isEmpty()) {
+        if (!Core::Path::FilesystemPath(destination).isSubpathOf(expectedBaseDir)) {
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("FileSystem", "Security boundary violation: Destination '%1' is not within expected base directory '%2'")
+                    .arg(destination, expectedBaseDir.toString()));
+        }
     }
 
     QFileInfo srcInfo(source);
@@ -123,7 +137,7 @@ void FileSystem::copy(const QString& source, const QString& destination, bool ov
                 QCoreApplication::translate("FileSystem", "Cannot copy directory: Source is inside destination directory (%1 -> %2)").arg(source, destination));
         }
 
-        copyDirectoryHelper(source, destination, overwrite, token);
+        copyDirectoryHelper(source, destination, overwrite, token, expectedBaseDir);
         return;
     }
 
@@ -162,6 +176,17 @@ void FileSystem::copy(const QString& source, const QString& destination, bool ov
             QCoreApplication::translate("FileSystem", "Failed to open destination file for writing: %1 (%2)").arg(destination, dstFile.errorString()));
     }
 
+    if (!expectedBaseDir.isEmpty()) {
+        if (!Core::Path::FilesystemPath::verifyFileWithinBase(dstFile, expectedBaseDir)) {
+            dstFile.close();
+            dstFile.remove();
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("FileSystem", "Security boundary violation: Destination file '%1' escaped expected base directory '%2' via reparse point or symlink")
+                    .arg(destination, expectedBaseDir.toString()));
+        }
+    }
+
     constexpr qint64 ChunkSize = 64 * 1024;
     QByteArray buffer(ChunkSize, Qt::Uninitialized);
 
@@ -196,7 +221,12 @@ void FileSystem::copy(const QString& source, const QString& destination, bool ov
     }
 }
 
-void FileSystem::copyDirectoryHelper(const QString& source, const QString& destination, bool overwrite, const Core::Async::CancellationToken& token) {
+void FileSystem::copyDirectoryHelper(
+    const QString& source,
+    const QString& destination,
+    bool overwrite,
+    const Core::Async::CancellationToken& token,
+    const Core::Path::FilesystemPath& expectedBaseDir) {
     if (token.isCancelled()) {
         throw Core::Error::Exception(
             Core::Error::ErrorCode::Cancelled,
@@ -222,7 +252,7 @@ void FileSystem::copyDirectoryHelper(const QString& source, const QString& desti
         if (itemInfo.isDir()) {
             createDirectory(targetPath);
         } else if (itemInfo.isFile()) {
-            copy(it.filePath(), targetPath, overwrite, token);
+            copy(it.filePath(), targetPath, overwrite, token, expectedBaseDir);
         }
     }
 }
@@ -231,7 +261,8 @@ void FileSystem::move(
     const QString& source,
     const QString& destination,
     bool overwrite,
-    const Core::Async::CancellationToken& token) {
+    const Core::Async::CancellationToken& token,
+    const Core::Path::FilesystemPath& expectedBaseDir) {
     if (token.isCancelled()) {
         throw Core::Error::Exception(
             Core::Error::ErrorCode::Cancelled,
@@ -242,6 +273,15 @@ void FileSystem::move(
         throw Core::Error::Exception(
             Core::Error::ErrorCode::InvalidPath,
             QCoreApplication::translate("FileSystem", "Cannot move: Source or destination path is empty"));
+    }
+
+    if (!expectedBaseDir.isEmpty()) {
+        if (!Core::Path::FilesystemPath(destination).isSubpathOf(expectedBaseDir)) {
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("FileSystem", "Security boundary violation: Destination '%1' is not within expected base directory '%2'")
+                    .arg(destination, expectedBaseDir.toString()));
+        }
     }
 
     QFileInfo srcInfo(source);
@@ -298,6 +338,26 @@ void FileSystem::move(
 
     QDir dir;
     if (dir.rename(source, destination)) {
+        if (!expectedBaseDir.isEmpty()) {
+            QFileInfo destInfoAfter(destination);
+            if (destInfoAfter.isFile()) {
+                QFile checkFile(destination);
+                if (checkFile.open(QIODevice::ReadOnly)) {
+                    bool valid = Core::Path::FilesystemPath::verifyFileWithinBase(checkFile, expectedBaseDir);
+                    checkFile.close();
+                    if (!valid) {
+                        dir.rename(destination, source);
+                        if (!backupPath.isEmpty() && exists(backupPath)) {
+                            dir.rename(backupPath, destination);
+                        }
+                        throw Core::Error::Exception(
+                            Core::Error::ErrorCode::InvalidPath,
+                            QCoreApplication::translate("FileSystem", "Security boundary violation: Destination '%1' escaped expected base directory '%2'")
+                                .arg(destination, expectedBaseDir.toString()));
+                    }
+                }
+            }
+        }
         if (!backupPath.isEmpty() && exists(backupPath)) {
             remove(backupPath);
         }
@@ -306,7 +366,7 @@ void FileSystem::move(
 
     // QDir::rename failed (e.g. cross-volume move), fallback to copy & delete
     try {
-        copy(source, destination, overwrite, token);
+        copy(source, destination, overwrite, token, expectedBaseDir);
     } catch (...) {
         // Copy failed: clean up partial destination and restore backup if it existed
         if (exists(destination)) {

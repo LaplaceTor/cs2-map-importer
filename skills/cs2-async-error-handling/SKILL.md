@@ -52,6 +52,7 @@ description: >-
 5. **平面归属规则**：面向用户的导入工作流（粒子导入、音景转换等）一律走 `runWorkflowTask` / `runTask` 平面（进任务树、有独立日志）；环境检测、安装校验、插件列举、VPK 索引后台校验与构建（`VpkIndexService`）等非导入后台任务必须走 `runSystemTask`，严禁占用可见任务树。
 6. **致命异常终态回退防护 (`fallbackTerminalStateOnFatalException`)**：当 Worker 内部出现无法预料的严重异常或故障中断时，若任务仍停留于非终态（如 `Running`），Runner 强制触发回退仲裁，调用 `LogManager::forceTaskState(taskId, TaskState::Failed, ...)` 并将进度刷新为 1.0，杜绝任务在 UI 界面永久挂死在运行中状态。
 7. **回调异常安全隔离 (`invokeCallbackSafely`)**：在向 UI / 调用方线程派发回调时，使用两阶段结构化捕获（`catch (const std::exception& ex)` 与 `catch (...)`），将异常记录至应用诊断日志。严禁直接使用空 `catch (...) {}` 静默吞没异常，同时确保 UI 逻辑异常绝不逆向污染 Worker 线程池生命周期。
+8. **异步服务所有权契约与状态安全回滚**：使用 `std::enable_shared_from_this` 延长跨线程生命周期的 Application 服务（如 `ParticleImportService`），必须通过 PassKey 模式与静态 `create()` 工厂严格约束仅能通过 `std::shared_ptr` 创建与管理；异步入口方法在改变内部状态（如递增并发任务数）前，必须前置执行 `weak_from_this().lock()` 有效性校验（若未纳管则快速失败返回 `InvalidState`，避免触发 `std::bad_weak_ptr` 异常并遗留孤儿计数）；状态变更必须配备 RAII 作用域守护（如 `ImportScopeGuard`），确保在任务派发阶段抛出异常或启动失败时，活动任务计数与 UI 状态能够无条件安全回滚，杜绝前端持久挂死在 `isImporting == true`。
 
 ### 1.2 层级化任务日志树与外部工具任务 (Workflow Task vs Tool Task)
 

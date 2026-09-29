@@ -119,7 +119,12 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
             }
 
             try {
-                Core::FileSystem::FileSystem::copy(pcfPath.toString(), targetPcfPathStr, true, context.token());
+                Core::FileSystem::FileSystem::copy(
+                    pcfPath.toString(),
+                    targetPcfPathStr,
+                    true,
+                    context.token(),
+                    Core::Path::FilesystemPath(s1ParticlesDir.absolutePath()));
             } catch (const Core::Error::Exception& ex) {
                 if (ex.error().code() == Core::Error::ErrorCode::Cancelled) {
                     cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context);

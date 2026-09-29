@@ -146,7 +146,10 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
         targetBaseDir.mkpath(QStringLiteral("."));
     }
     for (const QString& subDir : uniqueDirs) {
-        targetBaseDir.mkpath(subDir);
+        auto subOpt = destDir.resolveBelow(subDir);
+        if (subOpt.has_value()) {
+            QDir(subOpt->toString()).mkpath(QStringLiteral("."));
+        }
     }
 
     // Phase 2: Multi-threaded in-memory extraction
@@ -212,9 +215,20 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
                 continue;
             }
 
-            const QString fullTarget = destDir.toString() + u'/' + entry.relativePath;
+            auto targetPathOpt = destDir.resolveBelow(entry.relativePath);
+            if (!targetPathOpt.has_value()) {
+                continue;
+            }
+
+            const QString fullTarget = targetPathOpt->toString();
             QFile outFile(fullTarget);
             if (outFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                if (!Core::Path::FilesystemPath::verifyFileWithinBase(outFile, destDir)) {
+                    outFile.close();
+                    outFile.remove();
+                    continue;
+                }
+
                 if (entry.uncompSize > 0) {
                     outFile.write(reinterpret_cast<const char*>(buffer.data()), static_cast<qint64>(entry.uncompSize));
                 }

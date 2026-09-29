@@ -36,12 +36,30 @@ namespace Application::Particle {
 class ParticleImportService : public QObject, public std::enable_shared_from_this<ParticleImportService> {
     Q_OBJECT
 
+    // PassKey idiom: enforces that ParticleImportService can only be constructed
+    // through its static create() factory, guaranteeing std::shared_ptr management.
+    struct PassKey {
+        explicit PassKey() = default;
+    };
+
 public:
     using WorkflowRunner = std::function<Core::Result<Workflow::Particle::ParticleImportWorkflowResult>(
         const Workflow::Particle::ParticleImportOptions&,
         const Workflow::Common::ImportContext&)>;
 
+    /**
+     * @brief Factory method: creates a new ParticleImportService managed by std::shared_ptr.
+     *
+     * Asynchronous execution and std::enable_shared_from_this require that instances
+     * are strictly managed by std::shared_ptr. Direct stack allocation, raw new, or
+     * std::make_unique are disallowed by constructor constraints.
+     */
+    static std::shared_ptr<ParticleImportService> create(
+        std::shared_ptr<Common::ImportPrerequisiteService> prerequisiteService = nullptr,
+        QObject* parent = nullptr);
+
     explicit ParticleImportService(
+        PassKey,
         std::shared_ptr<Common::ImportPrerequisiteService> prerequisiteService = nullptr,
         QObject* parent = nullptr);
     ~ParticleImportService() override;
