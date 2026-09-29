@@ -1,5 +1,6 @@
 #pragma once
 
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 
@@ -68,8 +69,16 @@ public:
     void clear() noexcept;
 
 private:
+    struct OpeningEntry {
+        std::mutex mutex;
+        std::condition_variable cv;
+        bool done = false;
+        Core::Result<std::shared_ptr<PackArchive>> result;
+    };
+
     mutable std::mutex m_mutex;
     QHash<QString, std::shared_ptr<PackArchive>> m_archives;
+    QHash<QString, std::shared_ptr<OpeningEntry>> m_opening;
 };
 
 } // namespace Domain::Package

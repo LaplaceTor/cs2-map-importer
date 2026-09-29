@@ -95,7 +95,7 @@ Core::Result<LookupHit> extractFromDirectoryTarget(
     return extractEntryFromPack(pool, targetDir / QStringLiteral("pak01_dir.vpk"), entryPath, destFile, token);
 }
 
-void extractCompanions(
+Core::Result<void> extractCompanions(
     Domain::Package::PackArchivePool& pool,
     const Core::Path::FilesystemPath& winnerPath,
     bool winnerFromPack,
@@ -105,7 +105,7 @@ void extractCompanions(
     const Core::Async::CancellationToken& token,
     Core::Logging::TaskLoggingContext* taskCtx) {
     if (companionExtensions.empty()) {
-        return;
+        return Core::Result<void>::success();
     }
 
     const QFileInfo assetInfo(relativeAssetPath);
@@ -113,7 +113,8 @@ void extractCompanions(
     const QString assetDir = assetInfo.path();
     for (const QString& extension : companionExtensions) {
         if (token.isCancelled()) {
-            return;
+            return Core::Result<void>::cancelled(
+                QCoreApplication::translate("AssetExtractor", "Asset extraction cancelled"));
         }
 
         QString companionRelative = baseName + u'.' + extension;
@@ -135,7 +136,7 @@ void extractCompanions(
             : extractFromDirectoryTarget(pool, winnerPath, companionRelative, companionDest, token);
 
         if (outcome.isCancelled()) {
-            return;
+            return Core::Result<void>::cancelled(outcome.message());
         }
 
         if (outcome.isFailure()) {
@@ -150,6 +151,7 @@ void extractCompanions(
                                .arg(companionRelative, winnerPath.toString()));
         }
     }
+    return Core::Result<void>::success();
 }
 
 } // namespace
@@ -232,8 +234,11 @@ Core::Result<AssetExtraction> AssetExtractor::extractLocated(
                                   .arg(location.relativePath, location.sourceTargetPath.toString()));
             }
 
-            extractCompanions(pool, location.sourceTargetPath, false, location.relativePath,
-                              options.companionExtensions, destContentDir, token, taskCtx);
+            auto companionRes = extractCompanions(pool, location.sourceTargetPath, false, location.relativePath,
+                                                  options.companionExtensions, destContentDir, token, taskCtx);
+            if (companionRes.isCancelled()) {
+                return Core::Result<AssetExtraction>::cancelled(companionRes.message());
+            }
 
             AssetExtraction extraction;
             extraction.extractedFilePath = destFile;
@@ -265,8 +270,11 @@ Core::Result<AssetExtraction> AssetExtractor::extractLocated(
                               .arg(location.relativePath, location.sourceTargetPath.toString()));
         }
 
-        extractCompanions(pool, location.sourceTargetPath, true, location.relativePath,
-                          options.companionExtensions, destContentDir, token, taskCtx);
+        auto companionRes = extractCompanions(pool, location.sourceTargetPath, true, location.relativePath,
+                                              options.companionExtensions, destContentDir, token, taskCtx);
+        if (companionRes.isCancelled()) {
+            return Core::Result<AssetExtraction>::cancelled(companionRes.message());
+        }
 
         AssetExtraction extraction;
         extraction.extractedFilePath = destFile;

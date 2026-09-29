@@ -80,6 +80,17 @@ void invokeCallbackSafely(
     }
 }
 
+inline void fallbackTerminalStateOnFatalException(
+    const std::shared_ptr<Core::Logging::TaskLoggingContext>& taskContext,
+    quint64 taskId,
+    const QString& summary)
+{
+    if (taskContext && !Core::Logging::TaskLoggingContext::isTerminalState(taskContext->state())) {
+        Core::Logging::LogManager::instance().forceTaskState(
+            taskId, Core::Logging::TaskState::Failed, summary);
+    }
+}
+
 } // namespace Detail
 
 /**
@@ -584,14 +595,20 @@ private:
                 Core::Logging::ApplicationLogger::error(
                     QStringLiteral("[AsyncTaskRunner] Fatal unhandled project exception in worker runnable for '%1' (ID: %2, code %3): %4")
                         .arg(taskName).arg(taskId).arg(static_cast<int>(ex.errorCode())).arg(detailInfo));
+                Detail::fallbackTerminalStateOnFatalException(taskContext, taskId,
+                    QCoreApplication::translate("AsyncTaskRunner", "Task failed with uncaught exception"));
             } catch (const std::exception& ex) {
                 Core::Logging::ApplicationLogger::error(
                     QStringLiteral("[AsyncTaskRunner] Fatal unhandled standard exception in worker runnable for '%1' (ID: %2): %3")
                         .arg(taskName).arg(taskId).arg(QString::fromUtf8(ex.what())));
+                Detail::fallbackTerminalStateOnFatalException(taskContext, taskId,
+                    QCoreApplication::translate("AsyncTaskRunner", "Task failed with uncaught exception"));
             } catch (...) {
                 Core::Logging::ApplicationLogger::error(
                     QStringLiteral("[AsyncTaskRunner] Fatal unhandled unknown exception in worker runnable for '%1' (ID: %2)")
                         .arg(taskName).arg(taskId));
+                Detail::fallbackTerminalStateOnFatalException(taskContext, taskId,
+                    QCoreApplication::translate("AsyncTaskRunner", "Task failed with uncaught exception"));
             }
         };
 
