@@ -1,11 +1,14 @@
 #pragma once
 
+#include "Application/Async/TaskHandle.h"
 #include "Application/Soundscape/SoundscapeConvertDTOs.h"
 #include "Domain/Audio/SoundscapeToSoundEventConverter.h"
 #include "Core/Async/CancellationToken.h"
 #include "Core/Result/Result.h"
 #include "Core/Logging/TaskLoggingContext.h"
 #include <functional>
+
+class QObject;
 
 namespace Application::Soundscape {
 
@@ -16,14 +19,14 @@ public:
     /**
      * @brief Converts in-memory soundscape script content and returns generated soundevents and asset references.
      */
-    Core::Result<ConvertSoundscapeResult> convertContent(const QString& content,
-                                                       const QString& baseName,
-                                                       const Domain::Audio::ConversionOptions& options = {});
+    static Core::Result<ConvertSoundscapeResult> convertContent(const QString& content,
+                                                               const QString& baseName,
+                                                               const Domain::Audio::ConversionOptions& options = {});
 
     /**
      * @brief Converts a single soundscape script file and writes the resulting .vsndevts file to targetPath.
      */
-    Core::Result<ConvertSoundscapeResult> convertFile(
+    static Core::Result<ConvertSoundscapeResult> convertFile(
         const Core::Path::FilesystemPath& sourceFile,
         const Core::Path::FilesystemPath& targetFile,
         const Domain::Audio::ConversionOptions& options = {},
@@ -32,7 +35,7 @@ public:
     /**
      * @brief Discovers and converts all soundscape files for a map based on the request.
      */
-    Core::Result<ConvertSoundscapeResult> convertMapSoundscapes(
+    static Core::Result<ConvertSoundscapeResult> convertMapSoundscapes(
         const ConvertSoundscapeRequest& request,
         const Core::Async::CancellationToken& token = {},
         Core::Logging::TaskLoggingContext* loggingCtx = nullptr);
@@ -41,8 +44,10 @@ public:
      * @brief Asynchronously converts all soundscapes for a map as a workflow task
      * (dedicated workflow log directory + visible UI task tree entry).
      */
-    void convertMapSoundscapesAsync(const ConvertSoundscapeRequest& request,
-                                   std::function<void(const Core::Result<ConvertSoundscapeResult>&)> callback);
+    static Async::TaskHandle convertMapSoundscapesAsync(
+        const ConvertSoundscapeRequest& request,
+        std::function<void(const Core::Result<ConvertSoundscapeResult>&)> callback = {},
+        QObject* context = nullptr);
 };
 
 } // namespace Application::Soundscape

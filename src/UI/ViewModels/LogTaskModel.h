@@ -41,7 +41,7 @@ class LogTaskModel : public QAbstractListModel {
     Q_PROPERTY(int taskCount READ taskCount NOTIFY taskCountChanged)
 
 public:
-    enum LogTaskRoles {
+    enum LogTaskRoles : int {
         TaskIdRole = Qt::UserRole + 1,
         ParentTaskIdRole,
         DepthRole,
@@ -56,7 +56,7 @@ public:
         HasSubTasksRole,
         MessagesModelRole,
         SubTasksModelRole,
-        MessagesRole
+        MessagesRole,
     };
     Q_ENUM(LogTaskRoles)
 
@@ -75,11 +75,11 @@ public:
     bool updateTaskMetadata(int row, Application::Logging::TaskState state, double progress, const QString& currentMessage, const QString& taskName = QString());
 
     std::optional<LogTaskItem> taskSnapshot(int row) const;
-    virtual std::shared_ptr<LogMessageListModel> taskMessagesModel(int row) const;
+    virtual std::shared_ptr<LogMessageListModel> taskMessagesModelShared(int row) const;
     virtual std::shared_ptr<LogTaskModel> taskSubTasksModel(int row) const;
     Q_INVOKABLE virtual int findRowByTaskId(quint64 taskId) const;
 
-    Q_INVOKABLE virtual UI::ViewModels::LogMessageListModel* getTaskMessagesModel(int row) const;
+    Q_INVOKABLE virtual UI::ViewModels::LogMessageListModel* taskMessagesModel(int row) const;
     Q_INVOKABLE virtual UI::ViewModels::LogTaskModel* getTaskSubTasksModel(int row) const;
 
     Q_INVOKABLE virtual void clear();

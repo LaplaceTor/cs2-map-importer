@@ -17,8 +17,8 @@ description: >-
 | `Miscellaneous::RunCommandSync`, `PROGRAM_*` | `Domain::Tool` | `src/Domain/Tool/` | 基于 `Core::Process` 的 Valve 官方工具强类型封装（`ResourceCompilerTool` [自适应 `-filelist` 清单批量编译], `Source1ImportTool`，配备结构化日志解析器 `*LogParser` [支持资源级容错与部分成功统计] 与 `ToolErrors`）。[已落地] |
 | `VmfBspProcess` | `Domain::Vmf` / `Domain::Bsp` | `src/Domain/Vmf/`, `src/Domain/Bsp/` | VMF 处理与 BSP 反编译行为。 |
 | `MaterialFix` | `Domain::Material` | `src/Domain/Material/` | VMT/VMAT 材质转换与修正；VTF 解码（`VtfCodec` / `VtfConverter`）与纹理处理管线（`TextureProcess` PBR 贴图生成、通道打包，`TextureIO` 宽读取 / 仅 PNG 导出）。[已落地] |
-| `SoundscapeImport` | `Domain::Audio` + `Application::Soundscape` | 对应目录 | Source 1 Soundscape 脚本解析、KV3 Soundevents 转换与批量服务。[已落地] |
-| `FileExtractFromVPK`, 跨包盲猜撞库与解包 | `Domain::Package` + `Workflow::Common` + `Application::Package` | 对应目录 | 基于 `sourcepp` 的内嵌包解析与提取（`PackArchive`, `BspPackExtractor` [resolveBelow + 目标句柄校验], `PackArchivePool` 细粒度 `OpeningEntry` 条件变量并发同步与防重入缓存）；VPK 全量树持久化二进制索引（`VpkIndex`, `VpkIndexBuilder`, `VpkIndexService` [后台预热与 SHA-256 校验]）及 `AssetExtractor`（统一 `AssetExtractOptions` 配置、松散文件优先、索引点查直接命中、CS2 原生规整去重、解压与复制透传 `expectedBaseDir` 目录防穿越与伴生资源取消感知），完全移除外部 VPKEdit CLI 依赖并根除盲目撞库试探开销。[已落地] |
+| `SoundscapeImport` | `Domain::Audio` + `Application::Soundscape` | 对应目录 | Source 1 Soundscape 脚本解析、KV3 Soundevents 转换与批量服务（无状态静态纯函数，`convertMapSoundscapesAsync` 返回有效 `TaskHandle`）。[已落地] |
+| `FileExtractFromVPK`, 跨包盲猜撞库与解包 | `Domain::Package` + `Workflow::Common` + `Application::Package` | 对应目录 | 基于 `sourcepp` 的内嵌包解析与提取（`PackArchive`, `BspPackExtractor` [resolveBelow + 目标句柄校验], `PackArchivePool` 细粒度 `OpeningEntry` 条件变量并发同步与防重入缓存）；VPK 全量树持久化二进制索引（`VpkIndex`, `VpkIndexBuilder`, `VpkIndexService` [PassKey 强制共享所有权、后台预热与 SHA-256 校验、UI 主线程信号隔离 `dispatch*`]）及 `AssetExtractor`（统一 `AssetExtractOptions` 配置、松散文件优先、索引点查直接命中、CS2 原生规整去重、解压与复制透传 `expectedBaseDir` 目录防穿越与伴生资源取消感知），完全移除外部 VPKEdit CLI 依赖并根除盲目撞库试探开销。[已落地] |
 | 资产定位与来源探测 | `Domain::Asset` + `Workflow::Common` | `src/Domain/Asset/`, `src/Workflow/Common/` | 资产定位三层抽象：Domain 纯策略解耦（`IAssetSourceProber`, `ArchiveAssetSourceProber`, `AssetLocateStrategy`, `AssetLocation`）；Workflow 消费层（`AssetLocator` 提供高保真 API `exists()` 返回 `Result<bool>`，CS2 原生存在即视为 `true`，`locate()` 精确区分松散/归档/原生/未找到/取消/失败）。[已落地] |
 | 异常转译与上下文边界 | `Core::Error` | `src/Core/Error/` | 通用异常边界防护（`Core::Error::ExecutionGuard` 与 `ExecutionContext`），零业务关键字猜测，直接保留强类型 `Core::Error::Exception` 错误码并归一化标准异常转译。[已落地] |
 | 路径安全与边界判定 | `Core::Path` + `Core::FileSystem` | `src/Core/Path/`, `src/Core/FileSystem/` | `FilesystemPath` 双层安全体系（Tier 1 `resolveBelow` / `isSubpathOf` 逻辑前缀与弱规范化判定 + Tier 2 `verifyHandleWithinBase` / `verifyFileWithinBase` 对 `QFileDevice` 物理内核句柄校验），以及 `Core::FileSystem::FileSystem::copy/move` 自动联动 `expectedBaseDir` 执行内核边界验证与越界清理，彻底消除符号链接与 Junction 逃逸漏洞与 TOCTOU 竞态。[已落地] |
@@ -31,7 +31,7 @@ description: >-
 | `Ui::CheckForUpdate` | `Application::Update` | `src/Application/Update/` | 自动更新检测。 |
 | `Ui::LoadFromCfg`, `SaveToCfg` | `Application::Config` | `src/Application/Config/` | 配置持久化。 |
 | `Ui::Start`, 工作线程, `CancelAll` | `Application::Async`（任务服务 `Application::Task`【规划】） | 对应目录 | `AsyncTaskRunner`（`runTask` / `runWorkflowTask` / `runSystemTask`）、`TaskHandle`、`SystemTaskLog`（系统任务平面）与协作式取消；内置异常终态兜底（`fallbackTerminalStateOnFatalException`）与回调异常安全隔离（`invokeCallbackSafely`）。[已落地] |
-| `LogViewModel` 直连 `Core::Logging`（`registerWithLogManager` 时代） | `Application::Logging` | `src/Application/Logging/` | `TaskLogService` 日志投递门面 + `TaskLogDTOs` UI 侧值类型；UI 消费日志唯一通道（订阅制投递、陈旧批次抑制），`src/UI/` 严禁 include `Core/Logging/*`。[已落地] |
+| `LogViewModel` 直连 `Core::Logging`（`registerWithLogManager` 时代） | `Application::Logging` | `src/Application/Logging/` | `TaskLogService` 日志投递门面 + `TaskLogDTOs` UI 侧值类型；UI 消费日志唯一通道（订阅制投递、陈旧批次抑制、`SinkBridge` 双阶段 `detach()` 协议防 UAF），`src/UI/` 严禁 include `Core/Logging/*`。[已落地] |
 | `Ui.h/.cpp` Q_PROPERTY/slots | `UI` | `src/UI/` | 极薄的表现层适配器（`MainController`, `LogViewModel`, `GameViewModel` 联动 `VpkIndexService` 预热），通用 `SourceFileListBox` 组件与左右并排 Tab 布局重构，滚轮防冒泡与智能自动滚动暂停机制。[重构中] |
 
 ---
@@ -111,7 +111,12 @@ description: >-
 ### 4.5 API 规范
 * [ ] UI 接收 Application 契约对象，而非 Domain AST / 底层设施对象。
 * [ ] Domain API 使用强领域类型。
-* [ ] 继承 `std::enable_shared_from_this` 的异步服务必须通过 PassKey 模式约束 `std::shared_ptr` 所有权，在状态变更前前置校验 `weak_from_this().lock()`，并通过 RAII 守护保障任务派发异常时的状态安全回滚。
+* [ ] 纯属性访问器遵循 Qt 风格，严禁添加 `get` 前缀（如 `taskName()`、`index()` 而非 `getTaskName()`、`getIndex()`）。
+* [ ] Qt Model 的 `roleNames()` 必须使用局部静态常量缓存（`static const QHash<int, QByteArray>`），容器只读访问器返回常量引用（`const QVector<T>&`）。
+* [ ] 枚举声明显式底层类型（`: int`）并保留末项尾随逗号；包含 `Q_ASSERT` 断言的函数严禁声明为 `noexcept`。
+* [ ] 跨线程异步服务（如 `ParticleImportService`, `VpkIndexService`）继承 `std::enable_shared_from_this` 时必须通过 PassKey 模式约束 `std::shared_ptr` 所有权，在状态变更前前置校验 `weak_from_this().lock()`；面向 UI 的信号发射必须通过主线程亲和性调度（`dispatch*` 经 `invokeMethod` `QueuedConnection`）隔离。
+* [ ] 跨模块 Sink 桥接（如 `TaskLogService::SinkBridge`）必须实现双阶段 `detach()` 协议（原子标记快速跳过 + 互斥锁保护指针置空），杜绝无锁并发日志分发时的并发 UAF。
+* [ ] 无状态转换服务（如 `SoundscapeConvertService`）统一声明为静态纯函数并返回有效 `Async::TaskHandle`，杜绝后台线程裸 `this` 捕获。
 * [ ] 错误处理结构化并保留诊断上下文；`Core::Error::ExecutionGuard` 保持通用基础设施特性，严禁猜词推断领域错误码。
 * [ ] 底层探测器（如 `ArchiveAssetSourceProber`）严禁将失败或取消压制吞没为 `false`；工作流资产定位契约（`AssetLocator::exists()`）高保真反映存在性（CS2 原生存在返回 `true`）。
 * [ ] 未重复编写已有 Core 基础设施的功能。
@@ -152,7 +157,12 @@ Core 层 → 自然语言关键词猜词推断领域错误（如 msg.contains("v
 探测/定位层 → 将底层真实错误或取消静默吞没为 false，导致上层将异常误判为 NotFound
 异步调度层 → 在回调调用处使用 catch (...) {} 静默吞没异常，缺乏诊断记录
 异步服务层 → 继承 enable_shared_from_this 的服务允许以普通栈对象或 unique_ptr 构造并直接调用异步方法
+异步服务层 → 在 Worker 线程直接 emit 面向 UI 的 Qt 信号（未通过主线程亲和性调度）
+异步服务层 → 跨模块桥接 Sink 析构时未执行双阶段 detach() 解绑（导致无锁并发日志写入 UAF）
 文件写入层 → 敏感文件写入（解包/复制）仅作逻辑路径前缀比对而未传递 expectedBaseDir 进行内核物理句柄边界校验
+Qt 规范层 → Qt Model 在 roleNames() 中每次动态构造 QHash
+Qt 规范层 → 纯属性 Getter 带有 get 前缀（应使用 property() 风格）
+Qt 规范层 → 包含 Q_ASSERT 断言的函数被标记为 noexcept
 测试管理 → 任务完成后将临时测试目标或测试代码长期残留于代码库中
 
 承担众多杂项职责的庞大静态 Application 服务

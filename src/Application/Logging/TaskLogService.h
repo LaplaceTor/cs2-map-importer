@@ -97,8 +97,7 @@ private:
     void publishBatch(quint64 subscriptionId, quint64 taskId, const QString& taskName,
                       QVector<TaskLogMessage> messages);
 
-    std::shared_ptr<Core::Logging::ILogSink> m_sink;
-    std::atomic<quint64> m_subscriptionId{0};
+    std::shared_ptr<SinkBridge> m_sinkBridge;
 };
 
 } // namespace Application::Logging

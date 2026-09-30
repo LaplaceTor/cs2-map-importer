@@ -3,6 +3,8 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QMetaObject>
+#include <QThread>
 
 #include "Application/Async/AsyncTaskRunner.h"
 #include "Domain/Game/GameDefinition.h"
@@ -13,30 +15,34 @@
 
 namespace Application::Package {
 
-VpkIndexService::VpkIndexService(QObject* parent)
-    : QObject(parent) {
+std::shared_ptr<VpkIndexService> VpkIndexService::create() {
+    return std::make_shared<VpkIndexService>(PassKey{});
 }
 
-Core::Path::FilesystemPath VpkIndexService::getIndexDirectory() {
+VpkIndexService::VpkIndexService(PassKey, QObject* /*parent*/)
+    : QObject(nullptr) {
+}
+
+Core::Path::FilesystemPath VpkIndexService::indexDirectory() {
     const QString appDir = QCoreApplication::applicationDirPath();
     return Core::Path::FilesystemPath(QDir(appDir).filePath(QStringLiteral("data/indices")));
 }
 
-Core::Path::FilesystemPath VpkIndexService::getIndexPath(const QString& gameId) {
-    return getIndexDirectory() / (gameId.toLower() + QStringLiteral(".idx"));
+Core::Path::FilesystemPath VpkIndexService::indexPath(const QString& gameId) {
+    return indexDirectory() / (gameId.toLower() + QStringLiteral(".idx"));
 }
 
-std::shared_ptr<const Domain::Package::VpkIndex> VpkIndexService::getIndex(const QString& gameId) const {
+std::shared_ptr<const Domain::Package::VpkIndex> VpkIndexService::index(const QString& gameId) const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_indices.value(gameId.toLower(), nullptr);
 }
 
-std::shared_ptr<const Domain::Package::VpkIndex> VpkIndexService::getCs2Index() const {
+std::shared_ptr<const Domain::Package::VpkIndex> VpkIndexService::cs2Index() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_cs2Index;
 }
 
-std::shared_ptr<const Domain::Package::VpkIndex> VpkIndexService::getActiveSource1Index() const {
+std::shared_ptr<const Domain::Package::VpkIndex> VpkIndexService::activeSource1Index() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_activeSource1Index;
 }
@@ -52,7 +58,7 @@ Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>> VpkIndexService::
     bool isCs2,
     const Core::Async::CancellationToken& token) {
     const QString key = gameId.toLower();
-    const Core::Path::FilesystemPath indexPath = getIndexPath(key);
+    const Core::Path::FilesystemPath indexPath = VpkIndexService::indexPath(key);
 
     // 1. Try to load existing index file from disk
     if (indexPath.exists()) {
@@ -84,7 +90,7 @@ Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>> VpkIndexService::
                         m_activeSource1Index = shared;
                     }
                 }
-                emit indexReady(key);
+                dispatchIndexReady(key);
                 return Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>>::success(shared);
             }
         }
@@ -106,7 +112,7 @@ Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>> VpkIndexService::
     auto newIndex = buildRes.value();
 
     // 3. Save to disk (<AppDir>/data/indices/<game_id>.idx)
-    auto saveRes = newIndex.saveToFile(indexPath, getIndexDirectory());
+    auto saveRes = newIndex.saveToFile(indexPath, indexDirectory());
     if (saveRes.isFailure()) {
         // Log or proceed with in-memory instance
     }
@@ -123,8 +129,8 @@ Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>> VpkIndexService::
         }
     }
 
-    emit indexUpdated(key);
-    emit indexReady(key);
+    dispatchIndexUpdated(key);
+    dispatchIndexReady(key);
     return Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>>::success(shared);
 }
 
@@ -134,12 +140,22 @@ void VpkIndexService::ensureIndexAsync(
     bool isCs2,
     QObject* context,
     std::function<void(const Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>>&)> callback) {
+    auto self = weak_from_this().lock();
+    if (!self) {
+        if (callback) {
+            callback(Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>>::failure(
+                Core::Error::ErrorCode::InvalidState,
+                QCoreApplication::translate("VpkIndexService", "VpkIndexService instance must be managed by std::shared_ptr to start async operations")));
+        }
+        return;
+    }
+
     (void)Application::Async::AsyncTaskRunner::runSystemTask<std::shared_ptr<const Domain::Package::VpkIndex>>(
         QStringLiteral("VpkIndex_") + gameId,
         context,
-        [this, gameId, vpkPaths, isCs2](const Application::Async::SystemTaskLog& sysLog, Core::Async::CancellationToken token) {
+        [self, gameId, vpkPaths, isCs2](const Application::Async::SystemTaskLog& sysLog, Core::Async::CancellationToken token) {
             sysLog.info(QStringLiteral("Ensuring VPK index for '%1'...").arg(gameId));
-            return ensureIndexSync(gameId, vpkPaths, isCs2, token);
+            return self->ensureIndexSync(gameId, vpkPaths, isCs2, token);
         },
         callback);
 }
@@ -212,12 +228,22 @@ void VpkIndexService::ensureCs2IndexFromGameInfoAsync(
     const Core::Path::FilesystemPath& cs2BasePath,
     QObject* context,
     std::function<void(const Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>>&)> callback) {
+    auto self = weak_from_this().lock();
+    if (!self) {
+        if (callback) {
+            callback(Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>>::failure(
+                Core::Error::ErrorCode::InvalidState,
+                QCoreApplication::translate("VpkIndexService", "VpkIndexService instance must be managed by std::shared_ptr to start async operations")));
+        }
+        return;
+    }
+
     (void)Application::Async::AsyncTaskRunner::runSystemTask<std::shared_ptr<const Domain::Package::VpkIndex>>(
         QStringLiteral("VpkIndex_CS2"),
         context,
-        [this, cs2BasePath](const Application::Async::SystemTaskLog& sysLog, Core::Async::CancellationToken token) {
+        [self, cs2BasePath](const Application::Async::SystemTaskLog& sysLog, Core::Async::CancellationToken token) {
             sysLog.info(QStringLiteral("Resolving and indexing CS2 VPKs from gameinfo.gi..."));
-            return ensureCs2IndexFromGameInfoSync(cs2BasePath, token);
+            return self->ensureCs2IndexFromGameInfoSync(cs2BasePath, token);
         },
         callback);
 }
@@ -244,7 +270,7 @@ Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>> VpkIndexService::
             // Check known game definition
             const auto* def = Domain::Game::GameRegistry::findById(gameId);
             if (def) {
-                targetGameInfoPath = Domain::Game::GameValidator::getExpectedGameInfoPath(gameInfoPathOrDir, def->type);
+                targetGameInfoPath = Domain::Game::GameValidator::expectedGameInfoPath(gameInfoPathOrDir, def->type);
             }
         }
     }
@@ -284,12 +310,22 @@ void VpkIndexService::ensureSource1IndexFromGameInfoAsync(
     const Core::Path::FilesystemPath& gameInfoPathOrDir,
     QObject* context,
     std::function<void(const Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>>&)> callback) {
+    auto self = weak_from_this().lock();
+    if (!self) {
+        if (callback) {
+            callback(Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>>::failure(
+                Core::Error::ErrorCode::InvalidState,
+                QCoreApplication::translate("VpkIndexService", "VpkIndexService instance must be managed by std::shared_ptr to start async operations")));
+        }
+        return;
+    }
+
     (void)Application::Async::AsyncTaskRunner::runSystemTask<std::shared_ptr<const Domain::Package::VpkIndex>>(
         QStringLiteral("VpkIndex_") + gameId,
         context,
-        [this, gameId, gameInfoPathOrDir](const Application::Async::SystemTaskLog& sysLog, Core::Async::CancellationToken token) {
+        [self, gameId, gameInfoPathOrDir](const Application::Async::SystemTaskLog& sysLog, Core::Async::CancellationToken token) {
             sysLog.info(QStringLiteral("Resolving and indexing Source 1 VPKs for '%1'...").arg(gameId));
-            return ensureSource1IndexFromGameInfoSync(gameId, gameInfoPathOrDir, token);
+            return self->ensureSource1IndexFromGameInfoSync(gameId, gameInfoPathOrDir, token);
         },
         callback);
 }
@@ -310,6 +346,11 @@ void VpkIndexService::ensureSource1IndexFromGameInfoAsync(
 }
 
 void VpkIndexService::setActiveSource1Game(const QString& gameId, const Core::Path::FilesystemPath& gameInfoPathOrDir) {
+    auto self = weak_from_this().lock();
+    if (!self) {
+        return;
+    }
+
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_activeSource1GameId = gameId.toLower();
@@ -321,6 +362,32 @@ void VpkIndexService::setActiveSource1Game(const QString& gameId, const Core::Pa
 
 void VpkIndexService::setActiveSource1Game(const QString& gameId, const QString& gameInfoPathOrDir) {
     setActiveSource1Game(gameId, Core::Path::FilesystemPath(gameInfoPathOrDir));
+}
+
+void VpkIndexService::dispatchIndexReady(const QString& gameId) {
+    if (QThread::currentThread() == thread()) {
+        emit indexReady(gameId);
+    } else {
+        auto weakSelf = weak_from_this();
+        QMetaObject::invokeMethod(this, [weakSelf, gameId]() {
+            if (auto self = weakSelf.lock()) {
+                emit self->indexReady(gameId);
+            }
+        }, Qt::QueuedConnection);
+    }
+}
+
+void VpkIndexService::dispatchIndexUpdated(const QString& gameId) {
+    if (QThread::currentThread() == thread()) {
+        emit indexUpdated(gameId);
+    } else {
+        auto weakSelf = weak_from_this();
+        QMetaObject::invokeMethod(this, [weakSelf, gameId]() {
+            if (auto self = weakSelf.lock()) {
+                emit self->indexUpdated(gameId);
+            }
+        }, Qt::QueuedConnection);
+    }
 }
 
 } // namespace Application::Package

@@ -76,10 +76,10 @@ public:
     void collapseAll() override;
     void toggleTaskExpanded(int visibleRow) override;
     void setTaskExpanded(int visibleRow, bool expanded) override;
-    std::shared_ptr<LogMessageListModel> taskMessagesModel(int visibleRow) const override;
+    std::shared_ptr<LogMessageListModel> taskMessagesModelShared(int visibleRow) const override;
     std::shared_ptr<LogTaskModel> taskSubTasksModel(int visibleRow) const override;
     Q_INVOKABLE int findRowByTaskId(quint64 taskId) const override;
-    UI::ViewModels::LogMessageListModel* getTaskMessagesModel(int row) const override;
+    UI::ViewModels::LogMessageListModel* taskMessagesModel(int row) const override;
     UI::ViewModels::LogTaskModel* getTaskSubTasksModel(int row) const override;
     QString exportToPlainText(int indentLevel = 0) const override;
 
@@ -93,13 +93,13 @@ public slots:
     Q_INVOKABLE bool openLogFile();
     Q_INVOKABLE bool openLogFolder();
     Q_INVOKABLE void toggleTaskExpandedById(quint64 taskId);
-    Q_INVOKABLE UI::ViewModels::LogMessageListModel* getToolMessagesModel(quint64 toolTaskId);
-    Q_INVOKABLE QString getToolTaskName(quint64 toolTaskId);
-    Q_INVOKABLE QString getToolTaskState(quint64 toolTaskId);
-    Q_INVOKABLE QString getToolTaskLogFilePath(quint64 toolTaskId);
+    Q_INVOKABLE UI::ViewModels::LogMessageListModel* toolMessagesModel(quint64 toolTaskId);
+    Q_INVOKABLE QString toolTaskName(quint64 toolTaskId);
+    Q_INVOKABLE QString toolTaskState(quint64 toolTaskId);
+    Q_INVOKABLE QString toolTaskLogFilePath(quint64 toolTaskId);
     Q_INVOKABLE bool openToolLogFile(quint64 toolTaskId);
-    Q_INVOKABLE QString getToolFullLogText(quint64 toolTaskId);
-    QString getFullLogText() const;
+    Q_INVOKABLE QString toolFullLogText(quint64 toolTaskId);
+    QString fullLogText() const;
     QString activeTaskLogFilePath() const;
     QString lastTaskLogFilePath() const;
     QString activeTaskLogFolderPath() const;

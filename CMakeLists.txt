@@ -18,6 +18,8 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
+
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static libraries by default" FORCE)
 
 include(GNUInstallDirs)

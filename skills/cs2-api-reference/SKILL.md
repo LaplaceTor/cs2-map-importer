@@ -149,7 +149,7 @@ description: >-
   * `GameDefinition` / `GameRegistry`：元数据驱动的游戏定义与注册表；
   * `GameInfo` / `GameInfoParser`：`gameinfo.gi` 与 `gameinfo.txt` 结构化解析；
   * `SearchTarget` / `SearchPathResolver`：搜索路径多层级解析推导；
-  * `GameValidator`：游戏安装目录确定性校验器；
+  * `GameValidator`：游戏安装目录确定性校验器（`validateDirectory`, `validateGameInfo`, `tryIdentifyGameType`, `expectedGameInfoPath`）；
   * `GameErrors` (`GameErrorCode`)：游戏领域强类型错误模型，提供 `GameErrors::is(error, code)` 类型安全匹配器；
   * `GameInstallationResolver` / `SteamGameLocator`：游戏安装信息解析与 Steam 定位的纯领域逻辑；`listSource2Addons` 严格从 `content/csgo_addons` 目录探测可用插件（严格遵守 Content / Game 目录分离规范）。
 
@@ -184,7 +184,7 @@ description: >-
 * **通用导入前置服务 (`Application::Common`)**：
   * `ImportPrerequisiteService`：Map、Model、Particle 导入共用的前置保障服务，统一编排校验基础参数（`BaseImportRequest`）、独占获取 CS2 `vpk.signatures` 文件租约，并在导入流水线执行前步进校验与同步确保 VPK 索引（`VpkIndexService`）就绪（双重保险）。
 * **VPK 索引应用服务 (`Application::Package`)**：
-  * `VpkIndexService`：统一管理游戏 VPK 持久化二进制索引的服务与门面。管理 `<AppDir>/data/indices/<game_id>.idx` 二进制缓存；联动 `AsyncTaskRunner::runSystemTask` 执行非阻塞后台构建与 SHA-256 完整性校验；解析 `gameinfo.gi`（仅提取 CS2 `SearchPaths -> Game` 目录 VPK，规避无用扫描）与 `gameinfo.txt`；提供面向 UI 的轻量 `QString` 便捷调用接口（`setActiveSource1Game` / `ensureCs2IndexFromGameInfoAsync`）；供工作流准备阶段同步获取。
+  * `VpkIndexService`：统一管理游戏 VPK 持久化二进制索引的服务与门面。管理 `<AppDir>/data/indices/<game_id>.idx` 二进制缓存；强制 PassKey 模式约束 `std::shared_ptr` 所有权契约（通过静态工厂 `create()` 构造，派生自 `std::enable_shared_from_this`）；异步任务前置执行弱引用校验（`weak_from_this().lock()`）；后台构建与校验联动 `AsyncTaskRunner::runSystemTask` 执行，信号发射通过亲和性调度器（`dispatchIndexReady` / `dispatchIndexUpdated` 结合 `QMetaObject::invokeMethod(..., Qt::QueuedConnection)`）隔离至 UI 主线程；解析 `gameinfo.gi`（仅提取 CS2 `SearchPaths -> Game` 目录 VPK，规避无用扫描）与 `gameinfo.txt`；规范化纯属性访问器（`index(gameId)` / `cs2Index()` / `activeSource1Index()` / `indexDirectory()` / `indexPath()`）；提供面向 UI 的轻量便捷调用接口（`setActiveSource1Game` / `ensureCs2IndexFromGameInfoAsync`）；供工作流准备阶段同步获取。
 * **环境与检测服务 (`Application::Environment`)**：
   * `SteamService`：Steam 安装目录与库探测，读取 App Manifest；
   * `GameInstallation` / `GameInstallationInfo`：探测到的游戏安装应用层数据表示；
@@ -192,12 +192,12 @@ description: >-
   * `GameInstallationValidator`：安装信息与目录结构校验编排；
   * `VpkSignatureLeaseService`：CS2 `vpk.signatures` 排他性租约策略服务。
 * **日志投递门面 (`Application::Logging`)**：
-  * `TaskLogService`：**UI 消费日志的唯一通道**——以私有 `SinkBridge`（`Core::Logging::ILogSink`）桥接 `LogManager`，将密封 `LogBlock` 转为 UI DTO，经队列信号 `logBatchReceived(subscriptionId, taskId, taskName, QVector<TaskLogMessage>)` 投递；API：`subscribe()` / `unsubscribe(id)`（订阅制陈旧批次抑制；无订阅者时跳过 DTO 转换）、`taskInfo(taskId)`（未知 id 返回 `isValid==false` 的空 `TaskInfo`）、`applicationLogFilePath()` / `expectedApplicationLogFilePath()`、`logsDirectory()` / `ensureLogsDirectory()`、`fallbackTaskLogFilePath(...)`；
+  * `TaskLogService`：**UI 消费日志的唯一通道**——以私有 `SinkBridge`（`Core::Logging::ILogSink`）桥接 `LogManager`，`SinkBridge` 具备两阶段解绑 `detach()` 协议（原子标记 `std::atomic<bool> m_detached` 快速跳过 + 互斥锁保护指针置空），确保门面析构与日志器无锁刷新安全；将密封 `LogBlock` 转为 UI DTO，经队列信号 `logBatchReceived(subscriptionId, taskId, taskName, QVector<TaskLogMessage>)` 投递；API：`subscribe()` / `unsubscribe(id)`（订阅制陈旧批次抑制；无订阅者时跳过 DTO 转换）、`taskInfo(taskId)`（未知 id 返回 `isValid==false` 的空 `TaskInfo`）、`applicationLogFilePath()` / `expectedApplicationLogFilePath()`、`logsDirectory()` / `ensureLogsDirectory()`、`fallbackTaskLogFilePath(...)`；
   * `TaskLogDTOs`：UI 侧值类型——`TaskState` / `LogLevel` 枚举（**UI 代码一律使用此层枚举，禁止使用 Core 侧枚举**）、`taskStateToString` / `logLevelToString`、`TaskLogMessage{sequence, timestamp, level, message, toolTaskId}`、`TaskInfo{taskId, parentTaskId, startTimestamp, taskName, state, progress, currentMessage, isToolTask, logFilePath, workflowDirectory, isValid}`；
   * **红线**：`src/UI/` 严禁 include `Core/Logging/*`，日志一律经本门面获取。
 * **专项业务服务**：
   * `ParticleImportService` (`Application::Particle`)：粒子导入高层业务编排服务，对外暴露面向 UI 的 DTO 契约（`ParticleImportRequest{sourcePcfPaths, ...}`, `ParticleImportResult{succeeded, generatedVpcfFiles, compiledVpcfCFiles, failedPcfFiles, totalConverted, totalCompiled, totalFailed}`）；强制共享所有权契约（通过 PassKey 限制仅可经静态工厂 `ParticleImportService::create(...)` 构造，禁止栈分配与 `make_unique`）；在 `importParticlesAsync` 中前置安全校验 `weak_from_this().lock()`，杜绝未纳管实例抛出 `bad_weak_ptr`；并发导入原子快速失败（第二个调用经回调返回 `InvalidState`，句柄无效并安全回滚计数）；任务派发异常与失败具备 `ImportScopeGuard` RAII 状态自动回滚与回调保障；签名 `importParticlesAsync(request, callback)`，恒经 `runWorkflowTask` 执行；
-  * `SoundscapeConvertService` (`Application::Soundscape`)：声音景观批量转换服务，将 Source 1 脚本转为 CS2 KV3 音效事件文件；签名 `convertMapSoundscapesAsync(request, callback)`（无 loggingCtx 参数），经 `runWorkflowTask` 执行（以地图名为资产基名，拥有独立工作流日志目录与可见任务树节点）。
+  * `SoundscapeConvertService` (`Application::Soundscape`)：声音景观批量转换服务，将 Source 1 脚本转为 CS2 KV3 音效事件文件；全方法重构为**静态纯函数**（无内部成员状态，彻底杜绝 Worker 线程中裸 `this` 捕获风险）；异步转换接口 `convertMapSoundscapesAsync(request, callback, context)` 明确返回 `Async::TaskHandle`（支持外部取消与跟踪），经 `runWorkflowTask` 执行（以地图名为资产基名，拥有独立工作流日志目录与可见任务树节点）。
 
 ---
 
@@ -206,9 +206,9 @@ description: >-
 为 QML 界面提供数据绑定模型与交互控制器，消费 Application 层门面与 DTO。
 
 * **日志模型与视图模型 (`UI::ViewModels`)**：
-  * `LogViewModel`：集中管理面向界面的任务树平铺投影、树节点动态增删、同级排他手风琴折叠（`toggleTaskExpanded` / `toggleTaskExpandedById`）、Tool 任务专项提取（`getToolMessagesModel` / `getToolTaskState` / `getToolTaskLogFilePath`）；构造注入 `Application::Logging::TaskLogService*`，经 `attachToLogService()` / `detachFromLogService()` 挂接门面，以订阅 id 抑制陈旧批次（严禁 include `Core/Logging`）；展开默认规则：根任务展开、子任务收起，无任何"完成触发自动折叠"行为；
-  * `LogTaskModel`：层次化任务项列表模型（`LogViewModel` 的基类，亦作为每节点 `subTasksModel` 使用），角色含 `ParentTaskIdRole`, `DepthRole`, `TaskNameRole`, `StateRole`, `StateStringRole`, `ProgressRole`, `CurrentMessageRole`, `ExpandedRole`, `MessageCountRole`, `SubTasksCountRole`, `HasSubTasksRole`, `MessagesModelRole`, `SubTasksModelRole` 等（**不含 ToolTaskIdRole**，该角色在 LogMessageListModel 上）；
-  * `LogMessageListModel`：单任务内部日志条目列表模型（包含 `MessageRole`, `LevelStringRole`, `ToolTaskIdRole` 等；`level` 为 `Application::Logging::LogLevel`）；
+  * `LogViewModel`：集中管理面向界面的任务树平铺投影、树节点动态增删、同级排他手风琴折叠（`toggleTaskExpanded` / `toggleTaskExpandedById`）、Tool 任务专项提取（`toolMessagesModel` / `toolTaskName` / `toolTaskState` / `toolTaskLogFilePath` / `toolFullLogText` / `fullLogText`，统一无 `get` 前缀）；`roleNames()` 采用局部静态常量缓存（`static const QHash<int, QByteArray>`）；构造注入 `Application::Logging::TaskLogService*`，经 `attachToLogService()` / `detachFromLogService()` 挂接门面，以订阅 id 抑制陈旧批次（严禁 include `Core/Logging`）；展开默认规则：根任务展开、子任务收起，无任何"完成触发自动折叠"行为；
+  * `LogTaskModel`：层次化任务项列表模型（`LogViewModel` 的基类，亦作为每节点 `subTasksModel` 使用），`roleNames()` 采用局部静态常量缓存；`LogTaskRoles : int` 枚举显式底层类型；纯访问器规范化（`taskMessagesModel` / `taskSubTasksModel` / `taskMessagesModelShared`）；角色含 `ParentTaskIdRole`, `DepthRole`, `TaskNameRole`, `StateRole`, `StateStringRole`, `ProgressRole`, `CurrentMessageRole`, `ExpandedRole`, `MessageCountRole`, `SubTasksCountRole`, `HasSubTasksRole`, `MessagesModelRole`, `SubTasksModelRole` 等（**不含 ToolTaskIdRole**，该角色在 LogMessageListModel 上）；
+  * `LogMessageListModel`：单任务内部日志条目列表模型（包含 `MessageRole`, `LevelStringRole`, `ToolTaskIdRole` 等；`level` 为 `Application::Logging::LogLevel`）；`LogMessageRoles : int` 枚举显式底层类型；`roleNames()` 采用局部静态常量缓存；`entries()` 返回常量引用 `const QVector<LogMessageItem>&` 杜绝深拷贝；
   * `GameViewModel`：游戏检测与路径选择状态绑定 ViewModel；注入 `Application::Package::VpkIndexService*`，在 `applyS1Installation` 与 `applyS2Installation` 时自动触发后台预热与索引就绪；`refreshS2Addons()` 异步列举插件（经 `listSource2AddonsAsync`，带过期结果丢弃守卫）；VPK 租约（`updateVpkLease` / `retryVpkLease`）为**有意同步**的 UI 线程调用（单次 Win32 排他文件打开，结果经 `vpkLeaseStatusChanged` 信号上报，严禁在 Worker 线程调用）。
 * **控制器与交互门面 (`UI::Controllers`)**：
   * `MainController`：主窗口业务编排中枢，聚合 Application 服务、`LogViewModel` 与 `VpkIndexService`（无独立 Tab 控制器层）；提供 `startImport` / `startParticleImport(..., sourcePcfPaths, ...)`（批量导入接口，启动前全局 `collapseAll()`，内部向 `ImportPrerequisiteService` 传递 `m_vpkIndexService` 确保索引就绪）、`stopImport`、`cancelAllOperations()`（组合根关停时先于线程池清理调用）、`setActiveTab(int)` 公共槽（QML TabBar 直连，带 isProcessing 守卫）。对话框标题与正文等用户可见文案一律经 `tr()`（上下文 = 类名）。

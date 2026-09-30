@@ -28,14 +28,14 @@ class LogMessageListModel : public QAbstractListModel {
     Q_PROPERTY(int count READ count NOTIFY countChanged)
 
 public:
-    enum LogMessageRoles {
+    enum LogMessageRoles : int {
         SequenceRole = Qt::UserRole + 1,
         TimestampRole,
         TimestampStringRole,
         LevelRole,
         LevelStringRole,
         MessageRole,
-        ToolTaskIdRole
+        ToolTaskIdRole,
     };
     Q_ENUM(LogMessageRoles)
 
@@ -50,7 +50,7 @@ public:
     void appendEntries(const QVector<LogMessageItem>& items);
     void clear();
 
-    QVector<LogMessageItem> entries() const;
+    const QVector<LogMessageItem>& entries() const;
 
 signals:
     void countChanged();

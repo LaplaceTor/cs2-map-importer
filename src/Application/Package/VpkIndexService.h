@@ -22,11 +22,19 @@ namespace Application::Package {
  * Automatically verifies VPK file sizes, modification times, and SHA-256 hashes.
  * Dispatches background indexing using AsyncTaskRunner::runSystemTask.
  */
-class VpkIndexService : public QObject {
+class VpkIndexService : public QObject, public std::enable_shared_from_this<VpkIndexService> {
     Q_OBJECT
 
+    // PassKey idiom: enforces that VpkIndexService can only be constructed
+    // through its static create() factory, guaranteeing std::shared_ptr management.
+    struct PassKey {
+        explicit PassKey() = default;
+    };
+
 public:
-    explicit VpkIndexService(QObject* parent = nullptr);
+    static std::shared_ptr<VpkIndexService> create();
+
+    explicit VpkIndexService(PassKey, QObject* parent = nullptr);
     ~VpkIndexService() override = default;
 
     VpkIndexService(const VpkIndexService&) = delete;
@@ -35,27 +43,27 @@ public:
     /**
      * @brief Gets root directory for storing index binary files: <AppDir>/data/indices.
      */
-    static Core::Path::FilesystemPath getIndexDirectory();
+    static Core::Path::FilesystemPath indexDirectory();
 
     /**
      * @brief Gets the path to a specific game's index file: <AppDir>/data/indices/<game_id>.idx.
      */
-    static Core::Path::FilesystemPath getIndexPath(const QString& gameId);
+    static Core::Path::FilesystemPath indexPath(const QString& gameId);
 
     /**
      * @brief Retrieves the in-memory cached index for a game, if loaded.
      */
-    std::shared_ptr<const Domain::Package::VpkIndex> getIndex(const QString& gameId) const;
+    std::shared_ptr<const Domain::Package::VpkIndex> index(const QString& gameId) const;
 
     /**
      * @brief Retrieves the in-memory cached CS2 native index, if loaded.
      */
-    std::shared_ptr<const Domain::Package::VpkIndex> getCs2Index() const;
+    std::shared_ptr<const Domain::Package::VpkIndex> cs2Index() const;
 
     /**
      * @brief Retrieves the currently active Source 1 game's in-memory index, if loaded.
      */
-    std::shared_ptr<const Domain::Package::VpkIndex> getActiveSource1Index() const;
+    std::shared_ptr<const Domain::Package::VpkIndex> activeSource1Index() const;
 
     /**
      * @brief Gets the identifier of the currently active Source 1 game.
@@ -137,6 +145,9 @@ signals:
     void indexUpdated(const QString& gameId);
 
 private:
+    void dispatchIndexReady(const QString& gameId);
+    void dispatchIndexUpdated(const QString& gameId);
+
     mutable std::mutex m_mutex;
     QHash<QString, std::shared_ptr<const Domain::Package::VpkIndex>> m_indices;
     std::shared_ptr<const Domain::Package::VpkIndex> m_cs2Index;

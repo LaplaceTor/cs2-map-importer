@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 
     auto gameEnvService = std::make_unique<Application::Environment::GameEnvironmentService>();
-    auto vpkIndexService = std::make_shared<Application::Package::VpkIndexService>();
+    auto vpkIndexService = Application::Package::VpkIndexService::create();
     auto gameViewModel = std::make_unique<UI::ViewModels::GameViewModel>(gameEnvService.get());
     gameViewModel->setVpkIndexService(vpkIndexService.get());
     auto taskLogService = std::make_shared<Application::Logging::TaskLogService>();

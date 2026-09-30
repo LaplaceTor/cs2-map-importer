@@ -48,21 +48,24 @@ QVariant LogMessageListModel::data(const QModelIndex& index, int role) const
         return item.message;
     case ToolTaskIdRole:
         return QVariant::fromValue(item.toolTaskId);
-    default:
-        return QVariant();
     }
+
+    return QVariant();
 }
 
 QHash<int, QByteArray> LogMessageListModel::roleNames() const
 {
-    QHash<int, QByteArray> roles;
-    roles[SequenceRole] = "sequence";
-    roles[TimestampRole] = "timestamp";
-    roles[TimestampStringRole] = "timestampString";
-    roles[LevelRole] = "level";
-    roles[LevelStringRole] = "levelString";
-    roles[MessageRole] = "message";
-    roles[ToolTaskIdRole] = "toolTaskId";
+    static const QHash<int, QByteArray> roles = []() {
+        QHash<int, QByteArray> r;
+        r[SequenceRole] = "sequence";
+        r[TimestampRole] = "timestamp";
+        r[TimestampStringRole] = "timestampString";
+        r[LevelRole] = "level";
+        r[LevelStringRole] = "levelString";
+        r[MessageRole] = "message";
+        r[ToolTaskIdRole] = "toolTaskId";
+        return r;
+    }();
     return roles;
 }
 
@@ -96,7 +99,7 @@ void LogMessageListModel::clear()
     emit countChanged();
 }
 
-QVector<LogMessageItem> LogMessageListModel::entries() const
+const QVector<LogMessageItem>& LogMessageListModel::entries() const
 {
     return m_entries;
 }

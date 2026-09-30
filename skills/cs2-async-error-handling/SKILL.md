@@ -52,7 +52,9 @@ description: >-
 5. **平面归属规则**：面向用户的导入工作流（粒子导入、音景转换等）一律走 `runWorkflowTask` / `runTask` 平面（进任务树、有独立日志）；环境检测、安装校验、插件列举、VPK 索引后台校验与构建（`VpkIndexService`）等非导入后台任务必须走 `runSystemTask`，严禁占用可见任务树。
 6. **致命异常终态回退防护 (`fallbackTerminalStateOnFatalException`)**：当 Worker 内部出现无法预料的严重异常或故障中断时，若任务仍停留于非终态（如 `Running`），Runner 强制触发回退仲裁，调用 `LogManager::forceTaskState(taskId, TaskState::Failed, ...)` 并将进度刷新为 1.0，杜绝任务在 UI 界面永久挂死在运行中状态。
 7. **回调异常安全隔离 (`invokeCallbackSafely`)**：在向 UI / 调用方线程派发回调时，使用两阶段结构化捕获（`catch (const std::exception& ex)` 与 `catch (...)`），将异常记录至应用诊断日志。严禁直接使用空 `catch (...) {}` 静默吞没异常，同时确保 UI 逻辑异常绝不逆向污染 Worker 线程池生命周期。
-8. **异步服务所有权契约与状态安全回滚**：使用 `std::enable_shared_from_this` 延长跨线程生命周期的 Application 服务（如 `ParticleImportService`），必须通过 PassKey 模式与静态 `create()` 工厂严格约束仅能通过 `std::shared_ptr` 创建与管理；异步入口方法在改变内部状态（如递增并发任务数）前，必须前置执行 `weak_from_this().lock()` 有效性校验（若未纳管则快速失败返回 `InvalidState`，避免触发 `std::bad_weak_ptr` 异常并遗留孤儿计数）；状态变更必须配备 RAII 作用域守护（如 `ImportScopeGuard`），确保在任务派发阶段抛出异常或启动失败时，活动任务计数与 UI 状态能够无条件安全回滚，杜绝前端持久挂死在 `isImporting == true`。
+8. **异步服务所有权契约与状态安全回滚**：使用 `std::enable_shared_from_this` 延长跨线程生命周期的 Application 服务（如 `ParticleImportService`、`VpkIndexService`），必须通过 PassKey 模式与静态 `create()` 工厂严格约束仅能通过 `std::shared_ptr` 创建与管理；异步入口方法在改变内部状态（如递增并发任务数）前，必须前置执行 `weak_from_this().lock()` 有效性校验（若未纳管则快速失败返回 `InvalidState`，避免触发 `std::bad_weak_ptr` 异常并遗留孤儿计数）；状态变更必须配备 RAII 作用域守护（如 `ImportScopeGuard`），确保在任务派发阶段抛出异常或启动失败时，活动任务计数与 UI 状态能够无条件安全回滚，杜绝前端持久挂死在 `isImporting == true`。
+9. **Worker 线程信号发射隔离 (`dispatch*`)**：Application 服务若在 Worker 线程或后台任务中产出结果，绝不可直接在 Worker 线程执行 `emit signal(...)`。必须提供亲和性调度分发器（如 `dispatchIndexReady` / `dispatchIndexUpdated`），通过 `QMetaObject::invokeMethod(this, [this, ...]() { emit signal(...); }, Qt::QueuedConnection)` 或当前线程检查（`QThread::currentThread() == thread()`），确保面向 UI 的 Qt 信号严格在对象依附的 UI 主线程上发射。
+10. **无状态服务与 TaskHandle 返回契约**：对于无需持有成员状态的后台转换服务（如 `SoundscapeConvertService`），一律声明为静态纯函数，彻底消除 Worker lambda 中捕获裸 `[this]` 导致的生命周期悬空隐患；异步入口必须返回可被取消与跟踪的有效 `Async::TaskHandle`。
 
 ### 1.2 层级化任务日志树与外部工具任务 (Workflow Task vs Tool Task)
 
@@ -83,6 +85,7 @@ Workflow Task (Root: createWorkflowTask) -> logs/<workflow>_<timestamp>/workflow
 UI 层消费日志的**唯一通道**是 Application 层门面 `Application::Logging::TaskLogService`（完整 API 见 `skills/cs2-api-reference/SKILL.md`）：
 
 * `TaskLogService` 以私有 `SinkBridge`（`Core::Logging::ILogSink`）桥接 `LogManager`，将密封 `LogBlock` 转换为 UI DTO（`TaskLogMessage` / `TaskInfo`，定义于 `TaskLogDTOs.h`），经队列信号 `logBatchReceived(subscriptionId, taskId, taskName, messages)` 投递；
+* **SinkBridge 锁外解绑安全 (`detach` 协议)**：`TaskLogService` 析构时必须通过其私有 `SinkBridge::detach()` 主动断开桥接。`SinkBridge` 采用双阶段防护：原子标志 `std::atomic<bool> m_detached` 提供无锁快速判断路径（在 `LogManager` 锁外分发的 `writeBlock` / `flush` 入口直接快速返回），并在互斥锁保护下将宿主服务指针清空置零，杜绝门面析构与后台日志无锁刷新并发时的 UAF（Use-After-Free）与竞争悬空指针；
 * **订阅制陈旧批次抑制**：`subscribe()` / `unsubscribe()`；旧订阅 id 的在途批次由接收方按 id 丢弃（取代旧的 `viewGeneration()` 代数模型）；无订阅者时跳过 DTO 转换；
 * **红线**：`src/UI/` 严禁 include `Core/Logging/*`。`LogViewModel` 通过 `attachToLogService()` / `detachFromLogService()` 挂接门面（旧的 `registerWithLogManager()` 直连模式已删除）。
 

@@ -97,7 +97,7 @@ Application 亦可直接调用 Domain/Core 提供的非工作流服务，但 **U
 
 ### 3.2 Application 规则 (`src/Application/`)
 
-* **允许：** 暴露面向 UI 的门面/服务 API；将 UI 契约转换为 Domain/Workflow 输入；编排 `AsyncTaskRunner`、Worker 线程池与工作流；管理持有生命周期的异步服务（强制 `std::shared_ptr` 共享所有权契约，通过 PassKey 模式约束仅可经 `create()` 静态工厂构造，禁止栈分配与 `std::make_unique`；在异步派发前置阶段必须验证 `weak_from_this().lock()`，杜绝未纳管实例抛出 `bad_weak_ptr`；状态变更与活动任务计数必须通过 RAII 作用域守护保障，在任务调度抛出异常或启动失败时安全幂等回滚，避免 UI 状态永久挂死）；持有 `Application::Logging::TaskLogService` 日志门面（订阅制 DTO 分发与日志路径查询，UI 消费日志的唯一通道）；统一管理应用配置、更新与环境检测（Steam 探测、文件租约）；提供弹窗交互抽象接口的具体实现。
+* **允许：** 暴露面向 UI 的门面/服务 API；将 UI 契约转换为 Domain/Workflow 输入；编排 `AsyncTaskRunner`、Worker 线程池与工作流；管理持有生命周期的异步服务（如 `ParticleImportService`, `VpkIndexService`：强制 `std::shared_ptr` 共享所有权契约，通过 PassKey 模式约束仅可经 `create()` 静态工厂构造，禁止栈分配与 `std::make_unique`；在异步派发前置阶段必须验证 `weak_from_this().lock()`，杜绝未纳管实例抛出 `bad_weak_ptr`；跨线程 Qt 信号发射必须通过主线程亲和性调度 [如 `QMetaObject::invokeMethod(..., Qt::QueuedConnection)` 或 `dispatch*` 调度器] 隔离至 UI 主线程，严禁在后台线程直接触发 UI 绑定的信号；状态变更与活动任务计数必须通过 RAII 作用域守护保障，在任务调度抛出异常或启动失败时安全幂等回滚，避免 UI 状态永久挂死）；纯无状态转换服务（如 `SoundscapeConvertService`）统一声明为静态纯函数并返回有效 `Async::TaskHandle`，杜绝后台线程裸 `this` 捕获；持有 `Application::Logging::TaskLogService` 日志门面（订阅制 DTO 分发与日志路径查询，UI 消费日志的唯一通道；其桥接 Sink 必须实现双阶段解绑 `detach()` 协议，防止 `LogManager` 锁外分发并发析构 UAF）；统一管理应用配置、更新与环境检测（Steam 探测、文件租约）；提供弹窗交互抽象接口的具体实现。
 * **严禁：** 包含 QML 或直接操作 UI 控件；实现属于 Domain 的数据格式解析或转换；包含属于 Workflow 的具体导入流水线；在已有契约时向 QML 暴露底层 AST/指针细节。
 
 ### 3.3 Workflow 规则 (`src/Workflow/`)
@@ -157,6 +157,10 @@ UI 属性/信号
    - **日志落盘精简规范**：`TaskFileSink` / `FileSink` 统一单任务日志行格式为 `[LEVEL] %2`，去除冗余时间戳与块序列号；新任务日志首行记录结构化元数据头（`=== Task: %1 (ID: %2) | Started: %3 ===`）。
 6. **异常边界转译与终态兜底**：Application 服务边界统一通过 `Core::Error::ExecutionGuard`（或 `Application::Execution::ExecutionGuard` 门面）或 `AsyncTaskRunner` 将异常转译为 `Result<T>::failure`，严禁在内部 helper 中静默使用 `catch (...)` 吞没异常。`AsyncTaskRunner` 在顶层工作线程建立致命异常兜底守护（`fallbackTerminalStateOnFatalException`）：未终结的任务遭遇逃逸异常时强制流转至 `TaskState::Failed` 终态（避免任务树挂起死锁），对已终结状态（如 `Completed`）严格幂等保留；回调异常经 `invokeCallbackSafely` 隔离记录至 `ApplicationLogger::error`，防止破坏 Worker 线程。使用 `shared_from_this()` 的异步服务必须通过 PassKey 模式约束 `std::shared_ptr` 所有权，在状态变更前前置校验 `weak_from_this().lock()`，并通过 RAII 作用域守卫在任务启动异常时安全回滚活动计数。
 7. **消息创建处翻译 (i18n)**：面向用户的消息（`Result::message()`、`Error::message()`、任务日志摘要、对话框文案、QML `qsTr()`）必须在**创建处**翻译——QObject 类用成员 `tr()`，非 QObject 类用 `QCoreApplication::translate("<类名上下文>", "...")`，字符串表用 `QT_TRANSLATE_NOOP` 标记。日志文件内容随界面语言变化。**不翻译**：`Error::details()` 技术诊断、外部工具原始输出、`debug()`/系统日志行、日志等级与导出格式串、游戏产品名。
+8. **线程亲和性发射与 Sink 解绑安全**：
+   - **信号发射亲和性**：异步服务（如 `VpkIndexService`）在 Worker 线程执行完成后，面向 UI 的 Qt 信号必须通过 `QMetaObject::invokeMethod(..., Qt::QueuedConnection)` 投递回对象宿主线程（主 UI 线程）发射，严禁在后台工作线程直接触发 UI 绑定的信号；
+   - **Sink 桥接解绑协议**：跨模块 Sink 桥接（如 `TaskLogService::SinkBridge`）必须实现双阶段解绑（原子标记 `std::atomic<bool> m_detached` 快速跳过 + 互斥锁保护指针置空），确保门面析构与日志器无锁写入无竞争与悬空解引用（UAF）；
+   - **无状态服务规范**：纯数据/文件格式转换服务（如 `SoundscapeConvertService`）统一声明为静态纯函数并暴露有效 `Async::TaskHandle`，彻底杜绝后台线程裸 `this` 捕获。
 
 > 💡 **详细规范与完整决策表**：请查阅专用技能 [`skills/cs2-async-error-handling/SKILL.md`](file:///c:/Users/KEY/Documents/GitHub/cs2-map-importer/skills/cs2-async-error-handling/SKILL.md) 获取三平面任务体系、终态冲突仲裁矩阵、构造正反模式代码及进程机械结果转译规则。
 
@@ -225,8 +229,9 @@ cs2importer (主程序 / QML)
 ## 9. 编码与构建规范
 
 * **C++ 标准**：C++20，适度使用 Qt 类型，严格遵循 RAII、值传递/移动语义与 `const` 正确性。
-* **平台限制**：**仅限 Windows**。根目录 `CMakeLists.txt` 统一执行 `if(NOT WIN32)` 报错守卫；严禁添加或保留非 Windows 条件编译（`#ifdef Q_OS_WIN` 等）。
-* **命名规范**：类名与枚举采用 `PascalCase`；函数、变量采用 `camelCase`。
+* **平台限制**：**仅限 Windows**。根目录 `CMakeLists.txt` 统一执行 `if(NOT WIN32)` 报错守卫；严禁添加或保留非 Windows 条件编译（`#ifdef Q_OS_WIN` 等）；全局注入 `NOMINMAX WIN32_LEAN_AND_MEAN` 宏守卫。
+* **命名与 API 规范**：类名与枚举采用 `PascalCase`；函数、变量采用 `camelCase`；**纯属性访问器遵循 Qt 风格，严禁添加 `get` 前缀**（统一使用 `taskName()`、`index()`，禁止 `getTaskName()`、`getIndex()`）。
+* **Qt 模型与类型安全**：Qt 模型 `roleNames()` 必须使用局部静态常量缓存（`static const QHash<int, QByteArray>`），避免频繁动态构建；容器只读访问器返回常量引用（如 `const QVector<T>&`）；枚举必须声明显式底层类型（如 `enum Role : int`）并保留末项尾随逗号；包含 `Q_ASSERT` 的函数严禁声明为 `noexcept`（防止断言触发 `std::terminate` 绕过异常处理与测试）。
 * **国际化规范**：严禁硬编码面向用户的 `QStringLiteral` 文案——QObject 类用 `tr()`，非 QObject 类用 `QCoreApplication::translate("<类名上下文>", "...")`，字符串表用 `QT_TRANSLATE_NOOP`；`details()`、路径、CLI 参数与外部工具原始输出保持英文原文。
 * **第三方库**：置于 `third_party/`，由最底层实际消费模块 `PRIVATE` 链接，第三方类型严禁暴露在项目公共头文件中。
 * **构建指令**：

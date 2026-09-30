@@ -63,7 +63,7 @@ ParticleImportService::ParticleImportService(
     : QObject(nullptr)
     , m_prerequisiteService(prerequisiteService
           ? std::move(prerequisiteService)
-          : std::make_shared<Common::ImportPrerequisiteService>(nullptr, std::make_shared<Package::VpkIndexService>()))
+          : std::make_shared<Common::ImportPrerequisiteService>(nullptr, Package::VpkIndexService::create()))
     , m_workflowRunner(&Workflow::Particle::ParticleImportWorkflow::run)
 {
 }

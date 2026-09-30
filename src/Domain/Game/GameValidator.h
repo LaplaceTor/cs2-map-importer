@@ -17,7 +17,7 @@ public:
     static std::optional<GameType> tryIdentifyGameType(const GameInfo& info);
 
     // Computes the expected path to gameinfo.txt / gameinfo.gi for a game directory and GameType
-    static Core::Path::FilesystemPath getExpectedGameInfoPath(
+    static Core::Path::FilesystemPath expectedGameInfoPath(
         const Core::Path::FilesystemPath& gameDir,
         GameType type);
 

@@ -69,7 +69,7 @@ QVariant LogTaskModel::data(const QModelIndex& index, int role) const
     case MessagesRole: {
         QVariantList list;
         if (task.messagesModel) {
-            const auto entries = task.messagesModel->entries();
+            const auto& entries = task.messagesModel->entries();
             list.reserve(entries.size());
             for (const auto& msg : entries) {
                 QVariantMap map;
@@ -88,9 +88,9 @@ QVariant LogTaskModel::data(const QModelIndex& index, int role) const
     }
     case Qt::DisplayRole:
         return task.taskName;
-    default:
-        return QVariant();
     }
+
+    return QVariant();
 }
 
 bool LogTaskModel::setData(const QModelIndex& index, const QVariant& value, int role)
@@ -118,22 +118,25 @@ bool LogTaskModel::setData(const QModelIndex& index, const QVariant& value, int 
 
 QHash<int, QByteArray> LogTaskModel::roleNames() const
 {
-    QHash<int, QByteArray> roles;
-    roles[TaskIdRole] = "taskId";
-    roles[ParentTaskIdRole] = "parentTaskId";
-    roles[DepthRole] = "depth";
-    roles[TaskNameRole] = "taskName";
-    roles[StateRole] = "state";
-    roles[StateStringRole] = "stateString";
-    roles[ProgressRole] = "progress";
-    roles[CurrentMessageRole] = "currentMessage";
-    roles[ExpandedRole] = "expanded";
-    roles[MessageCountRole] = "messageCount";
-    roles[SubTasksCountRole] = "subTasksCount";
-    roles[HasSubTasksRole] = "hasSubTasks";
-    roles[MessagesModelRole] = "messagesModel";
-    roles[SubTasksModelRole] = "subTasksModel";
-    roles[MessagesRole] = "messages";
+    static const QHash<int, QByteArray> roles = []() {
+        QHash<int, QByteArray> r;
+        r[TaskIdRole] = "taskId";
+        r[ParentTaskIdRole] = "parentTaskId";
+        r[DepthRole] = "depth";
+        r[TaskNameRole] = "taskName";
+        r[StateRole] = "state";
+        r[StateStringRole] = "stateString";
+        r[ProgressRole] = "progress";
+        r[CurrentMessageRole] = "currentMessage";
+        r[ExpandedRole] = "expanded";
+        r[MessageCountRole] = "messageCount";
+        r[SubTasksCountRole] = "subTasksCount";
+        r[HasSubTasksRole] = "hasSubTasks";
+        r[MessagesModelRole] = "messagesModel";
+        r[SubTasksModelRole] = "subTasksModel";
+        r[MessagesRole] = "messages";
+        return r;
+    }();
     return roles;
 }
 
@@ -192,7 +195,7 @@ std::optional<LogTaskItem> LogTaskModel::taskSnapshot(int row) const
     return m_tasks.at(row);
 }
 
-std::shared_ptr<LogMessageListModel> LogTaskModel::taskMessagesModel(int row) const
+std::shared_ptr<LogMessageListModel> LogTaskModel::taskMessagesModelShared(int row) const
 {
     if (row < 0 || row >= m_tasks.size()) {
         return nullptr;
@@ -213,9 +216,9 @@ int LogTaskModel::findRowByTaskId(quint64 taskId) const
     return m_taskIdToRow.value(taskId, -1);
 }
 
-LogMessageListModel* LogTaskModel::getTaskMessagesModel(int row) const
+LogMessageListModel* LogTaskModel::taskMessagesModel(int row) const
 {
-    auto ptr = taskMessagesModel(row);
+    auto ptr = taskMessagesModelShared(row);
     if (ptr) {
         QQmlEngine::setObjectOwnership(ptr.get(), QQmlEngine::CppOwnership);
     }
@@ -342,7 +345,7 @@ QString LogTaskModel::exportToPlainText(int indentLevel) const
         result.append(QString());
 
         if (task.messagesModel) {
-            const auto entries = task.messagesModel->entries();
+            const auto& entries = task.messagesModel->entries();
             for (const auto& msg : entries) {
                 QString timeStr = msg.timestamp > 0
                     ? QDateTime::fromMSecsSinceEpoch(msg.timestamp).toString(QStringLiteral("hh:mm:ss"))

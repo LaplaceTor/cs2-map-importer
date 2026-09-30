@@ -16,9 +16,9 @@ ApplicationWindow {
     // window opens (created when the tool's first log block arrives), and the state
     // badge must track a running task. refreshTimer re-fetches until the model
     // appears and the task reaches a terminal state.
-    property var messagesModel: logViewModel ? logViewModel.getToolMessagesModel(toolTaskId) : null
-    property string stateString: logViewModel ? logViewModel.getToolTaskState(toolTaskId) : ""
-    property string logFilePath: logViewModel ? logViewModel.getToolTaskLogFilePath(toolTaskId) : ""
+    property var messagesModel: logViewModel ? logViewModel.toolMessagesModel(toolTaskId) : null
+    property string stateString: logViewModel ? logViewModel.toolTaskState(toolTaskId) : ""
+    property string logFilePath: logViewModel ? logViewModel.toolTaskLogFilePath(toolTaskId) : ""
 
     Timer {
         id: refreshTimer
@@ -31,9 +31,9 @@ ApplicationWindow {
             if (!root.logViewModel) {
                 return
             }
-            root.messagesModel = root.logViewModel.getToolMessagesModel(root.toolTaskId)
-            root.stateString = root.logViewModel.getToolTaskState(root.toolTaskId)
-            root.logFilePath = root.logViewModel.getToolTaskLogFilePath(root.toolTaskId)
+            root.messagesModel = root.logViewModel.toolMessagesModel(root.toolTaskId)
+            root.stateString = root.logViewModel.toolTaskState(root.toolTaskId)
+            root.logFilePath = root.logViewModel.toolTaskLogFilePath(root.toolTaskId)
         }
     }
 
@@ -75,7 +75,7 @@ ApplicationWindow {
                 text: qsTr("Copy all")
                 onClicked: {
                     if (root.logViewModel) {
-                        var text = root.logViewModel.getToolFullLogText(root.toolTaskId)
+                        var text = root.logViewModel.toolFullLogText(root.toolTaskId)
                         clipboardHelper.text = text
                         clipboardHelper.selectAll()
                         clipboardHelper.copy()

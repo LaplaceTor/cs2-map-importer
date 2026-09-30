@@ -228,7 +228,7 @@ std::optional<GameType> GameValidator::tryIdentifyGameType(const GameInfo& info)
     return std::nullopt;
 }
 
-Core::Path::FilesystemPath GameValidator::getExpectedGameInfoPath(
+Core::Path::FilesystemPath GameValidator::expectedGameInfoPath(
     const Core::Path::FilesystemPath& gameDir,
     GameType type)
 {
@@ -281,7 +281,7 @@ Core::Result<GameInfo> GameValidator::validateDirectory(
     if (type == GameType::Custom && gameDir.isFile()) {
         targetGameInfoPath = gameDir;
     } else if (gameDir.isDirectory()) {
-        targetGameInfoPath = getExpectedGameInfoPath(gameDir, type);
+        targetGameInfoPath = expectedGameInfoPath(gameDir, type);
     } else {
         return Core::Result<GameInfo>::failure(
             Core::Error::Error::invalidPath(

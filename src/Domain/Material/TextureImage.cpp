@@ -29,26 +29,26 @@ bool TextureImage::isChannelCountValid(int channelCount) noexcept
     return channelCount >= 1 && channelCount <= 4;
 }
 
-float* TextureImage::planeData(int channel) noexcept
+float* TextureImage::planeData(int channel)
 {
     Q_ASSERT(channel >= 0 && channel < m_channelCount);
     return m_data.data() + static_cast<std::size_t>(channel) * m_width * m_height;
 }
 
-const float* TextureImage::planeData(int channel) const noexcept
+const float* TextureImage::planeData(int channel) const
 {
     Q_ASSERT(channel >= 0 && channel < m_channelCount);
     return m_data.data() + static_cast<std::size_t>(channel) * m_width * m_height;
 }
 
-float& TextureImage::at(int channel, int x, int y) noexcept
+float& TextureImage::at(int channel, int x, int y)
 {
     Q_ASSERT(channel >= 0 && channel < m_channelCount);
     Q_ASSERT(x >= 0 && x < m_width && y >= 0 && y < m_height);
     return planeData(channel)[static_cast<std::size_t>(y) * m_width + x];
 }
 
-float TextureImage::at(int channel, int x, int y) const noexcept
+float TextureImage::at(int channel, int x, int y) const
 {
     Q_ASSERT(channel >= 0 && channel < m_channelCount);
     Q_ASSERT(x >= 0 && x < m_width && y >= 0 && y < m_height);
@@ -60,7 +60,7 @@ void TextureImage::fill(float value) noexcept
     std::fill(m_data.begin(), m_data.end(), value);
 }
 
-float TextureImage::sampleBilinearWrapped(int channel, float texelX, float texelY) const noexcept
+float TextureImage::sampleBilinearWrapped(int channel, float texelX, float texelY) const
 {
     Q_ASSERT(channel >= 0 && channel < m_channelCount);
 

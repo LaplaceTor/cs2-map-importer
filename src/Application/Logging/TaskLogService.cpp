@@ -1,5 +1,7 @@
 #include "Application/Logging/TaskLogService.h"
 
+#include <mutex>
+
 #include "Core/Logging/ApplicationLogger.h"
 #include "Core/Logging/ILogSink.h"
 #include "Core/Logging/LogBlock.h"
@@ -61,16 +63,47 @@ public:
     {
     }
 
+    void detach()
+    {
+        // 1. Release store to signal any incoming calls to bail out immediately
+        m_detached.store(true, std::memory_order_release);
+        m_subscriptionId.store(0, std::memory_order_release);
+
+        // 2. Wait for any in-flight writeBlock critical section to finish, then clear m_service
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_service = nullptr;
+    }
+
+    quint64 subscribe()
+    {
+        if (m_detached.load(std::memory_order_acquire)) {
+            return 0;
+        }
+        return m_subscriptionId.fetch_add(1, std::memory_order_acq_rel) + 1;
+    }
+
+    void unsubscribe(quint64 subscriptionId)
+    {
+        quint64 expected = subscriptionId;
+        if (expected != 0) {
+            m_subscriptionId.compare_exchange_strong(expected, 0, std::memory_order_acq_rel);
+        }
+    }
+
     bool writeBlock(const Core::Logging::LogBlock& block, const QString& taskName) override
     {
-        if (!m_service) {
-            return false;
+        // Step 1: Fast lock-free bailout if detached
+        if (m_detached.load(std::memory_order_acquire)) {
+            return true;
         }
-        const quint64 subscriptionId = m_service->m_subscriptionId.load(std::memory_order_relaxed);
+
+        // Step 2: Fast lock-free bailout if no active subscriber
+        const quint64 subscriptionId = m_subscriptionId.load(std::memory_order_acquire);
         if (subscriptionId == 0) {
             return true; // No active subscriber: skip DTO conversion entirely
         }
 
+        // Step 3: Convert entries to TaskLogMessage DTOs lock-free
         QVector<TaskLogMessage> messages;
         const auto& entries = block.entries();
         messages.reserve(entries.size());
@@ -84,7 +117,18 @@ public:
             messages.append(std::move(message));
         }
 
-        m_service->publishBatch(subscriptionId, block.taskId(), taskName, std::move(messages));
+        // Step 4: Thread-safe delivery to TaskLogService under lock
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (!m_service || m_detached.load(std::memory_order_relaxed)) {
+            return true;
+        }
+
+        const quint64 activeSubId = m_subscriptionId.load(std::memory_order_relaxed);
+        if (activeSubId == 0) {
+            return true;
+        }
+
+        m_service->publishBatch(activeSubId, block.taskId(), taskName, std::move(messages));
         return true;
     }
 
@@ -94,7 +138,10 @@ public:
     }
 
 private:
+    std::mutex m_mutex;
     TaskLogService* m_service = nullptr;
+    std::atomic<bool> m_detached{false};
+    std::atomic<quint64> m_subscriptionId{0};
 };
 
 TaskLogService::TaskLogService(QObject* parent)
@@ -103,26 +150,30 @@ TaskLogService::TaskLogService(QObject* parent)
     qRegisterMetaType<TaskLogMessage>("Application::Logging::TaskLogMessage");
     qRegisterMetaType<QVector<TaskLogMessage>>("QVector<Application::Logging::TaskLogMessage>");
 
-    m_sink = std::make_shared<SinkBridge>(this);
-    Core::Logging::LogManager::instance().addSink(m_sink);
+    m_sinkBridge = std::make_shared<SinkBridge>(this);
+    Core::Logging::LogManager::instance().addSink(m_sinkBridge);
 }
 
 TaskLogService::~TaskLogService()
 {
-    Core::Logging::LogManager::instance().removeSink(m_sink);
+    if (m_sinkBridge) {
+        m_sinkBridge->detach();
+        Core::Logging::LogManager::instance().removeSink(m_sinkBridge);
+    }
 }
 
 quint64 TaskLogService::subscribe()
 {
-    // Start from 1 so 0 can represent "no subscription"
-    return m_subscriptionId.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (m_sinkBridge) {
+        return m_sinkBridge->subscribe();
+    }
+    return 0;
 }
 
 void TaskLogService::unsubscribe(quint64 subscriptionId)
 {
-    quint64 expected = subscriptionId;
-    if (expected != 0) {
-        m_subscriptionId.compare_exchange_strong(expected, 0, std::memory_order_relaxed);
+    if (m_sinkBridge) {
+        m_sinkBridge->unsubscribe(subscriptionId);
     }
 }
 

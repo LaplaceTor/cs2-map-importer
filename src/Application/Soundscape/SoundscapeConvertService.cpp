@@ -264,18 +264,19 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertMapSounds
     }, QCoreApplication::translate("SoundscapeConvertService", "Soundscape conversion failed for map '%1'").arg(request.mapName));
 }
 
-void SoundscapeConvertService::convertMapSoundscapesAsync(
+Async::TaskHandle SoundscapeConvertService::convertMapSoundscapesAsync(
     const ConvertSoundscapeRequest& request,
-    std::function<void(const Core::Result<ConvertSoundscapeResult>&)> callback)
+    std::function<void(const Core::Result<ConvertSoundscapeResult>&)> callback,
+    QObject* context)
 {
     const QString mapLabel = request.mapName.isEmpty() ? QCoreApplication::translate("SoundscapeConvertService", "All") : request.mapName;
     const QString taskName = QCoreApplication::translate("SoundscapeConvertService", "Convert Soundscapes: %1").arg(mapLabel);
 
-    (void)Async::AsyncTaskRunner::runWorkflowTask<ConvertSoundscapeResult>(
+    return Async::AsyncTaskRunner::runWorkflowTask<ConvertSoundscapeResult>(
         taskName,
         request.mapName,
-        nullptr,
-        [this, request](std::shared_ptr<Core::Logging::TaskLoggingContext> ctx, Core::Async::CancellationToken token) -> Core::Result<ConvertSoundscapeResult> {
+        context,
+        [request](std::shared_ptr<Core::Logging::TaskLoggingContext> ctx, Core::Async::CancellationToken token) -> Core::Result<ConvertSoundscapeResult> {
             return convertMapSoundscapes(request, token, ctx.get());
         },
         std::move(callback),

@@ -131,7 +131,7 @@ QVariant LogViewModel::data(const QModelIndex& index, int role) const
     case MessagesRole: {
         QVariantList list;
         if (node->messagesModel) {
-            const auto entries = node->messagesModel->entries();
+            const auto& entries = node->messagesModel->entries();
             list.reserve(entries.size());
             for (const auto& msg : entries) {
                 QVariantMap map;
@@ -150,9 +150,9 @@ QVariant LogViewModel::data(const QModelIndex& index, int role) const
     }
     case Qt::DisplayRole:
         return node->taskName;
-    default:
-        return QVariant();
     }
+
+    return QVariant();
 }
 
 bool LogViewModel::setData(const QModelIndex& index, const QVariant& value, int role)
@@ -176,22 +176,25 @@ bool LogViewModel::setData(const QModelIndex& index, const QVariant& value, int 
 
 QHash<int, QByteArray> LogViewModel::roleNames() const
 {
-    QHash<int, QByteArray> roles;
-    roles[TaskIdRole] = "taskId";
-    roles[ParentTaskIdRole] = "parentTaskId";
-    roles[DepthRole] = "depth";
-    roles[TaskNameRole] = "taskName";
-    roles[StateRole] = "state";
-    roles[StateStringRole] = "stateString";
-    roles[ProgressRole] = "progress";
-    roles[CurrentMessageRole] = "currentMessage";
-    roles[ExpandedRole] = "expanded";
-    roles[MessageCountRole] = "messageCount";
-    roles[SubTasksCountRole] = "subTasksCount";
-    roles[HasSubTasksRole] = "hasSubTasks";
-    roles[MessagesModelRole] = "messagesModel";
-    roles[SubTasksModelRole] = "subTasksModel";
-    roles[MessagesRole] = "messages";
+    static const QHash<int, QByteArray> roles = []() {
+        QHash<int, QByteArray> r;
+        r[TaskIdRole] = "taskId";
+        r[ParentTaskIdRole] = "parentTaskId";
+        r[DepthRole] = "depth";
+        r[TaskNameRole] = "taskName";
+        r[StateRole] = "state";
+        r[StateStringRole] = "stateString";
+        r[ProgressRole] = "progress";
+        r[CurrentMessageRole] = "currentMessage";
+        r[ExpandedRole] = "expanded";
+        r[MessageCountRole] = "messageCount";
+        r[SubTasksCountRole] = "subTasksCount";
+        r[HasSubTasksRole] = "hasSubTasks";
+        r[MessagesModelRole] = "messagesModel";
+        r[SubTasksModelRole] = "subTasksModel";
+        r[MessagesRole] = "messages";
+        return r;
+    }();
     return roles;
 }
 
@@ -539,7 +542,7 @@ void LogViewModel::collapseAll()
     emit taskCountChanged();
 }
 
-std::shared_ptr<LogMessageListModel> LogViewModel::taskMessagesModel(int visibleRow) const
+std::shared_ptr<LogMessageListModel> LogViewModel::taskMessagesModelShared(int visibleRow) const
 {
     if (visibleRow >= 0 && visibleRow < m_visibleNodes.size()) {
         return m_visibleNodes.at(visibleRow)->messagesModel;
@@ -565,9 +568,9 @@ int LogViewModel::findRowByTaskId(quint64 taskId) const
     return -1;
 }
 
-UI::ViewModels::LogMessageListModel* LogViewModel::getTaskMessagesModel(int row) const
+UI::ViewModels::LogMessageListModel* LogViewModel::taskMessagesModel(int row) const
 {
-    auto m = taskMessagesModel(row);
+    auto m = taskMessagesModelShared(row);
     return m ? m.get() : nullptr;
 }
 
@@ -600,7 +603,7 @@ void LogViewModel::resetView()
     emit totalMessageCountChanged();
 }
 
-QString LogViewModel::getFullLogText() const
+QString LogViewModel::fullLogText() const
 {
     return exportToPlainText(0);
 }
@@ -619,7 +622,7 @@ QString LogViewModel::exportToPlainText(int indentLevel) const
         result.append(QString());
 
         if (node->messagesModel) {
-            const auto entries = node->messagesModel->entries();
+            const auto& entries = node->messagesModel->entries();
             for (const auto& msg : entries) {
                 QString timeStr = msg.timestamp > 0
                     ? QDateTime::fromMSecsSinceEpoch(msg.timestamp).toString(QStringLiteral("hh:mm:ss"))
@@ -719,7 +722,7 @@ bool LogViewModel::openLogFolder()
     return QDesktopServices::openUrl(QUrl::fromLocalFile(targetFolder));
 }
 
-UI::ViewModels::LogMessageListModel* LogViewModel::getToolMessagesModel(quint64 toolTaskId)
+UI::ViewModels::LogMessageListModel* LogViewModel::toolMessagesModel(quint64 toolTaskId)
 {
     auto it = m_nodesById.find(toolTaskId);
     if (it != m_nodesById.end() && it.value() && it.value()->messagesModel) {
@@ -729,7 +732,7 @@ UI::ViewModels::LogMessageListModel* LogViewModel::getToolMessagesModel(quint64 
     return nullptr;
 }
 
-QString LogViewModel::getToolTaskName(quint64 toolTaskId)
+QString LogViewModel::toolTaskName(quint64 toolTaskId)
 {
     auto it = m_nodesById.find(toolTaskId);
     if (it != m_nodesById.end() && it.value()) {
@@ -738,7 +741,7 @@ QString LogViewModel::getToolTaskName(quint64 toolTaskId)
     return QString();
 }
 
-QString LogViewModel::getToolTaskState(quint64 toolTaskId)
+QString LogViewModel::toolTaskState(quint64 toolTaskId)
 {
     auto it = m_nodesById.find(toolTaskId);
     if (it != m_nodesById.end() && it.value()) {
@@ -747,21 +750,21 @@ QString LogViewModel::getToolTaskState(quint64 toolTaskId)
     return QStringLiteral("UNKNOWN");
 }
 
-QString LogViewModel::getToolTaskLogFilePath(quint64 toolTaskId)
+QString LogViewModel::toolTaskLogFilePath(quint64 toolTaskId)
 {
     return m_taskLogFiles.value(toolTaskId);
 }
 
 bool LogViewModel::openToolLogFile(quint64 toolTaskId)
 {
-    QString path = getToolTaskLogFilePath(toolTaskId);
+    QString path = toolTaskLogFilePath(toolTaskId);
     if (path.isEmpty() || !QFileInfo::exists(path)) {
         return false;
     }
     return QDesktopServices::openUrl(QUrl::fromLocalFile(path));
 }
 
-QString LogViewModel::getToolFullLogText(quint64 toolTaskId)
+QString LogViewModel::toolFullLogText(quint64 toolTaskId)
 {
     auto it = m_nodesById.find(toolTaskId);
     if (it != m_nodesById.end() && it.value() && it.value()->messagesModel) {

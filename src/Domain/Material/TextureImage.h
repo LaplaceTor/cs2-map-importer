@@ -30,12 +30,12 @@ public:
     [[nodiscard]] static bool isChannelCountValid(int channelCount) noexcept;
 
     /// Direct pointer access to a channel plane (row-major, stride == width).
-    float* planeData(int channel) noexcept;
-    const float* planeData(int channel) const noexcept;
+    float* planeData(int channel);
+    const float* planeData(int channel) const;
 
     /// Linear index access within a plane.
-    float& at(int channel, int x, int y) noexcept;
-    float at(int channel, int x, int y) const noexcept;
+    float& at(int channel, int x, int y);
+    float at(int channel, int x, int y) const;
 
     void fill(float value) noexcept;
 
@@ -46,7 +46,7 @@ public:
      * Coordinates outside the image wrap modulo the plane size, matching the
      * repeat wrap mode the original GPU pipeline renders with.
      */
-    float sampleBilinearWrapped(int channel, float texelX, float texelY) const noexcept;
+    float sampleBilinearWrapped(int channel, float texelX, float texelY) const;
 
     bool operator==(const TextureImage& other) const;
     bool operator!=(const TextureImage& other) const;
