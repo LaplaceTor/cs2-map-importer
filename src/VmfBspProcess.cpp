@@ -1085,19 +1085,35 @@ void VmfBspProcess::FixVmfBase(const QString& vmfPath) {
 void VmfBspProcess::ExtractEmbeddedFiles(const QString& bspFile, const QString& targetUnpackedDir) {
     if (Miscellaneous::CanceLImport) return;
 
-    QDir().mkpath(targetUnpackedDir);
+    QString maps_dir = QFileInfo(targetUnpackedDir).absolutePath();
+    QDir().mkpath(maps_dir);
+
+    // If a nested folder from a previous buggy run exists (e.g. maps/<mapname>/<mapname>), clean it up
+    QString bspBaseName = QFileInfo(bspFile).completeBaseName();
+    QString nestedDir = QDir(targetUnpackedDir).filePath(bspBaseName);
+    if (QDir(nestedDir).exists()) {
+        QDir(nestedDir).removeRecursively();
+    }
 
     QStringList argumentsVpk = {
         "-e",
         "/",
         "-o",
-        QDir::toNativeSeparators(targetUnpackedDir),
+        QDir::toNativeSeparators(maps_dir),
         QDir::toNativeSeparators(bspFile)
     };
 
     int vpk_ret = Miscellaneous::RunCommandSync(Miscellaneous::PROGRAM_VPKEDITCLI, argumentsVpk);
     if (vpk_ret != 100) {
         throw AppException("vpkeditcli failed to extract embedded files.");
+    }
+
+    QString extractedDir = QDir(maps_dir).filePath(bspBaseName);
+    if (extractedDir != targetUnpackedDir && QDir(extractedDir).exists()) {
+        if (QDir(targetUnpackedDir).exists()) {
+            QDir(targetUnpackedDir).removeRecursively();
+        }
+        QDir().rename(extractedDir, targetUnpackedDir);
     }
 
     Miscellaneous::Log("Successfully extracted embedded files using vpkeditcli.");

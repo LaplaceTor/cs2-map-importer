@@ -5,13 +5,11 @@ categories:
     labels:
       - 'feature'
       - 'enhancement'
-    body-content-regex: '^feat:'
   - title: '🐛 Bug Fixes'
     labels:
       - 'fix'
       - 'bugfix'
       - 'bug'
-    body-content-regex: '^fix:'
   - title: '🧰 Maintenance'
     labels:
       - 'chore'
@@ -25,15 +23,21 @@ version-resolver:
       - 'minor'
       - 'feature'
       - 'enhancement'
-    body-content-regex: '^feat:'
   patch:
     labels:
       - 'patch'
       - 'fix'
       - 'bugfix'
       - 'bug'
-    body-content-regex: '^fix:'
   default: patch
+autolabeler:
+  - label: 'feature'
+    title: '/^feat(\(.*\))?:/i'
+    branch: '/feature/.+/'
+  - label: 'fix'
+    title: '/^fix(\(.*\))?:/i'
+    branch: '/fix/.+/'
+  - label: 'chore'
+    title: '/^chore(\(.*\))?:/i'
 template: |
-  ## What's Changed
   $CHANGES
