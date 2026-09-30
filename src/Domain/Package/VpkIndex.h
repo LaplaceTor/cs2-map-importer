@@ -51,7 +51,9 @@ public:
     /**
      * @brief Serializes this VpkIndex to a binary .idx file.
      */
-    Core::Result<void> saveToFile(const Core::Path::FilesystemPath& filePath) const;
+    Core::Result<void> saveToFile(
+        const Core::Path::FilesystemPath& filePath,
+        const Core::Path::FilesystemPath& expectedBaseDir = {}) const;
 
     /**
      * @brief Finds the exact VPK archive containing the specified entry path.

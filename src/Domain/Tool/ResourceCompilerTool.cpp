@@ -28,6 +28,12 @@ Core::Result<Core::Temp::TempFile> writeFileList(const QStringList& files)
                 Core::Error::ErrorCode::WriteFailed,
                 QCoreApplication::translate("ResourceCompilerTool", "Failed to open temporary filelist: %1").arg(file.errorString()));
         }
+        if (!Core::Path::FilesystemPath::verifyFileWithinBase(file, Core::Path::FilesystemPath(QDir::tempPath()))) {
+            file.close();
+            return Core::Result<Core::Temp::TempFile>::failure(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("ResourceCompilerTool", "Security boundary violation: Temporary filelist escaped system temp directory"));
+        }
         QTextStream out(&file);
         out.setEncoding(QStringConverter::Utf8);
         for (const QString& f : files) {

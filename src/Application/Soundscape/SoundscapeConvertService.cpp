@@ -73,7 +73,8 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertContent(
 Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertFile(
     const Core::Path::FilesystemPath& sourceFile,
     const Core::Path::FilesystemPath& targetFile,
-    const Domain::Audio::ConversionOptions& options)
+    const Domain::Audio::ConversionOptions& options,
+    const Core::Path::FilesystemPath& expectedBaseDir)
 {
     return Execution::ExecutionGuard::guard([&]() -> Core::Result<ConvertSoundscapeResult> {
         if (!sourceFile.exists()) {
@@ -81,6 +82,13 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertFile(
                 Core::Error::ErrorCode::FileNotFound,
                 QCoreApplication::translate("SoundscapeConvertService", "Source soundscape file does not exist"),
                 sourceFile.toString());
+        }
+
+        if (!expectedBaseDir.isEmpty() && !targetFile.isSubpathOf(expectedBaseDir)) {
+            return Core::Result<ConvertSoundscapeResult>::failure(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("SoundscapeConvertService", "Security boundary violation: Target soundevents file '%1' is not within expected base directory '%2'")
+                    .arg(targetFile.toString(), expectedBaseDir.toString()));
         }
 
         auto parseRes = Domain::Audio::SoundscapeParser::parseFile(sourceFile);
@@ -93,7 +101,7 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertFile(
         const auto& definitions = parseRes.value();
         auto convRes = Domain::Audio::SoundscapeToSoundEventConverter::convertBatch(definitions, options);
 
-        auto writeRes = Domain::Audio::SoundEventKv3Writer::writeToFile(targetFile, convRes.soundEvents);
+        auto writeRes = Domain::Audio::SoundEventKv3Writer::writeToFile(targetFile, convRes.soundEvents, expectedBaseDir);
         if (!writeRes.isSuccess()) {
             return Core::Result<ConvertSoundscapeResult>::failure(
                 writeRes.error(),
@@ -199,13 +207,24 @@ Core::Result<ConvertSoundscapeResult> SoundscapeConvertService::convertMapSounds
 
             const QString sourceFileName = Core::Path::PathUtils::filename(sourceFile.toString());
             const QString outputFileName = deriveOutputFileName(sourceFileName);
-            const Core::Path::FilesystemPath targetFile = targetSoundeventsDir / outputFileName;
+            auto targetFileOpt = targetSoundeventsDir.resolveBelow(outputFileName);
+            if (!targetFileOpt.has_value()) {
+                if (loggingCtx) {
+                    loggingCtx->error(QCoreApplication::translate("SoundscapeConvertService", "Target file path '%1' traverses outside destination directory")
+                        .arg(outputFileName));
+                }
+                return Core::Result<ConvertSoundscapeResult>::failure(
+                    Core::Error::ErrorCode::InvalidPath,
+                    QCoreApplication::translate("SoundscapeConvertService", "Target file path traverses outside destination directory"),
+                    outputFileName);
+            }
+            const Core::Path::FilesystemPath targetFile = *targetFileOpt;
 
             if (loggingCtx) {
                 loggingCtx->info(QStringLiteral("Converting %1 -> %2").arg(sourceFileName, outputFileName));
             }
 
-            auto fileRes = convertFile(sourceFile, targetFile, options);
+            auto fileRes = convertFile(sourceFile, targetFile, options, targetSoundeventsDir);
             if (!fileRes.isSuccess()) {
                 if (loggingCtx) {
                     loggingCtx->error(QCoreApplication::translate("SoundscapeConvertService", "Failed to convert %1: %2").arg(sourceFileName, fileRes.message()));

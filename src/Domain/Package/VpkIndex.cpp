@@ -100,11 +100,20 @@ bool VpkIndex::matchesDiskMetadata() const {
     return true;
 }
 
-Core::Result<void> VpkIndex::saveToFile(const Core::Path::FilesystemPath& filePath) const {
+Core::Result<void> VpkIndex::saveToFile(
+    const Core::Path::FilesystemPath& filePath,
+    const Core::Path::FilesystemPath& expectedBaseDir) const {
     if (filePath.isEmpty() || !filePath.isValid()) {
         return Core::Result<void>::failure(
             Core::Error::ErrorCode::InvalidPath,
             QCoreApplication::translate("VpkIndex", "Index file path is empty or invalid"));
+    }
+
+    if (!expectedBaseDir.isEmpty() && !filePath.isSubpathOf(expectedBaseDir)) {
+        return Core::Result<void>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QCoreApplication::translate("VpkIndex", "Security boundary violation: Index file '%1' is not within expected base directory '%2'")
+                .arg(filePath.toString(), expectedBaseDir.toString()));
     }
 
     // Ensure parent directory exists
@@ -144,6 +153,15 @@ Core::Result<void> VpkIndex::saveToFile(const Core::Path::FilesystemPath& filePa
             Core::Error::ErrorCode::WriteFailed,
             QCoreApplication::translate("VpkIndex", "Failed to open index file for writing: %1").arg(file.errorString()),
             filePath.toString());
+    }
+
+    if (!expectedBaseDir.isEmpty() && !Core::Path::FilesystemPath::verifyFileWithinBase(file, expectedBaseDir)) {
+        file.close();
+        file.remove();
+        return Core::Result<void>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QCoreApplication::translate("VpkIndex", "Security boundary violation: Index file '%1' escaped expected base directory '%2' via reparse point or symlink")
+                .arg(filePath.toString(), expectedBaseDir.toString()));
     }
 
     QDataStream out(&file);

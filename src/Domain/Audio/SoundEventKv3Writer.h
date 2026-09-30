@@ -18,7 +18,10 @@ public:
     /**
      * @brief Writes a list of SoundEvents into a .vsndevts file on disk.
      */
-    static Core::Result<void> writeToFile(const Core::Path::FilesystemPath& filePath, const std::vector<SoundEvent>& events);
+    static Core::Result<void> writeToFile(
+        const Core::Path::FilesystemPath& filePath,
+        const std::vector<SoundEvent>& events,
+        const Core::Path::FilesystemPath& expectedBaseDir = {});
 
 private:
     static void writeSoundEvent(QString& out, const SoundEvent& ev);

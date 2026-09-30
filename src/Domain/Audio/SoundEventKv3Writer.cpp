@@ -167,11 +167,14 @@ QString SoundEventKv3Writer::writeToString(const std::vector<SoundEvent>& events
     return out;
 }
 
-Core::Result<void> SoundEventKv3Writer::writeToFile(const Core::Path::FilesystemPath& filePath, const std::vector<SoundEvent>& events) {
+Core::Result<void> SoundEventKv3Writer::writeToFile(
+    const Core::Path::FilesystemPath& filePath,
+    const std::vector<SoundEvent>& events,
+    const Core::Path::FilesystemPath& expectedBaseDir) {
     try {
         const QString content = writeToString(events);
         const QByteArray data = content.toUtf8();
-        Core::FileSystem::AtomicFile::writeAtomic(filePath.toString(), data);
+        Core::FileSystem::AtomicFile::writeAtomic(filePath.toString(), data, expectedBaseDir);
         return Core::Result<void>::success();
     } catch (const Core::Error::Exception& ex) {
         return Core::Result<void>::failure(ex.error(), QCoreApplication::translate("SoundEventKv3Writer", "Failed to write KV3 soundevents file"));

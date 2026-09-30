@@ -48,7 +48,8 @@ public:
     static Core::Result<void> convertToImageFile(
         const Core::Path::FilesystemPath& vtfPath,
         const Core::Path::FilesystemPath& destImagePath,
-        ImageFileFormat format = ImageFileFormat::Png);
+        ImageFileFormat format = ImageFileFormat::Png,
+        const Core::Path::FilesystemPath& expectedBaseDir = {});
 
 };
 

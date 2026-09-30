@@ -82,11 +82,13 @@ Core::Result<void> KeyValuesDocument::loadFromData(const QByteArray& data) {
     return loadFromString(QString::fromUtf8(data));
 }
 
-Core::Result<void> KeyValuesDocument::saveToFile(const Path::FilesystemPath& path) const {
+Core::Result<void> KeyValuesDocument::saveToFile(
+    const Path::FilesystemPath& path,
+    const Path::FilesystemPath& expectedBaseDir) const {
     const QString text = saveToString();
     const QByteArray data = text.toUtf8();
     try {
-        FileSystem::AtomicFile::writeAtomic(path.toString(), data);
+        FileSystem::AtomicFile::writeAtomic(path.toString(), data, expectedBaseDir);
         return Core::Result<void>::success();
     } catch (const Error::Exception& e) {
         return Core::Result<void>::failure(e.error());

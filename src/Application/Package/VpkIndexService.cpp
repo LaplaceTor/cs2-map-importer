@@ -106,7 +106,7 @@ Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>> VpkIndexService::
     auto newIndex = buildRes.value();
 
     // 3. Save to disk (<AppDir>/data/indices/<game_id>.idx)
-    auto saveRes = newIndex.saveToFile(indexPath);
+    auto saveRes = newIndex.saveToFile(indexPath, getIndexDirectory());
     if (saveRes.isFailure()) {
         // Log or proceed with in-memory instance
     }

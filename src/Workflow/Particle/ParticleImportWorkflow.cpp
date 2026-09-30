@@ -23,10 +23,18 @@ namespace {
  * so a cancelled import must not leave partial .vpcf/.vpcf_c assets in the addon
  * content directory.
  */
-void cleanupGeneratedArtifacts(const QStringList& vpcfPaths, const Common::ImportContext& context)
+void cleanupGeneratedArtifacts(
+    const QStringList& vpcfPaths,
+    const Common::ImportContext& context,
+    const Core::Path::FilesystemPath& expectedBaseDir = {})
 {
     int removed = 0;
     for (const QString& path : vpcfPaths) {
+        if (!expectedBaseDir.isEmpty() && !Core::Path::FilesystemPath(path).isSubpathOf(expectedBaseDir)) {
+            context.warning(QCoreApplication::translate("ParticleImportWorkflow", "Skipping cleanup of artifact outside expected base directory: %1")
+                .arg(path));
+            continue;
+        }
         QFile generated(path);
         if (generated.exists()) {
             if (generated.remove()) {
@@ -96,7 +104,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
         }
 
         Core::Path::FilesystemPath effectivePcfPath = pcfPath;
-        QString stagedTempFilePath;
+        Core::Temp::TempFile stagedTempFile;
 
         if (!alreadyInS1Particles) {
             if (!s1ParticlesDir.exists() && !s1ParticlesDir.mkpath(QStringLiteral("."))) {
@@ -127,7 +135,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
                     Core::Path::FilesystemPath(s1ParticlesDir.absolutePath()));
             } catch (const Core::Error::Exception& ex) {
                 if (ex.error().code() == Core::Error::ErrorCode::Cancelled) {
-                    cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context);
+                    cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context, options.cs2BaseDir);
                     return Core::Result<ParticleImportWorkflowResult>::cancelled(ex.error().message());
                 }
                 context.warning(QCoreApplication::translate("ParticleImportWorkflow", "Failed to copy PCF file to Source 1 particles folder: %1")
@@ -145,7 +153,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
                 continue;
             }
             effectivePcfPath = Core::Path::FilesystemPath(targetPcfPathStr);
-            stagedTempFilePath = targetPcfPathStr;
+            stagedTempFile.setPath(targetPcfPathStr, true);
             context.info(QCoreApplication::translate("ParticleImportWorkflow", "Staged PCF file to Source 1 particles folder: %1").arg(targetPcfPathStr));
         } else {
             context.info(QCoreApplication::translate("ParticleImportWorkflow", "PCF file is already inside Source 1 particles folder: %1")
@@ -178,15 +186,11 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
                     options.source1ImportExe, s1Options, context.loggingContext());
             });
 
-        // Immediately clean up staged temporary PCF
-        if (!stagedTempFilePath.isEmpty()) {
-            if (QFile::exists(stagedTempFilePath)) {
-                QFile::remove(stagedTempFilePath);
-            }
-        }
+        // Immediately clean up staged temporary PCF via RAII TempFile
+        stagedTempFile.cleanup();
 
         if (convertResult.isCancelled()) {
-            cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context);
+            cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context, options.cs2BaseDir);
             return Core::Result<ParticleImportWorkflowResult>::cancelled(convertResult.message());
         }
 
@@ -224,7 +228,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
     }
 
     if (context.isCancelled()) {
-        cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context);
+        cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context, options.cs2BaseDir);
         return Core::Result<ParticleImportWorkflowResult>::cancelled(
             QCoreApplication::translate("ParticleImportWorkflow", "Particle import was cancelled"));
     }
@@ -262,11 +266,11 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
         });
 
     if (compileResult.isCancelled()) {
-        cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context);
+        cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context, options.cs2BaseDir);
         return Core::Result<ParticleImportWorkflowResult>::cancelled(compileResult.message());
     }
     if (compileResult.isFailure()) {
-        cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context);
+        cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context, options.cs2BaseDir);
         return Core::Result<ParticleImportWorkflowResult>::failure(compileResult.error(), compileResult.message(), workflowResult);
     }
 

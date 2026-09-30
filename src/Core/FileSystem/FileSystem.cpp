@@ -445,14 +445,17 @@ QByteArray FileSystem::readAll(const QString& filePath) {
     return file.readAll();
 }
 
-void FileSystem::writeAll(const QString& filePath, const QByteArray& data) {
+void FileSystem::writeAll(
+    const QString& filePath,
+    const QByteArray& data,
+    const Core::Path::FilesystemPath& expectedBaseDir) {
     if (filePath.isEmpty()) {
         throw Core::Error::Exception(
             Core::Error::ErrorCode::InvalidPath,
             QCoreApplication::translate("FileSystem", "Cannot write file: Path is empty"));
     }
 
-    AtomicFile::writeAtomic(filePath, data);
+    AtomicFile::writeAtomic(filePath, data, expectedBaseDir);
 }
 
 } // namespace Core::FileSystem

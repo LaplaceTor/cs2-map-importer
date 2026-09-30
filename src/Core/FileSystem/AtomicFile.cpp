@@ -6,8 +6,9 @@
 
 namespace Core::FileSystem {
 
-AtomicFile::AtomicFile(const QString& targetFilePath)
-    : m_targetFilePath(targetFilePath) {
+AtomicFile::AtomicFile(const QString& targetFilePath, const Core::Path::FilesystemPath& expectedBaseDir)
+    : m_targetFilePath(targetFilePath)
+    , m_expectedBaseDir(expectedBaseDir) {
 }
 
 AtomicFile::~AtomicFile() {
@@ -16,6 +17,7 @@ AtomicFile::~AtomicFile() {
 
 AtomicFile::AtomicFile(AtomicFile&& other) noexcept
     : m_targetFilePath(std::move(other.m_targetFilePath)),
+      m_expectedBaseDir(std::move(other.m_expectedBaseDir)),
       m_saveFile(std::move(other.m_saveFile)),
       m_committed(other.m_committed),
       m_isOpen(other.m_isOpen) {
@@ -27,6 +29,7 @@ AtomicFile& AtomicFile::operator=(AtomicFile&& other) noexcept {
     if (this != &other) {
         rollback();
         m_targetFilePath = std::move(other.m_targetFilePath);
+        m_expectedBaseDir = std::move(other.m_expectedBaseDir);
         m_saveFile = std::move(other.m_saveFile);
         m_committed = other.m_committed;
         m_isOpen = other.m_isOpen;
@@ -60,6 +63,15 @@ void AtomicFile::open() {
             QCoreApplication::translate("AtomicFile", "Cannot open AtomicFile: Target path is empty"));
     }
 
+    if (!m_expectedBaseDir.isEmpty()) {
+        if (!Core::Path::FilesystemPath(m_targetFilePath).isSubpathOf(m_expectedBaseDir)) {
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("AtomicFile", "Security boundary violation: Target file '%1' is not within expected base directory '%2'")
+                    .arg(m_targetFilePath, m_expectedBaseDir.toString()));
+        }
+    }
+
     QFileInfo dstInfo(m_targetFilePath);
     QDir parentDir = dstInfo.dir();
     if (!parentDir.exists()) {
@@ -76,6 +88,18 @@ void AtomicFile::open() {
             Core::Error::ErrorCode::OperationFailed,
             QCoreApplication::translate("AtomicFile", "Failed to open QSaveFile for target '%1': %2")
                 .arg(m_targetFilePath, m_saveFile->errorString()));
+    }
+
+    if (!m_expectedBaseDir.isEmpty()) {
+        if (!Core::Path::FilesystemPath::verifyFileWithinBase(*m_saveFile, m_expectedBaseDir)) {
+            m_saveFile->cancelWriting();
+            m_saveFile.reset();
+            m_isOpen = false;
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("AtomicFile", "Security boundary violation: Atomic write target '%1' escaped expected base directory '%2' via reparse point or symlink")
+                    .arg(m_targetFilePath, m_expectedBaseDir.toString()));
+        }
     }
 
     m_isOpen = true;
@@ -119,6 +143,21 @@ void AtomicFile::commit() {
                 .arg(m_targetFilePath, m_saveFile->errorString()));
     }
 
+    if (!m_expectedBaseDir.isEmpty()) {
+        QFile checkFile(m_targetFilePath);
+        if (checkFile.open(QIODevice::ReadOnly)) {
+            bool valid = Core::Path::FilesystemPath::verifyFileWithinBase(checkFile, m_expectedBaseDir);
+            checkFile.close();
+            if (!valid) {
+                QFile::remove(m_targetFilePath);
+                throw Core::Error::Exception(
+                    Core::Error::ErrorCode::InvalidPath,
+                    QCoreApplication::translate("AtomicFile", "Security boundary violation: Committed file '%1' escaped expected base directory '%2'")
+                        .arg(m_targetFilePath, m_expectedBaseDir.toString()));
+            }
+        }
+    }
+
     m_committed = true;
     m_isOpen = false;
     m_saveFile.reset();
@@ -137,8 +176,11 @@ void AtomicFile::rollback() {
     m_isOpen = false;
 }
 
-void AtomicFile::writeAtomic(const QString& targetFilePath, const QByteArray& data) {
-    AtomicFile atomic(targetFilePath);
+void AtomicFile::writeAtomic(
+    const QString& targetFilePath,
+    const QByteArray& data,
+    const Core::Path::FilesystemPath& expectedBaseDir) {
+    AtomicFile atomic(targetFilePath, expectedBaseDir);
     atomic.open();
     atomic.write(data);
     atomic.commit();

@@ -52,7 +52,10 @@ public:
         const Core::Async::CancellationToken& token = {},
         const Core::Path::FilesystemPath& expectedBaseDir = {});
     static QByteArray readAll(const QString& filePath);
-    static void writeAll(const QString& filePath, const QByteArray& data);
+    static void writeAll(
+        const QString& filePath,
+        const QByteArray& data,
+        const Core::Path::FilesystemPath& expectedBaseDir = {});
 
 private:
     static void copyDirectoryHelper(

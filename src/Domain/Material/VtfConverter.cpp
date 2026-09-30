@@ -111,11 +111,19 @@ Core::Result<std::vector<std::byte>> VtfConverter::convertToImageBuffer(
 Core::Result<void> VtfConverter::convertToImageFile(
     const Core::Path::FilesystemPath& vtfPath,
     const Core::Path::FilesystemPath& destImagePath,
-    ImageFileFormat format) {
+    ImageFileFormat format,
+    const Core::Path::FilesystemPath& expectedBaseDir) {
     if (destImagePath.isEmpty() || !destImagePath.isValid()) {
         return Core::Result<void>::failure(
             Core::Error::ErrorCode::InvalidPath,
             QCoreApplication::translate("VtfConverter", "destination image path is empty or invalid"));
+    }
+
+    if (!expectedBaseDir.isEmpty() && !destImagePath.isSubpathOf(expectedBaseDir)) {
+        return Core::Result<void>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QCoreApplication::translate("VtfConverter", "Security boundary violation: Destination image '%1' is not within expected base directory '%2'")
+                .arg(destImagePath.toString(), expectedBaseDir.toString()));
     }
 
     auto imageBytes = convertToImageBuffer(vtfPath, format);
@@ -128,7 +136,8 @@ Core::Result<void> VtfConverter::convertToImageFile(
         Core::FileSystem::FileSystem::createDirectory(destImagePath.parentPath().toString());
         Core::FileSystem::FileSystem::writeAll(destImagePath.toString(), QByteArray(
             reinterpret_cast<const char*>(imageBytes.value().data()),
-            static_cast<qsizetype>(imageBytes.value().size())));
+            static_cast<qsizetype>(imageBytes.value().size())),
+            expectedBaseDir);
         return Core::Result<void>::success();
     });
 }

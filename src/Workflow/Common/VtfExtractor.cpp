@@ -48,11 +48,19 @@ Core::Result<AssetExtraction> VtfExtractor::extract(
 
         // Image export is fixed to PNG at this use-case level.
         const QString imageName = QFileInfo(relativeVtfPath).baseName() + QStringLiteral(".png");
-        const Core::Path::FilesystemPath destImageFile = destImageDir / imageName;
+        auto destImageFileOpt = destImageDir.resolveBelow(imageName);
+        if (!destImageFileOpt.has_value()) {
+            return Core::Result<AssetExtraction>::failure(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("VtfExtractor", "destination image path traverses outside destination directory"),
+                imageName);
+        }
+        const Core::Path::FilesystemPath destImageFile = *destImageFileOpt;
 
         auto converted = Domain::Material::VtfConverter::convertToImageFile(
             extraction.value().extractedFilePath, destImageFile,
-            Domain::Material::ImageFileFormat::Png);
+            Domain::Material::ImageFileFormat::Png,
+            destImageDir);
         if (converted.isFailure()) {
             return Core::Result<AssetExtraction>::failure(converted.error());
         }

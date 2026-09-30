@@ -31,7 +31,9 @@ public:
     Core::Result<void> loadFromData(const QByteArray& data);
 
     // Save methods returning Result<void>
-    Core::Result<void> saveToFile(const Path::FilesystemPath& path) const;
+    Core::Result<void> saveToFile(
+        const Path::FilesystemPath& path,
+        const Path::FilesystemPath& expectedBaseDir = {}) const;
     QString saveToString() const;
     QByteArray saveToData() const;
 

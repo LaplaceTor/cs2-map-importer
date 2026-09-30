@@ -23,9 +23,11 @@ public:
     /**
      * @brief Converts a single soundscape script file and writes the resulting .vsndevts file to targetPath.
      */
-    Core::Result<ConvertSoundscapeResult> convertFile(const Core::Path::FilesystemPath& sourceFile,
-                                                    const Core::Path::FilesystemPath& targetFile,
-                                                    const Domain::Audio::ConversionOptions& options = {});
+    Core::Result<ConvertSoundscapeResult> convertFile(
+        const Core::Path::FilesystemPath& sourceFile,
+        const Core::Path::FilesystemPath& targetFile,
+        const Domain::Audio::ConversionOptions& options = {},
+        const Core::Path::FilesystemPath& expectedBaseDir = {});
 
     /**
      * @brief Discovers and converts all soundscape files for a map based on the request.
