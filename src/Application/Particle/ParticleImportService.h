@@ -53,15 +53,17 @@ public:
      * Asynchronous execution and std::enable_shared_from_this require that instances
      * are strictly managed by std::shared_ptr. Direct stack allocation, raw new, or
      * std::make_unique are disallowed by constructor constraints.
+     *
+     * Single Ownership Guarantee:
+     * This service strictly disallows Qt parent-child ownership (parent is always nullptr)
+     * to eliminate dual-ownership hazards (double deletion or premature parent destruction).
      */
     static std::shared_ptr<ParticleImportService> create(
-        std::shared_ptr<Common::ImportPrerequisiteService> prerequisiteService = nullptr,
-        QObject* parent = nullptr);
+        std::shared_ptr<Common::ImportPrerequisiteService> prerequisiteService = nullptr);
 
     explicit ParticleImportService(
         PassKey,
-        std::shared_ptr<Common::ImportPrerequisiteService> prerequisiteService = nullptr,
-        QObject* parent = nullptr);
+        std::shared_ptr<Common::ImportPrerequisiteService> prerequisiteService = nullptr);
     ~ParticleImportService() override;
 
     /**

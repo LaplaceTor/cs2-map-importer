@@ -1,6 +1,7 @@
 #include <QCoreApplication>
 #include "Application/Particle/ParticleImportService.h"
 
+#include <QScopeGuard>
 #include <QFile>
 #include <QFileInfo>
 
@@ -51,17 +52,15 @@ ParticleImportResult toApplicationResult(const Workflow::Particle::ParticleImpor
 
 
 std::shared_ptr<ParticleImportService> ParticleImportService::create(
-    std::shared_ptr<Common::ImportPrerequisiteService> prerequisiteService,
-    QObject* parent)
+    std::shared_ptr<Common::ImportPrerequisiteService> prerequisiteService)
 {
-    return std::make_shared<ParticleImportService>(PassKey{}, std::move(prerequisiteService), parent);
+    return std::make_shared<ParticleImportService>(PassKey{}, std::move(prerequisiteService));
 }
 
 ParticleImportService::ParticleImportService(
     PassKey,
-    std::shared_ptr<Common::ImportPrerequisiteService> prerequisiteService,
-    QObject* parent)
-    : QObject(parent)
+    std::shared_ptr<Common::ImportPrerequisiteService> prerequisiteService)
+    : QObject(nullptr)
     , m_prerequisiteService(prerequisiteService
           ? std::move(prerequisiteService)
           : std::make_shared<Common::ImportPrerequisiteService>(nullptr, std::make_shared<Package::VpkIndexService>()))
@@ -104,6 +103,18 @@ Async::TaskHandle ParticleImportService::importParticlesAsync(
     }
     emit isImportingChanged(true);
 
+    // RAII scope guard ensures m_activeImportsCount and isImportingChanged state roll back
+    // if an exception is thrown before the task is successfully dispatched.
+    auto launchGuard = qScopeGuard([&]() {
+        if (m_activeImportsCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                m_activeTaskHandle = Async::TaskHandle{};
+            }
+            emit isImportingChanged(false);
+        }
+    });
+
     try {
         QString pcfBaseName;
         QString taskName;
@@ -145,6 +156,10 @@ Async::TaskHandle ParticleImportService::importParticlesAsync(
             std::move(completionCallback),
             QThreadPool::globalInstance());
 
+        // Successfully dispatched into AsyncTaskRunner. AsyncTaskRunner now guarantees completionCallback
+        // invocation (even if task context creation fails), so dismiss the launch guard.
+        launchGuard.dismiss();
+
         if (handle.isValid()) {
             std::lock_guard<std::mutex> lock(m_mutex);
             m_activeTaskHandle = handle;
@@ -152,14 +167,7 @@ Async::TaskHandle ParticleImportService::importParticlesAsync(
 
         return handle;
     } catch (const std::exception& ex) {
-        // Roll back state if task launch failed due to an exception
-        if (m_activeImportsCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
-            {
-                std::lock_guard<std::mutex> lock(m_mutex);
-                m_activeTaskHandle = Async::TaskHandle{};
-            }
-            emit isImportingChanged(false);
-        }
+        // launchGuard automatically rolls back state upon unwinding
         if (callback) {
             callback(Core::Result<ParticleImportResult>::failure(
                 Core::Error::ErrorCode::OperationFailed,
@@ -168,14 +176,7 @@ Async::TaskHandle ParticleImportService::importParticlesAsync(
         }
         return Async::TaskHandle{};
     } catch (...) {
-        // Roll back state if task launch failed due to an unknown exception
-        if (m_activeImportsCount.fetch_sub(1, std::memory_order_relaxed) == 1) {
-            {
-                std::lock_guard<std::mutex> lock(m_mutex);
-                m_activeTaskHandle = Async::TaskHandle{};
-            }
-            emit isImportingChanged(false);
-        }
+        // launchGuard automatically rolls back state upon unwinding
         if (callback) {
             callback(Core::Result<ParticleImportResult>::failure(
                 Core::Error::ErrorCode::Unknown,
