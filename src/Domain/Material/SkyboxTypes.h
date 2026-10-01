@@ -18,7 +18,7 @@ enum class CubeFace : int {
     Left,
     Right,
     Up,
-    Down
+    Down,
 };
 
 constexpr int CubeFaceCount = 6;
@@ -31,7 +31,7 @@ enum class Rotation : int {
     Deg0 = 0,
     Deg90 = 90,
     Deg180 = 180,
-    Deg270 = 270
+    Deg270 = 270,
 };
 
 inline Rotation combineRotations(Rotation a, Rotation b) noexcept {
@@ -84,7 +84,7 @@ enum class FaceEdge : int {
     Top = 0,
     Bottom,
     Left,
-    Right
+    Right,
 };
 
 /**
@@ -103,7 +103,7 @@ constexpr int CubeSeamCount = 12;
 /**
  * @brief Returns the 12 canonical seams of a 3D cube mesh.
  */
-inline const std::array<SeamDefinition, CubeSeamCount>& getCubeSeams() noexcept {
+inline const std::array<SeamDefinition, CubeSeamCount>& cubeSeams() noexcept {
     static const std::array<SeamDefinition, CubeSeamCount> seams = {{
         // 1. FT - UP: FT Top <-> UP Bottom
         { CubeFace::Front, FaceEdge::Top,    CubeFace::Up,    FaceEdge::Bottom, false },

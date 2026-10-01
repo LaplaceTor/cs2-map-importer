@@ -7,7 +7,6 @@
 
 #include <QCoreApplication>
 #include <QFileInfo>
-#include <QPainter>
 
 #include "Domain/Material/TextureIO.h"
 
@@ -148,7 +147,7 @@ Core::Result<SkyboxBuildResult> SkyboxCubeBuilder::build(
     }
 
     // Canvas composition (4S x 3S)
-    result.cubeImage = composeCubeImage(normalizedFaces, result.faceRotations, res);
+    result.cubeImage = composeCubeImage(normalizedFaces, result.faceRotations, res, options.allowNonSquareFaces);
     if (result.cubeImage.isNull()) {
         return Core::Result<SkyboxBuildResult>::failure(
             Core::Error::ErrorCode::OperationFailed,
@@ -434,7 +433,7 @@ std::array<Rotation, CubeFaceCount> SkyboxCubeBuilder::alignPass1(
     const std::array<Rotation, 4> candidateRotations = {
         Rotation::Deg0, Rotation::Deg90, Rotation::Deg180, Rotation::Deg270
     };
-    const auto& seams = getCubeSeams();
+    const auto& seams = cubeSeams();
 
     auto alignFaceAgainstNeighbors = [&](CubeFace faceId, const std::vector<int>& candidateSeamIndices) {
         if (!faces.hasFace(faceId)) {
@@ -545,7 +544,7 @@ std::vector<SeamEvaluation> SkyboxCubeBuilder::evaluateAllSeams(
     const std::array<Rotation, CubeFaceCount>& rotations,
     double mismatchThreshold)
 {
-    const auto& seams = getCubeSeams();
+    const auto& seams = cubeSeams();
     std::vector<SeamEvaluation> evaluations;
     evaluations.reserve(CubeSeamCount);
 
@@ -658,7 +657,7 @@ std::array<Rotation, CubeFaceCount> SkyboxCubeBuilder::alignPass2(
     const std::array<Rotation, 4> candidateRotations = {
         Rotation::Deg0, Rotation::Deg90, Rotation::Deg180, Rotation::Deg270
     };
-    const auto& seams = getCubeSeams();
+    const auto& seams = cubeSeams();
 
     // Iterate up to CubeFaceCount passes to resolve multi-edge misorientations (M_F >= 2)
     for (int iter = 0; iter < CubeFaceCount; ++iter) {
