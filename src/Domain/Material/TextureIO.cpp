@@ -1,6 +1,8 @@
 #include "Domain/Material/TextureIO.h"
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
 #include <QImage>
 #include <QImageReader>
 #include <QImageWriter>
@@ -71,16 +73,15 @@ bool TextureIO::isSupportedWriteExtension(const QString& lowerCaseExtension)
     return lowerCaseExtension == QLatin1String("png");
 }
 
-Core::Result<TextureImage> TextureIO::loadTexture(const Core::Path::FilesystemPath& path,
-                                                  bool srgbDecode)
+Core::Result<QImage> TextureIO::readImage(const Core::Path::FilesystemPath& path)
 {
     if (path.isEmpty() || !path.isValid()) {
-        return Core::Result<TextureImage>::failure(
+        return Core::Result<QImage>::failure(
             Core::Error::ErrorCode::InvalidPath,
             QCoreApplication::translate("TextureIO", "texture path is empty or invalid"));
     }
     if (!path.exists() || !path.isFile()) {
-        return Core::Result<TextureImage>::failure(
+        return Core::Result<QImage>::failure(
             Core::Error::ErrorCode::FileNotFound,
             QCoreApplication::translate("TextureIO", "texture file not found"),
             path.toString());
@@ -88,7 +89,7 @@ Core::Result<TextureImage> TextureIO::loadTexture(const Core::Path::FilesystemPa
 
     const QString extension = lowerCaseExtensionOf(path);
     if (!isSupportedLoadExtension(extension)) {
-        return Core::Result<TextureImage>::failure(
+        return Core::Result<QImage>::failure(
             Core::Error::ErrorCode::NotSupported,
             QCoreApplication::translate("TextureIO", "unsupported texture file extension"),
             path.toString());
@@ -98,13 +99,13 @@ Core::Result<TextureImage> TextureIO::loadTexture(const Core::Path::FilesystemPa
     if (VtfCodec::isVtfExtension(extension)) {
         auto vtfResult = VtfCodec::read(path);
         if (vtfResult.isFailure()) {
-            return Core::Result<TextureImage>::failure(vtfResult.error());
+            return Core::Result<QImage>::failure(vtfResult.error());
         }
         source = std::move(vtfResult.value());
     } else if (TgaCodec::isTgaExtension(extension)) {
         auto tgaResult = TgaCodec::read(path);
         if (tgaResult.isFailure()) {
-            return Core::Result<TextureImage>::failure(tgaResult.error());
+            return Core::Result<QImage>::failure(tgaResult.error());
         }
         source = std::move(tgaResult.value());
     } else {
@@ -112,7 +113,7 @@ Core::Result<TextureImage> TextureIO::loadTexture(const Core::Path::FilesystemPa
         reader.setAutoTransform(true);
         QImage read = reader.read();
         if (read.isNull()) {
-            return Core::Result<TextureImage>::failure(
+            return Core::Result<QImage>::failure(
                 Core::Error::ErrorCode::InvalidFile,
                 QCoreApplication::translate("TextureIO", "failed to decode image file"),
                 path.toString() + QStringLiteral(" | ") + reader.errorString());
@@ -120,7 +121,26 @@ Core::Result<TextureImage> TextureIO::loadTexture(const Core::Path::FilesystemPa
         source = std::move(read);
     }
 
-    const QImage rgba = source.convertToFormat(QImage::Format_RGBA8888);
+    QImage rgba = source.convertToFormat(QImage::Format_RGBA8888);
+    if (rgba.isNull() || rgba.width() <= 0 || rgba.height() <= 0) {
+        return Core::Result<QImage>::failure(
+            Core::Error::ErrorCode::InvalidFile,
+            QCoreApplication::translate("TextureIO", "image has invalid dimensions"),
+            path.toString());
+    }
+
+    return Core::Result<QImage>::success(std::move(rgba));
+}
+
+Core::Result<TextureImage> TextureIO::loadTexture(const Core::Path::FilesystemPath& path,
+                                                  bool srgbDecode)
+{
+    auto imageResult = readImage(path);
+    if (imageResult.isFailure()) {
+        return Core::Result<TextureImage>::failure(imageResult.error());
+    }
+
+    const QImage& rgba = imageResult.value();
     TextureImage image(rgba.width(), rgba.height(), 4);
     if (!image.isValid()) {
         return Core::Result<TextureImage>::failure(
@@ -211,8 +231,44 @@ Core::Result<void> TextureIO::writeTexture(const Core::Path::FilesystemPath& pat
         }
     }
 
+    return writeImage(path, target);
+}
+
+Core::Result<void> TextureIO::writeImage(const Core::Path::FilesystemPath& path,
+                                         const QImage& image)
+{
+    if (path.isEmpty() || !path.isValid()) {
+        return Core::Result<void>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QCoreApplication::translate("TextureIO", "destination path is empty or invalid"));
+    }
+    if (image.isNull() || image.width() <= 0 || image.height() <= 0) {
+        return Core::Result<void>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QCoreApplication::translate("TextureIO", "image is null or has invalid dimensions"));
+    }
+
+    const QString extension = lowerCaseExtensionOf(path);
+    if (!isSupportedWriteExtension(extension)) {
+        return Core::Result<void>::failure(
+            Core::Error::ErrorCode::NotSupported,
+            QCoreApplication::translate("TextureIO", "unsupported texture write extension"),
+            path.toString());
+    }
+
+    const QFileInfo fileInfo(path.toString());
+    const QDir parentDir = fileInfo.dir();
+    if (!parentDir.exists()) {
+        if (!parentDir.mkpath(QStringLiteral("."))) {
+            return Core::Result<void>::failure(
+                Core::Error::ErrorCode::WriteFailed,
+                QCoreApplication::translate("TextureIO", "failed to create destination directory"),
+                parentDir.path());
+        }
+    }
+
     QImageWriter writer(path.toString(), "png");
-    if (!writer.write(target)) {
+    if (!writer.write(image)) {
         return Core::Result<void>::failure(
             Core::Error::ErrorCode::WriteFailed,
             QCoreApplication::translate("TextureIO", "failed to write PNG file"),

@@ -107,7 +107,7 @@ Application 亦可直接调用 Domain/Core 提供的非工作流服务，但 **U
 
 ### 3.4 Domain 规则 (`src/Domain/`)
 
-* **允许：** 解析与校验 Valve 专属数据格式；抽象 Source 1/2 领域资产与相对路径；资产检索三层解耦（`Domain::Asset::IAssetSourceProber` 抽象探测接口、`ArchiveAssetSourceProber` 归档池探测适配、`AssetLocateStrategy` 纯领域优先级策略与 `AssetLocation` 定位载体）；归档池并发硬化（`Domain::Package::PackArchivePool` 基于键粒度 `OpeningEntry` 条件变量同步，根除同一归档并发重复打开并响应取消）；包解包安全（`PackArchive::extractEntryToFile` 接收可选基目录，`BspPackExtractor` 结合 `destDir.resolveBelow` 进行目录预创建与文件规划，且均在打开句柄后执行 `verifyFileWithinBase` 真实物理路径校验）；S2 插件扫描严格从 `content/csgo_addons` 目录探测（禁止混入 `game/` 目录）；VPK 资产包索引机制（`Domain::Package::VpkIndex` / `VpkIndexBuilder`，基于 `sourcepp` API 快速构建全量文件树，序列化为紧凑二进制 `.idx`，集成文件大小/修改时间与 `_dir.vpk` SHA-256 完整性快速校验，生成绝对路径 $O(1)$ 路由映射与 CS2 资产主干名集合）；材质纹理图像处理（VTF/TGA 解码、PBR 贴图生成、通道打包等确定性纯计算，见 `Domain::Material::TextureProcess`）；封装官方 CLI 工具（`Domain::Tool`，多资产编译自适应生成 `-filelist` 清单，日志解析器支持资产粒度容错与部分成功统计）；保持确定性与无状态纯计算。
+* **允许：** 解析与校验 Valve 专属数据格式；抽象 Source 1/2 领域资产与相对路径；资产检索三层解耦（`Domain::Asset::IAssetSourceProber` 抽象探测接口、`ArchiveAssetSourceProber` 归档池探测适配、`AssetLocateStrategy` 纯领域优先级策略与 `AssetLocation` 定位载体）；归档池并发硬化（`Domain::Package::PackArchivePool` 基于键粒度 `OpeningEntry` 条件变量同步，根除同一归档并发重复打开并响应取消）；包解包安全（`PackArchive::extractEntryToFile` 接收可选基目录，`BspPackExtractor` 结合 `destDir.resolveBelow` 进行目录预创建与文件规划，且均在打开句柄后执行 `verifyFileWithinBase` 真实物理路径校验）；S2 插件扫描严格从 `content/csgo_addons` 目录探测（禁止混入 `game/` 目录）；VPK 资产包索引机制（`Domain::Package::VpkIndex` / `VpkIndexBuilder`，基于 `sourcepp` API 快速构建全量文件树，序列化为紧凑二进制 `.idx`，集成文件大小/修改时间与 `_dir.vpk` SHA-256 完整性快速校验，生成绝对路径 $O(1)$ 路由映射与 CS2 资产主干名集合）；材质纹理图像处理（VTF/TGA 解码、PBR 贴图生成、通道打包等确定性纯计算，见 `Domain::Material::TextureProcess`）；3D 天空盒立体十字构建器与自动边缘对齐（`Domain::Material::SkyboxCubeBuilder` / `SkyboxTypes`，基于内视视角 Inside-Out 拓扑建立 FT 为绝对中心的 4x3 水平十字排布 [标准 4096×3072，行 0 为 UP，行 1 为 RT-FT-LF-BK，行 2 为 DN]，严禁产生翻转镜像变换；两阶段边缘像素对齐：Pass 1 水平环 RT/LF/BK 优先、UP/DN 四邻接面联合 SAD 打分与最大邻接方差保护防平滑天空熔断，Pass 2 覆盖 12 物理接缝的闭环容错与孤立 [$M_F \ge 2$ 判定自身错误、$M_F == 1$ 精准孤立邻居、$M_F == 0$ 锁定真值] 与假性一致性 Step 2B 仲裁，确定性输出无缝 `cube.png` 与 `sky.vfx` 材质契约 `.vmat`）；封装官方 CLI 工具（`Domain::Tool`，多资产编译自适应生成 `-filelist` 清单，日志解析器支持资产粒度容错与部分成功统计）；保持确定性与无状态纯计算。
 * **严禁：** include `Application/*`、`Workflow/*`、`UI/*` 或 QML 头文件；发送 UI 通知或弹窗；访问应用全局配置或日志器；自行启动线程。
 
 ### 3.5 Core 规则 (`src/Core/`)
@@ -172,7 +172,7 @@ UI 属性/信号
 2. **外部工具强类型封装**：所有外部 CLI 工具（`bspsrc`，官方 `resourcecompiler`, `source1import`）必须封装于 `Domain::Tool` 并通过 `Core::Process::ProcessRunner` 执行。
 3. **流式输出与取消绑定**：`ProcessRunner` 必须支持基于 `onStdOutLine` / `onStdErrLine` 的逐行实时流式日志捕获，并与 `CancellationToken` 强绑定，严禁无超时的静默阻塞式黑盒调用。
 4. **批量参数清单与长度防护**：调用外部 CLI 编译或处理批量资源时，当文件数量 > 1，必须自适应采用由 `Core::Temp::TempFile` 管理的临时清单文件（如 `-filelist <path>`），严禁将海量文件路径直接拼接入命令行以防超出 Windows 命令行长度上限。
-5. **内嵌原生库与持久化索引替代**：严禁再引入或调用外部 `vpkeditcli` 与 `vtfcmd`，归档解包与 VTF 解码/转码已全量由内嵌原生库在进程内完成——`Domain::Package` 基于 `sourcepp`（vpkpp/bsppp）解包 VPK 与 BSP 嵌入包；严禁使用盲目打开 VPK 碰撞试探文件是否存在的方式，必须通过 `Domain::Package::VpkIndex` / `Application::Package::VpkIndexService` 建立持久化二进制索引并基于 `AssetExtractor` 执行 $O(1)$ 点查直接命中；CS2 原生资源仅检索 `gameinfo.gi` 中定义的 `SearchPaths -> Game` 目录 VPK，规避海量无用扫描；`Domain::Material` 基于 `vtfpp` 解码 VTF（`VtfCodec` / `VtfConverter`），`TgaCodec` 为自包含 TGA 编解码实现，纹理读写统一收口于 `TextureIO`（宽读取、导出仅 PNG）。
+5. **内嵌原生库与持久化索引替代**：严禁再引入或调用外部 `vpkeditcli` 与 `vtfcmd`，归档解包与 VTF 解码/转码已全量由内嵌原生库在进程内完成——`Domain::Package` 基于 `sourcepp`（vpkpp/bsppp）解包 VPK 与 BSP 嵌入包；严禁使用盲目打开 VPK 碰撞试探文件是否存在的方式，必须通过 `Domain::Package::VpkIndex` / `Application::Package::VpkIndexService` 建立持久化二进制索引并基于 `AssetExtractor` 执行 $O(1)$ 点查直接命中；CS2 原生资源仅检索 `gameinfo.gi` 中定义的 `SearchPaths -> Game` 目录 VPK，规避海量无用扫描；`Domain::Material` 基于 `vtfpp` 解码 VTF（`VtfCodec` / `VtfConverter`），`TgaCodec` 为自包含 TGA 编解码实现，纹理读写统一收口于 `TextureIO`（宽读取、导出仅 PNG，提供原生 `readImage` / `writeImage` 接口无缝支撑天空盒 6 面解码与立体十字缝合，彻底废弃外部脚本与工具）。
 6. **用户交互解耦**：Domain / Workflow 严禁直接弹出模态对话框。必须通过抽象 Prompt 接口定义契约，由 Application 实现并调度 UI 呈现。
 
 ---
@@ -182,7 +182,7 @@ UI 属性/信号
 ```text
 src/
 ├── Core/             # 通用基础设施 (Async, Error, FileSystem, Hash, KeyValues, Logging, Path, Process, Result, Temp)【全部已有】
-├── Domain/           # Valve/Source 专有领域模型 (Asset, Audio, Game, Material（含 TextureProcess 纹理处理后端）, Package（含 VpkIndex/VpkIndexBuilder）, Tool【已有】; Bsp, Vmf【规划】)
+├── Domain/           # Valve/Source 专有领域模型 (Asset, Audio, Game, Material（含 TextureProcess 纹理处理后端、SkyboxCubeBuilder 3D 天空盒构建器）, Package（含 VpkIndex/VpkIndexBuilder）, Tool【已有】; Bsp, Vmf【规划】)
 ├── Workflow/         # 具体导入流水线 (Common, Particle【已有】; Map, Model【规划】)
 ├── Application/      # 应用服务与任务调度 (Async, Common, Environment, Execution, Logging, Package, Particle, Soundscape【已有】; Config, Task, Update【规划】)
 ├── UI/               # 表现层 ViewModel 与控制器 (Controllers, ViewModels)【全部已有】

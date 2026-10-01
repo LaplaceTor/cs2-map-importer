@@ -42,6 +42,20 @@ public:
                                            const TextureImage& image,
                                            bool srgbEncode = true);
 
+    /**
+     * @brief Loads an image file directly into a QImage (RGBA8888).
+     *
+     * Supports VTF (via VtfCodec), TGA (via TgaCodec), and formats supported by Qt
+     * (PNG, JPG, BMP).
+     */
+    static Core::Result<QImage> readImage(const Core::Path::FilesystemPath& path);
+
+    /**
+     * @brief Writes a QImage to a PNG file (the only supported export format).
+     */
+    static Core::Result<void> writeImage(const Core::Path::FilesystemPath& path,
+                                         const QImage& image);
+
     static bool isSupportedLoadExtension(const QString& lowerCaseExtension);
     static bool isSupportedWriteExtension(const QString& lowerCaseExtension);
 };

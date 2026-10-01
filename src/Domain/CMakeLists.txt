@@ -87,6 +87,9 @@ qt_add_library(cs2importer_domain STATIC
     Material/VtfCodec.cpp
     Material/TextureIO.h
     Material/TextureIO.cpp
+    Material/SkyboxTypes.h
+    Material/SkyboxCubeBuilder.h
+    Material/SkyboxCubeBuilder.cpp
     Material/TextureProcess/ColorMath.h
     Material/TextureProcess/TextureBlur.h
     Material/TextureProcess/TextureBlur.cpp
