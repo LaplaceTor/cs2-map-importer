@@ -7,6 +7,12 @@
 
 namespace Application::Soundscape {
 
+struct SoundscapeConvertOptions {
+    QString mixgroup;
+
+    bool operator==(const SoundscapeConvertOptions& other) const = default;
+};
+
 struct SoundscapeFileStats {
     QString sourceFilePath;
     QString targetFilePath;

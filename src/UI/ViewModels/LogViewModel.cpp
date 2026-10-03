@@ -220,7 +220,8 @@ std::shared_ptr<TaskTreeNode> LogViewModel::ensureTaskNode(quint64 taskId, const
     node->state = info.isValid ? info.state : Application::Logging::TaskState::Running;
     node->progress = info.isValid ? info.progress : 0.0;
     node->currentMessage = info.isValid ? info.currentMessage : QString();
-    node->messagesModel = std::make_shared<LogMessageListModel>();
+    node->messagesModel = std::shared_ptr<LogMessageListModel>(
+        new LogMessageListModel(), [](QObject* obj) { obj->deleteLater(); });
     QQmlEngine::setObjectOwnership(node->messagesModel.get(), QQmlEngine::CppOwnership);
 
     const bool isTool = info.isValid ? info.isToolTask : false;
@@ -240,7 +241,8 @@ std::shared_ptr<TaskTreeNode> LogViewModel::ensureTaskNode(quint64 taskId, const
         // Root task
         node->depth = 0;
         node->expanded = true;
-        node->subTasksModel = std::make_shared<LogTaskModel>(1);
+        node->subTasksModel = std::shared_ptr<LogTaskModel>(
+            new LogTaskModel(1), [](QObject* obj) { obj->deleteLater(); });
         QQmlEngine::setObjectOwnership(node->subTasksModel.get(), QQmlEngine::CppOwnership);
 
         m_rootTasks.append(node);
@@ -259,7 +261,8 @@ std::shared_ptr<TaskTreeNode> LogViewModel::ensureTaskNode(quint64 taskId, const
 
         node->depth = parentNode->depth + 1;
         node->expanded = false; // Default collapsed per grill decision
-        node->subTasksModel = std::make_shared<LogTaskModel>(node->depth + 1);
+        node->subTasksModel = std::shared_ptr<LogTaskModel>(
+            new LogTaskModel(node->depth + 1), [](QObject* obj) { obj->deleteLater(); });
         QQmlEngine::setObjectOwnership(node->subTasksModel.get(), QQmlEngine::CppOwnership);
 
         node->parent = parentNode;
@@ -550,7 +553,7 @@ std::shared_ptr<LogMessageListModel> LogViewModel::taskMessagesModelShared(int v
     return nullptr;
 }
 
-std::shared_ptr<LogTaskModel> LogViewModel::taskSubTasksModel(int visibleRow) const
+std::shared_ptr<LogTaskModel> LogViewModel::taskSubTasksModelShared(int visibleRow) const
 {
     if (visibleRow >= 0 && visibleRow < m_visibleNodes.size()) {
         return m_visibleNodes.at(visibleRow)->subTasksModel;
@@ -574,9 +577,9 @@ UI::ViewModels::LogMessageListModel* LogViewModel::taskMessagesModel(int row) co
     return m ? m.get() : nullptr;
 }
 
-UI::ViewModels::LogTaskModel* LogViewModel::getTaskSubTasksModel(int row) const
+UI::ViewModels::LogTaskModel* LogViewModel::taskSubTasksModel(int row) const
 {
-    auto m = taskSubTasksModel(row);
+    auto m = taskSubTasksModelShared(row);
     return m ? m.get() : nullptr;
 }
 
@@ -589,6 +592,29 @@ void LogViewModel::resetView()
         m_subscriptionId = m_logService->subscribe();
     }
 
+    // Phase 1: Dual-phase reset coordination.
+    // Before dropping node references, iterate through active nodes and call clear()
+    // on messagesModel and subTasksModel to notify QML views/delegates of item removal
+    // prior to container clearance.
+    QVector<std::shared_ptr<LogMessageListModel>> msgModels;
+    QVector<std::shared_ptr<LogTaskModel>> subModels;
+    msgModels.reserve(m_nodesById.size());
+    subModels.reserve(m_nodesById.size());
+
+    for (const auto& node : m_nodesById) {
+        if (node) {
+            if (node->messagesModel) {
+                msgModels.append(node->messagesModel);
+                node->messagesModel->clear();
+            }
+            if (node->subTasksModel) {
+                subModels.append(node->subTasksModel);
+                node->subTasksModel->clear();
+            }
+        }
+    }
+
+    // Phase 2: Teardown top-level view model and clear containers
     beginResetModel();
     m_rootTasks.clear();
     m_nodesById.clear();
@@ -617,7 +643,7 @@ QString LogViewModel::exportToPlainText(int indentLevel) const
         if (indent == 0) {
             result.append(QStringLiteral("=== %1 ===").arg(node->taskName));
         } else {
-            result.append(QStringLiteral("%1--- %2 ---").arg(indentStr, node->taskName));
+            result.append(QStringLiteral("%1--- %2 ---").arg(indentStr).arg(node->taskName));
         }
         result.append(QString());
 
@@ -635,7 +661,7 @@ QString LogViewModel::exportToPlainText(int indentLevel) const
                 case Application::Logging::LogLevel::Error:    levelStr = QStringLiteral("ERROR"); break;
                 case Application::Logging::LogLevel::Critical: levelStr = QStringLiteral("CRIT "); break;
                 }
-                result.append(QStringLiteral("%1[%2] %3  %4").arg(indentStr, timeStr, levelStr, msg.message));
+                result.append(QStringLiteral("%1[%2] %3  %4").arg(indentStr).arg(timeStr).arg(levelStr).arg(msg.message));
             }
         }
 

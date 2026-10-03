@@ -7,6 +7,7 @@
 #include <QThread>
 
 #include "Application/Async/AsyncTaskRunner.h"
+#include "Core/Logging/ApplicationLogger.h"
 #include "Domain/Game/GameDefinition.h"
 #include "Domain/Game/GameInfoParser.h"
 #include "Domain/Game/GameRegistry.h"
@@ -52,6 +53,16 @@ QString VpkIndexService::activeSource1GameId() const {
     return m_activeSource1GameId;
 }
 
+bool VpkIndexService::hasPersistenceError(const QString& key) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_persistenceErrors.contains(key.toLower());
+}
+
+Core::Error::Error VpkIndexService::persistenceError(const QString& key) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_persistenceErrors.value(key.toLower());
+}
+
 Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>> VpkIndexService::ensureIndexSync(
     const QString& gameId,
     const std::vector<Core::Path::FilesystemPath>& vpkPaths,
@@ -82,6 +93,7 @@ Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>> VpkIndexService::
                 auto shared = std::make_shared<Domain::Package::VpkIndex>(std::move(loadedIndex));
                 {
                     std::lock_guard<std::mutex> lock(m_mutex);
+                    m_persistenceErrors.remove(key);
                     m_indices[key] = shared;
                     if (isCs2) {
                         m_cs2Index = shared;
@@ -114,7 +126,21 @@ Core::Result<std::shared_ptr<const Domain::Package::VpkIndex>> VpkIndexService::
     // 3. Save to disk (<AppDir>/data/indices/<game_id>.idx)
     auto saveRes = newIndex.saveToFile(indexPath, indexDirectory());
     if (saveRes.isFailure()) {
-        // Log or proceed with in-memory instance
+        const auto& err = saveRes.error();
+        Core::Logging::ApplicationLogger::warning(
+            QStringLiteral("Failed to persist VPK index for '%1' to '%2': %3 (%4)")
+                .arg(gameId)
+                .arg(indexPath.toString())
+                .arg(err.message())
+                .arg(err.details()));
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_persistenceErrors[key] = err;
+        }
+        dispatchIndexPersistenceFailed(key, err.message());
+    } else {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_persistenceErrors.remove(key);
     }
 
     auto shared = std::make_shared<Domain::Package::VpkIndex>(std::move(newIndex));
@@ -385,6 +411,19 @@ void VpkIndexService::dispatchIndexUpdated(const QString& gameId) {
         QMetaObject::invokeMethod(this, [weakSelf, gameId]() {
             if (auto self = weakSelf.lock()) {
                 emit self->indexUpdated(gameId);
+            }
+        }, Qt::QueuedConnection);
+    }
+}
+
+void VpkIndexService::dispatchIndexPersistenceFailed(const QString& key, const QString& errorMsg) {
+    if (QThread::currentThread() == thread()) {
+        emit indexPersistenceFailed(key, errorMsg);
+    } else {
+        auto weakSelf = weak_from_this();
+        QMetaObject::invokeMethod(this, [weakSelf, key, errorMsg]() {
+            if (auto self = weakSelf.lock()) {
+                emit self->indexPersistenceFailed(key, errorMsg);
             }
         }, Qt::QueuedConnection);
     }

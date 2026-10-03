@@ -9,10 +9,12 @@
 #include <QtPlugin>
 #include <memory>
 
+#include "Application/Common/ImportPrerequisiteService.h"
 #include "Application/Environment/GameEnvironmentService.h"
 #include "Application/Environment/VpkSignatureLeaseService.h"
 #include "Application/Logging/TaskLogService.h"
 #include "Application/Package/VpkIndexService.h"
+#include "Application/Particle/ParticleImportService.h"
 #include "Core/Logging/ApplicationLogger.h"
 #include "Core/Logging/LogManager.h"
 #include "Core/Logging/TaskFileSink.h"
@@ -67,8 +69,12 @@ int main(int argc, char *argv[])
     gameViewModel->setVpkIndexService(vpkIndexService.get());
     auto taskLogService = std::make_shared<Application::Logging::TaskLogService>();
     auto logViewModel = std::make_shared<UI::ViewModels::LogViewModel>(taskLogService.get());
+
+    auto prereqService = std::make_shared<Application::Common::ImportPrerequisiteService>(nullptr, vpkIndexService);
+    auto particleImportService = Application::Particle::ParticleImportService::create(prereqService);
+
     auto mainController = std::make_unique<UI::Controllers::MainController>(logViewModel.get());
-    mainController->setVpkIndexService(vpkIndexService);
+    mainController->setParticleImportService(particleImportService);
 
     logViewModel->attachToLogService(taskLogService.get());
 

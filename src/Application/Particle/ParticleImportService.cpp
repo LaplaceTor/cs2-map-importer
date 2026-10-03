@@ -10,6 +10,9 @@
 #include "Application/Common/ImportPrerequisiteService.h"
 #include "Application/Package/VpkIndexService.h"
 #include "Workflow/Particle/ParticleImportWorkflow.h"
+#include "Workflow/Particle/ParticleImportOptions.h"
+#include "Workflow/Common/ImportContext.h"
+#include "Core/Logging/TaskLoggingContext.h"
 #include "Core/Error/ErrorCode.h"
 
 namespace Application::Particle {
@@ -48,6 +51,101 @@ ParticleImportResult toApplicationResult(const Workflow::Particle::ParticleImpor
     return appResult;
 }
 
+Core::Result<ParticleImportResult> executeImportInternal(
+    const std::shared_ptr<Common::ImportPrerequisiteService>& prereqService,
+    const ParticleImportService::WorkflowRunner& customRunner,
+    const ParticleImportRequest& request,
+    const Workflow::Common::ImportContext& context)
+{
+    return Execution::ExecutionGuard::guard<ParticleImportResult>([&]() -> Core::Result<ParticleImportResult> {
+        if (customRunner) {
+            return customRunner(request, context.token());
+        }
+
+        // Step 1: Common prerequisite preparation (validation & lease acquisition)
+        if (!prereqService) {
+            return Core::Result<ParticleImportResult>::failure(
+                Core::Error::ErrorCode::InvalidState,
+                QCoreApplication::translate("ParticleImportService", "Prerequisite service is unavailable"));
+        }
+
+        auto prereqResult = prereqService->prepare(request, context);
+        if (!prereqResult.isSuccess()) {
+            if (prereqResult.isCancelled()) {
+                return Core::Result<ParticleImportResult>::cancelled(prereqResult.message());
+            }
+            if (prereqResult.isSkipped()) {
+                return Core::Result<ParticleImportResult>::skipped(prereqResult.message());
+            }
+            return Core::Result<ParticleImportResult>::failure(prereqResult.error(), prereqResult.message());
+        }
+
+        const auto& base = prereqResult.value();
+
+        // Step 2: Validate particle-specific request parameters
+        std::vector<Core::Path::FilesystemPath> validPcfPaths;
+        for (const QString& rawPath : request.sourcePcfPaths) {
+            const QString trimmed = rawPath.trimmed();
+            if (!trimmed.isEmpty()) {
+                if (QFile::exists(trimmed)) {
+                    validPcfPaths.emplace_back(trimmed);
+                } else {
+                    context.warning(QCoreApplication::translate("ParticleImportService", "Source PCF file does not exist: %1")
+                        .arg(trimmed));
+                }
+            }
+        }
+
+        if (validPcfPaths.empty()) {
+            return Core::Result<ParticleImportResult>::failure(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("ParticleImportService", "No valid source PCF files specified"));
+        }
+
+        context.info(QCoreApplication::translate("ParticleImportService", "Starting particle import for addon '%1' with %2 PCF file(s)")
+            .arg(base.addonName).arg(validPcfPaths.size()));
+
+        // Step 3: Build Workflow Options & Invoke Workflow
+        const auto options = toWorkflowOptions(request, base, validPcfPaths);
+        auto wfResult = Workflow::Particle::ParticleImportWorkflow::run(options, context);
+
+        if (wfResult.isCancelled()) {
+            context.info(QCoreApplication::translate("ParticleImportService", "Particle import workflow was cancelled"));
+            return Core::Result<ParticleImportResult>::cancelled(wfResult.message());
+        }
+
+        if (wfResult.isSkipped()) {
+            context.info(QCoreApplication::translate("ParticleImportService", "Particle import workflow was skipped: %1").arg(wfResult.message()));
+            return Core::Result<ParticleImportResult>::skipped(wfResult.message());
+        }
+
+        // Step 4: Map Workflow Result to Application Result DTO
+        const auto appResult = toApplicationResult(wfResult.valueOr(Workflow::Particle::ParticleImportWorkflowResult{}));
+
+        if (appResult.totalCompiled > 0) {
+            QString summaryMsg;
+            if (appResult.totalFailed == 0) {
+                summaryMsg = QCoreApplication::translate("ParticleImportService", "Successfully compiled %1 particle resource(s).")
+                    .arg(appResult.totalCompiled);
+            } else {
+                summaryMsg = QCoreApplication::translate("ParticleImportService", "%1 particle resource(s) succeeded, %2 failed.")
+                    .arg(appResult.totalCompiled).arg(appResult.totalFailed);
+            }
+            return Core::Result<ParticleImportResult>::success(appResult, summaryMsg);
+        }
+
+        // Failure when 0 resources compiled
+        const QString failureMsg = wfResult.isFailure() && !wfResult.message().isEmpty()
+            ? wfResult.message()
+            : QCoreApplication::translate("ParticleImportService", "Particle import failed: No particle resources could be compiled.");
+        context.error(failureMsg);
+        return Core::Result<ParticleImportResult>::failure(
+            wfResult.isFailure() ? wfResult.error() : Core::Error::Error(Core::Error::ErrorCode::OperationFailed, failureMsg),
+            failureMsg,
+            appResult);
+    }, QCoreApplication::translate("ParticleImportService", "Particle import failed"));
+}
+
 } // namespace
 
 
@@ -64,7 +162,7 @@ ParticleImportService::ParticleImportService(
     , m_prerequisiteService(prerequisiteService
           ? std::move(prerequisiteService)
           : std::make_shared<Common::ImportPrerequisiteService>(nullptr, Package::VpkIndexService::create()))
-    , m_workflowRunner(&Workflow::Particle::ParticleImportWorkflow::run)
+    , m_workflowRunner(nullptr)
 {
 }
 
@@ -132,7 +230,14 @@ Async::TaskHandle ParticleImportService::importParticlesAsync(
         auto worker = [self, request](std::shared_ptr<Core::Logging::TaskLoggingContext> taskCtx,
                                       Core::Async::CancellationToken token) -> Core::Result<ParticleImportResult> {
             Workflow::Common::ImportContext ctx(taskCtx.get(), std::move(token));
-            return self->executeImport(request, ctx);
+            std::shared_ptr<Common::ImportPrerequisiteService> prereq;
+            WorkflowRunner runner;
+            {
+                std::lock_guard<std::mutex> lock(self->m_mutex);
+                prereq = self->m_prerequisiteService;
+                runner = self->m_workflowRunner;
+            }
+            return executeImportInternal(prereq, runner, request, ctx);
         };
 
         auto completionCallback = [self, cb = callback](const Core::Result<ParticleImportResult>& result) {
@@ -202,11 +307,7 @@ bool ParticleImportService::isImporting() const
 void ParticleImportService::setWorkflowRunner(WorkflowRunner runner) noexcept
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (runner) {
-        m_workflowRunner = std::move(runner);
-    } else {
-        m_workflowRunner = &Workflow::Particle::ParticleImportWorkflow::run;
-    }
+    m_workflowRunner = std::move(runner);
 }
 
 std::shared_ptr<Common::ImportPrerequisiteService> ParticleImportService::prerequisiteService() const noexcept
@@ -226,97 +327,17 @@ void ParticleImportService::setPrerequisiteService(
 
 Core::Result<ParticleImportResult> ParticleImportService::executeImport(
     const ParticleImportRequest& request,
-    const Workflow::Common::ImportContext& context)
+    const Core::Async::CancellationToken& token)
 {
-    return Execution::ExecutionGuard::guard<ParticleImportResult>([&]() -> Core::Result<ParticleImportResult> {
-        // Step 1: Common prerequisite preparation (validation & lease acquisition)
-        std::shared_ptr<Common::ImportPrerequisiteService> prereqService;
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            prereqService = m_prerequisiteService;
-        }
-
-        auto prereqResult = prereqService->prepare(request, context);
-        if (!prereqResult.isSuccess()) {
-            if (prereqResult.isCancelled()) {
-                return Core::Result<ParticleImportResult>::cancelled(prereqResult.message());
-            }
-            if (prereqResult.isSkipped()) {
-                return Core::Result<ParticleImportResult>::skipped(prereqResult.message());
-            }
-            return Core::Result<ParticleImportResult>::failure(prereqResult.error(), prereqResult.message());
-        }
-
-        const auto& base = prereqResult.value();
-
-        // Step 2: Validate particle-specific request parameters
-        std::vector<Core::Path::FilesystemPath> validPcfPaths;
-        for (const QString& rawPath : request.sourcePcfPaths) {
-            const QString trimmed = rawPath.trimmed();
-            if (!trimmed.isEmpty()) {
-                if (QFile::exists(trimmed)) {
-                    validPcfPaths.emplace_back(trimmed);
-                } else {
-                    context.warning(QCoreApplication::translate("ParticleImportService", "Source PCF file does not exist: %1")
-                        .arg(trimmed));
-                }
-            }
-        }
-
-        if (validPcfPaths.empty()) {
-            return Core::Result<ParticleImportResult>::failure(
-                Core::Error::ErrorCode::InvalidPath,
-                QCoreApplication::translate("ParticleImportService", "No valid source PCF files specified"));
-        }
-
-        context.info(QCoreApplication::translate("ParticleImportService", "Starting particle import for addon '%1' with %2 PCF file(s)")
-            .arg(base.addonName).arg(validPcfPaths.size()));
-
-        // Step 3: Build Workflow Options & Invoke Workflow
-        const auto options = toWorkflowOptions(request, base, validPcfPaths);
-
-        WorkflowRunner runner;
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            runner = m_workflowRunner;
-        }
-        auto wfResult = runner(options, context);
-
-        if (wfResult.isCancelled()) {
-            context.info(QCoreApplication::translate("ParticleImportService", "Particle import workflow was cancelled"));
-            return Core::Result<ParticleImportResult>::cancelled(wfResult.message());
-        }
-
-        if (wfResult.isSkipped()) {
-            context.info(QCoreApplication::translate("ParticleImportService", "Particle import workflow was skipped: %1").arg(wfResult.message()));
-            return Core::Result<ParticleImportResult>::skipped(wfResult.message());
-        }
-
-        // Step 4: Map Workflow Result to Application Result DTO
-        const auto appResult = toApplicationResult(wfResult.valueOr(Workflow::Particle::ParticleImportWorkflowResult{}));
-
-        if (appResult.totalCompiled > 0) {
-            QString summaryMsg;
-            if (appResult.totalFailed == 0) {
-                summaryMsg = QCoreApplication::translate("ParticleImportService", "Successfully compiled %1 particle resource(s).")
-                    .arg(appResult.totalCompiled);
-            } else {
-                summaryMsg = QCoreApplication::translate("ParticleImportService", "%1 particle resource(s) succeeded, %2 failed.")
-                    .arg(appResult.totalCompiled).arg(appResult.totalFailed);
-            }
-            return Core::Result<ParticleImportResult>::success(appResult, summaryMsg);
-        }
-
-        // Failure when 0 resources compiled
-        const QString failureMsg = wfResult.isFailure() && !wfResult.message().isEmpty()
-            ? wfResult.message()
-            : QCoreApplication::translate("ParticleImportService", "Particle import failed: No particle resources could be compiled.");
-        context.error(failureMsg);
-        return Core::Result<ParticleImportResult>::failure(
-            wfResult.isFailure() ? wfResult.error() : Core::Error::Error(Core::Error::ErrorCode::OperationFailed, failureMsg),
-            failureMsg,
-            appResult);
-    }, QCoreApplication::translate("ParticleImportService", "Particle import failed"));
+    std::shared_ptr<Common::ImportPrerequisiteService> prereq;
+    WorkflowRunner runner;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        prereq = m_prerequisiteService;
+        runner = m_workflowRunner;
+    }
+    Workflow::Common::ImportContext context(nullptr, token);
+    return executeImportInternal(prereq, runner, request, context);
 }
 
 } // namespace Application::Particle

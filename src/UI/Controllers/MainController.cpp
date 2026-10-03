@@ -1,7 +1,6 @@
 #include <QCoreApplication>
 #include "UI/Controllers/MainController.h"
 #include "UI/ViewModels/LogViewModel.h"
-#include "Application/Common/ImportPrerequisiteService.h"
 #include <QGuiApplication>
 #include <QQmlEngine>
 #include <QStyleHints>
@@ -163,13 +162,17 @@ void MainController::startParticleImport(
     request.isCsgo = isCsgo;
     request.gameId = s1GameType;
 
+    if (!m_particleImportService) {
+        const QString warningMsg = QCoreApplication::translate("MainController", "Particle import service is not available.");
+        emit particleImportFailed(warningMsg);
+        emit alertRequested(
+            QCoreApplication::translate("MainController", "Particle Import Failed"),
+            warningMsg);
+        return;
+    }
+
     m_isProcessing = true;
     emit isProcessingChanged();
-
-    if (!m_particleImportService) {
-        auto prereq = std::make_shared<Application::Common::ImportPrerequisiteService>(nullptr, m_vpkIndexService);
-        m_particleImportService = Application::Particle::ParticleImportService::create(std::move(prereq));
-    }
 
     QPointer<MainController> self(this);
     // The handle's cancellation path is routed through the service (stopImport);

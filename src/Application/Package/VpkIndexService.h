@@ -9,6 +9,7 @@
 #include <functional>
 
 #include "Core/Async/CancellationToken.h"
+#include "Core/Error/Error.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
 #include "Domain/Package/VpkIndex.h"
@@ -69,6 +70,16 @@ public:
      * @brief Gets the identifier of the currently active Source 1 game.
      */
     QString activeSource1GameId() const;
+
+    /**
+     * @brief Checks if persistence to disk failed for the specified game's index.
+     */
+    bool hasPersistenceError(const QString& key) const;
+
+    /**
+     * @brief Retrieves the persistence error for the specified game's index, if any.
+     */
+    Core::Error::Error persistenceError(const QString& key) const;
 
     /**
      * @brief Synchronously ensures that the index for the given game is loaded and up to date.
@@ -143,13 +154,16 @@ public:
 signals:
     void indexReady(const QString& gameId);
     void indexUpdated(const QString& gameId);
+    void indexPersistenceFailed(const QString& key, const QString& errorMsg);
 
 private:
     void dispatchIndexReady(const QString& gameId);
     void dispatchIndexUpdated(const QString& gameId);
+    void dispatchIndexPersistenceFailed(const QString& key, const QString& errorMsg);
 
     mutable std::mutex m_mutex;
     QHash<QString, std::shared_ptr<const Domain::Package::VpkIndex>> m_indices;
+    QHash<QString, Core::Error::Error> m_persistenceErrors;
     std::shared_ptr<const Domain::Package::VpkIndex> m_cs2Index;
     std::shared_ptr<const Domain::Package::VpkIndex> m_activeSource1Index;
     QString m_activeSource1GameId;

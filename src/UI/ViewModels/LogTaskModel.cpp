@@ -203,7 +203,7 @@ std::shared_ptr<LogMessageListModel> LogTaskModel::taskMessagesModelShared(int r
     return m_tasks.at(row).messagesModel;
 }
 
-std::shared_ptr<LogTaskModel> LogTaskModel::taskSubTasksModel(int row) const
+std::shared_ptr<LogTaskModel> LogTaskModel::taskSubTasksModelShared(int row) const
 {
     if (row < 0 || row >= m_tasks.size()) {
         return nullptr;
@@ -225,9 +225,9 @@ LogMessageListModel* LogTaskModel::taskMessagesModel(int row) const
     return ptr.get();
 }
 
-LogTaskModel* LogTaskModel::getTaskSubTasksModel(int row) const
+LogTaskModel* LogTaskModel::taskSubTasksModel(int row) const
 {
-    auto ptr = taskSubTasksModel(row);
+    auto ptr = taskSubTasksModelShared(row);
     if (ptr) {
         QQmlEngine::setObjectOwnership(ptr.get(), QQmlEngine::CppOwnership);
     }
@@ -236,28 +236,30 @@ LogTaskModel* LogTaskModel::getTaskSubTasksModel(int row) const
 
 void LogTaskModel::clear()
 {
+    // Phase 1: Dual-phase reset coordination.
+    // Retain references and clear child models first so their QML delegates drop items cleanly
+    // before this model's rows and tasks are removed.
     QVector<std::shared_ptr<LogMessageListModel>> msgModels;
     QVector<std::shared_ptr<LogTaskModel>> subModels;
+    msgModels.reserve(m_tasks.size());
+    subModels.reserve(m_tasks.size());
 
-    beginResetModel();
-    for (auto& task : m_tasks) {
+    for (const auto& task : m_tasks) {
         if (task.messagesModel) {
             msgModels.append(task.messagesModel);
+            task.messagesModel->clear();
         }
         if (task.subTasksModel) {
             subModels.append(task.subTasksModel);
+            task.subTasksModel->clear();
         }
     }
+
+    // Phase 2: Teardown task items and reset model
+    beginResetModel();
     m_tasks.clear();
     m_taskIdToRow.clear();
     endResetModel();
-
-    for (const auto& msgModel : msgModels) {
-        msgModel->clear();
-    }
-    for (const auto& subModel : subModels) {
-        subModel->clear();
-    }
 
     emit taskCountChanged();
 }
@@ -340,7 +342,7 @@ QString LogTaskModel::exportToPlainText(int indentLevel) const
         if (indentLevel == 0) {
             result.append(QStringLiteral("=== %1 ===").arg(task.taskName));
         } else {
-            result.append(QStringLiteral("%1--- %2 ---").arg(indent, task.taskName));
+            result.append(QStringLiteral("%1--- %2 ---").arg(indent).arg(task.taskName));
         }
         result.append(QString());
 
@@ -358,7 +360,7 @@ QString LogTaskModel::exportToPlainText(int indentLevel) const
                 case Application::Logging::LogLevel::Error:    levelStr = QStringLiteral("ERROR"); break;
                 case Application::Logging::LogLevel::Critical: levelStr = QStringLiteral("CRIT "); break;
                 }
-                result.append(QStringLiteral("%1[%2] %3  %4").arg(indent, timeStr, levelStr, msg.message));
+                result.append(QStringLiteral("%1[%2] %3  %4").arg(indent).arg(timeStr).arg(levelStr).arg(msg.message));
             }
         }
 

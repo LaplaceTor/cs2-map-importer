@@ -72,7 +72,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
     }
 
     const QString trimmedAddon = options.addonName.trimmed();
-    const int toolTimeoutMs = options.toolTimeoutMs > 0 ? options.toolTimeoutMs : 120000;
+    const auto toolTimeoutMs = options.toolTimeoutMs > 0 ? options.toolTimeoutMs : 120000;
     // Deterministic working directory anchor: relative artifact paths reported by the
     // tools on stdout are resolved against the CS2 game directory.
     const auto toolWorkingDirectory = Domain::Tool::Cs2PathLayout::gameDirectory(options.cs2BaseDir);
@@ -84,6 +84,7 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
         : Core::Path::FilesystemPath{};
 
     ParticleImportWorkflowResult workflowResult;
+    QStringList failureDiagnostics;
     const int totalPcfCount = static_cast<int>(options.sourcePcfPaths.size());
 
     // Step 1: Iterate through all PCF files and convert them via Source1ImportTool
@@ -108,6 +109,9 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
 
         if (!alreadyInS1Particles) {
             if (!s1ParticlesDir.exists() && !s1ParticlesDir.mkpath(QStringLiteral("."))) {
+                const QString detail = QStringLiteral("Failed to create Source 1 particles directory: %1")
+                    .arg(s1ParticlesDir.absolutePath());
+                failureDiagnostics.append(pcfFileName + QStringLiteral(": ") + detail);
                 context.warning(QCoreApplication::translate("ParticleImportWorkflow", "Failed to create Source 1 particles directory: %1")
                     .arg(s1ParticlesDir.absolutePath()));
                 workflowResult.failedPcfFiles.append(pcfPath.toString());
@@ -122,7 +126,8 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
                 targetPcfPathStr = candidatePath;
             } else {
                 const QString uniqueTempName = QStringLiteral("_cs2import_tmp_%1_%2")
-                    .arg(QUuid::createUuid().toString(QUuid::WithoutBraces).left(8), pcfFileName);
+                    .arg(QUuid::createUuid().toString(QUuid::WithoutBraces).left(8))
+                    .arg(pcfFileName);
                 targetPcfPathStr = s1ParticlesDir.filePath(uniqueTempName);
             }
 
@@ -138,15 +143,21 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
                     cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context, options.cs2BaseDir);
                     return Core::Result<ParticleImportWorkflowResult>::cancelled(ex.error().message());
                 }
-                context.warning(QCoreApplication::translate("ParticleImportWorkflow", "Failed to copy PCF file to Source 1 particles folder: %1")
-                    .arg(targetPcfPathStr));
+                const QString detail = !ex.error().details().isEmpty()
+                    ? (ex.error().message() + QStringLiteral(" (") + ex.error().details() + QLatin1Char(')'))
+                    : (ex.error().message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.error().message());
+                failureDiagnostics.append(pcfFileName + QStringLiteral(": ") + detail);
+                context.warning(QCoreApplication::translate("ParticleImportWorkflow", "Failed to copy PCF file to Source 1 particles folder: %1 (%2)")
+                    .arg(targetPcfPathStr).arg(detail));
                 workflowResult.failedPcfFiles.append(pcfPath.toString());
                 workflowResult.totalFailed += 1;
                 context.updateProgress(progress);
                 continue;
             } catch (const std::exception& ex) {
-                context.warning(QCoreApplication::translate("ParticleImportWorkflow", "Failed to copy PCF file to Source 1 particles folder: %1")
-                    .arg(targetPcfPathStr));
+                const QString detail = QString::fromUtf8(ex.what());
+                failureDiagnostics.append(pcfFileName + QStringLiteral(": ") + detail);
+                context.warning(QCoreApplication::translate("ParticleImportWorkflow", "Failed to copy PCF file to Source 1 particles folder: %1 (%2)")
+                    .arg(targetPcfPathStr).arg(detail));
                 workflowResult.failedPcfFiles.append(pcfPath.toString());
                 workflowResult.totalFailed += 1;
                 context.updateProgress(progress);
@@ -199,6 +210,8 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
             if (s1Data.generatedVpcfPaths.isEmpty()) {
                 workflowResult.failedPcfFiles.append(pcfPath.toString());
                 workflowResult.totalFailed += s1Data.failedCount > 0 ? s1Data.failedCount : 1;
+                const QString diag = pcfFileName + QStringLiteral(": No .vpcf files generated from PCF");
+                failureDiagnostics.append(diag);
                 context.warning(QCoreApplication::translate("ParticleImportWorkflow", "No .vpcf files generated from PCF: %1").arg(pcfFileName));
             } else {
                 for (const QString& vpcf : s1Data.generatedVpcfPaths) {
@@ -222,8 +235,12 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
             workflowResult.failedPcfFiles.append(pcfPath.toString());
             const auto& s1Data = convertResult.valueOr(Domain::Tool::Source1ImportToolResult{});
             workflowResult.totalFailed += s1Data.failedCount > 0 ? s1Data.failedCount : 1;
+            const QString diag = !convertResult.error().details().isEmpty()
+                ? (pcfFileName + QStringLiteral(": ") + convertResult.message() + QStringLiteral(" (") + convertResult.error().details() + QLatin1Char(')'))
+                : (pcfFileName + QStringLiteral(": ") + convertResult.message());
+            failureDiagnostics.append(diag);
             context.warning(QCoreApplication::translate("ParticleImportWorkflow", "PCF conversion failed for '%1': %2")
-                .arg(pcfFileName, convertResult.message()));
+                .arg(pcfFileName).arg(convertResult.message()));
         }
     }
 
@@ -234,8 +251,11 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
     }
 
     if (workflowResult.generatedVpcfFiles.isEmpty()) {
+        const QString combinedDetails = failureDiagnostics.join(QStringLiteral("\n"));
         return Core::Result<ParticleImportWorkflowResult>::failure(
-            Core::Error::ErrorCode::OperationFailed,
+            Core::Error::Error(Core::Error::ErrorCode::OperationFailed,
+                               QCoreApplication::translate("ParticleImportWorkflow", "No .vpcf files were generated from the selected PCF files"),
+                               combinedDetails),
             QCoreApplication::translate("ParticleImportWorkflow", "No .vpcf files were generated from the selected PCF files"),
             workflowResult);
     }
@@ -271,7 +291,14 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
     }
     if (compileResult.isFailure()) {
         cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context, options.cs2BaseDir);
-        return Core::Result<ParticleImportWorkflowResult>::failure(compileResult.error(), compileResult.message(), workflowResult);
+        QString details = compileResult.error().details();
+        if (!failureDiagnostics.isEmpty()) {
+            details = failureDiagnostics.join(QStringLiteral("\n")) + (details.isEmpty() ? QString() : QStringLiteral("\n") + details);
+        }
+        return Core::Result<ParticleImportWorkflowResult>::failure(
+            Core::Error::Error(compileResult.error().code(), compileResult.error().message(), details),
+            compileResult.message(),
+            workflowResult);
     }
 
     const auto& rcData = compileResult.value();
@@ -283,8 +310,11 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
 
     if (workflowResult.totalCompiled == 0) {
         cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context);
+        const QString combinedDetails = failureDiagnostics.join(QStringLiteral("\n"));
         return Core::Result<ParticleImportWorkflowResult>::failure(
-            Core::Error::ErrorCode::OperationFailed,
+            Core::Error::Error(Core::Error::ErrorCode::OperationFailed,
+                               QCoreApplication::translate("ParticleImportWorkflow", "No particle resources were successfully compiled"),
+                               combinedDetails),
             QCoreApplication::translate("ParticleImportWorkflow", "No particle resources were successfully compiled"),
             workflowResult);
     }

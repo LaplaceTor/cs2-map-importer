@@ -11,10 +11,8 @@
 
 #include "Application/Particle/ParticleImportDTOs.h"
 #include "Application/Async/TaskHandle.h"
-#include "Workflow/Common/ImportContext.h"
-#include "Workflow/Particle/ParticleImportOptions.h"
+#include "Core/Async/CancellationToken.h"
 #include "Core/Result/Result.h"
-#include "Core/Logging/TaskLoggingContext.h"
 
 namespace Application::Common {
 class ImportPrerequisiteService;
@@ -43,9 +41,9 @@ class ParticleImportService : public QObject, public std::enable_shared_from_thi
     };
 
 public:
-    using WorkflowRunner = std::function<Core::Result<Workflow::Particle::ParticleImportWorkflowResult>(
-        const Workflow::Particle::ParticleImportOptions&,
-        const Workflow::Common::ImportContext&)>;
+    using WorkflowRunner = std::function<Core::Result<ParticleImportResult>(
+        const ParticleImportRequest&,
+        const Core::Async::CancellationToken&)>;
 
     /**
      * @brief Factory method: creates a new ParticleImportService managed by std::shared_ptr.
@@ -103,7 +101,7 @@ signals:
 private:
     Core::Result<ParticleImportResult> executeImport(
         const ParticleImportRequest& request,
-        const Workflow::Common::ImportContext& context);
+        const Core::Async::CancellationToken& token = {});
 
     std::shared_ptr<Common::ImportPrerequisiteService> m_prerequisiteService;
     WorkflowRunner m_workflowRunner;

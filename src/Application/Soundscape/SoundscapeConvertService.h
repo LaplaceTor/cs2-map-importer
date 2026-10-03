@@ -2,10 +2,8 @@
 
 #include "Application/Async/TaskHandle.h"
 #include "Application/Soundscape/SoundscapeConvertDTOs.h"
-#include "Domain/Audio/SoundscapeToSoundEventConverter.h"
 #include "Core/Async/CancellationToken.h"
 #include "Core/Result/Result.h"
-#include "Core/Logging/TaskLoggingContext.h"
 #include <functional>
 
 class QObject;
@@ -21,7 +19,7 @@ public:
      */
     static Core::Result<ConvertSoundscapeResult> convertContent(const QString& content,
                                                                const QString& baseName,
-                                                               const Domain::Audio::ConversionOptions& options = {});
+                                                               const SoundscapeConvertOptions& options = {});
 
     /**
      * @brief Converts a single soundscape script file and writes the resulting .vsndevts file to targetPath.
@@ -29,7 +27,7 @@ public:
     static Core::Result<ConvertSoundscapeResult> convertFile(
         const Core::Path::FilesystemPath& sourceFile,
         const Core::Path::FilesystemPath& targetFile,
-        const Domain::Audio::ConversionOptions& options = {},
+        const SoundscapeConvertOptions& options = {},
         const Core::Path::FilesystemPath& expectedBaseDir = {});
 
     /**
@@ -37,8 +35,7 @@ public:
      */
     static Core::Result<ConvertSoundscapeResult> convertMapSoundscapes(
         const ConvertSoundscapeRequest& request,
-        const Core::Async::CancellationToken& token = {},
-        Core::Logging::TaskLoggingContext* loggingCtx = nullptr);
+        const Core::Async::CancellationToken& token = {});
 
     /**
      * @brief Asynchronously converts all soundscapes for a map as a workflow task
