@@ -143,7 +143,12 @@ Core::Result<ValidatedBaseImport> ImportPrerequisiteService::prepare(
         // 1. Ensure CS2 Index
         auto cs2IndexRes = vpkService->ensureCs2IndexFromGameInfoSync(cs2Path, context.token());
         if (cs2IndexRes.isSuccess()) {
-            cs2Index = cs2IndexRes.value();
+            const auto& indexResult = cs2IndexRes.value();
+            cs2Index = indexResult.index;
+            if (indexResult.hasPersistenceError()) {
+                context.warning(QCoreApplication::translate("ImportPrerequisiteService", "CS2 VPK index built in memory, but disk persistence failed: %1")
+                                    .arg(indexResult.persistenceError.message()));
+            }
         } else {
             context.warning(QCoreApplication::translate("ImportPrerequisiteService", "Could not load CS2 VPK index: %1")
                                 .arg(cs2IndexRes.message()));
@@ -161,7 +166,12 @@ Core::Result<ValidatedBaseImport> ImportPrerequisiteService::prepare(
         auto s1IndexRes = vpkService->ensureSource1IndexFromGameInfoSync(
             s1GameId, Core::Path::FilesystemPath(resolvedS1GameInfoDir), context.token());
         if (s1IndexRes.isSuccess()) {
-            vpkIndex = s1IndexRes.value();
+            const auto& indexResult = s1IndexRes.value();
+            vpkIndex = indexResult.index;
+            if (indexResult.hasPersistenceError()) {
+                context.warning(QCoreApplication::translate("ImportPrerequisiteService", "Source 1 VPK index built in memory, but disk persistence failed: %1")
+                                    .arg(indexResult.persistenceError.message()));
+            }
         } else {
             context.warning(QCoreApplication::translate("ImportPrerequisiteService", "Could not load Source 1 VPK index: %1")
                                 .arg(s1IndexRes.message()));
