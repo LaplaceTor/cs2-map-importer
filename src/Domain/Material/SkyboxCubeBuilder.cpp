@@ -120,30 +120,28 @@ Core::Result<SkyboxBuildResult> SkyboxCubeBuilder::build(
     }
 
     SkyboxBuildResult result;
-    bool fallbackUsed = false;
-
-    // Pass 1: Initial local alignment
-    result.faceRotations = alignPass1(normalizedFaces, options, fallbackUsed);
-    result.pass1Success = true;
-    result.fallbackUsed = fallbackUsed;
 
     if (!normalizedFaces.hasFace(CubeFace::Front)) {
-        // R2: If FT is missing, fall back to geometric priors
+        // Fallback: If FT is missing, fall back to geometric default rotations (all Deg0) without analyzing image data
+        result.faceRotations = {
+            Rotation::Deg0, Rotation::Deg0, Rotation::Deg0,
+            Rotation::Deg0, Rotation::Deg0, Rotation::Deg0
+        };
+        result.fallbackUsed = true;
         result.seamEvaluations = evaluateAllSeams(
             normalizedFaces, result.faceRotations, options.seamMismatchThreshold);
-        result.faultStatuses = analyzeFaultStatus(result.seamEvaluations, &normalizedFaces);
-        result.pass2Success = true;
-        result.fallbackUsed = true;
     } else {
-        // Pass 2: Global seam consistency check and fault isolation
-        result.faceRotations = alignPass2(
+        // Global 1024 exhaustive optimization with FT anchored at Deg0
+        result.faceRotations = optimizeRotations(
             normalizedFaces,
-            result.faceRotations,
             options,
-            result.seamEvaluations,
-            result.faultStatuses,
-            &result.fallbackUsed);
-        result.pass2Success = true;
+            result.totalCost,
+            result.secondBestCost,
+            result.costMargin,
+            result.isAmbiguous);
+        result.fallbackUsed = false;
+        result.seamEvaluations = evaluateAllSeams(
+            normalizedFaces, result.faceRotations, options.seamMismatchThreshold);
     }
 
     // Canvas composition (4S x 3S)
@@ -412,131 +410,82 @@ double SkyboxCubeBuilder::computeSeamMeanError(
     return sad / (static_cast<double>(pixelsA.size()) * 3.0);
 }
 
-std::array<Rotation, CubeFaceCount> SkyboxCubeBuilder::alignPass1(
-    const SkyboxFaces& faces,
-    const SkyboxBuildOptions& options,
-    bool& fallbackUsed)
+double SkyboxCubeBuilder::computeColorCost(
+    const std::vector<QRgb>& pixelsA,
+    const std::vector<QRgb>& pixelsB,
+    bool reversed)
 {
-    std::array<Rotation, CubeFaceCount> rotations = {
-        Rotation::Deg0, Rotation::Deg0, Rotation::Deg0,
-        Rotation::Deg0, Rotation::Deg0, Rotation::Deg0
-    };
+    if (pixelsA.empty() || pixelsB.empty() || pixelsA.size() != pixelsB.size()) {
+        return 1.0;
+    }
+    const double sad = computeSeamSad(pixelsA, pixelsB, reversed);
+    if (!std::isfinite(sad)) {
+        return 1.0;
+    }
+    const double maxSad = static_cast<double>(pixelsA.size()) * 3.0 * 255.0;
+    return std::clamp(sad / maxSad, 0.0, 1.0);
+}
 
-    // Front face is fixed anchor at 0 deg
-    rotations[static_cast<int>(CubeFace::Front)] = Rotation::Deg0;
+double SkyboxCubeBuilder::computeGradientCost(
+    const std::vector<QRgb>& pixelsA,
+    const std::vector<QRgb>& pixelsB,
+    bool reversed)
+{
+    if (pixelsA.size() < 2 || pixelsB.size() < 2 || pixelsA.size() != pixelsB.size()) {
+        return 1.0;
+    }
+    const std::size_t n = pixelsA.size();
 
-    if (!faces.hasFace(CubeFace::Front)) {
-        fallbackUsed = true;
-        return rotations;
+    // If reversed, physically reverse the B pixel sequence first
+    std::vector<QRgb> bSeq;
+    if (reversed) {
+        bSeq.resize(n);
+        for (std::size_t i = 0; i < n; ++i) {
+            bSeq[i] = pixelsB[n - 1 - i];
+        }
+    }
+    const auto& effB = reversed ? bSeq : pixelsB;
+
+    double gradDiffSum = 0.0;
+    for (std::size_t i = 0; i < n - 1; ++i) {
+        const QRgb pA0 = pixelsA[i];
+        const QRgb pA1 = pixelsA[i + 1];
+        const QRgb pB0 = effB[i];
+        const QRgb pB1 = effB[i + 1];
+
+        const int drA = qRed(pA1) - qRed(pA0);
+        const int dgA = qGreen(pA1) - qGreen(pA0);
+        const int dbA = qBlue(pA1) - qBlue(pA0);
+
+        const int drB = qRed(pB1) - qRed(pB0);
+        const int dgB = qGreen(pB1) - qGreen(pB0);
+        const int dbB = qBlue(pB1) - qBlue(pB0);
+
+        gradDiffSum += std::abs(drA - drB) + std::abs(dgA - dgB) + std::abs(dbA - dbB);
     }
 
-    const std::array<Rotation, 4> candidateRotations = {
-        Rotation::Deg0, Rotation::Deg90, Rotation::Deg180, Rotation::Deg270
-    };
-    const auto& seams = cubeSeams();
+    const double maxGradDiff = static_cast<double>(n - 1) * 3.0 * 510.0;
+    return std::clamp(gradDiffSum / maxGradDiff, 0.0, 1.0);
+}
 
-    auto alignFaceAgainstNeighbors = [&](CubeFace faceId, const std::vector<int>& candidateSeamIndices) {
-        if (!faces.hasFace(faceId)) {
-            return;
-        }
-        const QImage& targetFace = faces.face(faceId);
-
-        struct AlignedNeighborSeam {
-            int seamIndex;
-            bool isFaceA;
-            std::vector<QRgb> neighborEdge;
-        };
-        std::vector<AlignedNeighborSeam> validSeams;
-        double maxNeighborVariance = 0.0;
-
-        for (int sIdx : candidateSeamIndices) {
-            const auto& seam = seams[sIdx];
-            const bool isFaceA = (seam.faceA == faceId);
-            const CubeFace neighborFace = isFaceA ? seam.faceB : seam.faceA;
-            const int neighborIdx = static_cast<int>(neighborFace);
-
-            if (!faces.hasFace(neighborFace)) {
-                continue;
-            }
-
-            const QImage rotNeighbor = rotateImage(faces.face(neighborFace), rotations[neighborIdx]);
-            const auto neighborEdge = extractEdgePixels(
-                rotNeighbor,
-                isFaceA ? seam.edgeB : seam.edgeA);
-
-            if (!neighborEdge.empty()) {
-                maxNeighborVariance = std::max(maxNeighborVariance, computeEdgeVariance(neighborEdge));
-                validSeams.push_back({sIdx, isFaceA, std::move(neighborEdge)});
-            }
-        }
-
-        if (validSeams.empty() || maxNeighborVariance < options.varianceThreshold) {
-            rotations[static_cast<int>(faceId)] = Rotation::Deg0;
-            fallbackUsed = true;
-            return;
-        }
-
-        std::array<double, 4> sads{};
-        for (std::size_t i = 0; i < 4; ++i) {
-            const QImage rotTarget = rotateImage(targetFace, candidateRotations[i]);
-            double totalErr = 0.0;
-            for (const auto& item : validSeams) {
-                const auto& seam = seams[item.seamIndex];
-                const auto targetEdge = extractEdgePixels(
-                    rotTarget,
-                    item.isFaceA ? seam.edgeA : seam.edgeB);
-                totalErr += computeSeamMeanError(targetEdge, item.neighborEdge, seam.reversed);
-            }
-            sads[i] = totalErr / validSeams.size();
-        }
-
-        // Find best and second best
-        std::size_t bestIdx = 0;
-        for (std::size_t i = 1; i < 4; ++i) {
-            if (sads[i] < sads[bestIdx]) {
-                bestIdx = i;
-            }
-        }
-        std::size_t secondIdx = (bestIdx == 0) ? 1 : 0;
-        for (std::size_t i = 0; i < 4; ++i) {
-            if (i != bestIdx && sads[i] < sads[secondIdx]) {
-                secondIdx = i;
-            }
-        }
-
-        const double eBest = sads[bestIdx];
-        const double eSecond = sads[secondIdx];
-        const double confidence = (eSecond - eBest) / (eBest + 1.0);
-
-        if (confidence < options.confidenceThreshold) {
-            rotations[static_cast<int>(faceId)] = Rotation::Deg0;
-            fallbackUsed = true;
-        } else {
-            rotations[static_cast<int>(faceId)] = candidateRotations[bestIdx];
-        }
-    };
-
-    // 1. RT (Left of FT): FT Left <-> RT Right (Seam 2)
-    alignFaceAgainstNeighbors(CubeFace::Right, {2});
-
-    // 2. LF (Right of FT): FT Right <-> LF Left (Seam 3)
-    alignFaceAgainstNeighbors(CubeFace::Left, {3});
-
-    // 3. BK: Evaluated against horizontal neighbors LF and RT (Seams 4, 5)
-    alignFaceAgainstNeighbors(CubeFace::Back, {4, 5});
-
-    // 4. UP: Evaluated against all 4 horizontal neighbors (Seams 0, 6, 7, 8)
-    alignFaceAgainstNeighbors(CubeFace::Up, {0, 6, 7, 8});
-
-    // 5. DN: Evaluated against all 4 horizontal neighbors (Seams 1, 9, 10, 11)
-    alignFaceAgainstNeighbors(CubeFace::Down, {1, 9, 10, 11});
-
-    // Degenerate fallback for BK if horizontal neighbors were both missing
-    if (faces.hasFace(CubeFace::Back) && !faces.hasFace(CubeFace::Left) && !faces.hasFace(CubeFace::Right)) {
-        alignFaceAgainstNeighbors(CubeFace::Back, {8, 11});
+double SkyboxCubeBuilder::computeSeamCost(
+    const std::vector<QRgb>& pixelsA,
+    const std::vector<QRgb>& pixelsB,
+    bool reversed,
+    double colorWeight,
+    double gradientWeight)
+{
+    if (pixelsA.empty() || pixelsB.empty() || pixelsA.size() != pixelsB.size()) {
+        return 1.0;
     }
-
-    return rotations;
+    const double colorCost = computeColorCost(pixelsA, pixelsB, reversed);
+    const double gradientCost = computeGradientCost(pixelsA, pixelsB, reversed);
+    const double totalWeight = colorWeight + gradientWeight;
+    if (totalWeight <= 0.0) {
+        return colorCost;
+    }
+    const double cost = (colorWeight * colorCost + gradientWeight * gradientCost) / totalWeight;
+    return std::clamp(cost, 0.0, 1.0);
 }
 
 std::vector<SeamEvaluation> SkyboxCubeBuilder::evaluateAllSeams(
@@ -577,426 +526,129 @@ std::vector<SeamEvaluation> SkyboxCubeBuilder::evaluateAllSeams(
     return evaluations;
 }
 
-std::array<FaceFaultStatus, CubeFaceCount> SkyboxCubeBuilder::analyzeFaultStatus(
-    const std::vector<SeamEvaluation>& seamEvals,
-    const SkyboxFaces* faces)
-{
-    std::array<FaceFaultStatus, CubeFaceCount> statuses;
-    const std::array<CubeFace, CubeFaceCount> allFaces = {
-        CubeFace::Front, CubeFace::Back, CubeFace::Left,
-        CubeFace::Right, CubeFace::Up,   CubeFace::Down
-    };
-
-    for (int i = 0; i < CubeFaceCount; ++i) {
-        statuses[i].face = allFaces[i];
-        statuses[i].mismatchedEdgeCount = 0;
-        statuses[i].connectedFailingNeighbors.clear();
-    }
-
-    for (const auto& eval : seamEvals) {
-        if (eval.evaluated && eval.mismatched) {
-            const int idxA = static_cast<int>(eval.faceA);
-            const int idxB = static_cast<int>(eval.faceB);
-            statuses[idxA].mismatchedEdgeCount++;
-            statuses[idxA].connectedFailingNeighbors.push_back(eval.faceB);
-            statuses[idxB].mismatchedEdgeCount++;
-            statuses[idxB].connectedFailingNeighbors.push_back(eval.faceA);
-        }
-    }
-
-    for (int i = 0; i < CubeFaceCount; ++i) {
-        auto& st = statuses[i];
-        const bool isPresent = (faces != nullptr) ? faces->hasFace(allFaces[i]) : true;
-        bool hasEvaluatedSeams = false;
-        for (const auto& eval : seamEvals) {
-            if (eval.evaluated && (eval.faceA == allFaces[i] || eval.faceB == allFaces[i])) {
-                hasEvaluatedSeams = true;
-                break;
-            }
-        }
-
-        if (!isPresent || !hasEvaluatedSeams) {
-            st.isGroundTruth = false;
-            st.isFaultIsolated = false;
-            st.isMisoriented = false;
-        } else if (st.mismatchedEdgeCount == 0) {
-            st.isGroundTruth = true;
-            st.isFaultIsolated = false;
-            st.isMisoriented = false;
-        } else if (st.mismatchedEdgeCount == 1) {
-            st.isGroundTruth = false;
-            st.isFaultIsolated = true;
-            st.isMisoriented = false;
-        } else { // M_F >= 2
-            st.isGroundTruth = false;
-            st.isFaultIsolated = false;
-            st.isMisoriented = true;
-        }
-    }
-
-    return statuses;
-}
-
-std::array<Rotation, CubeFaceCount> SkyboxCubeBuilder::alignPass2(
+std::array<Rotation, CubeFaceCount> SkyboxCubeBuilder::optimizeRotations(
     const SkyboxFaces& faces,
-    const std::array<Rotation, CubeFaceCount>& pass1Rotations,
     const SkyboxBuildOptions& options,
-    std::vector<SeamEvaluation>& outSeamEvals,
-    std::array<FaceFaultStatus, CubeFaceCount>& outFaultStatus,
-    bool* outFallbackUsed)
+    double& outBestCost,
+    double& outSecondBestCost,
+    double& outMargin,
+    bool& outAmbiguous)
 {
-    std::array<Rotation, CubeFaceCount> rotations = pass1Rotations;
-    outSeamEvals = evaluateAllSeams(faces, rotations, options.seamMismatchThreshold);
-    outFaultStatus = analyzeFaultStatus(outSeamEvals, &faces);
-
-    if (!faces.hasFace(CubeFace::Front)) {
-        // R2: If FT is missing, fall back to geometric priors
-        return rotations;
-    }
-
-    const std::array<Rotation, 4> candidateRotations = {
+    const std::array<Rotation, 4> rotEnum = {
         Rotation::Deg0, Rotation::Deg90, Rotation::Deg180, Rotation::Deg270
     };
-    const auto& seams = cubeSeams();
-
-    // Iterate up to CubeFaceCount passes to resolve multi-edge misorientations (M_F >= 2)
-    for (int iter = 0; iter < CubeFaceCount; ++iter) {
-        // Collect misoriented faces (M_F >= 2, excluding FT anchor)
-        std::vector<CubeFace> misorientedFaces;
-        for (int i = 0; i < CubeFaceCount; ++i) {
-            const auto face = static_cast<CubeFace>(i);
-            if (face != CubeFace::Front && faces.hasFace(face) && outFaultStatus[i].isMisoriented) {
-                misorientedFaces.push_back(face);
-            }
-        }
-
-        if (misorientedFaces.empty()) {
-            break;
-        }
-
-        // Sort by mismatchedEdgeCount descending (highest fault first)
-        std::sort(misorientedFaces.begin(), misorientedFaces.end(),
-                  [&](CubeFace a, CubeFace b) {
-                      return outFaultStatus[static_cast<int>(a)].mismatchedEdgeCount >
-                             outFaultStatus[static_cast<int>(b)].mismatchedEdgeCount;
-                  });
-
-        bool anyAdjusted = false;
-        for (CubeFace face : misorientedFaces) {
-            const int faceIdx = static_cast<int>(face);
-            if (!faces.hasFace(face)) {
-                continue;
-            }
-
-            // Find seams connecting this face to neighbors
-            std::vector<int> incidentSeamIndices;
-            for (int s = 0; s < CubeSeamCount; ++s) {
-                if (seams[s].faceA == face || seams[s].faceB == face) {
-                    incidentSeamIndices.push_back(s);
-                }
-            }
-
-            // Evaluate boundary variance of aligned neighbors
-            double maxNeighborVariance = 0.0;
-            int alignedNeighborCount = 0;
-            for (int sIdx : incidentSeamIndices) {
-                const auto& seam = seams[sIdx];
-                const bool isFaceA = (seam.faceA == face);
-                const CubeFace neighborFace = isFaceA ? seam.faceB : seam.faceA;
-                const int neighborIdx = static_cast<int>(neighborFace);
-
-                if (!faces.hasFace(neighborFace)) {
-                    continue;
-                }
-
-                if (neighborFace == CubeFace::Front || !outFaultStatus[neighborIdx].isMisoriented) {
-                    const QImage neighborImg = rotateImage(
-                        faces.face(neighborFace),
-                        rotations[neighborIdx]);
-                    const auto edgeNeighbor = extractEdgePixels(
-                        neighborImg,
-                        isFaceA ? seam.edgeB : seam.edgeA);
-                    maxNeighborVariance = std::max(maxNeighborVariance, computeEdgeVariance(edgeNeighbor));
-                    alignedNeighborCount++;
-                }
-            }
-
-            if (alignedNeighborCount == 0) {
-                // No aligned neighbors available; do NOT mutate rotation
-                continue;
-            }
-
-            // R2: Low-contrast boundary variance < threshold falls back smoothly to Deg0 prior
-            if (maxNeighborVariance < options.varianceThreshold) {
-                if (outFallbackUsed) {
-                    *outFallbackUsed = true;
-                }
-                if (rotations[faceIdx] != Rotation::Deg0) {
-                    rotations[faceIdx] = Rotation::Deg0;
-                    outSeamEvals = evaluateAllSeams(faces, rotations, options.seamMismatchThreshold);
-                    outFaultStatus = analyzeFaultStatus(outSeamEvals, &faces);
-                    anyAdjusted = true;
-                    break;
-                }
-                continue;
-            }
-
-            // Test 4 rotations against aligned neighbors (M_F <= 1 or FT)
-            std::array<double, 4> totalErrors{};
-            for (std::size_t r = 0; r < 4; ++r) {
-                const QImage candidateFaceImg = rotateImage(faces.face(face), candidateRotations[r]);
-                double totalErr = 0.0;
-                int count = 0;
-
-                for (int sIdx : incidentSeamIndices) {
-                    const auto& seam = seams[sIdx];
-                    const bool isFaceA = (seam.faceA == face);
-                    const CubeFace neighborFace = isFaceA ? seam.faceB : seam.faceA;
-                    const int neighborIdx = static_cast<int>(neighborFace);
-
-                    if (!faces.hasFace(neighborFace)) {
-                        continue;
-                    }
-
-                    if (neighborFace == CubeFace::Front || !outFaultStatus[neighborIdx].isMisoriented) {
-                        const QImage neighborImg = rotateImage(
-                            faces.face(neighborFace),
-                            rotations[neighborIdx]);
-
-                        const auto edgeSelf = extractEdgePixels(
-                            candidateFaceImg,
-                            isFaceA ? seam.edgeA : seam.edgeB);
-                        const auto edgeNeighbor = extractEdgePixels(
-                            neighborImg,
-                            isFaceA ? seam.edgeB : seam.edgeA);
-
-                        totalErr += computeSeamMeanError(edgeSelf, edgeNeighbor, seam.reversed);
-                        count++;
-                    }
-                }
-
-                totalErrors[r] = count > 0 ? (totalErr / count) : 255.0;
-            }
-
-            std::size_t bestR = 0;
-            for (std::size_t r = 1; r < 4; ++r) {
-                if (totalErrors[r] < totalErrors[bestR]) {
-                    bestR = r;
-                }
-            }
-
-            std::size_t secondR = (bestR == 0) ? 1 : 0;
-            for (std::size_t r = 0; r < 4; ++r) {
-                if (r != bestR && totalErrors[r] < totalErrors[secondR]) {
-                    secondR = r;
-                }
-            }
-
-            const double eBest = totalErrors[bestR];
-            const double eSecond = totalErrors[secondR];
-            const double confidence = (eSecond - eBest) / (eBest + 1.0);
-
-            // R2: Low-contrast / confidence margin < 0.15 falls back smoothly to Deg0 prior
-            const bool isLowConfidence = (confidence < options.confidenceThreshold);
-            if (isLowConfidence && outFallbackUsed) {
-                *outFallbackUsed = true;
-            }
-            const Rotation chosenRotation = isLowConfidence
-                                                ? Rotation::Deg0
-                                                : candidateRotations[bestR];
-
-            if (rotations[faceIdx] != chosenRotation) {
-                rotations[faceIdx] = chosenRotation;
-                outSeamEvals = evaluateAllSeams(faces, rotations, options.seamMismatchThreshold);
-                outFaultStatus = analyzeFaultStatus(outSeamEvals, &faces);
-                anyAdjusted = true;
-                break; // Break inner loop to re-sort and re-evaluate misoriented faces
-            }
-        }
-
-        if (!anyAdjusted) {
-            break;
-        }
-    }
-
-    // Step 2B: False Consensus & Anchor Authority Resolution
-    // Resolves degenerate edge cases where faces with identical edges form false-positive mutual seams
-    // while conflicting with anchored neighbors (causing M_F == 1 on each face without any M_F >= 2).
-    auto evalSingleSeam = [&](int seamIdx, const std::array<Rotation, CubeFaceCount>& rots) -> double {
-        const auto& seam = seams[seamIdx];
-        if (!faces.hasFace(seam.faceA) || !faces.hasFace(seam.faceB)) {
-            return 0.0;
-        }
-        const QImage imgA = rotateImage(faces.face(seam.faceA), rots[static_cast<int>(seam.faceA)]);
-        const QImage imgB = rotateImage(faces.face(seam.faceB), rots[static_cast<int>(seam.faceB)]);
-        const auto edgePixelsA = extractEdgePixels(imgA, seam.edgeA);
-        const auto edgePixelsB = extractEdgePixels(imgB, seam.edgeB);
-        return computeSeamMeanError(edgePixelsA, edgePixelsB, seam.reversed);
+    const std::array<FaceEdge, 4> edgeEnum = {
+        FaceEdge::Top, FaceEdge::Bottom, FaceEdge::Left, FaceEdge::Right
     };
 
-    for (int passB = 0; passB < 2; ++passB) {
-        std::vector<int> mismatchedSeamIndices;
-        for (int s = 0; s < CubeSeamCount; ++s) {
-            if (outSeamEvals[s].evaluated && outSeamEvals[s].mismatched) {
-                mismatchedSeamIndices.push_back(s);
-            }
+    // 1. EdgeCache[face][rotIndex][edgeIndex]
+    // Max 6 faces * 4 rotations * 4 edges
+    std::vector<QRgb> edgeCache[CubeFaceCount][4][4];
+    for (int f = 0; f < CubeFaceCount; ++f) {
+        const auto face = static_cast<CubeFace>(f);
+        if (!faces.hasFace(face)) {
+            continue;
         }
-        if (mismatchedSeamIndices.empty()) {
-            break;
-        }
-
-        // Determine ground truth anchors: Front is always anchor; faces matching Front are anchors.
-        std::array<bool, CubeFaceCount> isAnchor{};
-        isAnchor[static_cast<int>(CubeFace::Front)] = true;
-        for (const auto& eval : outSeamEvals) {
-            if (eval.evaluated && !eval.mismatched) {
-                if (eval.faceA == CubeFace::Front) isAnchor[static_cast<int>(eval.faceB)] = true;
-                if (eval.faceB == CubeFace::Front) isAnchor[static_cast<int>(eval.faceA)] = true;
-            }
-        }
-
-        // Collect suspect non-anchor faces that have mismatched seams with anchors
-        std::set<CubeFace> suspects;
-        for (int sIdx : mismatchedSeamIndices) {
-            const auto& seam = seams[sIdx];
-            const bool aIsAnchor = isAnchor[static_cast<int>(seam.faceA)];
-            const bool bIsAnchor = isAnchor[static_cast<int>(seam.faceB)];
-            if (aIsAnchor && !bIsAnchor && faces.hasFace(seam.faceB)) suspects.insert(seam.faceB);
-            else if (bIsAnchor && !aIsAnchor && faces.hasFace(seam.faceA)) suspects.insert(seam.faceA);
-            else {
-                if (!aIsAnchor && faces.hasFace(seam.faceA)) suspects.insert(seam.faceA);
-                if (!bIsAnchor && faces.hasFace(seam.faceB)) suspects.insert(seam.faceB);
-            }
-        }
-
-        if (suspects.empty()) {
-            break;
-        }
-
-        // Look for adjacent pairs in suspects that share a currently-matched seam (False Consensus Pair)
-        bool pairResolved = false;
-        std::vector<CubeFace> suspectList(suspects.begin(), suspects.end());
-        for (std::size_t i = 0; i < suspectList.size() && !pairResolved; ++i) {
-            for (std::size_t j = i + 1; j < suspectList.size() && !pairResolved; ++j) {
-                const CubeFace faceA = suspectList[i];
-                const CubeFace faceB = suspectList[j];
-
-                int sharedSeamIdx = -1;
-                for (int s = 0; s < CubeSeamCount; ++s) {
-                    if ((seams[s].faceA == faceA && seams[s].faceB == faceB) ||
-                        (seams[s].faceA == faceB && seams[s].faceB == faceA)) {
-                        sharedSeamIdx = s;
-                        break;
-                    }
-                }
-
-                if (sharedSeamIdx >= 0 && outSeamEvals[sharedSeamIdx].evaluated && !outSeamEvals[sharedSeamIdx].mismatched) {
-                    // False consensus pair detected! Jointly optimize rotations of faceA and faceB
-                    std::vector<int> relevantSeams;
-                    for (int s = 0; s < CubeSeamCount; ++s) {
-                        if (seams[s].faceA == faceA || seams[s].faceB == faceA ||
-                            seams[s].faceA == faceB || seams[s].faceB == faceB) {
-                            relevantSeams.push_back(s);
-                        }
-                    }
-
-                    double bestJointError = std::numeric_limits<double>::max();
-                    Rotation bestRotA = rotations[static_cast<int>(faceA)];
-                    Rotation bestRotB = rotations[static_cast<int>(faceB)];
-
-                    for (Rotation rA : candidateRotations) {
-                        for (Rotation rB : candidateRotations) {
-                            auto testRots = rotations;
-                            testRots[static_cast<int>(faceA)] = rA;
-                            testRots[static_cast<int>(faceB)] = rB;
-
-                            double totalErr = 0.0;
-                            int count = 0;
-                            for (int sIdx : relevantSeams) {
-                                totalErr += evalSingleSeam(sIdx, testRots);
-                                count++;
-                            }
-                            const double meanErr = (count > 0) ? (totalErr / count) : 255.0;
-                            if (meanErr < bestJointError) {
-                                bestJointError = meanErr;
-                                bestRotA = rA;
-                                bestRotB = rB;
-                            }
-                        }
-                    }
-
-                    if (rotations[static_cast<int>(faceA)] != bestRotA || rotations[static_cast<int>(faceB)] != bestRotB) {
-                        rotations[static_cast<int>(faceA)] = bestRotA;
-                        rotations[static_cast<int>(faceB)] = bestRotB;
-                        outSeamEvals = evaluateAllSeams(faces, rotations, options.seamMismatchThreshold);
-                        outFaultStatus = analyzeFaultStatus(outSeamEvals, &faces);
-                        pairResolved = true;
-                    }
-                }
-            }
-        }
-
-        // If no pair was resolved, optimize individual suspects against their incident seams
-        if (!pairResolved) {
-            bool singleResolved = false;
-            for (CubeFace face : suspects) {
-                std::vector<int> incidentSeams;
-                for (int s = 0; s < CubeSeamCount; ++s) {
-                    if (seams[s].faceA == face || seams[s].faceB == face) {
-                        incidentSeams.push_back(s);
-                    }
-                }
-
-                std::array<double, 4> singleErrors{};
-                for (std::size_t r = 0; r < 4; ++r) {
-                    auto testRots = rotations;
-                    testRots[static_cast<int>(face)] = candidateRotations[r];
-                    double totalErr = 0.0;
-                    int count = 0;
-                    for (int sIdx : incidentSeams) {
-                        totalErr += evalSingleSeam(sIdx, testRots);
-                        count++;
-                    }
-                    singleErrors[r] = (count > 0) ? (totalErr / count) : 255.0;
-                }
-
-                std::size_t bestR = 0;
-                for (std::size_t r = 1; r < 4; ++r) {
-                    if (singleErrors[r] < singleErrors[bestR]) {
-                        bestR = r;
-                    }
-                }
-                std::size_t secondR = (bestR == 0) ? 1 : 0;
-                for (std::size_t r = 0; r < 4; ++r) {
-                    if (r != bestR && singleErrors[r] < singleErrors[secondR]) {
-                        secondR = r;
-                    }
-                }
-
-                const double eBest = singleErrors[bestR];
-                const double eSecond = singleErrors[secondR];
-                const double confidence = (eSecond - eBest) / (eBest + 1.0);
-                const bool isLowConf = (confidence < options.confidenceThreshold);
-                if (isLowConf && outFallbackUsed) {
-                    *outFallbackUsed = true;
-                }
-                const Rotation chosenRot = isLowConf ? Rotation::Deg0 : candidateRotations[bestR];
-
-                if (rotations[static_cast<int>(face)] != chosenRot) {
-                    rotations[static_cast<int>(face)] = chosenRot;
-                    outSeamEvals = evaluateAllSeams(faces, rotations, options.seamMismatchThreshold);
-                    outFaultStatus = analyzeFaultStatus(outSeamEvals, &faces);
-                    singleResolved = true;
-                    break;
-                }
-            }
-            if (!singleResolved) {
-                break;
+        for (int r = 0; r < 4; ++r) {
+            const QImage rotImg = rotateImage(faces.face(face), rotEnum[r]);
+            for (int e = 0; e < 4; ++e) {
+                edgeCache[f][r][e] = extractEdgePixels(rotImg, edgeEnum[e]);
             }
         }
     }
 
-    return rotations;
+    // 2. SeamCostTable[seamIndex][rotA][rotB]
+    const auto& seams = cubeSeams();
+    double seamCostTable[CubeSeamCount][4][4];
+    bool seamValid[CubeSeamCount];
+
+    for (int s = 0; s < CubeSeamCount; ++s) {
+        const auto& seam = seams[s];
+        const int fA = static_cast<int>(seam.faceA);
+        const int fB = static_cast<int>(seam.faceB);
+        const int eA = static_cast<int>(seam.edgeA);
+        const int eB = static_cast<int>(seam.edgeB);
+
+        if (faces.hasFace(seam.faceA) && faces.hasFace(seam.faceB)) {
+            seamValid[s] = true;
+            for (int rA = 0; rA < 4; ++rA) {
+                for (int rB = 0; rB < 4; ++rB) {
+                    seamCostTable[s][rA][rB] = computeSeamCost(
+                        edgeCache[fA][rA][eA],
+                        edgeCache[fB][rB][eB],
+                        seam.reversed,
+                        options.colorWeight,
+                        options.gradientWeight);
+                }
+            }
+        } else {
+            seamValid[s] = false;
+            for (int rA = 0; rA < 4; ++rA) {
+                for (int rB = 0; rB < 4; ++rB) {
+                    seamCostTable[s][rA][rB] = 0.0;
+                }
+            }
+        }
+    }
+
+    // 3. 1024 Combinations Exhaustive Search (FT fixed to Deg0 = rot index 0)
+    // Faces indices:
+    // Front = 0, Back = 1, Left = 2, Right = 3, Up = 4, Down = 5
+    const int rFT = 0; // Deg0
+    double bestCost = std::numeric_limits<double>::infinity();
+    double secondBestCost = std::numeric_limits<double>::infinity();
+    std::array<Rotation, CubeFaceCount> bestRotations = {
+        Rotation::Deg0, Rotation::Deg0, Rotation::Deg0,
+        Rotation::Deg0, Rotation::Deg0, Rotation::Deg0
+    };
+
+    // Candidate iteration order: Deg0 -> Deg90 -> Deg180 -> Deg270 (indices 0, 1, 2, 3)
+    for (int rBK = 0; rBK < 4; ++rBK) {
+        for (int rLF = 0; rLF < 4; ++rLF) {
+            for (int rRT = 0; rRT < 4; ++rRT) {
+                for (int rUP = 0; rUP < 4; ++rUP) {
+                    for (int rDN = 0; rDN < 4; ++rDN) {
+                        const int currentRotIdx[CubeFaceCount] = {
+                            rFT, rBK, rLF, rRT, rUP, rDN
+                        };
+
+                        double totalCost = 0.0;
+                        for (int s = 0; s < CubeSeamCount; ++s) {
+                            if (seamValid[s]) {
+                                const int fA = static_cast<int>(seams[s].faceA);
+                                const int fB = static_cast<int>(seams[s].faceB);
+                                totalCost += seamCostTable[s][currentRotIdx[fA]][currentRotIdx[fB]];
+                            }
+                        }
+
+                        if (totalCost < bestCost) {
+                            secondBestCost = bestCost;
+                            bestCost = totalCost;
+                            bestRotations[0] = rotEnum[rFT];
+                            bestRotations[1] = rotEnum[rBK];
+                            bestRotations[2] = rotEnum[rLF];
+                            bestRotations[3] = rotEnum[rRT];
+                            bestRotations[4] = rotEnum[rUP];
+                            bestRotations[5] = rotEnum[rDN];
+                        } else if (totalCost < secondBestCost) {
+                            secondBestCost = totalCost;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (!std::isfinite(secondBestCost)) {
+        secondBestCost = bestCost;
+    }
+
+    outBestCost = bestCost;
+    outSecondBestCost = secondBestCost;
+    outMargin = std::max(0.0, secondBestCost - bestCost);
+    outAmbiguous = (outMargin < options.ambiguityThreshold);
+
+    return bestRotations;
 }
 
 QImage SkyboxCubeBuilder::composeCubeImage(

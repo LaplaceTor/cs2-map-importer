@@ -76,12 +76,30 @@ public:
         bool reversed = false);
 
     /**
-     * @brief Pass 1: Initial local alignment with FT anchored at 0 deg.
+     * @brief Computes normalized ColorCost in [0, 1] using RGB absolute differences.
      */
-    static std::array<Rotation, CubeFaceCount> alignPass1(
-        const SkyboxFaces& faces,
-        const SkyboxBuildOptions& options,
-        bool& fallbackUsed);
+    static double computeColorCost(
+        const std::vector<QRgb>& pixelsA,
+        const std::vector<QRgb>& pixelsB,
+        bool reversed = false);
+
+    /**
+     * @brief Computes normalized GradientCost in [0, 1] using 1D discrete forward differences.
+     */
+    static double computeGradientCost(
+        const std::vector<QRgb>& pixelsA,
+        const std::vector<QRgb>& pixelsB,
+        bool reversed = false);
+
+    /**
+     * @brief Computes weighted combined SeamCost (w_c * ColorCost + w_g * GradientCost).
+     */
+    static double computeSeamCost(
+        const std::vector<QRgb>& pixelsA,
+        const std::vector<QRgb>& pixelsB,
+        bool reversed = false,
+        double colorWeight = 0.8,
+        double gradientWeight = 0.2);
 
     /**
      * @brief Evaluates all 12 physical cube seams against current candidate rotations.
@@ -92,25 +110,15 @@ public:
         double mismatchThreshold);
 
     /**
-     * @brief Analyzes fault status for each face according to mismatched edge count M_F:
-     *        M_F >= 2: misoriented face;
-     *        M_F == 1: correctly oriented face, neighbor connected to failing edge isolated;
-     *        M_F == 0: ground truth.
+     * @brief Performs global 1024-state exhaustive optimization anchored at FT = Deg0.
      */
-    static std::array<FaceFaultStatus, CubeFaceCount> analyzeFaultStatus(
-        const std::vector<SeamEvaluation>& seamEvals,
-        const SkyboxFaces* faces = nullptr);
-
-    /**
-     * @brief Pass 2: Global seam consistency check & fault isolation loop.
-     */
-    static std::array<Rotation, CubeFaceCount> alignPass2(
+    static std::array<Rotation, CubeFaceCount> optimizeRotations(
         const SkyboxFaces& faces,
-        const std::array<Rotation, CubeFaceCount>& pass1Rotations,
         const SkyboxBuildOptions& options,
-        std::vector<SeamEvaluation>& outSeamEvals,
-        std::array<FaceFaultStatus, CubeFaceCount>& outFaultStatus,
-        bool* outFallbackUsed = nullptr);
+        double& outBestCost,
+        double& outSecondBestCost,
+        double& outMargin,
+        bool& outAmbiguous);
 
     /**
      * @brief Normalizes a face image to resolution x resolution square in Format_RGBA8888.

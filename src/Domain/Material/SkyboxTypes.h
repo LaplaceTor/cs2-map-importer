@@ -211,9 +211,12 @@ struct SkyboxFaces {
  */
 struct SkyboxBuildOptions {
     int faceResolution = 0; // 0 = auto-detect native resolution from input faces, defaults to 1024
-    double confidenceThreshold = 0.15;
-    double varianceThreshold = 10.0;
-    double seamMismatchThreshold = 25.0; // Mean absolute difference per pixel per channel
+    double confidenceThreshold = 0.15; // Legacy confidence threshold
+    double varianceThreshold = 10.0;   // Legacy variance threshold
+    double seamMismatchThreshold = 25.0; // Mean absolute difference per pixel per channel for diagnostics
+    double colorWeight = 0.8;          // Weight for ColorCost (RGB absolute differences)
+    double gradientWeight = 0.2;       // Weight for GradientCost (edge derivative differences)
+    double ambiguityThreshold = 0.005; // Margin threshold below which the optimal solution is marked ambiguous
     bool allowNonSquareFaces = false; // When true, non-square faces (e.g. Source 1 512x256 side faces) are automatically scaled to square resolution
     QString skyboxName;
     QString skyTextureRelativePath;
@@ -234,18 +237,6 @@ struct SeamEvaluation {
 };
 
 /**
- * @brief Fault status for an individual face in Pass 2.
- */
-struct FaceFaultStatus {
-    CubeFace face = CubeFace::Front;
-    int mismatchedEdgeCount = 0; // M_F
-    std::vector<CubeFace> connectedFailingNeighbors;
-    bool isMisoriented = false;   // M_F >= 2
-    bool isFaultIsolated = false; // M_F == 1
-    bool isGroundTruth = false;   // M_F == 0
-};
-
-/**
  * @brief Result containing the 4x3 stitched cube image and metadata.
  */
 struct SkyboxBuildResult {
@@ -255,10 +246,11 @@ struct SkyboxBuildResult {
         Rotation::Deg0, Rotation::Deg0, Rotation::Deg0,
         Rotation::Deg0, Rotation::Deg0, Rotation::Deg0
     };
-    std::array<FaceFaultStatus, CubeFaceCount> faultStatuses;
     std::vector<SeamEvaluation> seamEvaluations;
-    bool pass1Success = false;
-    bool pass2Success = false;
+    double totalCost = 0.0;
+    double secondBestCost = 0.0;
+    double costMargin = 0.0;
+    bool isAmbiguous = false;
     bool fallbackUsed = false;
 };
 
