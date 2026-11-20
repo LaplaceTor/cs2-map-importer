@@ -145,6 +145,14 @@ public:
     bool logExternalToolOutput(const QString& message, LogLevel level = LogLevel::Info);
     LogSubmissionResult reportFault(const QString& message);
 
+    // Tool sub-task lifecycle helpers (delegates to LogManager internally so callers
+    // such as Domain::Tool do not need to depend on LogManager directly).
+    std::shared_ptr<TaskLoggingContext> createToolSubTask(
+        const QString& commandLine, const QString& assetBaseName = QString());
+    bool finishToolSubTask(const QString& message = QString());
+    bool failToolSubTask(const QString& message = QString());
+    bool cancelToolSubTask(const QString& message = QString());
+
     /**
      * @brief Lifecycle state transitions:
      * Pending -> Running

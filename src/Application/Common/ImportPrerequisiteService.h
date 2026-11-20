@@ -5,8 +5,11 @@
 #include <QString>
 
 #include "Application/Common/BaseImportDTOs.h"
-#include "Workflow/Common/ImportContext.h"
 #include "Core/Result/Result.h"
+
+namespace Workflow::Common {
+class ImportContext;
+}
 
 namespace Application::Environment {
 class VpkSignatureLeaseService;
@@ -44,8 +47,11 @@ public:
      * @return Success with ValidatedBaseImport, or structured Failure/Cancelled result.
      */
     Core::Result<ValidatedBaseImport> prepare(
+        const BaseImportRequest& request) const;
+
+    Core::Result<ValidatedBaseImport> prepare(
         const BaseImportRequest& request,
-        const Workflow::Common::ImportContext& context = Workflow::Common::ImportContext{}) const;
+        const Workflow::Common::ImportContext& context) const;
 
     std::shared_ptr<Environment::VpkSignatureLeaseService> leaseService() const noexcept;
     void setLeaseService(std::shared_ptr<Environment::VpkSignatureLeaseService> leaseService) noexcept;

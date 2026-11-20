@@ -21,7 +21,7 @@
 #include "Core/Error/Error.h"
 #include "Core/Error/ErrorCode.h"
 #include "Core/Error/Exception.h"
-#include "Application/Execution/ExecutionGuard.h"
+#include "Core/Error/ExecutionGuard.h"
 #include "Application/Async/SystemTaskLog.h"
 #include "Application/Async/TaskHandle.h"
 
@@ -274,15 +274,15 @@ public:
                     sysLog.error(QStringLiteral("Task exception [%1]: %2")
                         .arg(static_cast<int>(ex.errorCode()))
                         .arg(detailInfo));
-                    result = Execution::ExecutionGuard::handleException<T>(
+                    result = Core::Error::ExecutionGuard::handleException<T>(
                         ex, QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
                 } catch (const std::exception& ex) {
                     sysLog.error(QStringLiteral("Unhandled standard exception: %1").arg(QString::fromUtf8(ex.what())));
-                    result = Execution::ExecutionGuard::handleException<T>(
+                    result = Core::Error::ExecutionGuard::handleException<T>(
                         ex, QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
                 } catch (...) {
                     sysLog.error(QStringLiteral("Unhandled unknown exception in task"));
-                    result = Execution::ExecutionGuard::handleUnknownException<T>(
+                    result = Core::Error::ExecutionGuard::handleUnknownException<T>(
                         QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
                 }
 
@@ -423,21 +423,21 @@ private:
                             .arg(static_cast<int>(ex.errorCode()))
                             .arg(detailInfo));
                     }
-                    result = Execution::ExecutionGuard::handleException<T>(
+                    result = Core::Error::ExecutionGuard::handleException<T>(
                         ex, QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
                 } catch (const std::exception& ex) {
                     threwException = true;
                     if (taskContext) {
                         taskContext->error(QStringLiteral("Unhandled standard exception: %1").arg(QString::fromUtf8(ex.what())));
                     }
-                    result = Execution::ExecutionGuard::handleException<T>(
+                    result = Core::Error::ExecutionGuard::handleException<T>(
                         ex, QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
                 } catch (...) {
                     threwException = true;
                     if (taskContext) {
                         taskContext->error(QStringLiteral("Unhandled unknown exception in task"));
                     }
-                    result = Execution::ExecutionGuard::handleUnknownException<T>(
+                    result = Core::Error::ExecutionGuard::handleUnknownException<T>(
                         QCoreApplication::translate("AsyncTaskRunner", "Task '%1' failed").arg(taskName));
                 }
 

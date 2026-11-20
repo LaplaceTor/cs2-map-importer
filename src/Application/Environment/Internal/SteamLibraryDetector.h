@@ -3,19 +3,15 @@
 #include "Application/Async/SystemTaskLog.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
-#include <QString>
+#include "Domain/Game/SteamGameLocator.h"
 #include <vector>
 
 namespace Application::Environment::Internal {
 
-struct SteamLibrary {
-    Core::Path::FilesystemPath path;
-    std::vector<int> installedAppIds;
-};
-
 /**
- * @brief Internal Application infrastructure adapter responsible for Steam installation discovery,
- * library folder resolution, and ACF manifest reading.
+ * @brief Internal Application infrastructure adapter responsible for host-OS Steam
+ * installation path discovery (Windows Registry and standard fallback locations),
+ * delegating VDF/ACF library parsing to Domain::Game::SteamGameLocator.
  */
 class SteamLibraryDetector {
 public:
@@ -23,26 +19,10 @@ public:
     static Core::Result<Core::Path::FilesystemPath> detectSteamInstallPath(
         const Application::Async::SystemTaskLog* logCtx = nullptr);
 
-    // Detect all Steam libraries from libraryfolders.vdf (within steamPath, or auto-detected Steam path if empty)
-    static Core::Result<std::vector<SteamLibrary>> detectLibraries(
+    // Detect all Steam libraries (within steamPath, or auto-detected Steam path if empty)
+    static Core::Result<std::vector<Domain::Game::SteamLibrary>> detectLibraries(
         const Core::Path::FilesystemPath& steamPath = {},
         const Application::Async::SystemTaskLog* logCtx = nullptr);
-
-    // Parse a libraryfolders.vdf file directly
-    static Core::Result<std::vector<SteamLibrary>> parseLibraryFolders(
-        const Core::Path::FilesystemPath& libraryFoldersVdfPath,
-        const Application::Async::SystemTaskLog* logCtx = nullptr);
-
-    // Read installdir from appmanifest_<appId>.acf in a steamapps folder
-    static Core::Result<QString> readAppInstallDir(
-        const Core::Path::FilesystemPath& libraryPath,
-        int appId);
-
-    // Read full app name from appmanifest_<appId>.acf in a steamapps folder
-    static Core::Result<QString> readAppName(
-        const Core::Path::FilesystemPath& libraryPath,
-        int appId);
 };
 
 } // namespace Application::Environment::Internal
-

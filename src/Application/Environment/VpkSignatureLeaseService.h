@@ -3,7 +3,7 @@
 #include <QString>
 #include <QObject>
 #include <memory>
-#include "Application/Environment/GameInstallation.h"
+#include "Application/Environment/GameInstallationInfo.h"
 #include "Core/FileSystem/FileLease.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Logging/TaskLoggingContext.h"
@@ -66,7 +66,6 @@ public:
      * @param s2Installation The active Source 2 game installation.
      * @return Result containing VpkSignatureLeaseResult.
      */
-    Core::Result<VpkSignatureLeaseResult> updateInstallation(const GameInstallation& s2Installation);
     Core::Result<VpkSignatureLeaseResult> updateInstallation(const GameInstallationInfo& s2Info);
 
     /**
@@ -110,14 +109,13 @@ signals:
     void leaseStatusChanged(Application::Environment::VpkSignatureLeaseStatus status, const QString& filePath, const QString& systemMessage);
 
 private:
-    Core::Result<VpkSignatureLeaseResult> updateInstallationInternal(const GameInstallation& s2Installation);
     Core::Result<VpkSignatureLeaseResult> updateInstallationInternal(const GameInstallationInfo& s2Info);
     Core::Result<VpkSignatureLeaseResult> acquireLeaseInternal(const Core::Path::FilesystemPath& cs2BasePath);
     Core::Result<VpkSignatureLeaseResult> retryLeaseInternal();
 
     std::shared_ptr<Core::Logging::TaskLoggingContext> m_loggingContext;
     Core::FileSystem::FileLease m_lease;
-    GameInstallation m_activeInstallation;
+    GameInstallationInfo m_activeInstallation;
     VpkSignatureLeaseStatus m_lastStatus = VpkSignatureLeaseStatus::Inactive;
 };
 

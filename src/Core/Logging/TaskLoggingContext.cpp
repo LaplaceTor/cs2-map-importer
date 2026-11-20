@@ -1,4 +1,5 @@
 #include "TaskLoggingContext.h"
+#include "LogManager.h"
 #include <algorithm>
 #include <QRecursiveMutex>
 #include <utility>
@@ -376,6 +377,43 @@ bool TaskLoggingContext::log(LogLevel level, const QString& message, LogSource s
 bool TaskLoggingContext::logExternalToolOutput(const QString& message, LogLevel level)
 {
     return log(level, message, LogSource::ExternalTool);
+}
+
+std::shared_ptr<TaskLoggingContext> TaskLoggingContext::createToolSubTask(
+    const QString& commandLine, const QString& assetBaseName)
+{
+    if (m_taskId == 0) {
+        return nullptr;
+    }
+    auto child = LogManager::instance().createToolTask(m_taskId, commandLine, assetBaseName);
+    if (child) {
+        child->start();
+    }
+    return child;
+}
+
+bool TaskLoggingContext::finishToolSubTask(const QString& message)
+{
+    if (m_taskId == 0) {
+        return false;
+    }
+    return LogManager::instance().finishTask(m_taskId, message);
+}
+
+bool TaskLoggingContext::failToolSubTask(const QString& message)
+{
+    if (m_taskId == 0) {
+        return false;
+    }
+    return LogManager::instance().failTask(m_taskId, message);
+}
+
+bool TaskLoggingContext::cancelToolSubTask(const QString& message)
+{
+    if (m_taskId == 0) {
+        return false;
+    }
+    return LogManager::instance().cancelTask(m_taskId, message);
 }
 
 LogSubmissionResult TaskLoggingContext::reportFault(const QString& message)

@@ -44,11 +44,8 @@ qt_add_library(cs2importer_domain STATIC
     Asset/AssetTypeDetector.h
     Asset/AssetTypeDetector.cpp
     Asset/AssetLocation.h
-    Asset/IAssetSourceProber.h
     Asset/AssetLocateStrategy.h
     Asset/AssetLocateStrategy.cpp
-    Asset/ArchiveAssetSourceProber.h
-    Asset/ArchiveAssetSourceProber.cpp
     Game/GameType.h
     Game/GameErrors.h
     Game/GameDefinition.h

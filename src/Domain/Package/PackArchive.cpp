@@ -212,18 +212,6 @@ Core::Result<void> PackArchive::extractEntryToFile(
                 entryPath);
         }
 
-        if (!m_packFile->hasEntry(normalized.toStdString())) {
-            return Core::Result<void>::failure(
-                Core::Error::ErrorCode::EntryNotFound,
-                QCoreApplication::translate("PackArchive", "entry not found in pack archive"),
-                entryPath);
-        }
-
-        if (token.isCancelled()) {
-            return Core::Result<void>::cancelled(
-                QCoreApplication::translate("PackArchive", "pack extraction cancelled"));
-        }
-
         auto dataOpt = m_packFile->readEntry(normalized.toStdString());
         if (token.isCancelled()) {
             return Core::Result<void>::cancelled(

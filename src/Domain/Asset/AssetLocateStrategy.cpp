@@ -1,6 +1,41 @@
 #include "Domain/Asset/AssetLocateStrategy.h"
 
+#include <utility>
+#include <QCoreApplication>
+
+#include "Domain/Package/PackArchive.h"
+#include "Domain/Package/PackArchivePool.h"
+#include "Domain/Package/VpkIndex.h"
+
 namespace Domain::Asset {
+
+namespace {
+
+Core::Result<bool> probePackEntry(
+    Domain::Package::PackArchivePool& pool,
+    const Core::Path::FilesystemPath& packPath,
+    const QString& entryPath,
+    const Core::Async::CancellationToken& token) {
+    if (token.isCancelled()) {
+        return Core::Result<bool>::cancelled(
+            QCoreApplication::translate("AssetLocateStrategy", "Asset location cancelled"));
+    }
+    if (entryPath.isEmpty() || !packPath.exists()) {
+        return Core::Result<bool>::success(false);
+    }
+
+    auto archiveRes = pool.getOrOpen(packPath, token);
+    if (archiveRes.isCancelled()) {
+        return Core::Result<bool>::cancelled(archiveRes.message());
+    }
+    if (archiveRes.isFailure()) {
+        return Core::Result<bool>::failure(archiveRes.error(), archiveRes.message());
+    }
+
+    return archiveRes.value()->hasEntry(entryPath, token);
+}
+
+} // namespace
 
 QString AssetLocateStrategy::normalizeRelativePath(const QString& relativePath) {
     QString normalized = relativePath;
@@ -11,137 +46,125 @@ QString AssetLocateStrategy::normalizeRelativePath(const QString& relativePath) 
     return normalized;
 }
 
-LocateResult AssetLocateStrategy::locate(
+Core::Result<AssetLocateOutcome> AssetLocateStrategy::locate(
     const QString& relativeAssetPath,
     const std::vector<Domain::Game::SearchTarget>& targets,
-    IAssetSourceProber& prober,
-    const Core::Async::CancellationToken& token,
-    ILocateObserver* observer) {
-
-    if (relativeAssetPath.isEmpty()) {
-        return LocateResult{LocateStatus::EmptyPath, std::nullopt, {}};
-    }
+    Domain::Package::PackArchivePool& pool,
+    const Domain::Package::VpkIndex* vpkIndex,
+    const Domain::Package::VpkIndex* cs2Index,
+    const Core::Async::CancellationToken& token) {
 
     if (token.isCancelled()) {
-        return LocateResult{LocateStatus::Cancelled, std::nullopt, {}};
+        return Core::Result<AssetLocateOutcome>::cancelled(
+            QCoreApplication::translate("AssetLocateStrategy", "Asset location cancelled"));
+    }
+
+    if (relativeAssetPath.isEmpty()) {
+        return Core::Result<AssetLocateOutcome>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QCoreApplication::translate("AssetLocateStrategy", "Relative asset path is empty"));
     }
 
     const QString entryPath = normalizeRelativePath(relativeAssetPath);
+    if (entryPath.isEmpty()) {
+        return Core::Result<AssetLocateOutcome>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QCoreApplication::translate("AssetLocateStrategy", "Relative asset path is empty"));
+    }
 
     // 1. CS2 native asset deduplication check
-    if (prober.isNativeCs2Asset(entryPath)) {
-        if (observer) {
-            observer->onNativeCs2Skipped(entryPath);
-        }
-        return LocateResult{LocateStatus::NativeCs2, std::nullopt, {}};
+    if (cs2Index && cs2Index->hasCs2NativeAsset(entryPath)) {
+        return Core::Result<AssetLocateOutcome>::success(
+            AssetLocateOutcome{AssetMatchKind::NativeCs2, std::nullopt});
     }
 
     // 2. Loose files across directory targets (highest precedence)
     for (const auto& target : targets) {
         if (token.isCancelled()) {
-            return LocateResult{LocateStatus::Cancelled, std::nullopt, {}};
+            return Core::Result<AssetLocateOutcome>::cancelled(
+                QCoreApplication::translate("AssetLocateStrategy", "Asset location cancelled"));
         }
 
-        if (target.isDirectory()) {
-            auto looseRes = prober.hasLooseFile(target, entryPath, token);
-            if (looseRes.isCancelled()) {
-                return LocateResult{LocateStatus::Cancelled, std::nullopt, {}};
-            }
-            if (looseRes.isFailure()) {
-                return LocateResult{LocateStatus::Failure, std::nullopt, {}, looseRes.error()};
-            }
-            if (looseRes.value()) {
-                const Core::Path::FilesystemPath looseFile = target.path() / entryPath;
-                if (observer) {
-                    observer->onLooseFileFound(entryPath, target.path());
-                }
+        if (!target.isDirectory()) {
+            continue;
+        }
 
-                AssetLocation location;
-                location.sourceTargetPath = target.path();
-                location.relativePath = entryPath;
-                location.isInsidePack = false;
-                location.looseFilePath = looseFile;
-                return LocateResult{LocateStatus::Found, std::move(location), {}};
-            }
+        auto resolvedOpt = target.path().resolveBelow(entryPath);
+        if (resolvedOpt.has_value() && resolvedOpt->exists()) {
+            AssetLocation location;
+            location.sourceTargetPath = target.path();
+            location.relativePath = entryPath;
+            location.isInsidePack = false;
+            location.looseFilePath = *resolvedOpt;
+            return Core::Result<AssetLocateOutcome>::success(
+                AssetLocateOutcome{AssetMatchKind::LooseFile, std::move(location)});
         }
     }
 
     // 3. Fast-lookup via VpkIndex (priority probe if indexed)
     Core::Path::FilesystemPath probedWinnerVpk;
-    auto winningVpkOpt = prober.queryVpkIndex(entryPath);
-    if (winningVpkOpt.has_value()) {
-        if (token.isCancelled()) {
-            return LocateResult{LocateStatus::Cancelled, std::nullopt, {}};
-        }
-
-        const Core::Path::FilesystemPath& winningVpk = winningVpkOpt.value();
-        probedWinnerVpk = winningVpk;
-
-        auto packRes = prober.hasPackEntry(winningVpk, entryPath, token);
-        if (packRes.isCancelled()) {
-            return LocateResult{LocateStatus::Cancelled, std::nullopt, probedWinnerVpk};
-        }
-        if (packRes.isFailure()) {
-            if (observer) {
-                observer->onWinnerVpkNotFound(entryPath, winningVpk);
+    if (vpkIndex) {
+        auto winningVpkOpt = vpkIndex->findVpkForEntry(entryPath);
+        if (winningVpkOpt.has_value()) {
+            if (token.isCancelled()) {
+                return Core::Result<AssetLocateOutcome>::cancelled(
+                    QCoreApplication::translate("AssetLocateStrategy", "Asset location cancelled"));
             }
-            return LocateResult{LocateStatus::Failure, std::nullopt, probedWinnerVpk, packRes.error()};
-        }
-        if (packRes.value()) {
-            AssetLocation location;
-            location.sourceTargetPath = winningVpk;
-            location.relativePath = entryPath;
-            location.isInsidePack = true;
-            return LocateResult{LocateStatus::Found, std::move(location), probedWinnerVpk};
-        } else {
-            if (observer) {
-                observer->onWinnerVpkNotFound(entryPath, winningVpk);
+
+            probedWinnerVpk = *winningVpkOpt;
+            auto packRes = probePackEntry(pool, probedWinnerVpk, entryPath, token);
+            if (packRes.isCancelled()) {
+                return Core::Result<AssetLocateOutcome>::cancelled(packRes.message());
             }
-        }
-    } else {
-        if (observer) {
-            observer->onVpkIndexMiss(entryPath);
+            if (packRes.isFailure()) {
+                return Core::Result<AssetLocateOutcome>::failure(packRes.error(), packRes.message());
+            }
+            if (packRes.value()) {
+                AssetLocation location;
+                location.sourceTargetPath = probedWinnerVpk;
+                location.relativePath = entryPath;
+                location.isInsidePack = true;
+                return Core::Result<AssetLocateOutcome>::success(
+                    AssetLocateOutcome{AssetMatchKind::PackEntry, std::move(location)});
+            }
         }
     }
 
     // 4. Fallback search across search targets
     for (const auto& target : targets) {
         if (token.isCancelled()) {
-            return LocateResult{LocateStatus::Cancelled, std::nullopt, probedWinnerVpk};
+            return Core::Result<AssetLocateOutcome>::cancelled(
+                QCoreApplication::translate("AssetLocateStrategy", "Asset location cancelled"));
         }
 
         const Core::Path::FilesystemPath packPath = target.isVpk()
             ? target.path()
             : target.path() / QStringLiteral("pak01_dir.vpk");
 
-        if (!probedWinnerVpk.isEmpty() && packPath.toString().compare(probedWinnerVpk.toString(), Qt::CaseInsensitive) == 0) {
+        if (!probedWinnerVpk.isEmpty()
+            && packPath.toString().compare(probedWinnerVpk.toString(), Qt::CaseInsensitive) == 0) {
             continue;
         }
 
-        auto packRes = prober.hasPackEntry(packPath, entryPath, token);
+        auto packRes = probePackEntry(pool, packPath, entryPath, token);
         if (packRes.isCancelled()) {
-            return LocateResult{LocateStatus::Cancelled, std::nullopt, probedWinnerVpk};
+            return Core::Result<AssetLocateOutcome>::cancelled(packRes.message());
         }
         if (packRes.isFailure()) {
-            if (observer) {
-                observer->onTargetVpkNotFound(entryPath, target.path());
-            }
-            return LocateResult{LocateStatus::Failure, std::nullopt, probedWinnerVpk, packRes.error()};
+            return Core::Result<AssetLocateOutcome>::failure(packRes.error(), packRes.message());
         }
         if (packRes.value()) {
             AssetLocation location;
             location.sourceTargetPath = packPath;
             location.relativePath = entryPath;
             location.isInsidePack = true;
-            return LocateResult{LocateStatus::Found, std::move(location), probedWinnerVpk};
-        } else {
-            if (observer) {
-                observer->onTargetVpkNotFound(entryPath, target.path());
-            }
+            return Core::Result<AssetLocateOutcome>::success(
+                AssetLocateOutcome{AssetMatchKind::PackEntry, std::move(location)});
         }
     }
 
-    return LocateResult{LocateStatus::NotFound, std::nullopt, probedWinnerVpk};
+    return Core::Result<AssetLocateOutcome>::success(
+        AssetLocateOutcome{AssetMatchKind::NotFound, std::nullopt});
 }
 
 } // namespace Domain::Asset

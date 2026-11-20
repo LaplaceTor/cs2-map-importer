@@ -1,6 +1,6 @@
 #include <QCoreApplication>
 #include "Application/Environment/SteamService.h"
-#include "Application/Execution/ExecutionGuard.h"
+#include "Core/Error/ExecutionGuard.h"
 #include "Domain/Game/GameRegistry.h"
 #include "Domain/Game/GameErrors.h"
 #include <QDesktopServices>
@@ -12,7 +12,7 @@ Core::Result<void> SteamService::validateGameFiles(
     int appId,
     std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {
-    return Application::Execution::ExecutionGuard::guard<void>([&]() -> Core::Result<void> {
+    return Core::Error::ExecutionGuard::guard<void>([&]() -> Core::Result<void> {
         return validateGameFilesInternal(appId, logCtx);
     }, QCoreApplication::translate("SteamService", "Steam validation failed"));
 }
@@ -21,7 +21,7 @@ Core::Result<void> SteamService::validateGameFiles(
     Domain::Game::GameType type,
     std::shared_ptr<Core::Logging::TaskLoggingContext> logCtx)
 {
-    return Application::Execution::ExecutionGuard::guard<void>([&]() -> Core::Result<void> {
+    return Core::Error::ExecutionGuard::guard<void>([&]() -> Core::Result<void> {
         const auto* def = Domain::Game::GameRegistry::findByType(type);
         if (!def || def->primaryAppId <= 0) {
             QString typeStr = Domain::Game::GameRegistry::gameTypeToString(type);

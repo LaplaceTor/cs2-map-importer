@@ -63,10 +63,10 @@ public:
     void setEnvironmentService(Application::Environment::GameEnvironmentService* envService);
     Application::Environment::GameEnvironmentService* environmentService() const noexcept { return m_envService; }
 
-    void setVpkIndexService(Application::Package::VpkIndexService* vpkIndexService) noexcept {
-        m_vpkIndexService = vpkIndexService;
+    void setVpkIndexService(std::shared_ptr<Application::Package::VpkIndexService> vpkIndexService) noexcept {
+        m_vpkIndexService = std::move(vpkIndexService);
     }
-    Application::Package::VpkIndexService* vpkIndexService() const noexcept {
+    std::shared_ptr<Application::Package::VpkIndexService> vpkIndexService() const noexcept {
         return m_vpkIndexService;
     }
 
@@ -131,7 +131,7 @@ private:
 
     std::unique_ptr<Application::Environment::GameEnvironmentService> m_ownedEnvService;
     Application::Environment::GameEnvironmentService* m_envService = nullptr;
-    Application::Package::VpkIndexService* m_vpkIndexService = nullptr;
+    std::shared_ptr<Application::Package::VpkIndexService> m_vpkIndexService;
 
     // Cache for detected installations across Steam libraries: [normalized identifier -> GameInstallationInfo]
     QHash<QString, Application::Environment::GameInstallationInfo> m_detectedGames;

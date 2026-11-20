@@ -1,46 +1,31 @@
 #pragma once
 
-#include <functional>
 #include <optional>
 #include <vector>
 #include <QString>
 
 #include "Core/Async/CancellationToken.h"
-#include "Core/Error/Error.h"
+#include "Core/Result/Result.h"
 #include "Domain/Asset/AssetLocation.h"
-#include "Domain/Asset/IAssetSourceProber.h"
 #include "Domain/Game/SearchTarget.h"
+
+namespace Domain::Package {
+class PackArchivePool;
+class VpkIndex;
+}
 
 namespace Domain::Asset {
 
-enum class LocateStatus {
-    Found,
-    NativeCs2,
+enum class AssetMatchKind : int {
     NotFound,
-    EmptyPath,
-    Cancelled,
-    Failure
+    LooseFile,
+    PackEntry,
+    NativeCs2,
 };
 
-struct LocateResult {
-    LocateStatus status = LocateStatus::NotFound;
+struct AssetLocateOutcome {
+    AssetMatchKind kind = AssetMatchKind::NotFound;
     std::optional<AssetLocation> location;
-    Core::Path::FilesystemPath probedWinnerVpk;
-    Core::Error::Error error = Core::Error::Error::success();
-};
-
-/**
- * @brief Observer interface for location strategy diagnostic events.
- * Decouples domain strategy from logging frameworks and string translations.
- */
-class ILocateObserver {
-public:
-    virtual ~ILocateObserver() = default;
-    virtual void onLooseFileFound(const QString& entryPath, const Core::Path::FilesystemPath& targetPath) { Q_UNUSED(entryPath); Q_UNUSED(targetPath); }
-    virtual void onVpkIndexMiss(const QString& entryPath) { Q_UNUSED(entryPath); }
-    virtual void onWinnerVpkNotFound(const QString& entryPath, const Core::Path::FilesystemPath& vpkPath) { Q_UNUSED(entryPath); Q_UNUSED(vpkPath); }
-    virtual void onTargetVpkNotFound(const QString& entryPath, const Core::Path::FilesystemPath& targetPath) { Q_UNUSED(entryPath); Q_UNUSED(targetPath); }
-    virtual void onNativeCs2Skipped(const QString& entryPath) { Q_UNUSED(entryPath); }
 };
 
 /**
@@ -55,12 +40,13 @@ class AssetLocateStrategy {
 public:
     static QString normalizeRelativePath(const QString& relativePath);
 
-    static LocateResult locate(
+    static Core::Result<AssetLocateOutcome> locate(
         const QString& relativeAssetPath,
         const std::vector<Domain::Game::SearchTarget>& targets,
-        IAssetSourceProber& prober,
-        const Core::Async::CancellationToken& token = {},
-        ILocateObserver* observer = nullptr);
+        Domain::Package::PackArchivePool& pool,
+        const Domain::Package::VpkIndex* vpkIndex = nullptr,
+        const Domain::Package::VpkIndex* cs2Index = nullptr,
+        const Core::Async::CancellationToken& token = {});
 };
 
 } // namespace Domain::Asset

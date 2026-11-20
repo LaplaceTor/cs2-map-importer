@@ -1,8 +1,6 @@
 #include <QCoreApplication>
 #include "Workflow/Common/BspEmbeddedExtractor.h"
 
-#include <utility>
-
 #include "Domain/Package/BspPackExtractor.h"
 
 namespace Workflow::Common {
@@ -12,32 +10,8 @@ Core::Result<std::size_t> BspEmbeddedExtractor::extract(
     const Core::Path::FilesystemPath& destDir,
     const Core::Async::CancellationToken& token,
     Core::Logging::TaskLoggingContext* taskCtx) {
-    if (bspPath.isEmpty() || !bspPath.isValid()) {
-        return Core::Result<std::size_t>::failure(
-            Core::Error::ErrorCode::InvalidPath,
-            QCoreApplication::translate("BspEmbeddedExtractor", "BSP file path is empty or invalid"));
-    }
-    if (!bspPath.exists()) {
-        return Core::Result<std::size_t>::failure(
-            Core::Error::ErrorCode::FileNotFound,
-            QCoreApplication::translate("BspEmbeddedExtractor", "BSP file not found"),
-            bspPath.toString());
-    }
-    if (destDir.isEmpty() || !destDir.isValid()) {
-        return Core::Result<std::size_t>::failure(
-            Core::Error::ErrorCode::InvalidPath,
-            QCoreApplication::translate("BspEmbeddedExtractor", "destination directory is empty or invalid"));
-    }
-
-    if (token.isCancelled()) {
-        return Core::Result<std::size_t>::cancelled(
-            QCoreApplication::translate("BspEmbeddedExtractor", "BSP embedded file extraction cancelled"), 0);
-    }
-
     Domain::Package::BspExtractOptions options;
-    options.isCancelled = [&token]() {
-        return token.isCancelled();
-    };
+    options.token = token;
 
     auto result = Domain::Package::BspPackExtractor::extractAll(bspPath, destDir, options);
 

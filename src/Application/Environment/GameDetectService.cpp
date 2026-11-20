@@ -1,18 +1,44 @@
 #include <QCoreApplication>
 #include "Application/Environment/GameDetectService.h"
 #include "Application/Environment/Internal/SteamLibraryDetector.h"
-#include "Application/Environment/GameInstallationValidator.h"
 #include "Application/Async/AsyncTaskRunner.h"
-#include "Application/Execution/ExecutionGuard.h"
-#include "Domain/Game/SteamGameLocator.h"
-#include "Domain/Game/GameRegistry.h"
-#include "Domain/Game/GameErrors.h"
+#include "Core/Error/ExecutionGuard.h"
 #include "Core/Path/PathUtils.h"
+#include "Domain/Game/GameInstallationResolver.h"
+#include "Domain/Game/GameRegistry.h"
+#include "Domain/Game/SteamGameLocator.h"
 #include <algorithm>
 #include <functional>
 #include <utility>
 
 namespace Application::Environment {
+
+GameInstallationInfo toInstallationInfo(const Domain::Game::ResolvedGameInstallation& resolved)
+{
+    GameInstallationInfo info;
+    if (!resolved.isValid) {
+        return info;
+    }
+
+    info.gameId = Domain::Game::GameRegistry::gameTypeToString(resolved.type);
+    const QString title = resolved.gameInfo.game().isEmpty() ? resolved.gameInfo.title() : resolved.gameInfo.game();
+
+    const auto* def = Domain::Game::GameRegistry::findByType(resolved.type);
+    if (def && resolved.type != Domain::Game::GameType::Custom && resolved.type != Domain::Game::GameType::Unknown) {
+        info.displayName = def->displayName;
+        info.isSource2 = def->isSource2();
+    } else {
+        info.displayName = title;
+        info.isSource2 = resolved.isSource2;
+    }
+
+    info.gameTitle = title;
+    info.basePath = resolved.baseDirectory.toString();
+    info.gameInfoPath = resolved.gameInfoPath.toString();
+    info.gameInfoDir = resolved.gameInfoPath.parentPath().toString();
+    info.isValid = true;
+    return info;
+}
 
 void GameDetectService::detectEnvironmentAsync(
     QObject* context,
@@ -48,7 +74,7 @@ Core::Result<DetectionResult> GameDetectService::detectEnvironment(
     const Core::Path::FilesystemPath& customSteamPath,
     const Application::Async::SystemTaskLog* logCtx)
 {
-    return Application::Execution::ExecutionGuard::guard<DetectionResult>([&]() -> Core::Result<DetectionResult> {
+    return Core::Error::ExecutionGuard::guard<DetectionResult>([&]() -> Core::Result<DetectionResult> {
         DetectionResult result;
         auto libRes = Internal::SteamLibraryDetector::detectLibraries(customSteamPath, logCtx);
         if (!libRes.isSuccess()) {
@@ -126,9 +152,6 @@ Core::Result<DetectionResult> GameDetectService::detectEnvironment(
             auto resolvedList = Domain::Game::SteamGameLocator::resolveGamesInLibrary(
                 lib.path,
                 lib.installedAppIds,
-                [](const Core::Path::FilesystemPath& lPath, int appId) {
-                    return Internal::SteamLibraryDetector::readAppInstallDir(lPath, appId);
-                },
                 [&](const QString& warn) {
                     if (logCtx) {
                         logCtx->warning(warn);
@@ -137,13 +160,8 @@ Core::Result<DetectionResult> GameDetectService::detectEnvironment(
                 });
 
             for (const auto& resolved : resolvedList) {
-                auto optInst = GameInstallationValidator::createInstallationFromResolved(resolved);
-                if (!optInst.has_value()) {
-                    continue;
-                }
-
-                auto info = optInst->toInfo();
-                if (isAlreadyAdded(info.gameId)) {
+                auto info = toInstallationInfo(resolved);
+                if (!info.isValid || isAlreadyAdded(info.gameId)) {
                     continue;
                 }
 
@@ -165,65 +183,6 @@ Core::Result<DetectionResult> GameDetectService::detectEnvironment(
 {
     Core::Path::FilesystemPath fsPath(customSteamPath.isEmpty() ? QString() : Core::Path::PathUtils::normalize(customSteamPath));
     return detectEnvironment(fsPath, logCtx);
-}
-
-Core::Result<GameInstallation> GameDetectService::detectGame(
-    Domain::Game::GameType type,
-    const Core::Path::FilesystemPath& customSteamPath,
-    const Application::Async::SystemTaskLog* logCtx)
-{
-    return Application::Execution::ExecutionGuard::guard<GameInstallation>([&]() -> Core::Result<GameInstallation> {
-        if (type == Domain::Game::GameType::Unknown || type == Domain::Game::GameType::Custom) {
-            return Core::Result<GameInstallation>::failure(
-                Core::Error::ErrorCode::InvalidArgument,
-                QCoreApplication::translate("GameDetectService", "Cannot detect games with Unknown or Custom type in Steam libraries"));
-        }
-
-        auto libRes = Internal::SteamLibraryDetector::detectLibraries(customSteamPath, logCtx);
-        if (!libRes.isSuccess()) {
-            return Core::Result<GameInstallation>::failure(
-                libRes.error(),
-                libRes.message());
-        }
-
-        const auto& libraries = libRes.value();
-        if (libraries.empty()) {
-            return Core::Result<GameInstallation>::failure(
-                Core::Error::ErrorCode::DirectoryNotFound,
-                QCoreApplication::translate("GameDetectService", "No Steam libraries detected on this host"));
-        }
-
-        for (const auto& lib : libraries) {
-            if (!lib.path.isValid() || !lib.path.isDirectory()) {
-                continue;
-            }
-
-            auto optResolved = Domain::Game::SteamGameLocator::resolveGameInLibrary(
-                lib.path,
-                type,
-                [](const Core::Path::FilesystemPath& lPath, int appId) {
-                    return Internal::SteamLibraryDetector::readAppInstallDir(lPath, appId);
-                },
-                [&](const QString& warn) {
-                    if (logCtx) {
-                        logCtx->warning(warn);
-                    }
-                });
-
-            if (optResolved.has_value()) {
-                auto optInst = GameInstallationValidator::createInstallationFromResolved(*optResolved);
-                if (optInst.has_value()) {
-                    return Core::Result<GameInstallation>::success(std::move(*optInst));
-                }
-            }
-        }
-
-        return Core::Result<GameInstallation>::failure(
-            Domain::Game::GameErrors::gameInfoNotFound(
-                QCoreApplication::translate("GameDetectService", "Game not found in detected Steam libraries"),
-                Domain::Game::GameRegistry::gameTypeToString(type)),
-            QCoreApplication::translate("GameDetectService", "Steam game detection failed"));
-    }, QCoreApplication::translate("GameDetectService", "Steam game detection failed"));
 }
 
 } // namespace Application::Environment

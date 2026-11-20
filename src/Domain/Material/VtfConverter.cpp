@@ -1,34 +1,16 @@
 #include <QCoreApplication>
 #include "Domain/Material/VtfConverter.h"
 
-#include <exception>
 #include <filesystem>
 
 #include <QByteArray>
 
 #include <vtfpp/VTF.h>
 
-#include "Core/Error/Exception.h"
+#include "Core/Error/ExecutionGuard.h"
 #include "Core/FileSystem/FileSystem.h"
 
 namespace {
-
-/**
- * @brief Exception boundary: translates Core/third-party/std exceptions into
- *        structured Result failures instead of letting them escape Domain.
- */
-template<typename Fn>
-auto runGuarded(Fn&& fn) -> decltype(fn()) {
-    try {
-        return fn();
-    } catch (const Core::Error::Exception& ex) {
-        return decltype(fn())::failure(ex.error());
-    } catch (const std::exception& ex) {
-        return decltype(fn())::failure(
-            Core::Error::ErrorCode::OperationFailed,
-            QString::fromUtf8(ex.what()));
-    }
-}
 
 std::filesystem::path toNativePath(const Core::Path::FilesystemPath& path) {
     return std::filesystem::path{path.toString().toStdWString()};
@@ -92,7 +74,12 @@ Core::Result<std::vector<std::byte>> VtfConverter::convertToImageBuffer(
         return validated;
     }
 
-    return runGuarded([&]() -> Core::Result<std::vector<std::byte>> {
+    Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Converting VTF to image buffer"),
+        .targetPath = vtfPath.toString()
+    };
+
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<std::vector<std::byte>> {
         // May throw on malformed VTF data; guarded above.
         vtfpp::VTF vtf{toNativePath(vtfPath)};
 
@@ -105,7 +92,7 @@ Core::Result<std::vector<std::byte>> VtfConverter::convertToImageBuffer(
                 vtfPath.toString());
         }
         return Core::Result<std::vector<std::byte>>::success(std::move(fileBytes));
-    });
+    }, ctx);
 }
 
 Core::Result<void> VtfConverter::convertToImageFile(
@@ -119,27 +106,27 @@ Core::Result<void> VtfConverter::convertToImageFile(
             QCoreApplication::translate("VtfConverter", "destination image path is empty or invalid"));
     }
 
-    if (!expectedBaseDir.isEmpty() && !destImagePath.isSubpathOf(expectedBaseDir)) {
-        return Core::Result<void>::failure(
-            Core::Error::ErrorCode::InvalidPath,
-            QCoreApplication::translate("VtfConverter", "Security boundary violation: Destination image '%1' is not within expected base directory '%2'")
-                .arg(destImagePath.toString(), expectedBaseDir.toString()));
-    }
-
     auto imageBytes = convertToImageBuffer(vtfPath, format);
     if (imageBytes.isFailure()) {
         return Core::Result<void>::failure(imageBytes.error());
     }
 
-    return runGuarded([&]() -> Core::Result<void> {
+    Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Writing converted VTF image"),
+        .resourcePath = vtfPath.toString(),
+        .targetPath = destImagePath.toString()
+    };
+
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
         // Core::FileSystem helpers throw Core::Error::Exception on failure; guarded above.
+        // Tier 1 + Tier 2 base directory boundary is enforced by FileSystem::writeAll -> AtomicFile.
         Core::FileSystem::FileSystem::createDirectory(destImagePath.parentPath().toString());
         Core::FileSystem::FileSystem::writeAll(destImagePath.toString(), QByteArray(
             reinterpret_cast<const char*>(imageBytes.value().data()),
             static_cast<qsizetype>(imageBytes.value().size())),
             expectedBaseDir);
         return Core::Result<void>::success();
-    });
+    }, ctx);
 }
 
 } // namespace Domain::Material

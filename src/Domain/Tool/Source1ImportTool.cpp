@@ -6,7 +6,6 @@
 #include "Core/Process/ProcessRunner.h"
 #include "Core/Process/ProcessOptions.h"
 #include "Core/Process/ProcessResult.h"
-#include "Core/Logging/LogManager.h"
 #include <QDateTime>
 #include <QFileInfo>
 
@@ -54,11 +53,8 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
     QString fullCommandLine = QStringLiteral("%1 %2").arg(toolBinaryPath.toString(), args.join(QLatin1Char(' ')));
 
     std::shared_ptr<Core::Logging::TaskLoggingContext> childTask;
-    if (taskCtx && taskCtx->taskId() != 0) {
-        childTask = Core::Logging::LogManager::instance().createToolTask(taskCtx->taskId(), fullCommandLine);
-        if (childTask) {
-            childTask->start();
-        }
+    if (taskCtx) {
+        childTask = taskCtx->createToolSubTask(fullCommandLine);
     }
 
     Core::Process::ProcessOptions procOptions;
@@ -111,7 +107,7 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
 
     if (procResult.isCancelled() || options.cancellationToken.isCancelled()) {
         if (childTask) {
-            Core::Logging::LogManager::instance().cancelTask(childTask->taskId(), QCoreApplication::translate("Source1ImportTool", "source1import cancelled"));
+            childTask->cancelToolSubTask(QCoreApplication::translate("Source1ImportTool", "source1import cancelled"));
         }
         if (taskCtx) {
             taskCtx->warning(QCoreApplication::translate("Source1ImportTool", "source1import was cancelled"));
@@ -122,7 +118,7 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
     if (procResult.status == Core::Process::ProcessStatus::Crashed) {
         if (childTask) {
             childTask->error(procResult.errorMessage);
-            Core::Logging::LogManager::instance().failTask(childTask->taskId(), procResult.errorMessage);
+            childTask->failToolSubTask(procResult.errorMessage);
         }
         if (taskCtx) {
             taskCtx->warning(QCoreApplication::translate("Source1ImportTool", "source1import crashed: %1").arg(procResult.errorMessage));
@@ -135,7 +131,7 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
     if (procResult.status == Core::Process::ProcessStatus::TimedOut) {
         if (childTask) {
             childTask->error(QCoreApplication::translate("Source1ImportTool", "Timed out"));
-            Core::Logging::LogManager::instance().failTask(childTask->taskId(), QCoreApplication::translate("Source1ImportTool", "Timed out"));
+            childTask->failToolSubTask(QCoreApplication::translate("Source1ImportTool", "Timed out"));
         }
         if (taskCtx) {
             taskCtx->warning(QCoreApplication::translate("Source1ImportTool", "source1import timed out after %1 ms").arg(procOptions.timeout));
@@ -148,7 +144,7 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
     if (procResult.status == Core::Process::ProcessStatus::FailedToStart) {
         if (childTask) {
             childTask->error(procResult.errorMessage);
-            Core::Logging::LogManager::instance().failTask(childTask->taskId(), procResult.errorMessage);
+            childTask->failToolSubTask(procResult.errorMessage);
         }
         if (taskCtx) {
             taskCtx->warning(QCoreApplication::translate("Source1ImportTool", "source1import failed to start: %1").arg(procResult.errorMessage));
@@ -190,7 +186,7 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
     if (logResult.hasNoMatchingFiles) {
         if (childTask) {
             childTask->error(QCoreApplication::translate("Source1ImportTool", "No matching files found"));
-            Core::Logging::LogManager::instance().failTask(childTask->taskId(), QCoreApplication::translate("Source1ImportTool", "No matching files found"));
+            childTask->failToolSubTask(QCoreApplication::translate("Source1ImportTool", "No matching files found"));
         }
         return Core::Result<Source1ImportToolResult>::failure(
             ToolErrors::noMatchingFiles(options.inputFilePath.toString(), procResult.stdOut),
@@ -204,7 +200,7 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
             : logResult.errorMessages.join(QCoreApplication::translate("Source1ImportTool", "; "));
         if (childTask) {
             childTask->error(failureReason);
-            Core::Logging::LogManager::instance().failTask(childTask->taskId(), failureReason);
+            childTask->failToolSubTask(failureReason);
         }
         if (taskCtx) {
             taskCtx->warning(QCoreApplication::translate("Source1ImportTool", "source1import failed: %1").arg(failureReason));
@@ -216,7 +212,7 @@ Core::Result<Source1ImportToolResult> Source1ImportTool::importAsset(
     }
 
     if (childTask) {
-        Core::Logging::LogManager::instance().finishTask(childTask->taskId(), QCoreApplication::translate("Source1ImportTool", "Converted %1 asset(s)").arg(toolResult.importedCount));
+        childTask->finishToolSubTask(QCoreApplication::translate("Source1ImportTool", "Converted %1 asset(s)").arg(toolResult.importedCount));
     }
 
     if (taskCtx && !toolLogFileName.isEmpty()) {

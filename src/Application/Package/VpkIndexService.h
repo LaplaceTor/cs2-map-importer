@@ -12,7 +12,10 @@
 #include "Core/Error/Error.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
-#include "Domain/Package/VpkIndex.h"
+
+namespace Domain::Package {
+class VpkIndex;
+}
 
 namespace Application::Package {
 

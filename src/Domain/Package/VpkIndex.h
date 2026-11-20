@@ -36,7 +36,7 @@ struct VpkArchiveMeta {
  *   and thread-safe without requiring external synchronization. A single instance may
  *   be safely shared across concurrent worker threads and workflow tasks.
  * - **Lifecycle**: When passed as a borrowed pointer (e.g. to AssetLocateOptions or
- *   ArchiveAssetSourceProber), the caller retains ownership and must ensure the index
+ *   AssetLocateStrategy), the caller retains ownership and must ensure the index
  *   remains allocated and unchanged throughout the duration of the call.
  */
 class VpkIndex {

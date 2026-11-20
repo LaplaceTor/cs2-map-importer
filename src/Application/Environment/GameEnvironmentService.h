@@ -22,12 +22,15 @@ class GameEnvironmentService : public QObject {
 
 public:
     explicit GameEnvironmentService(
-        VpkSignatureLeaseService* leaseService = nullptr,
+        std::shared_ptr<VpkSignatureLeaseService> leaseService = nullptr,
         QObject* parent = nullptr);
     ~GameEnvironmentService() override = default;
 
     GameEnvironmentService(const GameEnvironmentService&) = delete;
     GameEnvironmentService& operator=(const GameEnvironmentService&) = delete;
+
+    // Normalizes a local filesystem path or file:// URL (including malformed 2-slash Windows file://C:/... URLs)
+    static QString cleanPath(const QString& pathOrUrl);
 
     // Supported Source 1 game presentation names (Query)
     QStringList s1GameTypes() const;
@@ -81,7 +84,8 @@ public:
         std::function<void(Core::Result<QStringList>)> callback);
 
     // VPK signature lease operations encapsulated in facade
-    void setVpkSignatureLeaseService(VpkSignatureLeaseService* service) noexcept;
+    std::shared_ptr<VpkSignatureLeaseService> leaseService() const noexcept { return m_leaseService; }
+    void setVpkSignatureLeaseService(std::shared_ptr<VpkSignatureLeaseService> service) noexcept;
     bool isVpkLeaseHeld() const noexcept;
     VpkSignatureLeaseStatus vpkLeaseStatus() const noexcept;
     QString leasedVpkFilePath() const;
@@ -95,10 +99,8 @@ signals:
 
 private:
     void hookLeaseSignals();
-    QString cleanPath(const QString& pathOrUrl) const;
 
-    std::unique_ptr<VpkSignatureLeaseService> m_ownedLeaseService;
-    VpkSignatureLeaseService* m_leaseService = nullptr;
+    std::shared_ptr<VpkSignatureLeaseService> m_leaseService;
 };
 
 } // namespace Application::Environment

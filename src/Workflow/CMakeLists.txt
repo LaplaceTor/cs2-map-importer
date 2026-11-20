@@ -11,6 +11,9 @@ qt_add_library(cs2importer_workflow STATIC
     Particle/ParticleImportOptions.h
     Particle/ParticleImportWorkflow.h
     Particle/ParticleImportWorkflow.cpp
+    Soundscape/SoundscapeConvertOptions.h
+    Soundscape/SoundscapeConvertWorkflow.h
+    Soundscape/SoundscapeConvertWorkflow.cpp
 )
 
 target_link_libraries(cs2importer_workflow PUBLIC

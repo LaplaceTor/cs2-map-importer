@@ -1,12 +1,12 @@
 ---
 name: cs2-async-error-handling
 description: >-
-  Use this skill when implementing asynchronous tasks, error handling, process execution, logging, or state transitions in cs2-map-importer. Covers the three task planes (workflow/tool tasks, system tasks, Result<T> outcomes), the Application logging facade, Result<T> semantics, tripartite diagnostic contracts, exception boundaries, and state conflict arbitration.
+  Three-Plane Task scheduling, Result<T> error contracts, tripartite diagnostics, Single-Point Exception Boundary, state conflict arbitration, and external tool sub-task streaming for cs2-map-importer. Trigger when implementing async tasks, error handling, logging, or CLI process execution.
 ---
 
 # CS2 Map Importer — 异步任务与错误诊断规范指南
 
-本指南汇集了项目在异步任务调度、业务执行结果表示、分层诊断日志与错误仲裁方面的核心模式、规则及完整决策矩阵。
+本指南定义项目的 **Three-Plane Task（三平面任务）** 体系、业务结果与三层诊断契约、**Single-Point Exception Boundary（单点异常屏障）**、终态冲突仲裁矩阵及外部工具流式绑定范式。
 
 ---
 
@@ -34,312 +34,225 @@ description: >-
 
 ### 1.1 `AsyncTaskRunner` 标准 API 体系
 
-`AsyncTaskRunner` 是连接三个平面的核心桥梁：
+`AsyncTaskRunner` 是连接三个平面的核心桥梁，同时承担异步任务的**顶层异常屏障**：
 
-* `AsyncTaskRunner::runTask<T>(taskName, context, worker, callback)`: 用于产出业务负载 `T` 的异步任务。
-* `AsyncTaskRunner::runTask<void>(taskName, context, worker, callback)`: 用于无返回值的异步任务，保持完整的 `Result<void>` 语义。
-* `AsyncTaskRunner::runChildTask<T>(parentTaskId, taskName, context, worker, callback)`: 用于层次化子任务。
-* `AsyncTaskRunner::runChildTask<void>(parentTaskId, taskName, context, worker, callback)`: 用于无返回值子任务。
-* `AsyncTaskRunner::runBackground(taskName, worker)`: 委派至 `runTask<void>` 的后台便捷封装，Worker 必须返回 `Core::Result<void>`，复用同一套生命周期与异常仲裁逻辑。
-* `AsyncTaskRunner::runWorkflowTask<T>(workflowName, assetBaseName, context, worker, callback)`: 顶层导入工作流入口——自动创建工作流日志目录（`logs/<workflowName>_<timestamp>/`）并注册 Workflow 根任务，再走 `runTask` 全套生命周期与仲裁。
-* `AsyncTaskRunner::runSystemTask<T>(taskName, context, worker, callback)`: **系统任务**入口——Worker 签名为 `(const Application::Async::SystemTaskLog&, [CancellationToken])`，必须返回 `Result<T>`。无 LogManager 任务、无 `TaskState`、不进 UI 任务树（taskId 恒为 0）；runner 在应用日志中写入一行生命周期记录（`started` / `finished` / `cancelled` / `skipped` / `failed`）；`TaskHandle::cancel()` 仅触发取消令牌，不触碰 LogManager。
+* `AsyncTaskRunner::runTask<T>(taskName, context, worker, callback)`：产出业务负载 `T`（或 `void`）的异步任务。
+* `AsyncTaskRunner::runChildTask<T>(parentTaskId, taskName, context, worker, callback)`：层次化子任务。
+* `AsyncTaskRunner::runBackground(taskName, worker)`：委派至 `runTask<void>` 的后台封装，Worker 返回 `Core::Result<void>`。
+* `AsyncTaskRunner::runWorkflowTask<T>(workflowName, assetBaseName, context, worker, callback)`：顶层导入工作流入口——创建独立日志目录（`logs/<workflowName>_<timestamp>/`）并注册 Workflow 根任务。
+* `AsyncTaskRunner::runSystemTask<T>(taskName, context, worker, callback)`：**系统任务**入口——Worker 签名为 `(const Application::Async::SystemTaskLog&, [CancellationToken])`，返回 `Result<T>`；无 LogManager 任务、不进 UI 任务树（`taskId == 0`），`TaskHandle::cancel()` 仅触发取消令牌。
 
 规则：
-1. `T` 为**业务负载类型**（如 `GameInstallationInfo`、`DetectionResult`、`void`），严禁嵌套为 `Result<Result<T>>`。
-2. Worker 返回单层 `Result<T>`。
-3. `AsyncTaskRunner` 结合业务结果、日志报错与捕获的异常，驱动 `LogManager` 中的 `TaskState` 状态转移。
-4. 回调函数接收 `const Result<T>&`，并线程安全地投递至调用方所在线程。
-5. **平面归属规则**：面向用户的导入工作流（粒子导入、音景转换等）一律走 `runWorkflowTask` / `runTask` 平面（进任务树、有独立日志）；环境检测、安装校验、插件列举、VPK 索引后台校验与构建（`VpkIndexService`）等非导入后台任务必须走 `runSystemTask`，严禁占用可见任务树。
-6. **致命异常终态回退防护 (`fallbackTerminalStateOnFatalException`)**：当 Worker 内部出现无法预料的严重异常或故障中断时，若任务仍停留于非终态（如 `Running`），Runner 强制触发回退仲裁，调用 `LogManager::forceTaskState(taskId, TaskState::Failed, ...)` 并将进度刷新为 1.0，杜绝任务在 UI 界面永久挂死在运行中状态。
-7. **回调异常安全隔离 (`invokeCallbackSafely`)**：在向 UI / 调用方线程派发回调时，使用两阶段结构化捕获（`catch (const std::exception& ex)` 与 `catch (...)`），将异常记录至应用诊断日志。严禁直接使用空 `catch (...) {}` 静默吞没异常，同时确保 UI 逻辑异常绝不逆向污染 Worker 线程池生命周期。
-8. **异步服务所有权契约与状态安全回滚**：使用 `std::enable_shared_from_this` 延长跨线程生命周期的 Application 服务（如 `ParticleImportService`、`VpkIndexService`），必须通过 PassKey 模式与静态 `create()` 工厂严格约束仅能通过 `std::shared_ptr` 创建与管理；异步入口方法在改变内部状态（如递增并发任务数）前，必须前置执行 `weak_from_this().lock()` 有效性校验（若未纳管则快速失败返回 `InvalidState`，避免触发 `std::bad_weak_ptr` 异常并遗留孤儿计数）；状态变更必须配备 RAII 作用域守护（如 `ImportScopeGuard`），确保在任务派发阶段抛出异常或启动失败时，活动任务计数与 UI 状态能够无条件安全回滚，杜绝前端持久挂死在 `isImporting == true`。
-9. **Worker 线程信号发射隔离 (`dispatch*`)**：Application 服务若在 Worker 线程或后台任务中产出结果，绝不可直接在 Worker 线程执行 `emit signal(...)`。必须提供亲和性调度分发器（如 `dispatchIndexReady` / `dispatchIndexUpdated`），通过 `QMetaObject::invokeMethod(this, [this, ...]() { emit signal(...); }, Qt::QueuedConnection)` 或当前线程检查（`QThread::currentThread() == thread()`），确保面向 UI 的 Qt 信号严格在对象依附的 UI 主线程上发射。
-10. **无状态服务与 TaskHandle 返回契约**：对于无需持有成员状态的后台转换服务（如 `SoundscapeConvertService`），一律声明为静态纯函数，彻底消除 Worker lambda 中捕获裸 `[this]` 导致的生命周期悬空隐患；异步入口必须返回可被取消与跟踪的有效 `Async::TaskHandle`。
+1. `T` 为**业务负载类型**（如 `GameInstallationInfo`、`DetectionResult`、`void`），严禁嵌套 `Result<Result<T>>`。
+2. **平面归属规则**：用户可见导入/转换流程（粒子导入、音景转换等）走 `runWorkflowTask` / `runTask`；环境检测、安装校验、插件列举、VPK 索引预热等非导入后台任务走 `runSystemTask`。
+3. **致命异常终态回退 (`fallbackTerminalStateOnFatalException`)**：Worker 逃逸未捕获异常且任务未达终态时，强制流转至 `TaskState::Failed` 并刷新进度至 1.0；对已达终态严格幂等保留。
+4. **回调异常隔离 (`invokeCallbackSafely`)**：向调用方线程派发回调时捕获并记录至应用日志，防止 UI 回调异常破坏 Worker 线程池。
+5. **异步服务所有权与状态回滚**：继承 `std::enable_shared_from_this` 的服务（如 `ParticleImportService`、`VpkIndexService`）必须使用 PassKey + 静态 `create()` 工厂约束 `std::shared_ptr`；异步入口变更状态前先校验 `weak_from_this().lock()`；活动计数与状态变更使用 RAII 守卫（如 `ImportScopeGuard`）确保派发失败时回滚。
+6. **主线程信号亲和性 (`dispatch*`)**：后台任务产出结果后，面向 UI 的 Qt 信号必须通过 `QMetaObject::invokeMethod(this, ..., Qt::QueuedConnection)` 在主线程发射。
+7. **无状态门面与 `TaskHandle`**：无成员状态的转换门面（如 `SoundscapeConvertService`）声明为静态纯函数并返回有效 `Async::TaskHandle`。
 
-### 1.2 层级化任务日志树与外部工具任务 (Workflow Task vs Tool Task)
-
-任务执行生命周期支持严格的层次化树状结构：
+### 1.2 层级化任务日志树与外部工具子任务 (Workflow Task vs Tool Sub-Task)
 
 ```text
 Workflow Task (Root: createWorkflowTask) -> logs/<workflow>_<timestamp>/workflow.log
  └── Stage Child Task (Stage: createChildTask)
       ├── [EXEC] commandLine (携带 toolTaskId)
-      └── Tool Task (createToolTask, UI平铺树中隐藏) -> <父任务日志目录>/<asset>_<tool>_<time>.log
+      └── Tool Sub-Task (taskCtx->createToolSubTask, UI主树隐藏) -> <父任务目录>/<asset>_<tool>_<time>.log
 ```
 
-* **Workflow 根任务 (`LogManager::createWorkflowTask`)**：
-  * 面向高层宏观导入流程（如地图、粒子导入工作流）。
-  * 自动在 `logs/` 目录下生成独立时间戳目录 `logs/<workflowName>_<yyyyMMdd_HHmmss_zzz>/`，并将主日志输出至该目录下的 `workflow.log`。
-* **阶段子任务 (`createChildTask`)**：
-  * 表示工作流内部阶段里程碑（如解包、材质转码、几何体提取）。
-  * 继承父任务的工作流目录上下文，UI 端支持按深度平铺投影与同级互斥折叠。
-* **外部工具任务 (`createToolTask`)**：
-  * 专门承接外部 CLI 进程（`resourcecompiler`, `source1import`, `bspsrc`）。
-  * **主界面噪音屏蔽**：标记 `isToolTask() == true`，在 UI 主任务树（`LogViewModel`）中静默隐藏，避免大量编译日志刷屏。
-  * **命令透传与关联**：自动在父阶段任务注入 `[EXEC] <commandLine>` 日志条目，并绑定 `toolTaskId`。
-  * **独立落盘与专项视窗**：日志单独保存为 `<asset>_<tool>_<time>.log`，**写入父任务的日志目录**（父为阶段任务时即 `logs/<workflow>_<ts>/<stage>/` 子目录；父为工作流根时直接落在工作流目录下）；同毫秒命名冲突自动追加 `_2`、`_3` 序号。用户点击父任务中的命令条目时，UI 通过独立的 `ToolLogWindow` 调取该工具的完整输出流。
-  * **原始流式直通与格式精简**：外部工具输出经 `TaskLoggingContext::logExternalToolOutput` 保持原始行直通，不追加 `[INFO]` 等人工修饰，多行文本保留天然换行（不转义 `\n`）；单任务文件首行写入结构化元数据头（`=== Task: %1 (ID: %2) | Started: %3 ===\n\n`），常规任务日志行统一精简为 `[LEVEL] %2`；工具内部错误日志与父阶段任务隔离，避免工具局部错误导致父任务虚假冲突升级。
+* **Workflow 根任务 (`LogManager::createWorkflowTask`)**：面向顶层导入流程，生成 `logs/<workflowName>_<yyyyMMdd_HHmmss_zzz>/workflow.log`。
+* **阶段子任务 (`createChildTask`)**：工作流内部阶段里程碑，继承父工作流目录。
+* **外部工具子任务 (`TaskLoggingContext::createToolSubTask`)**：
+  * `Domain::Tool`（`ResourceCompilerTool`、`Source1ImportTool`）**通过传入的 `taskCtx->createToolSubTask(commandLine, assetBaseName)` 派生**（内部委托 `LogManager::createToolTask` 并启动），并经 `finishToolSubTask` / `failToolSubTask` / `cancelToolSubTask` 结束——`Domain::Tool` 不直接依赖 `LogManager::instance()`。
+  * **UI 噪音屏蔽**：`isToolTask() == true`，在 `LogViewModel` 主任务树中隐藏；父任务自动记录携带 `toolTaskId` 的 `[EXEC]` 条目，用户按需在 `ToolLogWindow` 查看。
+  * **独立落盘与原始流直通**：写入父任务目录下的 `<asset>_<tool>_<time>.log`（同毫秒冲突追加 `_2`）；经 `logExternalToolOutput` 保持原始行输出，工具报错与父阶段任务隔离。
 
-### 1.3 日志投递门面 (Application::Logging)
+### 1.3 日志投递门面 (`Application::Logging::TaskLogService`)
 
-UI 层消费日志的**唯一通道**是 Application 层门面 `Application::Logging::TaskLogService`（完整 API 见 `skills/cs2-api-reference/SKILL.md`）：
-
-* `TaskLogService` 以私有 `SinkBridge`（`Core::Logging::ILogSink`）桥接 `LogManager`，将密封 `LogBlock` 转换为 UI DTO（`TaskLogMessage` / `TaskInfo`，定义于 `TaskLogDTOs.h`），经队列信号 `logBatchReceived(subscriptionId, taskId, taskName, messages)` 投递；
-* **SinkBridge 锁外解绑安全 (`detach` 协议)**：`TaskLogService` 析构时必须通过其私有 `SinkBridge::detach()` 主动断开桥接。`SinkBridge` 采用双阶段防护：原子标志 `std::atomic<bool> m_detached` 提供无锁快速判断路径（在 `LogManager` 锁外分发的 `writeBlock` / `flush` 入口直接快速返回），并在互斥锁保护下将宿主服务指针清空置零，杜绝门面析构与后台日志无锁刷新并发时的 UAF（Use-After-Free）与竞争悬空指针；
-* **订阅制陈旧批次抑制**：`subscribe()` / `unsubscribe()`；旧订阅 id 的在途批次由接收方按 id 丢弃（取代旧的 `viewGeneration()` 代数模型）；无订阅者时跳过 DTO 转换；
-* **红线**：`src/UI/` 严禁 include `Core/Logging/*`。`LogViewModel` 通过 `attachToLogService()` / `detachFromLogService()` 挂接门面（旧的 `registerWithLogManager()` 直连模式已删除）。
+UI 消费日志的**唯一通道**是 `Application::Logging::TaskLogService`（完整 API 见 [`skills/cs2-api-reference/SKILL.md`](../cs2-api-reference/SKILL.md)）：
+* 私有 `SinkBridge` 实现双阶段 `detach()` 协议（原子标志 `std::atomic<bool> m_detached` 快速跳过 + 互斥锁指针置空），防止门面析构与日志器锁外分发并发 UAF。
+* 订阅制投递 `logBatchReceived(subscriptionId, taskId, taskName, messages)`，按 `subscriptionId` 抑制陈旧批次；`src/UI/` 严禁 include `Core/Logging/*`。
 
 ---
 
 ## 2. Result 语义契约与值访问
 
 ### 2.1 契约属性
-* **`status()` / `isSuccess()` / `isFailure()` / `isCancelled()` / `isSkipped()`**：业务结果分支判定的权威来源。严禁仅凭 `errorCode()` 判定业务成败。
-* **`error()`**：机器可解析的结构化错误对象（`Core::Error::Error`），包含：
-  * `error().code()`：用于路由分支的标准 `ErrorCode` 枚举；
-  * `error().message()`：领域/系统层面的具体失败原因（如 `"gameinfo.gi not found"`）；
-  * `error().details()`：技术诊断数据（如文件路径、stderr 输出、语法行号）。
-* **`message()`**：面向用户/UI 的高层操作总结（如 `"CS2 校验失败"`）。未设置时自动回退为 `error().message()`；处于 `Skipped` 状态时携带具体跳过原因。
-* **`details()`**：直接代理 `error().details()`。
-* **i18n 契约**：`message()` 与 `error().message()` 属用户可见文案，必须在**创建处翻译**——QObject 类用 `tr()`，非 QObject 类用 `QCoreApplication::translate("<类名上下文>", "...")`；`details()` 与外部工具原始输出保持英文技术原文。
+* **`status()` / `isSuccess()` / `isFailure()` / `isCancelled()` / `isSkipped()`**：分支判定的唯一权威来源，不以 `errorCode()` 替代状态判定。
+* **`error()`**：结构化 `Core::Error::Error`，含 `code()`、`message()`、`details()`；领域枚举使用带域匹配 `error.is(domainName, code)`。
+* **`message()`**：面向用户的高层操作总结（未设置时回退 `error().message()`）；`details()` 代理 `error().details()`。
+* **i18n 契约**：`message()` 与 `error().message()` 必须在**创建处翻译**（QObject 用 `tr()`，非 QObject 用 `QCoreApplication::translate("<类名>", "...")`）；`details()` 与工具原始输出保持英文。
 
-### 2.2 值访问规范 (Value Access Contract)
-* **`hasValue()` / `isSuccess()` 前置检查**：访问业务负载 `result.value()`、`operator*`、`operator->` 前，**必须**显式检查。在无值状态下调用 `.value()` 会抛出 `std::bad_optional_access`。
-* **禁止基于异常的业务控制流**：
-  * ❌ 严禁使用 `try { auto v = res.value(); } catch (...) {}` 进行控制流分支。
-  * ✅ 规范做法：`if (res.isSuccess()) { ... } else { ... }` 或使用 `res.valueOr(...)`。
+### 2.2 值访问规范
+* 访问 `result.value()`、`operator*`、`operator->` 前必须先检查 `hasValue()` / `isSuccess()`（或使用 `valueOr(...)`）；不以 `try/catch` 驱动常规业务分支。
 
 ---
 
 ## 3. 三层诊断分层规范 (Tripartite Diagnostic Contract)
 
-`Result::failure(error, message)` 同时保存底层 `Error` 与高层操作摘要 `message`。访问 `result.message()` 时，优先返回显式设置的操作摘要；未设置时自动回退为底层 `error().message()`。
-
-三层字符串职责分工与调用约定如下：
-
 | 诊断层级 | 访问接口 | 归属层级 | 语义职责 | 示例 |
 | :--- | :--- | :--- | :--- | :--- |
-| **操作总结 (Operation Summary)** | `Result::message()` | Workflow / Application | 面向用户/任务的全局高层概括，说明**哪个宏观操作失败或成功**。 | `"地图 'de_dust2' 导入失败"`, `"CS2 环境验证失败"`, `"Steam 探测失败"` |
-| **失败原因 (Failure Reason)** | `Error::message()` | Domain / Core | 具体领域或底层系统原因，说明**为何发生失败**。 | `"gameinfo.gi 未找到"`, `"实体解析语法错误"`, `"file missing"` |
-| **技术诊断 (Technical Diagnostics)** | `Error::details()` / `Result::details()` | Domain / Core / Process | 供排查问题的底层技术诊断数据（绝对路径、stderr 输出、AST 行号、CLI 参数、退出码等）。**恒为英文原文，不翻译**。 | `"C:/Steam/steamapps/common/CS2/game/csgo/gameinfo.gi"`, 编译器 stderr 输出 |
+| **操作总结 (Operation Summary)** | `Result::message()` | Workflow / Application | 说明**哪个宏观操作失败或成功**（创建处翻译）。 | `"Map 'de_dust2' import failed"` / `"地图 'de_dust2' 导入失败"` |
+| **失败原因 (Failure Reason)** | `Error::message()` | Domain / Core | 说明**为何发生失败**（创建处翻译）。 | `"gameinfo.gi not found"` / `"未找到 gameinfo.gi"` |
+| **技术诊断 (Technical Diagnostics)** | `Error::details()` / `Result::details()` | Domain / Core / Process | 绝对路径、stderr、行号、CLI 参数、退出码等，**恒为英文原文**。 | `"C:/Steam/.../csgo/gameinfo.gi"`, 编译器 stderr |
 
-> **i18n 规则**：`Result::message()` 与 `Error::message()` 属于用户可见平面，必须在消息创建处经 `tr()` / `QCoreApplication::translate("<类名上下文>", ...)` 翻译（非 QObject 类无法使用成员 `tr()`）；日志文件与 UI 因此同语言。`details()`、外部工具原始输出、`debug()` 日志行不翻译。
+### 3.1 构造规范模式与反模式
 
-### 3.1 构造反模式与规范模式
-
-* ❌ **反模式 1：将高层操作总结挤占进 `Error.message`**
+* ❌ 反模式：将操作总结塞进 `Error.message`、把绝对路径拼进 `Error.message`，或三层字符串互相重复。
+* ✅ 规范模式 1（多层结构化失败封装）：
   ```cpp
-  // 错误：丢失了具体缺少哪个文件及底层真实原因
-  return Result<void>::failure(ErrorCode::FileNotFound, "无法导入地图");
-  ```
-* ❌ **反模式 2：把文件绝对路径等技术细节硬编码进 `Error.message`**
-  ```cpp
-  // 错误：污染 UI 错误文案，破坏错误分类归纳
-  return Result<void>::failure(ErrorCode::FileNotFound, "gameinfo.gi 未在 C:/Games/CS2/gameinfo.gi 找到");
-  ```
-* ❌ **反模式 3：三层字符串职责混乱与重复**
-  ```cpp
-  // 错误：error.message 塞了操作总结，result.message 塞了另一个错误原因，details 塞了重复文本
-  auto err = Core::Error::Error(ErrorCode::FileNotFound, "Steam 探测失败", "找不到 gameinfo.gi 路径");
-  return Result<void>::failure(err, "gameinfo.gi 文件缺失"); // 三层互相重复且颠倒
-  ```
-* ✅ **规范模式 1：多层结构化失败封装（推荐）**
-  ```cpp
-  // 正确：Error 记录具体原因与技术细节，Result 包装宏观操作总结
-  auto err = Domain::Game::GameErrors::gameInfoNotFound("file missing", gamePath.toQString());
+  auto err = Domain::Game::GameErrors::gameInfoNotFound(
+      QCoreApplication::translate("GameInfoParser", "gameinfo.gi not found"),
+      gamePath.toQString());
   return Result<void>::failure(
       err,
-      QCoreApplication::translate("GameEnvironmentService", "Steam game detection failed") // Result.message: 操作总结（创建处翻译）
-  );
-  // 最终：
-  // error.message()  = "file missing" (具体失败原因)
-  // result.message() = "Steam 游戏探测失败" (宏观操作总结，中文环境下的翻译结果)
-  // result.details() = "C:/Steam/..." (技术诊断细节)
+      QCoreApplication::translate("GameEnvironmentService", "Steam game detection failed"));
   ```
-* ✅ **规范模式 2：带技术细节的便捷重载**
+* ✅ 规范模式 2（带技术细节的便捷重载）：
   ```cpp
-  // 正确：ErrorCode + 明确原因 + 技术路径
   return Result<void>::failure(
       Core::Error::ErrorCode::FileNotFound,
-      QCoreApplication::translate("GameInfoParser", "Failed to parse GameInfo file"), // Error.message（创建处翻译）
-      gamePath.toQString()                     // Error.details（英文技术原文，不翻译）
-  );
+      QCoreApplication::translate("GameInfoParser", "Failed to parse GameInfo file"),
+      gamePath.toQString());
   ```
 
 ---
 
-## 4. 异常处理与转译边界契约
+## 4. 单点异常边界契约 (Single-Point Exception Boundary)
 
-业务主干使用 `Result<T>` 显式单层传递，底层异常在系统边界统一通过 `Core::Error::ExecutionGuard` 转译为 `Result<T>::failure`：
-* **`Core::Error::Exception`**：项目专用的结构化异常传输类型（派生自 `std::exception` / `QException`），携带强类型 `Core::Error::Error`。用于深层调用栈快速跳出。
-* **`std::exception`**：标准库与第三方库异常兜底，由 `ExecutionGuard::classifyStdException` 进行标准分类。
-* **`catch (...)`**：未知系统异常最终防线。
+遵循 **Single-Point Defense**，异常捕获与转译统一使用 **`Core::Error::ExecutionGuard`**，且**仅驻守两类权威边界**：
 
-### 4.1 通用异常边界防护 (`Core::Error::ExecutionGuard` & `ExecutionContext`)
+1. **任务调度顶层与外部同步入口**：`AsyncTaskRunner`（已内置）及直接向外部暴露的同步顶层接口；
+2. **会抛异常的底层 / 第三方库调用点**：`Core::FileSystem` 调用点、`sourcepp`（`vpkpp`/`bsppp`）、`vtfpp` 与会抛异常的 STL 原语封装内部。
 
-`ExecutionGuard` 位于通用基础设施 Core 层，为 Core、Domain 与 Workflow 提供通用的异常屏障与上下文丰富能力：
+**严禁层层嵌套**：项目内部返回 `Core::Result<T>` 的 `Workflow` / `Domain` / `Application` 纯函数之间直接透传 `Core::Result<T>`，**不在中间层重复包裹 `ExecutionGuard::guard`**，也不编写自定义 `runGuarded` 模板。
+
+### 4.1 底层抛异常边界的标准用法 (`Core::Error::ExecutionGuard` & `ExecutionContext`)
 
 ```cpp
-// 1. 带上下文描述符的闭包守卫
 Core::Error::ExecutionContext ctx{
-    .stage = QStringLiteral("Extracting pack entry"),
-    .resourcePath = QStringLiteral("materials/models/crate.vmt"),
-    .targetPath = outputFilePath
+    .stage = QStringLiteral("Decoding VTF image"),
+    .resourcePath = vtfPath.toQString(),
+    .targetPath = destPath.toQString()
 };
 
 return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
-    // 业务代码执行...
-    return Core::Result<void>::success();
-}, ctx, QCoreApplication::translate("AssetExtractor", "Failed to extract asset entry"));
+    // 仅包裹可能抛异常的 vtfpp / Core::FileSystem 调用
+    return decodeAndWrite();
+}, ctx, QCoreApplication::translate("VtfConverter", "Failed to convert VTF image"));
 ```
 
-或在常规异常捕获处手动转译：
-```cpp
-try {
-    return executeOperation();
-} catch (const Core::Error::Exception& ex) {
-    return Core::Error::ExecutionGuard::handleException<T>(ex, ctx, operationSummary);
-} catch (const std::exception& ex) {
-    return Core::Error::ExecutionGuard::handleException<T>(ex, ctx, operationSummary);
-} catch (...) {
-    return Core::Error::ExecutionGuard::handleUnknownException<T>(ctx, operationSummary);
-}
-```
+### 4.2 Core 通用性与零领域猜测契约
 
-### 4.2 Core 通用性与零领域猜测契约 (Zero Domain Knowledge in Core)
-
-* **严禁在 Core 中猜词推断领域错误**：Core 层保持完全通用，严禁在 `ExecutionGuard` 中针对异常文本进行自然语言关键词模式匹配（例如严禁使用 `msg.contains("vpk")` 或 `msg.contains("bsp")` 猜测 `ArchiveOpenFailed` 或 `EntryNotFound`）。
-* **标准异常归一化**：`classifyStdException` 仅对标准异常（`std::filesystem::filesystem_error`, `std::invalid_argument`, `std::out_of_range`, `std::bad_alloc`）进行标准 Core `ErrorCode` 归纳（`FileNotFound`, `PermissionDenied`, `FileAlreadyExists`, `InvalidArgument`, `WriteFailed`, `OutOfMemory`, `OperationFailed`）。
-* **领域异常强类型透传**：Domain/Workflow 层的特定错误（如归档打开失败、包内条目缺失等），必须由 Domain 层显式返回包含对应 `ErrorCode` 的 `Result<T>::failure`，或抛出封装了强类型 `Core::Error::Error` 的 `Core::Error::Exception`。`ExecutionGuard` 原样透传其 `ErrorCode` 并通过 `ExecutionContext` 拼接技术诊断信息（`details`）。
-
-> **边界准则**：异常只能在明确的异常边界被捕获。Application API 边界必须将异常转换为 `Core::Result<T>`；Application 内部 helper 默认不得通过 `catch (...)` 将异常静默转换为空值、空容器、`false` 或 `nullptr`。若异常确实代表合法的 best-effort fallback，必须在注释中说明该 fallback 语义，并确保不会掩盖业务失败。
+* **零领域关键词猜词**：`Core::Error::ExecutionGuard` 保持通用，严禁根据异常文本关键词（如 `msg.contains("vpk")`）猜测 Valve 领域错误码。
+* **标准异常归一化**：`classifyStdException` 仅归类标准异常（`std::filesystem::filesystem_error`, `std::invalid_argument`, `std::out_of_range`, `std::bad_alloc`）。
+* **领域错误强类型透传**：Domain 层返回带领域 `ErrorCode` 的 `Result<T>::failure` 或抛出携带 `Core::Error::Error` 的 `Core::Error::Exception`，`ExecutionGuard` 原样透传错误码并追加 `ExecutionContext` 诊断细节。
+* **严禁静默吞异常**：内部 helper 不得用 `catch (...)` 静默返回空值、`false` 或 `nullptr`；确属合法 best-effort fallback 时必须以注释明示语义且不掩盖业务失败。
 
 ---
 
 ## 5. 跨终态严重性级联与冲突仲裁矩阵
 
-### 5.1 终态严重性级联规则 (Terminal Severity Hierarchy)
+### 5.1 终态严重性级联规则
 
-单一确定性原则：**Failure 拥有最高优先级，压倒其他所有终态（无论由生命周期还是业务结果产生）。**
+**Failure 优先级最高，压倒其他所有终态**：
+1. 存在任何 `Failure`（`TaskState::Failed`、日志报错或 `Result::failure`）→ **`Failed` / `Failure`**。
+2. 否则存在 `Cancelled` → **`Cancelled` / `Cancelled`**。
+3. 否则存在 `Skipped` → **`Skipped` / `Skipped`**。
+4. 否则 → **`Completed` / `Success`**。
 
-优先级顺序：
-1. **存在任何 Failure**（`TaskState::Failed`、日志报错或 `Result::failure`）→ 终态为 **`Failed`**，最终结果为 **`Failure`**。
-2. **否则，存在任何 Cancelled**（`TaskState::Cancelled` 或 `Result::cancelled`）→ 终态为 **`Cancelled`**，最终结果为 **`Cancelled`**。
-3. **否则，存在任何 Skipped**（`TaskState::Skipped` 或 `Result::skipped`）→ 终态为 **`Skipped`**，最终结果为 **`Skipped`**。
-4. **否则** → 终态为 **`Completed`**，最终结果为 **`Success`**。
+### 5.2 跨终态冲突仲裁矩阵
 
-### 5.2 跨终态冲突仲裁矩阵 (State Conflict Arbitration Matrix)
-
-| Context `TaskState` | Worker `Result` | 是否记录契约违规日志 | LogManager 最终 `TaskState` | 回调接收的最终 `Result<T>` |
+| Context `TaskState` | Worker `Result` | 契约违规日志 | LogManager 最终 `TaskState` | 回调接收的最终 `Result<T>` |
 | :--- | :--- | :--- | :--- | :--- |
 | **Failed** (或有错误日志) | **Success** | `error()` ("... 任务失败后返回了 success") | `Failed` | 强制转为 `Failure` (`OperationFailed`) |
-| **Failed** (或有错误日志) | **Failure** | 否（达成一致） | `Failed` | `Failure`（保留原错误） |
+| **Failed** (或有错误日志) | **Failure** | 否 | `Failed` | `Failure`（保留原错误） |
 | **Failed** (或有错误日志) | **Cancelled** | `error()` ("... 任务失败后返回了 cancelled") | `Failed` | 强制转为 `Failure` (`OperationFailed`) |
 | **Failed** (或有错误日志) | **Skipped** | `error()` ("... 任务失败后返回了 skipped") | `Failed` | 强制转为 `Failure` (`OperationFailed`) |
 | **Cancelled** (无错误) | **Success** | `warning()` ("... 任务取消后返回了 success") | `Cancelled` | 强制转为 `Cancelled` |
 | **Cancelled** (无错误) | **Failure** | `warning()` ("... 任务取消后返回了 failure") | `Failed` | `Failure`（保留原错误） |
-| **Cancelled** (无错误) | **Cancelled** | 否（达成一致） | `Cancelled` | `Cancelled`（保留原状态） |
+| **Cancelled** (无错误) | **Cancelled** | 否 | `Cancelled` | `Cancelled`（保留原状态） |
 | **Cancelled** (无错误) | **Skipped** | `warning()` ("... 任务取消后返回了 skipped") | `Cancelled` | 强制转为 `Cancelled` |
 | **Skipped** (无错误) | **Success** | `warning()` ("... 任务跳过后返回了 success") | `Skipped` | 强制转为 `Skipped` |
 | **Skipped** (无错误) | **Failure** | `warning()` ("... 任务跳过后返回了 failure") | `Failed` | `Failure`（保留原错误） |
 | **Skipped** (无错误) | **Cancelled** | `warning()` ("... 任务跳过后返回了 cancelled") | `Cancelled` | `Cancelled`（保留原状态） |
-| **Skipped** (无错误) | **Skipped** | 否（达成一致） | `Skipped` | `Skipped`（保留原状态） |
-| **Completed / Running** | **Success** | 否（达成一致） | `Completed` | `Success`（保留原结果） |
-| **Completed / Running** | **Failure** | 否（状态顺推） | `Failed` | `Failure`（保留原错误） |
-| **Completed / Running** | **Cancelled** | 否（状态顺推） | `Cancelled` | `Cancelled`（保留原状态） |
-| **Completed / Running** | **Skipped** | 否（状态顺推） | `Skipped` | `Skipped`（保留原状态） |
+| **Skipped** (无错误) | **Skipped** | 否 | `Skipped` | `Skipped`（保留原状态） |
+| **Completed / Running** | **Success** | 否 | `Completed` | `Success`（保留原结果） |
+| **Completed / Running** | **Failure** | 否 | `Failed` | `Failure`（保留原错误） |
+| **Completed / Running** | **Cancelled** | 否 | `Cancelled` | `Cancelled`（保留原状态） |
+| **Completed / Running** | **Skipped** | 否 | `Skipped` | `Skipped`（保留原状态） |
 
-* **负载保全规则**：当 `Result<T>` 因契约冲突转换状态时，已有的部分数据负载（`result.value()`）严格予以保留（`Result::failure/cancelled/skipped` 均提供带 `partialValue` 的重载）。
-* **原始错误保留规则**：因契约违规转换为 `Failure` 时，若原 `Result` 中已含有非成功错误信息，完整保留其错误码与诊断细节；仅当原结果无有效错误（如原为 `Success`）时才合成 `OperationFailed`。
-* **仲裁执行与进度机制**：矩阵由 `AsyncTaskRunner::runTaskInternal` 结合 `LogManager::forceTaskState(taskId, state, message)` 落地（幂等：重复强制同一终态不再重复 flush/通知）；转移至 `Completed` 终态时，`TaskLoggingContext::forceTerminalState` 保证将进度强制刷新为 100% (1.0)；工作流内部经 `ImportContext::runStep` 编排时，步骤启动时仅设定当前操作摘要（`updateCurrentMessage`），步骤成功且未取消时才递进进度（`updateProgress`），避免进度条提前跳跃虚增。
-* **终态不可逆规则**：`TaskLoggingContext::forceTerminalState` 是执行仲裁覆盖入口（可重判终态，如 `Cancelled → Failed`），但已处于失败类终态的任务**永远不可被重判为 Completed**；终态永不回退为非终态。
-* **取消级联**：`LogManager::cancelTask` 会级联取消全部子孙任务（BFS 遍历，环防护），保证日志树不出现"父已取消而子仍在运行"。
-* **故障屏障（FaultBarrier）**：致命故障路径走 `LogManager::reportFault(taskId, msg)` → `beginFaultDraining()` → `terminateAfterFault()`；任务上下文侧对应 `TaskLoggingContext::reportFault`（返回 `LogSubmissionResult`）。
+* **负载与原错误保全**：状态冲突重判时，已有 `partialValue` 与原错误码/诊断细节完整保留；仅原结果为 `Success` 且转 `Failure` 时合成 `OperationFailed`。
+* **终态不可逆与进度刷新**：`forceTerminalState` 永不将失败类终态回退为 `Completed`，进入 `Completed` 时进度强制刷新为 1.0；`ImportContext::runStep` 在步骤成功且未取消后才递进进度。
+* **取消级联与故障屏障**：`LogManager::cancelTask` 级联取消全部子孙任务（BFS）；致命故障走 `reportFault` → `beginFaultDraining` → `terminateAfterFault`。
 
 ---
 
-## 6. 进程机械结果 (`ProcessResult`) 与业务错误模型转换
+## 6. 进程机械结果 (`ProcessResult`) 与外部工具子任务绑定
 
-`Core::Process::ProcessResult` 描述的是外部进程执行的底层机械状态（退出码、`stdOut`、`stdErr`、系统报错）。外部工具包装层（`Domain::Tool`）统一将其实例化并转译为业务错误。
-
-### 6.1 标准转换映射规则
+### 6.1 机械状态到标准错误码映射
 
 | 机械状态 (`ProcessStatus`) | 标准错误码 (`ErrorCode`) | 说明 |
 | :--- | :--- | :--- |
-| `ProcessStatus::Success` | `ErrorCode::Success` | 进程正常退出且退出码为 0 |
+| `ProcessStatus::Success` | `ErrorCode::Success` | 正常退出且退出码为 0 |
 | `ProcessStatus::FailedToStart` | `ErrorCode::ProcessFailed` (或 `ProcessNotFound`) | 可执行文件缺失、权限不足或启动失败 |
-| `ProcessStatus::TimedOut` | `ErrorCode::ProcessTimeout` | 进程执行超时被主动终止 |
-| `ProcessStatus::Crashed` | `ErrorCode::ProcessCrashed` | 进程异常崩溃或收到致命信号（`toErrorCode()` 直接返回） |
-| `ProcessStatus::NonZeroExit` | `ErrorCode::ProcessFailed` | 进程非零异常退出 |
-| `ProcessStatus::Cancelled` | `ErrorCode::Cancelled` | 进程因取消令牌触发而被终止 |
+| `ProcessStatus::TimedOut` | `ErrorCode::ProcessTimeout` | 执行超时被终止 |
+| `ProcessStatus::Crashed` | `ErrorCode::ProcessCrashed` | 进程异常崩溃 |
+| `ProcessStatus::NonZeroExit` | `ErrorCode::ProcessFailed` | 非零退出码 |
+| `ProcessStatus::Cancelled` | `ErrorCode::Cancelled` | 取消令牌触发终止 |
 
-### 6.2 诊断字段组装与调用示例
-
-* **`Error.message()`**：机械错误说明（如 `"Process execution failed with exit code 1"`）。
-* **`Error.details()`**：技术诊断输出（优先包含 `stdErr.trimmed()`，为空时使用 `stdOut.trimmed()`）。
-* **`Result.message()`**：当前上层宏观操作摘要（如 `"BSPSRC 反编译地图失败"`）。
+### 6.2 诊断字段组装示例
 
 ```cpp
-Core::Process::ProcessResult procResult = processRunner.run(cmd, args, options);
-
+auto procResult = Core::Process::ProcessRunner::run(cmd, args, options);
 if (!procResult.isSuccess()) {
     return Result<void>::failure(
         procResult.toError(),
-        QCoreApplication::translate("MapImportWorkflow", "BSP decompilation failed") // Result.message: 操作总结（创建处翻译）
-    );
+        QCoreApplication::translate("MapImportWorkflow", "BSP decompilation failed"));
 }
 ```
 
-### 6.3 实时流式捕获与 Tool Task 绑定模式
+### 6.3 实时流式捕获与 Tool Sub-Task 绑定模式
 
-外部编译/导入工具执行周期通常较长，严禁进行静默无反馈的黑盒调用。必须通过 `ProcessOptions` 的回调将 stdout 与 stderr 实时直通接入任务上下文（外部工具输出使用 `logExternalToolOutput` 保持原始输出，多文件批处理自适应使用 `-filelist` 临时清单）：
+`Domain::Tool` 严禁 include `Core/Logging/LogManager.h` 或直调 `LogManager::instance()`，一律通过传入的 `taskCtx` 派生隐藏工具子任务（多文件批处理自适应使用 `Core::Temp::TempFile` 生成 `-filelist`）：
 
 ```cpp
-// 1. 创建隐藏 Tool 任务（LogManager 是唯一创建入口；父阶段任务自动记录 [EXEC]）
-//    规范调用方参见 Domain::Tool::ResourceCompilerTool / Source1ImportTool
-auto toolTask = Core::Logging::LogManager::instance().createToolTask(
-    taskCtx->taskId(),      // 父阶段任务 id
-    fullCommandLine,        // 完整命令行（工具名据此解析，支持带引号的含空格路径）
-    assetBaseName);
-toolTask->start();
+// 1. 通过父阶段 TaskLoggingContext 派生隐藏工具子任务（内部自动启动并在父任务记录 [EXEC]）
+std::shared_ptr<Core::Logging::TaskLoggingContext> childTask;
+if (taskCtx) {
+    childTask = taskCtx->createToolSubTask(fullCommandLine, assetBaseName);
+}
 
 // 2. 配置流式捕获回调与协作式取消令牌
 Core::Process::ProcessOptions options;
 options.cancellationToken = cancelToken;
-options.timeout = 180000; // 3 分钟超时
-options.onStdOutLine = [toolTask](const QString& line) {
-    toolTask->logExternalToolOutput(line, Core::Logging::LogLevel::Info);
-    toolTask->flush(); // 实时落盘与通知
+options.timeout = 180000;
+options.onStdOutLine = [childTask](const QString& line) {
+    if (childTask) {
+        childTask->logExternalToolOutput(line, Core::Logging::LogLevel::Info);
+        childTask->flush();
+    }
 };
-options.onStdErrLine = [toolTask](const QString& line) {
-    toolTask->logExternalToolOutput(line, Core::Logging::LogLevel::Warning);
-    toolTask->flush();
+options.onStdErrLine = [childTask](const QString& line) {
+    if (childTask) {
+        childTask->logExternalToolOutput(line, Core::Logging::LogLevel::Warning);
+        childTask->flush();
+    }
 };
 
-// 3. 执行进程
+// 3. 执行外部进程
 auto procResult = Core::Process::ProcessRunner::run(executable, options);
 
-// 4. 根据结果结束 Tool 任务（终态摘要为用户可见文案，创建处翻译）
-if (procResult.isSuccess()) {
-    toolTask->complete(QCoreApplication::translate("ToolWorkflow", "Tool execution completed"));
-} else if (procResult.isCancelled()) {
-    toolTask->cancel(QCoreApplication::translate("ToolWorkflow", "Tool execution cancelled by user"));
-} else {
-    toolTask->fail(procResult.errorMessage);
+// 4. 通过子任务句柄完结终态（用户可见摘要在创建处翻译）
+if (childTask) {
+    if (procResult.isSuccess()) {
+        childTask->finishToolSubTask(
+            QCoreApplication::translate("ResourceCompilerTool", "Tool execution completed"));
+    } else if (procResult.isCancelled()) {
+        childTask->cancelToolSubTask(
+            QCoreApplication::translate("ResourceCompilerTool", "Tool execution cancelled by user"));
+    } else {
+        childTask->failToolSubTask(procResult.errorMessage);
+    }
 }
 ```
-
----
-
-## 7. 测试生命周期契约 (Testing Lifecycle Policy)
-
-测试代码必须严格遵守仓库的分层依赖拓扑与生命周期契约：
-
-1. **长期零常驻测试契约**：
-   - 代码库默认不保留任何常驻单元测试（`tests/` 目录与 CTest 配置已全量移除）；
-   - 主工程 `CMakeLists.txt` 不默认启用 `enable_testing()`，保障编译与分发环境的绝对纯净。
-2. **临时单任务测试（Task-Scoped / Ephemeral Tests，用完即删）**：
-   - 针对各层（Core / Domain / Workflow / Application / UI）的验证测试，一律定义为**临时单任务测试**；
-   - 仅在开发相应功能、验证重构或排查特定缺陷时按需编写（测试目标采用 `test_tmp_*` 命名前缀）；
-   - **任务完成提交前必须立即彻底删除**：测试源码文件及其在 `CMakeLists.txt` 中的配置必须连同清理，严禁将任何测试代码长期残留滞留在代码库中。
-

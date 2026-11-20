@@ -1,18 +1,23 @@
 #pragma once
 
 #include "Application/Environment/GameInstallationInfo.h"
-#include "Application/Environment/GameInstallation.h"
 #include "Application/Async/SystemTaskLog.h"
-#include "Domain/Game/GameType.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
 #include <functional>
-#include <vector>
 #include <QObject>
 #include <QString>
-#include <QStringList>
+
+namespace Domain::Game {
+struct ResolvedGameInstallation;
+}
 
 namespace Application::Environment {
+
+/**
+ * @brief Converts a Domain ResolvedGameInstallation directly into the UI-facing GameInstallationInfo DTO.
+ */
+GameInstallationInfo toInstallationInfo(const Domain::Game::ResolvedGameInstallation& resolved);
 
 /**
  * @brief Application service responsible for discovering game installations across Steam libraries.
@@ -37,12 +42,6 @@ public:
 
     static Core::Result<DetectionResult> detectEnvironment(
         const QString& customSteamPath,
-        const Application::Async::SystemTaskLog* logCtx = nullptr);
-
-    // Synchronous single game detection in Steam libraries (Application internal model)
-    static Core::Result<GameInstallation> detectGame(
-        Domain::Game::GameType type,
-        const Core::Path::FilesystemPath& customSteamPath = {},
         const Application::Async::SystemTaskLog* logCtx = nullptr);
 };
 

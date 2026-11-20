@@ -1,9 +1,14 @@
 #pragma once
 
+#include <memory>
 #include <vector>
 #include "Core/Path/FilesystemPath.h"
 #include <QString>
 #include <QStringList>
+
+namespace Domain::Package {
+class VpkIndex;
+}
 
 namespace Workflow::Particle {
 
@@ -23,6 +28,8 @@ struct ParticleImportOptions {
     Core::Path::FilesystemPath resourceCompilerExe;
     // Per-tool timeout override in milliseconds; 0 keeps the tool default (120 s).
     int toolTimeoutMs = 0;
+    std::shared_ptr<const Domain::Package::VpkIndex> vpkIndex;
+    std::shared_ptr<const Domain::Package::VpkIndex> cs2Index;
 
     Core::Path::FilesystemPath sourcePcfPath() const {
         return sourcePcfPaths.empty() ? Core::Path::FilesystemPath{} : sourcePcfPaths.front();

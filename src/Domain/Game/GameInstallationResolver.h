@@ -5,6 +5,7 @@
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
 #include <QStringList>
+#include <vector>
 
 namespace Domain::Game {
 
@@ -57,6 +58,15 @@ public:
 
     // Lists all addons in a Source 2 installation directory
     static QStringList listSource2Addons(const Core::Path::FilesystemPath& s2BasePath);
+
+    // Resolves CS2 native VPK targets from game/csgo/gameinfo.gi (SearchPaths -> Game) with csgo/core fallback
+    static Core::Result<std::vector<Core::Path::FilesystemPath>> resolveCs2VpkTargets(
+        const Core::Path::FilesystemPath& cs2BasePath);
+
+    // Resolves Source 1 VPK targets from a gameinfo.txt file or game/mod directory
+    static Core::Result<std::vector<Core::Path::FilesystemPath>> resolveSource1VpkTargets(
+        const QString& gameId,
+        const Core::Path::FilesystemPath& gameInfoPathOrDir);
 };
 
 } // namespace Domain::Game

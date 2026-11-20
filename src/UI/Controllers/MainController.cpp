@@ -4,8 +4,6 @@
 #include <QGuiApplication>
 #include <QQmlEngine>
 #include <QStyleHints>
-#include <QUrl>
-#include <QMetaObject>
 #include <QPointer>
 
 #ifndef APP_VERSION
@@ -122,44 +120,14 @@ void MainController::startParticleImport(
         m_logViewModel->collapseAll();
     }
 
-    const bool isCsgo = (s1GameType.compare(QStringLiteral("CSGO"), Qt::CaseInsensitive) == 0);
-
-    QStringList sanitizedPcfPaths;
-    for (const QString& rawPath : sourcePcfPaths) {
-        QString sanitizedPcfPath = rawPath.trimmed();
-        if (sanitizedPcfPath.isEmpty()) {
-            continue;
-        }
-        if (sanitizedPcfPath.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)) {
-            // Normalize malformed Windows file URLs with only 2 slashes, e.g. file://C:/...
-            // where index 7 is the drive letter and index 8 is ':'.
-            // This avoids QUrl interpreting the drive letter as a hostname.
-            if (sanitizedPcfPath.size() >= 9 &&
-                (sanitizedPcfPath.at(5) == QLatin1Char('/') || sanitizedPcfPath.at(5) == QLatin1Char('\\')) &&
-                (sanitizedPcfPath.at(6) == QLatin1Char('/') || sanitizedPcfPath.at(6) == QLatin1Char('\\')) &&
-                sanitizedPcfPath.at(7).isLetter() &&
-                sanitizedPcfPath.at(8) == QLatin1Char(':')) {
-                sanitizedPcfPath = QStringLiteral("file:///") + sanitizedPcfPath.mid(7);
-            }
-
-            QUrl pcfUrl(sanitizedPcfPath);
-            QString local = pcfUrl.toLocalFile();
-            if (!local.isEmpty()) {
-                sanitizedPcfPath = local;
-            }
-        }
-        sanitizedPcfPaths.append(sanitizedPcfPath);
-    }
-
     Application::Particle::ParticleImportRequest request;
     request.source1GameDir = source1GameDir;
     request.s1GameInfoDir = s1GameInfoDir;
     request.cs2BaseDir = cs2BaseDir;
     request.addonName = addonName;
-    request.sourcePcfPaths = sanitizedPcfPaths;
+    request.sourcePcfPaths = sourcePcfPaths;
     request.allowDepthBlend = allowDepthBlend;
     request.disableDiffuse = disableDiffuse;
-    request.isCsgo = isCsgo;
     request.gameId = s1GameType;
 
     if (!m_particleImportService) {
@@ -183,38 +151,33 @@ void MainController::startParticleImport(
             if (!self) {
                 return;
             }
-            QMetaObject::invokeMethod(self, [self, result]() {
-                if (!self) {
-                    return;
-                }
-                self->m_isProcessing = false;
-                emit self->isProcessingChanged();
+            self->m_isProcessing = false;
+            emit self->isProcessingChanged();
 
-                if (result.isSuccess()) {
-                    const auto& data = result.valueOr(Application::Particle::ParticleImportResult{});
-                    const QString title = (data.totalFailed > 0)
-                        ? QCoreApplication::translate("MainController", "Particle Import Completed with Warnings")
-                        : QCoreApplication::translate("MainController", "Particle Import Complete");
-                    emit self->alertRequested(
-                        title,
-                        result.message().isEmpty()
-                            ? QCoreApplication::translate("MainController", "All particles were successfully imported and compiled.")
-                            : result.message()
-                    );
-                } else if (result.isCancelled()) {
-                    emit self->alertRequested(
-                        QCoreApplication::translate("MainController", "Import Cancelled"),
-                        QCoreApplication::translate("MainController", "Particle import was cancelled by user.")
-                    );
-                } else {
-                    emit self->alertRequested(
-                        QCoreApplication::translate("MainController", "Particle Import Failed"),
-                        result.message().isEmpty()
-                            ? QCoreApplication::translate("MainController", "An error occurred during particle import.")
-                            : result.message()
-                    );
-                }
-            }, Qt::QueuedConnection);
+            if (result.isSuccess()) {
+                const auto& data = result.valueOr(Application::Particle::ParticleImportResult{});
+                const QString title = (data.totalFailed > 0)
+                    ? QCoreApplication::translate("MainController", "Particle Import Completed with Warnings")
+                    : QCoreApplication::translate("MainController", "Particle Import Complete");
+                emit self->alertRequested(
+                    title,
+                    result.message().isEmpty()
+                        ? QCoreApplication::translate("MainController", "All particles were successfully imported and compiled.")
+                        : result.message()
+                );
+            } else if (result.isCancelled()) {
+                emit self->alertRequested(
+                    QCoreApplication::translate("MainController", "Import Cancelled"),
+                    QCoreApplication::translate("MainController", "Particle import was cancelled by user.")
+                );
+            } else {
+                emit self->alertRequested(
+                    QCoreApplication::translate("MainController", "Particle Import Failed"),
+                    result.message().isEmpty()
+                        ? QCoreApplication::translate("MainController", "An error occurred during particle import.")
+                        : result.message()
+                );
+            }
         }
     );
 }

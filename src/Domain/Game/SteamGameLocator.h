@@ -11,14 +11,46 @@
 
 namespace Domain::Game {
 
+struct SteamLibrary {
+    Core::Path::FilesystemPath path;
+    std::vector<int> installedAppIds;
+};
+
 /**
  * @brief Domain service for locating and resolving Valve game installations
- * within Steam library directory structures.
+ * within Steam library directory structures, including VDF/ACF manifest parsing.
  */
 class SteamGameLocator {
 public:
-    using InstallDirReaderFn = std::function<Core::Result<QString>(const Core::Path::FilesystemPath& libraryPath, int appId)>;
     using DiagnosticFn = std::function<void(const QString& warning)>;
+
+    /**
+     * @brief Discovers all Steam library folders from a Steam root directory.
+     * Parses steamapps/libraryfolders.vdf when present, falling back to scanning
+     * steamapps/appmanifest_*.acf under the Steam root if the VDF file does not exist.
+     */
+    static Core::Result<std::vector<SteamLibrary>> discoverLibraries(
+        const Core::Path::FilesystemPath& steamRootPath);
+
+    /**
+     * @brief Parses a Steam libraryfolders.vdf file and discovers installed AppIds.
+     */
+    static Core::Result<std::vector<SteamLibrary>> parseLibraryFolders(
+        const Core::Path::FilesystemPath& libraryFoldersVdfPath);
+
+    /**
+     * @brief Reads the 'installdir' property from steamapps/appmanifest_<appId>.acf.
+     */
+    static Core::Result<QString> readAppInstallDir(
+        const Core::Path::FilesystemPath& libraryPath,
+        int appId);
+
+    /**
+     * @brief Reads the 'name' property from steamapps/appmanifest_<appId>.acf.
+     */
+    static Core::Result<QString> readAppName(
+        const Core::Path::FilesystemPath& libraryPath,
+        int appId);
 
     /**
      * @brief Resolves candidate game root paths in a Steam library for an AppId.
@@ -34,7 +66,6 @@ public:
     static std::vector<ResolvedGameInstallation> resolveGamesInLibrary(
         const Core::Path::FilesystemPath& libraryPath,
         const std::vector<int>& installedAppIds,
-        const InstallDirReaderFn& installDirReader = nullptr,
         const DiagnosticFn& diagnosticHandler = nullptr);
 
     /**
@@ -43,9 +74,7 @@ public:
     static std::optional<ResolvedGameInstallation> resolveGameInLibrary(
         const Core::Path::FilesystemPath& libraryPath,
         GameType type,
-        const InstallDirReaderFn& installDirReader = nullptr,
         const DiagnosticFn& diagnosticHandler = nullptr);
 };
 
 } // namespace Domain::Game
-

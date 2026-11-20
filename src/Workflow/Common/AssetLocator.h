@@ -41,7 +41,7 @@ struct AssetLocateOptions {
 
 /**
  * @brief Workflow service for asset discovery and reporting.
- * Coordinates Domain::Asset::AssetLocateStrategy with Domain::Asset::ArchiveAssetSourceProber,
+ * Coordinates Domain::Asset::AssetLocateStrategy with optional shared archive pools and VPK indices,
  * handling CancellationToken checks, user-visible translations, and TaskLoggingContext output.
  */
 class AssetLocator {

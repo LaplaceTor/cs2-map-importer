@@ -6,7 +6,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <thread>
 #include <unordered_set>
 #include <vector>
 
@@ -14,6 +13,8 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QString>
+#include <QThread>
+#include <QThreadPool>
 
 #include <bsppp/BSP.h>
 #include <mz.h>
@@ -46,7 +47,7 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
             QCoreApplication::translate("BspPackExtractor", "destination directory is empty or invalid"));
     }
 
-    if (options.isCancelled && options.isCancelled()) {
+    if (options.token.isCancelled()) {
         return Core::Result<std::size_t>::cancelled(
             QCoreApplication::translate("BspPackExtractor", "BSP embedded file extraction cancelled"), 0);
     }
@@ -135,7 +136,7 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
             QCoreApplication::translate("BspPackExtractor", "BSP contains no embedded files"));
     }
 
-    if (options.isCancelled && options.isCancelled()) {
+    if (options.token.isCancelled()) {
         return Core::Result<std::size_t>::cancelled(
             QCoreApplication::translate("BspPackExtractor", "BSP embedded file extraction cancelled"), 0);
     }
@@ -152,11 +153,12 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
         }
     }
 
-    // Phase 2: Multi-threaded in-memory extraction
-    const unsigned int hardwareThreads = std::thread::hardware_concurrency();
-    const unsigned int maxWorkers = std::clamp(hardwareThreads, 2u, 16u);
-    const unsigned int numWorkers = std::min<unsigned int>(
-        maxWorkers, static_cast<unsigned int>(entriesToExtract.size()));
+    // Phase 2: Bounded concurrent in-memory extraction via a local QThreadPool
+    // (local pool avoids deadlocking if extractAll itself runs on QThreadPool::globalInstance()).
+    const int idealThreads = std::max(1, QThread::idealThreadCount());
+    const int maxWorkers = std::clamp(idealThreads, 2, 8);
+    const int numWorkers = std::min<int>(
+        maxWorkers, static_cast<int>(entriesToExtract.size()));
 
     std::atomic<std::size_t> nextIndex{0};
     std::atomic<std::size_t> successCount{0};
@@ -184,7 +186,7 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
             if (cancelRequested.load(std::memory_order_relaxed)) {
                 break;
             }
-            if (options.isCancelled && options.isCancelled()) {
+            if (options.token.isCancelled()) {
                 cancelRequested.store(true, std::memory_order_relaxed);
                 break;
             }
@@ -246,15 +248,15 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
         mz_stream_mem_delete(&localMemStream);
     };
 
-    std::vector<std::thread> workers;
-    workers.reserve(numWorkers);
-    for (unsigned int w = 0; w < numWorkers; ++w) {
-        workers.emplace_back(workerFunc);
-    }
-    for (auto& worker : workers) {
-        if (worker.joinable()) {
-            worker.join();
+    if (numWorkers <= 1) {
+        workerFunc();
+    } else {
+        QThreadPool localPool;
+        localPool.setMaxThreadCount(numWorkers);
+        for (int w = 0; w < numWorkers; ++w) {
+            localPool.start(workerFunc);
         }
+        localPool.waitForDone();
     }
 
     std::size_t extracted = successCount.load(std::memory_order_relaxed);

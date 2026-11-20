@@ -3,13 +3,14 @@
 #include <cstddef>
 #include <functional>
 
+#include "Core/Async/CancellationToken.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
 
 namespace Domain::Package {
 
 struct BspExtractOptions {
-    std::function<bool()> isCancelled;
+    Core::Async::CancellationToken token;
     std::function<void(std::size_t current, std::size_t total)> onProgress;
 };
 
@@ -22,7 +23,7 @@ public:
      * Result semantics:
      * - Success: All files extracted (payload = extracted file count).
      * - Skipped: BSP has no PAKFILE lump or it contains 0 files.
-     * - Cancelled: Extraction was cancelled mid-flight via isCancelled (payload = partial count).
+     * - Cancelled: Extraction was cancelled mid-flight via token (payload = partial count).
      * - Failure: Missing file, invalid path, or corrupted lump.
      */
     static Core::Result<std::size_t> extractAll(

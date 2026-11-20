@@ -2,8 +2,10 @@
 #include "Application/Common/ImportPrerequisiteService.h"
 
 #include <QDir>
+#include "Application/Environment/GameEnvironmentService.h"
 #include "Application/Environment/VpkSignatureLeaseService.h"
 #include "Application/Package/VpkIndexService.h"
+#include "Workflow/Common/ImportContext.h"
 #include "Domain/Game/GameInstallationResolver.h"
 #include "Domain/Tool/Cs2PathLayout.h"
 #include "Core/Error/ErrorCode.h"
@@ -45,6 +47,12 @@ void ImportPrerequisiteService::setVpkIndexService(
 }
 
 Core::Result<ValidatedBaseImport> ImportPrerequisiteService::prepare(
+    const BaseImportRequest& request) const
+{
+    return prepare(request, Workflow::Common::ImportContext{});
+}
+
+Core::Result<ValidatedBaseImport> ImportPrerequisiteService::prepare(
     const BaseImportRequest& request,
     const Workflow::Common::ImportContext& context) const
 {
@@ -55,7 +63,7 @@ Core::Result<ValidatedBaseImport> ImportPrerequisiteService::prepare(
     }
 
     // Step 2: Validate Source 1 directory
-    const QString trimmedS1Dir = request.source1GameDir.trimmed();
+    const QString trimmedS1Dir = Environment::GameEnvironmentService::cleanPath(request.source1GameDir);
     if (trimmedS1Dir.isEmpty()) {
         return Core::Result<ValidatedBaseImport>::failure(
             Core::Error::ErrorCode::InvalidPath,
@@ -70,25 +78,21 @@ Core::Result<ValidatedBaseImport> ImportPrerequisiteService::prepare(
 
     // Resolve Source 1 gameinfo directory
     QString resolvedS1GameInfoDir;
-    const QString trimmedReqGiDir = request.s1GameInfoDir.trimmed();
+    const QString trimmedReqGiDir = Environment::GameEnvironmentService::cleanPath(request.s1GameInfoDir);
     if (!trimmedReqGiDir.isEmpty() && QDir(trimmedReqGiDir).exists()) {
         resolvedS1GameInfoDir = trimmedReqGiDir;
     } else {
         const Core::Path::FilesystemPath s1Path(trimmedS1Dir);
-        if ((s1Path / QStringLiteral("gameinfo.txt")).exists()) {
-            resolvedS1GameInfoDir = trimmedS1Dir;
+        auto inspectRes = Domain::Game::GameInstallationResolver::inspectGameInfo(s1Path);
+        if (inspectRes.isSuccess() && inspectRes.value().modDirectory().isValid() && inspectRes.value().modDirectory().exists()) {
+            resolvedS1GameInfoDir = inspectRes.value().modDirectory().toString();
         } else {
-            auto inspectRes = Domain::Game::GameInstallationResolver::inspectGameInfo(s1Path);
-            if (inspectRes.isSuccess() && inspectRes.value().modDirectory().isValid() && inspectRes.value().modDirectory().exists()) {
-                resolvedS1GameInfoDir = inspectRes.value().modDirectory().toString();
-            } else {
-                resolvedS1GameInfoDir = trimmedS1Dir;
-            }
+            resolvedS1GameInfoDir = trimmedS1Dir;
         }
     }
 
     // Step 3: Validate CS2 base directory
-    const QString trimmedCs2Dir = request.cs2BaseDir.trimmed();
+    const QString trimmedCs2Dir = Environment::GameEnvironmentService::cleanPath(request.cs2BaseDir);
     if (trimmedCs2Dir.isEmpty()) {
         return Core::Result<ValidatedBaseImport>::failure(
             Core::Error::ErrorCode::InvalidPath,

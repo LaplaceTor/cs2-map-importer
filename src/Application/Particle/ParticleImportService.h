@@ -26,7 +26,7 @@ namespace Application::Particle {
  * Implements the Application layer contract:
  * - Delegates common environment preparation to Application::Common::ImportPrerequisiteService.
  * - Translates UI/Application ParticleImportRequest into Workflow ParticleImportOptions.
- * - Wraps execution boundaries with Application::Execution::ExecutionGuard.
+ * - Wraps synchronous execution boundaries with Core::Error::ExecutionGuard.
  * - Bridges asynchronous execution to Worker threads via Application::Async::AsyncTaskRunner.
  * - Manages dual-plane lifecycle: TaskState in LogManager vs typed Result<ParticleImportResult>.
  * - Returns Application::Async::TaskHandle for unified cooperative cancellation and tracking.

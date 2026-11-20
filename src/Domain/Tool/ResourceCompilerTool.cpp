@@ -6,7 +6,6 @@
 #include "Core/Process/ProcessRunner.h"
 #include "Core/Process/ProcessOptions.h"
 #include "Core/Process/ProcessResult.h"
-#include "Core/Logging/LogManager.h"
 #include "Core/Temp/TempFile.h"
 #include <QDateTime>
 #include <QDir>
@@ -79,11 +78,8 @@ Core::Result<ResourceCompilerToolResult> compileInternal(
     QString fullCommandLine = QStringLiteral("%1 %2").arg(toolBinaryPath.toString(), args.join(QLatin1Char(' ')));
 
     std::shared_ptr<Core::Logging::TaskLoggingContext> childTask;
-    if (taskCtx && taskCtx->taskId() != 0) {
-        childTask = Core::Logging::LogManager::instance().createToolTask(taskCtx->taskId(), fullCommandLine);
-        if (childTask) {
-            childTask->start();
-        }
+    if (taskCtx) {
+        childTask = taskCtx->createToolSubTask(fullCommandLine);
     }
 
     Core::Process::ProcessOptions procOptions;
@@ -133,7 +129,7 @@ Core::Result<ResourceCompilerToolResult> compileInternal(
 
     if (procResult.isCancelled() || options.cancellationToken.isCancelled()) {
         if (childTask) {
-            Core::Logging::LogManager::instance().cancelTask(childTask->taskId(), QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler cancelled"));
+            childTask->cancelToolSubTask(QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler cancelled"));
         }
         if (taskCtx) {
             taskCtx->warning(QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler was cancelled"));
@@ -145,7 +141,7 @@ Core::Result<ResourceCompilerToolResult> compileInternal(
     if (procResult.status == Core::Process::ProcessStatus::Crashed) {
         if (childTask) {
             childTask->error(procResult.errorMessage);
-            Core::Logging::LogManager::instance().failTask(childTask->taskId(), procResult.errorMessage);
+            childTask->failToolSubTask(procResult.errorMessage);
         }
         if (taskCtx) {
             taskCtx->warning(QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler crashed: %1").arg(procResult.errorMessage));
@@ -158,7 +154,7 @@ Core::Result<ResourceCompilerToolResult> compileInternal(
     if (procResult.status == Core::Process::ProcessStatus::TimedOut) {
         if (childTask) {
             childTask->error(QCoreApplication::translate("ResourceCompilerTool", "Timed out"));
-            Core::Logging::LogManager::instance().failTask(childTask->taskId(), QCoreApplication::translate("ResourceCompilerTool", "Timed out"));
+            childTask->failToolSubTask(QCoreApplication::translate("ResourceCompilerTool", "Timed out"));
         }
         if (taskCtx) {
             taskCtx->warning(QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler timed out after %1 ms").arg(procOptions.timeout));
@@ -171,7 +167,7 @@ Core::Result<ResourceCompilerToolResult> compileInternal(
     if (procResult.status == Core::Process::ProcessStatus::FailedToStart) {
         if (childTask) {
             childTask->error(procResult.errorMessage);
-            Core::Logging::LogManager::instance().failTask(childTask->taskId(), procResult.errorMessage);
+            childTask->failToolSubTask(procResult.errorMessage);
         }
         if (taskCtx) {
             taskCtx->warning(QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler failed to start: %1").arg(procResult.errorMessage));
@@ -217,7 +213,7 @@ Core::Result<ResourceCompilerToolResult> compileInternal(
             : logResult.compileErrors.join(QCoreApplication::translate("ResourceCompilerTool", "; "));
         if (childTask) {
             childTask->error(failureReason);
-            Core::Logging::LogManager::instance().failTask(childTask->taskId(), failureReason);
+            childTask->failToolSubTask(failureReason);
         }
         if (taskCtx) {
             taskCtx->warning(QCoreApplication::translate("ResourceCompilerTool", "resourcecompiler failed: %1").arg(failureReason));
@@ -229,7 +225,7 @@ Core::Result<ResourceCompilerToolResult> compileInternal(
     }
 
     if (childTask) {
-        Core::Logging::LogManager::instance().finishTask(childTask->taskId(), QCoreApplication::translate("ResourceCompilerTool", "Compiled %1 asset(s)").arg(toolResult.compiledCount));
+        childTask->finishToolSubTask(QCoreApplication::translate("ResourceCompilerTool", "Compiled %1 asset(s)").arg(toolResult.compiledCount));
     }
 
     if (taskCtx && !toolLogFileName.isEmpty()) {

@@ -8,10 +8,8 @@
 
 #include "Application/Async/AsyncTaskRunner.h"
 #include "Core/Logging/ApplicationLogger.h"
-#include "Domain/Game/GameDefinition.h"
-#include "Domain/Game/GameInfoParser.h"
-#include "Domain/Game/GameRegistry.h"
-#include "Domain/Game/GameValidator.h"
+#include "Domain/Game/GameInstallationResolver.h"
+#include "Domain/Package/VpkIndex.h"
 #include "Domain/Package/VpkIndexBuilder.h"
 
 namespace Application::Package {
@@ -192,65 +190,14 @@ void VpkIndexService::ensureIndexAsync(
 Core::Result<VpkIndexResult> VpkIndexService::ensureCs2IndexFromGameInfoSync(
     const Core::Path::FilesystemPath& cs2BasePath,
     const Core::Async::CancellationToken& token) {
-    if (cs2BasePath.isEmpty() || !cs2BasePath.isValid()) {
+    auto targetsRes = Domain::Game::GameInstallationResolver::resolveCs2VpkTargets(cs2BasePath);
+    if (targetsRes.isFailure()) {
         return Core::Result<VpkIndexResult>::failure(
-            Core::Error::ErrorCode::InvalidPath,
-            QCoreApplication::translate("VpkIndexService", "CS2 base path is invalid or empty"));
+            targetsRes.error(),
+            targetsRes.message());
     }
 
-    const Core::Path::FilesystemPath giPath = cs2BasePath / QStringLiteral("game/csgo/gameinfo.gi");
-    if (!giPath.exists()) {
-        return Core::Result<VpkIndexResult>::failure(
-            Core::Error::ErrorCode::FileNotFound,
-            QCoreApplication::translate("VpkIndexService", "CS2 gameinfo.gi not found at %1").arg(giPath.toString()));
-    }
-
-    auto parseRes = Domain::Game::GameInfoParser::parse(giPath, Domain::Game::EngineType::Source2);
-    if (parseRes.isFailure()) {
-        return Core::Result<VpkIndexResult>::failure(
-            parseRes.error(),
-            QCoreApplication::translate("VpkIndexService", "Failed to parse CS2 gameinfo.gi"));
-    }
-
-    const auto& doc = parseRes.value().document();
-    const auto& rootNode = doc.root();
-
-    const auto* fileSystemNode = rootNode.findChild(QStringLiteral("FileSystem"));
-    const auto* searchPathsNode = fileSystemNode ? fileSystemNode->findChild(QStringLiteral("SearchPaths"))
-                                                 : rootNode.findChild(QStringLiteral("SearchPaths"));
-
-    std::vector<Core::Path::FilesystemPath> vpkPaths;
-
-    if (searchPathsNode) {
-        // Collect Game entries defined in gameinfo.gi SearchPaths (e.g. csgo, csgo_imported, csgo_core, core)
-        for (const auto& child : searchPathsNode->children()) {
-            if (child.name().compare(QStringLiteral("Game"), Qt::CaseInsensitive) == 0) {
-                const QString val = child.value().trimmed();
-                if (val.isEmpty()) {
-                    continue;
-                }
-                const Core::Path::FilesystemPath gameDir = cs2BasePath / QStringLiteral("game") / val;
-                const Core::Path::FilesystemPath vpkCandidate = gameDir / QStringLiteral("pak01_dir.vpk");
-                if (vpkCandidate.exists()) {
-                    vpkPaths.push_back(vpkCandidate);
-                }
-            }
-        }
-    }
-
-    // Fallback: if no Game keys matched, check default csgo and core
-    if (vpkPaths.empty()) {
-        const Core::Path::FilesystemPath csgoVpk = cs2BasePath / QStringLiteral("game/csgo/pak01_dir.vpk");
-        if (csgoVpk.exists()) {
-            vpkPaths.push_back(csgoVpk);
-        }
-        const Core::Path::FilesystemPath coreVpk = cs2BasePath / QStringLiteral("game/core/pak01_dir.vpk");
-        if (coreVpk.exists()) {
-            vpkPaths.push_back(coreVpk);
-        }
-    }
-
-    return ensureIndexSync(QStringLiteral("cs2"), vpkPaths, true, token);
+    return ensureIndexSync(QStringLiteral("cs2"), targetsRes.value(), true, token);
 }
 
 void VpkIndexService::ensureCs2IndexFromGameInfoAsync(
@@ -281,57 +228,14 @@ Core::Result<VpkIndexResult> VpkIndexService::ensureSource1IndexFromGameInfoSync
     const QString& gameId,
     const Core::Path::FilesystemPath& gameInfoPathOrDir,
     const Core::Async::CancellationToken& token) {
-    if (gameInfoPathOrDir.isEmpty() || !gameInfoPathOrDir.isValid()) {
+    auto targetsRes = Domain::Game::GameInstallationResolver::resolveSource1VpkTargets(gameId, gameInfoPathOrDir);
+    if (targetsRes.isFailure()) {
         return Core::Result<VpkIndexResult>::failure(
-            Core::Error::ErrorCode::InvalidPath,
-            QCoreApplication::translate("VpkIndexService", "Game path is invalid or empty"));
+            targetsRes.error(),
+            targetsRes.message());
     }
 
-    Core::Path::FilesystemPath targetGameInfoPath;
-    if (gameInfoPathOrDir.isFile()) {
-        targetGameInfoPath = gameInfoPathOrDir;
-    } else {
-        // Try locating gameinfo.txt
-        const Core::Path::FilesystemPath candidate = gameInfoPathOrDir / QStringLiteral("gameinfo.txt");
-        if (candidate.exists()) {
-            targetGameInfoPath = candidate;
-        } else {
-            // Check known game definition
-            const auto* def = Domain::Game::GameRegistry::findById(gameId);
-            if (def) {
-                targetGameInfoPath = Domain::Game::GameValidator::expectedGameInfoPath(gameInfoPathOrDir, def->type);
-            }
-        }
-    }
-
-    if (!targetGameInfoPath.exists()) {
-        return Core::Result<VpkIndexResult>::failure(
-            Core::Error::ErrorCode::FileNotFound,
-            QCoreApplication::translate("VpkIndexService", "gameinfo.txt not found at %1").arg(targetGameInfoPath.toString()));
-    }
-
-    auto parseRes = Domain::Game::GameInfoParser::parse(targetGameInfoPath, Domain::Game::EngineType::Source1);
-    if (parseRes.isFailure()) {
-        return Core::Result<VpkIndexResult>::failure(
-            parseRes.error(),
-            QCoreApplication::translate("VpkIndexService", "Failed to parse gameinfo.txt"));
-    }
-
-    const auto& searchTargets = parseRes.value().searchTargets();
-    std::vector<Core::Path::FilesystemPath> vpkPaths;
-
-    for (const auto& target : searchTargets) {
-        if (target.isVpk() && target.path().exists()) {
-            vpkPaths.push_back(target.path());
-        } else if (target.isDirectory()) {
-            const Core::Path::FilesystemPath vpkCandidate = target.path() / QStringLiteral("pak01_dir.vpk");
-            if (vpkCandidate.exists()) {
-                vpkPaths.push_back(vpkCandidate);
-            }
-        }
-    }
-
-    return ensureIndexSync(gameId, vpkPaths, false, token);
+    return ensureIndexSync(gameId, targetsRes.value(), false, token);
 }
 
 void VpkIndexService::ensureSource1IndexFromGameInfoAsync(

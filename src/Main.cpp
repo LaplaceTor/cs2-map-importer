@@ -63,14 +63,15 @@ int main(int argc, char *argv[])
 
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 
-    auto gameEnvService = std::make_unique<Application::Environment::GameEnvironmentService>();
+    auto leaseService = std::make_shared<Application::Environment::VpkSignatureLeaseService>();
+    auto gameEnvService = std::make_unique<Application::Environment::GameEnvironmentService>(leaseService);
     auto vpkIndexService = Application::Package::VpkIndexService::create();
     auto gameViewModel = std::make_unique<UI::ViewModels::GameViewModel>(gameEnvService.get());
-    gameViewModel->setVpkIndexService(vpkIndexService.get());
+    gameViewModel->setVpkIndexService(vpkIndexService);
     auto taskLogService = std::make_shared<Application::Logging::TaskLogService>();
     auto logViewModel = std::make_shared<UI::ViewModels::LogViewModel>(taskLogService.get());
 
-    auto prereqService = std::make_shared<Application::Common::ImportPrerequisiteService>(nullptr, vpkIndexService);
+    auto prereqService = std::make_shared<Application::Common::ImportPrerequisiteService>(leaseService, vpkIndexService);
     auto particleImportService = Application::Particle::ParticleImportService::create(prereqService);
 
     auto mainController = std::make_unique<UI::Controllers::MainController>(logViewModel.get());

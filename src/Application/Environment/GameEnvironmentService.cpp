@@ -1,8 +1,6 @@
 #include <QCoreApplication>
 #include "Application/Environment/GameEnvironmentService.h"
 #include "Application/Environment/GameDetectService.h"
-#include "Application/Environment/GameInstallation.h"
-#include "Application/Environment/GameInstallationValidator.h"
 #include "Application/Environment/SteamService.h"
 #include "Application/Async/AsyncTaskRunner.h"
 #include "Domain/Game/GameRegistry.h"
@@ -68,42 +66,31 @@ Domain::Game::GameType resolveGameTypeFromName(const QString& typeName)
 } // anonymous namespace
 
 GameEnvironmentService::GameEnvironmentService(
-    VpkSignatureLeaseService* leaseService,
+    std::shared_ptr<VpkSignatureLeaseService> leaseService,
     QObject* parent)
     : QObject(parent)
+    , m_leaseService(leaseService ? std::move(leaseService) : std::make_shared<VpkSignatureLeaseService>())
 {
-    if (leaseService) {
-        m_leaseService = leaseService;
-    } else {
-        m_ownedLeaseService = std::make_unique<VpkSignatureLeaseService>(this);
-        m_leaseService = m_ownedLeaseService.get();
-    }
     hookLeaseSignals();
 }
 
 void GameEnvironmentService::hookLeaseSignals()
 {
     if (m_leaseService) {
-        connect(m_leaseService, &VpkSignatureLeaseService::leaseStateChanged,
+        connect(m_leaseService.get(), &VpkSignatureLeaseService::leaseStateChanged,
                 this, &GameEnvironmentService::vpkLeaseStateChanged, Qt::UniqueConnection);
-        connect(m_leaseService, &VpkSignatureLeaseService::leaseStatusChanged,
+        connect(m_leaseService.get(), &VpkSignatureLeaseService::leaseStatusChanged,
                 this, &GameEnvironmentService::vpkLeaseStatusChanged, Qt::UniqueConnection);
     }
 }
 
-void GameEnvironmentService::setVpkSignatureLeaseService(VpkSignatureLeaseService* service) noexcept
+void GameEnvironmentService::setVpkSignatureLeaseService(std::shared_ptr<VpkSignatureLeaseService> service) noexcept
 {
     if (m_leaseService) {
-        disconnect(m_leaseService, nullptr, this, nullptr);
+        disconnect(m_leaseService.get(), nullptr, this, nullptr);
     }
 
-    if (service) {
-        m_ownedLeaseService.reset();
-        m_leaseService = service;
-    } else if (!m_ownedLeaseService) {
-        m_ownedLeaseService = std::make_unique<VpkSignatureLeaseService>(this);
-        m_leaseService = m_ownedLeaseService.get();
-    }
+    m_leaseService = service ? std::move(service) : std::make_shared<VpkSignatureLeaseService>();
     hookLeaseSignals();
 }
 
@@ -146,14 +133,31 @@ QStringList GameEnvironmentService::s2GameTypes() const
     };
 }
 
-QString GameEnvironmentService::cleanPath(const QString& pathOrUrl) const
+QString GameEnvironmentService::cleanPath(const QString& pathOrUrl)
 {
-    if (pathOrUrl.isEmpty()) {
+    QString trimmed = pathOrUrl.trimmed();
+    if (trimmed.isEmpty()) {
         return QString();
     }
-    QUrl url(pathOrUrl);
-    QString path = url.isLocalFile() ? url.toLocalFile() : pathOrUrl;
-    return Core::Path::PathUtils::normalize(path);
+    if (trimmed.startsWith(QStringLiteral("file:"), Qt::CaseInsensitive)) {
+        // Normalize malformed Windows file URLs with only 2 slashes, e.g. file://C:/...
+        // where index 7 is the drive letter and index 8 is ':'.
+        // This avoids QUrl interpreting the drive letter as a hostname.
+        if (trimmed.size() >= 9 &&
+            (trimmed.at(5) == QLatin1Char('/') || trimmed.at(5) == QLatin1Char('\\')) &&
+            (trimmed.at(6) == QLatin1Char('/') || trimmed.at(6) == QLatin1Char('\\')) &&
+            trimmed.at(7).isLetter() &&
+            trimmed.at(8) == QLatin1Char(':')) {
+            trimmed = QStringLiteral("file:///") + trimmed.mid(7);
+        }
+
+        QUrl url(trimmed);
+        const QString local = url.toLocalFile();
+        if (!local.isEmpty()) {
+            trimmed = local;
+        }
+    }
+    return Core::Path::PathUtils::normalize(trimmed);
 }
 
 void GameEnvironmentService::detectEnvironmentAsync(
@@ -193,20 +197,18 @@ void GameEnvironmentService::validateSource1FolderAsync(
             }
 
             Core::Path::FilesystemPath fsPath(normalizedPath);
-            Core::Result<GameInstallation> instResult;
-            if (type == Domain::Game::GameType::Custom) {
-                instResult = GameInstallationValidator::inspectGameInfo(fsPath, &sysLog);
-            } else {
-                instResult = GameInstallationValidator::validateSource1(type, fsPath, &sysLog);
+            auto resolvedResult = (type == Domain::Game::GameType::Custom)
+                ? Domain::Game::GameInstallationResolver::inspectGameInfo(fsPath)
+                : Domain::Game::GameInstallationResolver::resolveSource1(type, fsPath);
+
+            if (resolvedResult.isSuccess()) {
+                auto info = toInstallationInfo(resolvedResult.value());
+                sysLog.info(QStringLiteral("Validation completed successfully: %1").arg(info.displayName));
+                return Core::Result<GameInstallationInfo>::success(std::move(info));
             }
 
-            if (instResult.isSuccess()) {
-                sysLog.info(QStringLiteral("Validation completed successfully: %1").arg(instResult.value().displayName()));
-                return Core::Result<GameInstallationInfo>::success(instResult.value().toInfo());
-            }
-
-            sysLog.error(QStringLiteral("Validation failed for %1 at: %2: %3").arg(effectiveName, normalizedPath, instResult.message()));
-            return Core::Result<GameInstallationInfo>::failure(instResult.error(), instResult.message());
+            sysLog.error(QStringLiteral("Validation failed for %1 at: %2: %3").arg(effectiveName, normalizedPath, resolvedResult.message()));
+            return Core::Result<GameInstallationInfo>::failure(resolvedResult.error(), resolvedResult.message());
         },
         std::move(callback));
 }
@@ -222,17 +224,14 @@ Core::Result<GameInstallationInfo> GameEnvironmentService::validateSource1Folder
 
     Core::Path::FilesystemPath fsPath(normalizedPath);
     Domain::Game::GameType type = resolveGameTypeFromName(typeName);
-    Core::Result<GameInstallation> instResult;
-    if (type == Domain::Game::GameType::Custom) {
-        instResult = GameInstallationValidator::inspectGameInfo(fsPath);
-    } else {
-        instResult = GameInstallationValidator::validateSource1(type, fsPath);
-    }
+    auto resolvedResult = (type == Domain::Game::GameType::Custom)
+        ? Domain::Game::GameInstallationResolver::inspectGameInfo(fsPath)
+        : Domain::Game::GameInstallationResolver::resolveSource1(type, fsPath);
 
-    if (!instResult.isSuccess()) {
-        return Core::Result<GameInstallationInfo>::failure(instResult.error(), QCoreApplication::translate("GameEnvironmentService", "Source 1 validation failed"));
+    if (!resolvedResult.isSuccess()) {
+        return Core::Result<GameInstallationInfo>::failure(resolvedResult.error(), QCoreApplication::translate("GameEnvironmentService", "Source 1 validation failed"));
     }
-    return Core::Result<GameInstallationInfo>::success(instResult.value().toInfo());
+    return Core::Result<GameInstallationInfo>::success(toInstallationInfo(resolvedResult.value()));
 }
 
 void GameEnvironmentService::validateSource2FolderAsync(
@@ -254,14 +253,15 @@ void GameEnvironmentService::validateSource2FolderAsync(
             }
 
             Core::Path::FilesystemPath fsPath(normalizedPath);
-            auto instResult = GameInstallationValidator::validateSource2(fsPath, Domain::Game::GameType::Unknown, &sysLog);
-            if (instResult.isSuccess()) {
-                sysLog.info(QStringLiteral("Validation completed successfully: %1").arg(instResult.value().displayName()));
-                return Core::Result<GameInstallationInfo>::success(instResult.value().toInfo());
+            auto resolvedResult = Domain::Game::GameInstallationResolver::resolveSource2(fsPath, Domain::Game::GameType::Unknown);
+            if (resolvedResult.isSuccess()) {
+                auto info = toInstallationInfo(resolvedResult.value());
+                sysLog.info(QStringLiteral("Validation completed successfully: %1").arg(info.displayName));
+                return Core::Result<GameInstallationInfo>::success(std::move(info));
             }
 
-            sysLog.error(QStringLiteral("Validation failed for Source 2 at: %1: %2").arg(normalizedPath, instResult.message()));
-            return Core::Result<GameInstallationInfo>::failure(instResult.error(), instResult.message());
+            sysLog.error(QStringLiteral("Validation failed for Source 2 at: %1: %2").arg(normalizedPath, resolvedResult.message()));
+            return Core::Result<GameInstallationInfo>::failure(resolvedResult.error(), resolvedResult.message());
         },
         std::move(callback));
 }
@@ -275,11 +275,11 @@ Core::Result<GameInstallationInfo> GameEnvironmentService::validateSource2Folder
     }
 
     Core::Path::FilesystemPath fsPath(normalizedPath);
-    auto instResult = GameInstallationValidator::validateSource2(fsPath);
-    if (!instResult.isSuccess()) {
-        return Core::Result<GameInstallationInfo>::failure(instResult.error(), QCoreApplication::translate("GameEnvironmentService", "Source 2 validation failed"));
+    auto resolvedResult = Domain::Game::GameInstallationResolver::resolveSource2(fsPath);
+    if (!resolvedResult.isSuccess()) {
+        return Core::Result<GameInstallationInfo>::failure(resolvedResult.error(), QCoreApplication::translate("GameEnvironmentService", "Source 2 validation failed"));
     }
-    return Core::Result<GameInstallationInfo>::success(instResult.value().toInfo());
+    return Core::Result<GameInstallationInfo>::success(toInstallationInfo(resolvedResult.value()));
 }
 
 Core::Result<void> GameEnvironmentService::validateGameInSteam(const QString& typeName)
