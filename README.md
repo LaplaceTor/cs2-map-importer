@@ -21,18 +21,17 @@ To build this program, you will need:
 - **Compiler:** **C++20** compatible compiler (MSVC 2022 / Visual Studio 2022 recommended)
 - **CMake:** Version 3.28 or higher
 - **Qt6:** Version 6.8 or higher (with QML / Quick Controls 2)
-- **Java Runtime (JRE / JDK):** Java 21+ or GraalVM 24 (required for BSP decompilation using BSPSRC)
 
 ## Build Instructions
 
-Clone the repository recursively to ensure all git submodules (including `sourcepp` and dependencies) are cloned:
+Clone the repository (VPK, BSP, VTF, and VMF parsing/decompilation are all native in-process C++20 implementations; git submodules only contain `third_party/agent-skills`):
 
 ```bash
-git clone --recursive https://github.com/LaplaceTor/cs2-map-importer.git
+git clone https://github.com/LaplaceTor/cs2-map-importer.git
 cd cs2-map-importer
 ```
 
-If you have already cloned the repository without `--recursive`, initialize submodules manually:
+If you also want to fetch the optional `third_party/agent-skills` submodule:
 
 ```bash
 git submodule update --init --recursive
@@ -56,12 +55,9 @@ cmake --build --preset windows-debug
 
 ## 3rd Party Software & Credits
 
-### Embedded Native Libraries (via Git Submodules)
-- [sourcepp](https://github.com/craftablescience/sourcepp) (`vpkpp`, `bsppp`, `vtfpp`) — Native, in-process parsing and extraction of Valve package archives (VPK, BSP pakfiles) and VTF texture decoding.
-
 ### Ported Algorithms
+- [BSPSource (`bspsrc`)](https://github.com/ata4/bspsrc) (Unlicense) — The in-process Source 1 BSP-to-VMF decompiler (`Domain::Bsp`) is a 1:1 native C++20 port of Nico Bergemann's BSPSource (`bspsrc-lib` and `bspsrc-decompiler`).
 - [Materialize](https://github.com/maikramer/Materialize) (GPLv3) — The PBR texture generation backend (`Domain::Material::TextureProcess`) is a C++/Qt port of Materialize's shader pipelines: height, normal, AO, metallic and smoothness generation, diffuse editing, and PBR channel packing.
 
 ### External Tools
-- [bspsrc](https://github.com/ata4/bspsrc) — Decompiles Source engine BSP maps back into VMF map files.
 - Valve CS2 Tools (`resourcecompiler.exe`, `source1import.exe`) — Valve's official content compiler and asset importer included with Counter-Strike 2.
