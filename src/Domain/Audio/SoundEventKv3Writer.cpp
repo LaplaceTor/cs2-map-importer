@@ -1,22 +1,50 @@
 #include <QCoreApplication>
 #include "Domain/Audio/SoundEventKv3Writer.h"
+#include "Core/Error/ExecutionGuard.h"
 #include "Core/FileSystem/AtomicFile.h"
-#include <QTextStream>
-#include <QFileInfo>
-#include <QDir>
+#include <charconv>
+#include <string_view>
 
 namespace Domain::Audio {
 
 namespace {
 
 QString formatDouble(double v) {
-    QString s = QString::number(v, 'f', 6);
-    while (s.contains('.') && (s.endsWith('0') || s.endsWith('.'))) {
-        if (s.endsWith('.')) {
-            s.chop(1);
-            break;
+    if (v == 0.0) {
+        return QStringLiteral("0");
+    }
+
+    char buf[64];
+    const auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), v, std::chars_format::fixed, 6);
+    if (ec == std::errc{}) {
+        std::string_view sv(buf, static_cast<std::size_t>(ptr - buf));
+        if (sv.find('.') != std::string_view::npos) {
+            while (!sv.empty() && sv.back() == '0') {
+                sv.remove_suffix(1);
+            }
+            if (!sv.empty() && sv.back() == '.') {
+                sv.remove_suffix(1);
+            }
         }
-        s.chop(1);
+        if (sv == "-0") {
+            return QStringLiteral("0");
+        }
+        return QString::fromLatin1(sv.data(), static_cast<qsizetype>(sv.size()));
+    }
+
+    QString s = QString::number(v, 'f', 6);
+    if (s.contains(u'.')) {
+        qsizetype end = s.size();
+        while (end > 0 && s[end - 1] == u'0') {
+            --end;
+        }
+        if (end > 0 && s[end - 1] == u'.') {
+            --end;
+        }
+        s.truncate(end);
+    }
+    if (s == QStringLiteral("-0")) {
+        return QStringLiteral("0");
     }
     return s;
 }
@@ -171,18 +199,17 @@ Core::Result<void> SoundEventKv3Writer::writeToFile(
     const Core::Path::FilesystemPath& filePath,
     const std::vector<SoundEvent>& events,
     const Core::Path::FilesystemPath& expectedBaseDir) {
-    try {
+    Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Writing KV3 soundevents file"),
+        .targetPath = filePath.toString()
+    };
+
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
         const QString content = writeToString(events);
         const QByteArray data = content.toUtf8();
         Core::FileSystem::AtomicFile::writeAtomic(filePath.toString(), data, expectedBaseDir);
         return Core::Result<void>::success();
-    } catch (const Core::Error::Exception& ex) {
-        return Core::Result<void>::failure(ex.error(), QCoreApplication::translate("SoundEventKv3Writer", "Failed to write KV3 soundevents file"));
-    } catch (const std::exception& ex) {
-        return Core::Result<void>::failure(Core::Error::ErrorCode::WriteFailed, QString::fromUtf8(ex.what()), filePath.toString());
-    } catch (...) {
-        return Core::Result<void>::failure(Core::Error::ErrorCode::Unknown, QCoreApplication::translate("SoundEventKv3Writer", "Unknown error writing KV3 soundevents file"), filePath.toString());
-    }
+    }, ctx, QCoreApplication::translate("SoundEventKv3Writer", "Failed to write KV3 soundevents file"));
 }
 
 } // namespace Domain::Audio

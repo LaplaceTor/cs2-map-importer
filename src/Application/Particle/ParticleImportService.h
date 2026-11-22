@@ -87,13 +87,13 @@ public:
     /**
      * @brief Injects a custom workflow runner for testing.
      */
-    void setWorkflowRunner(WorkflowRunner runner) noexcept;
+    void setWorkflowRunner(WorkflowRunner runner);
 
     /**
      * @brief Access the common prerequisite service.
      */
-    std::shared_ptr<Common::ImportPrerequisiteService> prerequisiteService() const noexcept;
-    void setPrerequisiteService(std::shared_ptr<Common::ImportPrerequisiteService> service) noexcept;
+    std::shared_ptr<Common::ImportPrerequisiteService> prerequisiteService() const;
+    void setPrerequisiteService(std::shared_ptr<Common::ImportPrerequisiteService> service);
 
 signals:
     void isImportingChanged(bool isImporting);

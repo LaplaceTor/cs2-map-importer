@@ -25,7 +25,7 @@ namespace Domain::Material::TextureProcess {
  */
 class TextureBlur {
 public:
-    enum class Axis { Horizontal, Vertical };
+    enum class Axis : int { Horizontal, Vertical, };
 
     /// Canonical tap count used by the frequency chains.
     static constexpr int kFrequencySamples = 4;

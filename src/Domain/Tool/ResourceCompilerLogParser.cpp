@@ -2,8 +2,23 @@
 
 #include <QDir>
 #include <QRegularExpression>
+#include <QSet>
+#include <QStringTokenizer>
+#include <QStringView>
 
 namespace Domain::Tool {
+
+namespace {
+
+void appendUnique(QStringList& target, QSet<QString>& seen, const QString& value)
+{
+    if (!seen.contains(value)) {
+        seen.insert(value);
+        target.append(value);
+    }
+}
+
+} // namespace
 
 ResourceCompilerLogResult ResourceCompilerLogParser::parse(
     const QString& stdOut,
@@ -42,110 +57,94 @@ ResourceCompilerLogResult ResourceCompilerLogParser::parse(
 
     bool hasOkBanner = false;
     bool hasErrorBanner = false;
+    QSet<QString> seenVpcfCPaths;
+    QSet<QString> seenCompileErrors;
+    QSet<QString> seenWarnings;
 
-    auto checkAndAddVpcfC = [&result, &workingDirectory](const QString& rawPath) {
-        QString resolved = rawPath;
+    auto checkAndAddVpcfC = [&result, &seenVpcfCPaths, &workingDirectory](QStringView rawPath) {
+        QString resolved = rawPath.toString();
         if (QDir::isRelativePath(resolved) && !workingDirectory.isEmpty()) {
             resolved = QDir(workingDirectory).absoluteFilePath(resolved);
         }
-        QString clean = QDir::cleanPath(resolved);
-        if (!result.compiledVpcfCPaths.contains(clean)) {
-            result.compiledVpcfCPaths.append(clean);
-        }
+        const QString clean = QDir::cleanPath(resolved);
+        appendUnique(result.compiledVpcfCPaths, seenVpcfCPaths, clean);
     };
 
-    const QStringList outLines = stdOut.split(QLatin1Char('\n'));
-    for (const QString& line : outLines) {
-        QString trimmed = line.trimmed();
+    QStringView lastMeaningfulOutLine;
+    for (const QStringView line : QStringView(stdOut).tokenize(u'\n')) {
+        const QStringView trimmed = line.trimmed();
         if (trimmed.isEmpty()) {
             continue;
         }
+        if (!trimmed.startsWith(u'-') && !trimmed.startsWith(u'=')) {
+            lastMeaningfulOutLine = trimmed;
+        }
 
         // Wrote to pattern
-        auto matchWrote = wroteToRegex.match(trimmed);
+        const auto matchWrote = wroteToRegex.matchView(trimmed);
         if (matchWrote.hasMatch()) {
-            QString path = matchWrote.captured(1).trimmed();
-            if (path.endsWith(QStringLiteral(".vpcf_c"), Qt::CaseInsensitive)) {
+            const QStringView path = matchWrote.capturedView(1).trimmed();
+            if (path.endsWith(u".vpcf_c", Qt::CaseInsensitive)) {
                 checkAndAddVpcfC(path);
             }
         }
 
         // Compile error pattern
-        if (!trimmed.contains(QStringLiteral("Look for"), Qt::CaseInsensitive)) {
-            auto matchErr = compileErrorRegex.match(trimmed);
+        if (!trimmed.contains(u"Look for", Qt::CaseInsensitive)) {
+            const auto matchErr = compileErrorRegex.matchView(trimmed);
             if (matchErr.hasMatch()) {
-                QString errStr = matchErr.captured(1).trimmed();
-                if (!result.compileErrors.contains(errStr)) {
-                    result.compileErrors.append(errStr);
-                }
+                appendUnique(result.compileErrors, seenCompileErrors, matchErr.capturedView(1).trimmed().toString());
             }
         }
 
         // Summary banners
-        auto matchOk = okBannerRegex.match(trimmed);
+        const auto matchOk = okBannerRegex.matchView(trimmed);
         if (matchOk.hasMatch()) {
             hasOkBanner = true;
-            result.compiledCount = matchOk.captured(1).toInt();
-            result.failedCount = matchOk.captured(2).toInt();
-            result.skippedCount = matchOk.captured(3).toInt();
+            result.compiledCount = matchOk.capturedView(1).toInt();
+            result.failedCount = matchOk.capturedView(2).toInt();
+            result.skippedCount = matchOk.capturedView(3).toInt();
         }
 
-        auto matchError = errorBannerRegex.match(trimmed);
+        const auto matchError = errorBannerRegex.matchView(trimmed);
         if (matchError.hasMatch()) {
             hasErrorBanner = true;
-            result.compiledCount = matchError.captured(1).toInt();
-            result.failedCount = matchError.captured(2).toInt();
-            result.skippedCount = matchError.captured(3).toInt();
+            result.compiledCount = matchError.capturedView(1).toInt();
+            result.failedCount = matchError.capturedView(2).toInt();
+            result.skippedCount = matchError.capturedView(3).toInt();
         }
 
         // Warning tracking
-        if (trimmed.startsWith(QStringLiteral("WARNING:"), Qt::CaseInsensitive)) {
-            result.warnings.append(trimmed);
+        if (trimmed.startsWith(u"WARNING:", Qt::CaseInsensitive)) {
+            appendUnique(result.warnings, seenWarnings, trimmed.toString());
         }
     }
 
     // Check stderr as well. Plain stderr output is NOT treated as a compile error by
     // itself: resourcecompiler may emit ordinary progress/diagnostic lines on stderr.
-    // Only explicit WARNING: lines are tracked; all other stderr lines are retained
-    // as warnings for diagnostics.
+    // All non-empty stderr lines are retained as warnings for diagnostics while tracking
+    // the last meaningful line for non-zero exit fallback.
+    QStringView lastMeaningfulErrLine;
     if (!stdErr.isEmpty()) {
-        const QStringList errLines = stdErr.split(QLatin1Char('\n'));
-        for (const QString& line : errLines) {
-            QString trimmed = line.trimmed();
+        for (const QStringView line : QStringView(stdErr).tokenize(u'\n')) {
+            const QStringView trimmed = line.trimmed();
             if (trimmed.isEmpty()) {
                 continue;
             }
-            if (trimmed.startsWith(QStringLiteral("WARNING:"), Qt::CaseInsensitive)) {
-                result.warnings.append(trimmed);
-            } else {
-                result.warnings.append(trimmed);
+            if (!trimmed.startsWith(u'-') && !trimmed.startsWith(u'=')) {
+                lastMeaningfulErrLine = trimmed;
             }
+            appendUnique(result.warnings, seenWarnings, trimmed.toString());
         }
     }
 
     // If non-zero exit code but no explicit compile errors matched, promote the last
     // meaningful stderr line (then stdout line) so the failure keeps a concrete cause.
     if (exitCode != 0 && result.compileErrors.isEmpty()) {
-        const QStringList errLines = stdErr.split(QLatin1Char('\n'));
-        for (auto it = errLines.crbegin(); it != errLines.crend(); ++it) {
-            QString trimmed = it->trimmed();
-            if (!trimmed.isEmpty() &&
-                !trimmed.startsWith(QLatin1Char('-')) &&
-                !trimmed.startsWith(QLatin1Char('='))) {
-                result.compileErrors.append(trimmed);
-                break;
-            }
-        }
-    }
-    if (exitCode != 0 && result.compileErrors.isEmpty()) {
-        for (auto it = outLines.crbegin(); it != outLines.crend(); ++it) {
-            QString trimmed = it->trimmed();
-            if (!trimmed.isEmpty() &&
-                !trimmed.startsWith(QLatin1Char('-')) &&
-                !trimmed.startsWith(QLatin1Char('='))) {
-                result.compileErrors.append(trimmed);
-                break;
-            }
+        if (!lastMeaningfulErrLine.isEmpty()) {
+            appendUnique(result.compileErrors, seenCompileErrors, lastMeaningfulErrLine.toString());
+        } else if (!lastMeaningfulOutLine.isEmpty()) {
+            appendUnique(result.compileErrors, seenCompileErrors, lastMeaningfulOutLine.toString());
         }
     }
 

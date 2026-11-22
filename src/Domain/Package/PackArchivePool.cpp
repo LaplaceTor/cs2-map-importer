@@ -5,17 +5,17 @@
 
 #include <QCoreApplication>
 
-#include "Core/Error/Exception.h"
+#include "Core/Error/ExecutionGuard.h"
 
 namespace Domain::Package {
 
-PackArchivePool::PackArchivePool(PackArchivePool&& other) noexcept {
+PackArchivePool::PackArchivePool(PackArchivePool&& other) {
     std::lock_guard<std::mutex> lock(other.m_mutex);
     m_archives = std::move(other.m_archives);
     m_opening = std::move(other.m_opening);
 }
 
-PackArchivePool& PackArchivePool::operator=(PackArchivePool&& other) noexcept {
+PackArchivePool& PackArchivePool::operator=(PackArchivePool&& other) {
     if (this != &other) {
         std::scoped_lock lock(m_mutex, other.m_mutex);
         m_archives = std::move(other.m_archives);
@@ -68,27 +68,23 @@ Core::Result<std::shared_ptr<PackArchive>> PackArchivePool::getOrOpen(
         }
 
         if (isInitiator) {
-            Core::Result<std::shared_ptr<PackArchive>> finalResult;
-            try {
-                auto opened = PackArchive::open(archivePath, token);
-                if (opened.isCancelled()) {
-                    finalResult = Core::Result<std::shared_ptr<PackArchive>>::cancelled(opened.message());
-                } else if (opened.isFailure()) {
-                    finalResult = Core::Result<std::shared_ptr<PackArchive>>::failure(opened.error());
-                } else {
+            const Core::Error::ExecutionContext ctx{
+                .stage = QStringLiteral("Opening pack archive"),
+                .targetPath = archivePath.toString()
+            };
+            Core::Result<std::shared_ptr<PackArchive>> finalResult = Core::Error::ExecutionGuard::guard(
+                [&]() -> Core::Result<std::shared_ptr<PackArchive>> {
+                    auto opened = PackArchive::open(archivePath, token);
+                    if (opened.isCancelled()) {
+                        return Core::Result<std::shared_ptr<PackArchive>>::cancelled(opened.message());
+                    }
+                    if (opened.isFailure()) {
+                        return Core::Result<std::shared_ptr<PackArchive>>::failure(opened.error());
+                    }
                     auto sharedArchive = std::make_shared<PackArchive>(std::move(opened.value()));
-                    finalResult = Core::Result<std::shared_ptr<PackArchive>>::success(sharedArchive);
-                }
-            } catch (const Core::Error::Exception& ex) {
-                finalResult = Core::Result<std::shared_ptr<PackArchive>>::failure(ex.error());
-            } catch (const std::exception& ex) {
-                finalResult = Core::Result<std::shared_ptr<PackArchive>>::failure(
-                    Core::Error::ErrorCode::OperationFailed, QString::fromUtf8(ex.what()));
-            } catch (...) {
-                finalResult = Core::Result<std::shared_ptr<PackArchive>>::failure(
-                    Core::Error::ErrorCode::Unknown,
-                    QCoreApplication::translate("PackArchivePool", "unknown exception while opening pack archive"));
-            }
+                    return Core::Result<std::shared_ptr<PackArchive>>::success(std::move(sharedArchive));
+                },
+                ctx);
 
             // Publish result to waiters on this entry
             {
@@ -147,12 +143,12 @@ bool PackArchivePool::contains(const Core::Path::FilesystemPath& archivePath) co
     return m_archives.contains(normalizedKey);
 }
 
-std::size_t PackArchivePool::size() const noexcept {
+std::size_t PackArchivePool::size() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return static_cast<std::size_t>(m_archives.size());
 }
 
-void PackArchivePool::clear() noexcept {
+void PackArchivePool::clear() {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_archives.clear();
     m_opening.clear();

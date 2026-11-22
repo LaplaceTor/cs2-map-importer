@@ -40,7 +40,8 @@ public:
      */
     static Core::Result<void> writeTexture(const Core::Path::FilesystemPath& path,
                                            const TextureImage& image,
-                                           bool srgbEncode = true);
+                                           bool srgbEncode = true,
+                                           const Core::Path::FilesystemPath& expectedBaseDir = {});
 
     /**
      * @brief Loads an image file directly into a QImage (RGBA8888).
@@ -54,7 +55,8 @@ public:
      * @brief Writes a QImage to a PNG file (the only supported export format).
      */
     static Core::Result<void> writeImage(const Core::Path::FilesystemPath& path,
-                                         const QImage& image);
+                                         const QImage& image,
+                                         const Core::Path::FilesystemPath& expectedBaseDir = {});
 
     static bool isSupportedLoadExtension(const QString& lowerCaseExtension);
     static bool isSupportedWriteExtension(const QString& lowerCaseExtension);

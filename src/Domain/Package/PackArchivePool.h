@@ -38,8 +38,8 @@ public:
     PackArchivePool(const PackArchivePool&) = delete;
     PackArchivePool& operator=(const PackArchivePool&) = delete;
 
-    PackArchivePool(PackArchivePool&& other) noexcept;
-    PackArchivePool& operator=(PackArchivePool&& other) noexcept;
+    PackArchivePool(PackArchivePool&& other);
+    PackArchivePool& operator=(PackArchivePool&& other);
 
     /**
      * @brief Retrieves an existing open archive for the given path, or opens
@@ -61,12 +61,12 @@ public:
     /**
      * @brief Returns the number of archives currently cached in the pool.
      */
-    std::size_t size() const noexcept;
+    std::size_t size() const;
 
     /**
      * @brief Clears all cached archives, closing open file handles.
      */
-    void clear() noexcept;
+    void clear();
 
 private:
     struct OpeningEntry {

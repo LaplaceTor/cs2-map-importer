@@ -896,147 +896,147 @@
 <context>
     <name>DspPreset</name>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="9"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="10"/>
         <source>Normal (off)</source>
         <translation>无（关闭）</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="10"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="11"/>
         <source>Generic</source>
         <translation>通用</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="11"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="12"/>
         <source>Metal Small</source>
         <translation>金属 小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="12"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="13"/>
         <source>Metal Medium</source>
         <translation>金属 中</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="13"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="14"/>
         <source>Metal Large</source>
         <translation>金属 大</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="14"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="15"/>
         <source>Tunnel Small</source>
         <translation>隧道 小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="15"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="16"/>
         <source>Tunnel Medium</source>
         <translation>隧道 中</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="16"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="17"/>
         <source>Tunnel Large</source>
         <translation>隧道 大</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="17"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="18"/>
         <source>Chamber Small</source>
         <translation>密室 小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="18"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="19"/>
         <source>Chamber Medium</source>
         <translation>密室 中</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="19"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="20"/>
         <source>Chamber Large</source>
         <translation>密室 大</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="20"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="21"/>
         <source>Bright Small</source>
         <translation>明亮 小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="21"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="22"/>
         <source>Bright Medium</source>
         <translation>明亮 中</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="22"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="23"/>
         <source>Bright Large</source>
         <translation>明亮 大</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="23"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="24"/>
         <source>Water 1</source>
         <translation>水声 1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="24"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="25"/>
         <source>Water 2</source>
         <translation>水声 2</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="25"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="26"/>
         <source>Water 3</source>
         <translation>水声 3</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="26"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="27"/>
         <source>Concrete Small</source>
         <translation>混凝土 小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="27"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="28"/>
         <source>Concrete Medium</source>
         <translation>混凝土 中</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="28"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="29"/>
         <source>Concrete Large</source>
         <translation>混凝土 大</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="29"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="30"/>
         <source>Outside Alley</source>
         <translation>室外 小巷</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="30"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="31"/>
         <source>Outside Street</source>
         <translation>室外 街道</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="31"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="32"/>
         <source>Outside Open</source>
         <translation>室外 开阔</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="32"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="33"/>
         <source>Cavern Small</source>
         <translation>洞穴 小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="33"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="34"/>
         <source>Cavern Medium</source>
         <translation>洞穴 中</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="34"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="35"/>
         <source>Cavern Large</source>
         <translation>洞穴 大</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="35"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="36"/>
         <source>Weirdo 1</source>
         <translation>怪异 1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="36"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="37"/>
         <source>Weirdo 2</source>
         <translation>怪异 2</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="37"/>
+        <location filename="../src/Domain/Audio/DspPresetRegistry.cpp" line="38"/>
         <source>Weirdo 3</source>
         <translation>怪异 3</translation>
     </message>
@@ -1901,27 +1901,27 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
 <context>
     <name>KeyValuesDocument</name>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="25"/>
+        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="26"/>
         <source>Failed to load KeyValues document from %1: %2</source>
         <translation>从 %1 加载 KeyValues 文档失败：%2</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="38"/>
+        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="39"/>
         <source>Failed to parse KeyValues string: %1</source>
         <translation>解析 KeyValues 字符串失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="50"/>
+        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="51"/>
         <source>Failed to parse KeyValues data: %1</source>
         <translation>解析 KeyValues 数据失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="60"/>
+        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="61"/>
         <source>Path is empty or invalid</source>
         <translation>路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="66"/>
+        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="67"/>
         <source>File does not exist</source>
         <translation>文件不存在</translation>
     </message>
@@ -2926,8 +2926,8 @@ Do you want to proceed?</source>
     <message>
         <location filename="../src/Domain/Package/PackArchivePool.cpp" line="32"/>
         <location filename="../src/Domain/Package/PackArchivePool.cpp" line="46"/>
-        <location filename="../src/Domain/Package/PackArchivePool.cpp" line="120"/>
-        <location filename="../src/Domain/Package/PackArchivePool.cpp" line="127"/>
+        <location filename="../src/Domain/Package/PackArchivePool.cpp" line="116"/>
+        <location filename="../src/Domain/Package/PackArchivePool.cpp" line="123"/>
         <source>archive open cancelled</source>
         <translation>打开归档已取消</translation>
     </message>
@@ -2935,11 +2935,6 @@ Do you want to proceed?</source>
         <location filename="../src/Domain/Package/PackArchivePool.cpp" line="38"/>
         <source>pack archive path is empty or invalid</source>
         <translation>打包归档路径为空或无效</translation>
-    </message>
-    <message>
-        <location filename="../src/Domain/Package/PackArchivePool.cpp" line="90"/>
-        <source>unknown exception while opening pack archive</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3048,34 +3043,34 @@ Do you want to proceed?</source>
 <context>
     <name>ParticleImportWorkflow</name>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="34"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="35"/>
         <source>Skipping cleanup of artifact outside expected base directory: %1</source>
         <translation>跳过清理超出预期基目录的产物：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="43"/>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="52"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="44"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="53"/>
         <source>Failed to clean up generated artifact: %1 (%2)</source>
         <translation>清理生成的产物失败：%1（%2）</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="58"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="59"/>
         <source>Cleaned up %1 half-finished artifact(s) after cancelled/failed import</source>
         <translation>在导入取消/失败后清理了 %1 个未完成的产物</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="71"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="72"/>
         <source>No source PCF files specified</source>
         <translation>未指定源 PCF 文件</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="95"/>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="250"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="96"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="252"/>
         <source>Particle import was cancelled</source>
         <translation>粒子导入已取消</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="115"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="116"/>
         <source>Failed to create Source 1 particles directory: %1</source>
         <translation>创建 Source 1 粒子目录失败：%1</translation>
     </message>
@@ -3084,54 +3079,53 @@ Do you want to proceed?</source>
         <translation type="vanished">复制 PCF 文件至 Source 1 粒子文件夹失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="150"/>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="159"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="161"/>
         <source>Failed to copy PCF file to Source 1 particles folder: %1 (%2)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="168"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="170"/>
         <source>Staged PCF file to Source 1 particles folder: %1</source>
         <translation>已暂存 PCF 文件至 Source 1 粒子文件夹：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="176"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="178"/>
         <source>Converting PCF (%1/%2): %3</source>
         <translation>正在转换 PCF（%1/%2）：%3</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="178"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="180"/>
         <source>Converting PCF with source1import: %1</source>
         <translation>正在使用 source1import 转换 PCF：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="215"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="217"/>
         <source>No .vpcf files generated from PCF: %1</source>
         <translation>未从 PCF 生成任何 .vpcf 文件：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="227"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="229"/>
         <source>PCF &apos;%1&apos;: %2 .vpcf generated, %3 failed</source>
         <translation>PCF &apos;%1&apos;：生成了 %2 个 .vpcf，%3 个失败</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="230"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="232"/>
         <source>PCF &apos;%1&apos;: %2 .vpcf generated</source>
         <translation>PCF &apos;%1&apos;：生成了 %2 个 .vpcf</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="242"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="244"/>
         <source>PCF conversion failed for &apos;%1&apos;: %2</source>
         <translation>PCF &apos;%1&apos; 转换失败：%2</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="257"/>
         <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="259"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="261"/>
         <source>No .vpcf files were generated from the selected PCF files</source>
         <translation>未能从所选 PCF 文件中生成任何 .vpcf 文件</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="265"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="267"/>
         <source>Compiling %1 generated .vpcf resource(s)</source>
         <translation>正在编译 %1 个生成的 .vpcf 资源</translation>
     </message>
@@ -3140,7 +3134,7 @@ Do you want to proceed?</source>
         <translation type="vanished">已复制 PCF 文件至 Source 1 粒子文件夹：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="170"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="172"/>
         <source>PCF file is already inside Source 1 particles folder: %1</source>
         <translation>PCF 文件已位于 Source 1 粒子文件夹内：%1</translation>
     </message>
@@ -3161,18 +3155,18 @@ Do you want to proceed?</source>
         <translation type="vanished">编译生成的 .vpcf 资源</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="282"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="284"/>
         <source>Resource compilation failed: %1</source>
         <translation>资源编译失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="316"/>
         <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="318"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="320"/>
         <source>No particle resources were successfully compiled</source>
         <translation>未能成功编译任何粒子资源</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="324"/>
+        <location filename="../src/Workflow/Particle/ParticleImportWorkflow.cpp" line="326"/>
         <source>Particle import and compilation completed successfully</source>
         <translation>粒子导入与编译成功完成</translation>
     </message>
@@ -3271,91 +3265,91 @@ Do you want to proceed?</source>
 <context>
     <name>ResourceCompilerTool</name>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="261"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="260"/>
         <source>Resource compiler path is invalid</source>
         <translation>资源编译器路径无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="266"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="265"/>
         <source>Resource compiler does not exist</source>
         <translation>资源编译器不存在</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="271"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="270"/>
         <source>CS2 game directory cannot be empty</source>
         <translation>CS2 游戏目录不能为空</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="276"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="275"/>
         <source>Resource list to compile cannot be empty</source>
         <translation>待编译资源列表不能为空</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="114"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="113"/>
         <source>resourcecompiler cancelled</source>
         <translation>resourcecompiler 已取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="117"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="116"/>
         <source>resourcecompiler was cancelled</source>
         <translation>resourcecompiler 已被取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="62"/>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="120"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="61"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="119"/>
         <source>Resource compiler was cancelled</source>
         <translation>资源编译器已取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="27"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="32"/>
         <source>Failed to open temporary filelist: %1</source>
         <translation>打开临时文件列表失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="33"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="38"/>
         <source>Security boundary violation: Temporary filelist escaped system temp directory</source>
         <translation>安全边界违规：临时文件清单逃逸出系统临时目录</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="129"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="128"/>
         <source>resourcecompiler crashed: %1</source>
         <translation>resourcecompiler 崩溃：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="132"/>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="145"/>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="158"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="131"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="144"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="157"/>
         <source>resourcecompiler.exe</source>
         <translation>resourcecompiler.exe</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="133"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="132"/>
         <source>Resource compiler crashed</source>
         <translation>资源编译器崩溃</translation>
     </message>
     <message>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="137"/>
         <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="138"/>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="139"/>
         <source>Timed out</source>
         <translation>已超时</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="142"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="141"/>
         <source>resourcecompiler timed out after %1 ms</source>
         <translation>resourcecompiler 在 %1 毫秒后超时</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="146"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="145"/>
         <source>Resource compiler timed out</source>
         <translation>资源编译器执行超时</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="155"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="154"/>
         <source>resourcecompiler failed to start: %1</source>
         <translation>resourcecompiler 启动失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="159"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="158"/>
         <source>Failed to start resource compiler</source>
         <translation>资源编译器启动失败</translation>
     </message>
@@ -3364,32 +3358,32 @@ Do you want to proceed?</source>
         <translation type="vanished">已编译 VPCF_C：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="194"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="193"/>
         <source>resourcecompiler returned failure with exit code %1</source>
         <translation>resourcecompiler 返回失败，退出码 %1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="195"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="194"/>
         <source>; </source>
         <translation>; </translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="201"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="200"/>
         <source>resourcecompiler failed: %1</source>
         <translation>resourcecompiler 失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="205"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="204"/>
         <source>Resource compilation failed</source>
         <translation>资源编译失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="210"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="209"/>
         <source>Compiled %1 asset(s)</source>
         <translation>已编译 %1 个资源</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="220"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="219"/>
         <source>Successfully compiled %1 resource(s)</source>
         <translation>成功编译 %1 个资源</translation>
     </message>
@@ -3531,14 +3525,13 @@ Do you want to proceed?</source>
 <context>
     <name>SoundEventKv3Writer</name>
     <message>
-        <location filename="../src/Domain/Audio/SoundEventKv3Writer.cpp" line="180"/>
+        <location filename="../src/Domain/Audio/SoundEventKv3Writer.cpp" line="212"/>
         <source>Failed to write KV3 soundevents file</source>
         <translation>写入 KV3 soundevents 文件失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/SoundEventKv3Writer.cpp" line="184"/>
         <source>Unknown error writing KV3 soundevents file</source>
-        <translation>写入 KV3 soundevents 文件时发生未知错误</translation>
+        <translation type="vanished">写入 KV3 soundevents 文件时发生未知错误</translation>
     </message>
 </context>
 <context>
@@ -3736,12 +3729,12 @@ Do you want to proceed?</source>
 <context>
     <name>SoundscapeParser</name>
     <message>
-        <location filename="../src/Domain/Audio/SoundscapeParser.cpp" line="28"/>
+        <location filename="../src/Domain/Audio/SoundscapeParser.cpp" line="32"/>
         <source>Failed to parse Soundscape VDF content</source>
         <translation>解析 Soundscape VDF 内容失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/SoundscapeParser.cpp" line="38"/>
+        <location filename="../src/Domain/Audio/SoundscapeParser.cpp" line="42"/>
         <source>Failed to load Soundscape file</source>
         <translation>加载 Soundscape 文件失败</translation>
     </message>
@@ -4044,60 +4037,59 @@ or click Add</source>
 <context>
     <name>TextureIO</name>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="81"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="90"/>
         <source>texture path is empty or invalid</source>
         <translation>纹理路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="86"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="95"/>
         <source>texture file not found</source>
         <translation>找不到纹理文件</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="94"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="103"/>
         <source>unsupported texture file extension</source>
         <translation>不支持的纹理文件扩展名</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="118"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="127"/>
         <source>failed to decode image file</source>
         <translation>图像文件解码失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="128"/>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="148"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="137"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="157"/>
         <source>image has invalid dimensions</source>
         <translation>图像尺寸无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="185"/>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="243"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="195"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="254"/>
         <source>destination path is empty or invalid</source>
         <translation>目标路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="190"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="200"/>
         <source>texture image is not valid</source>
         <translation>纹理图像无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="197"/>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="255"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="207"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="266"/>
         <source>unsupported texture write extension</source>
         <translation>不支持的纹理写入扩展名</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="248"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="259"/>
         <source>image is null or has invalid dimensions</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="265"/>
         <source>failed to create destination directory</source>
-        <translation type="unfinished">创建目标目录失败</translation>
+        <translation type="obsolete">创建目标目录失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="274"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="284"/>
         <source>failed to write PNG file</source>
         <translation>PNG 文件写入失败</translation>
     </message>
@@ -4105,32 +4097,32 @@ or click Add</source>
 <context>
     <name>TgaCodec</name>
     <message>
-        <location filename="../src/Domain/Material/TgaCodec.cpp" line="169"/>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="151"/>
         <source>TGA file path is empty or invalid</source>
         <translation>TGA 文件路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TgaCodec.cpp" line="174"/>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="156"/>
         <source>TGA file not found</source>
         <translation>找不到 TGA 文件</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TgaCodec.cpp" line="187"/>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="174"/>
         <source>unsupported or malformed TGA header</source>
         <translation>TGA 文件头不受支持或已损坏</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TgaCodec.cpp" line="193"/>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="180"/>
         <source>TGA image has zero dimensions</source>
         <translation>TGA 图像尺寸为零</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TgaCodec.cpp" line="205"/>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="192"/>
         <source>unsupported TGA bit depth</source>
         <translation>不支持的 TGA 位深</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TgaCodec.cpp" line="213"/>
+        <location filename="../src/Domain/Material/TgaCodec.cpp" line="200"/>
         <source>TGA pixel data is truncated or corrupted</source>
         <translation>TGA 像素数据被截断或损坏</translation>
     </message>
@@ -4648,24 +4640,30 @@ or click Add</source>
         <translation type="vanished">解码 VTF 图像或编码为目标格式失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfConverter.cpp" line="42"/>
+        <location filename="../src/Domain/Material/VtfConverter.cpp" line="100"/>
         <source>Failed to open memory buffer for image encoding</source>
         <translation>打开用于图像编码的内存缓冲区失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfConverter.cpp" line="53"/>
+        <location filename="../src/Domain/Material/VtfConverter.cpp" line="83"/>
         <source>Failed to encode VTF image to target format</source>
         <translation>将 VTF 图像编码为目标格式失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfConverter.cpp" line="188"/>
+        <location filename="../src/Domain/Material/VtfConverter.cpp" line="236"/>
+        <location filename="../src/Domain/Material/VtfConverter.cpp" line="256"/>
         <source>Unsupported target image format</source>
         <translation>不支持的目标图像格式</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfConverter.cpp" line="201"/>
+        <location filename="../src/Domain/Material/VtfConverter.cpp" line="249"/>
         <source>destination image path is empty or invalid</source>
         <translation>目标图像路径为空或无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfConverter.cpp" line="310"/>
+        <source>Failed to write converted VTF image to disk</source>
+        <translation>将转换后的 VTF 图像写入磁盘失败</translation>
     </message>
     <message>
         <source>Security boundary violation: Destination image &apos;%1&apos; is not within expected base directory &apos;%2&apos;</source>

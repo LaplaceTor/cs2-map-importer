@@ -84,7 +84,7 @@ void GameEnvironmentService::hookLeaseSignals()
     }
 }
 
-void GameEnvironmentService::setVpkSignatureLeaseService(std::shared_ptr<VpkSignatureLeaseService> service) noexcept
+void GameEnvironmentService::setVpkSignatureLeaseService(std::shared_ptr<VpkSignatureLeaseService> service)
 {
     if (m_leaseService) {
         disconnect(m_leaseService.get(), nullptr, this, nullptr);

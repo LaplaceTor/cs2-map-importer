@@ -6,13 +6,13 @@
 
 namespace Core::Process {
 
-enum class ProcessStatus {
+enum class ProcessStatus : int {
     Success,
     FailedToStart,
     Crashed,
     TimedOut,
     NonZeroExit,
-    Cancelled
+    Cancelled,
 };
 
 struct ProcessResult {

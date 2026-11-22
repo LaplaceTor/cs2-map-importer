@@ -4,13 +4,13 @@
 
 namespace Core::Logging {
 
-enum class TaskState {
+enum class TaskState : int {
     Pending,
     Running,
     Completed,
     Failed,
     Cancelled,
-    Skipped
+    Skipped,
 };
 
 inline QString taskStateToString(TaskState state)

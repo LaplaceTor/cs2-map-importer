@@ -9,14 +9,14 @@ namespace Domain::Game {
 /**
  * @brief Fine-grained business error codes for the Game domain.
  */
-enum class GameErrorCode {
+enum class GameErrorCode : int {
     None = 0,
     UnsupportedGame,
     GameInfoNotFound,
     GameTypeMismatch,
     SteamAppMismatch,
     InvalidGameInstallation,
-    EmptyCustomGameInfo
+    EmptyCustomGameInfo,
 };
 
 /**

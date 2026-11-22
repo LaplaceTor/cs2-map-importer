@@ -12,7 +12,7 @@ namespace Domain::Material::TextureProcess {
 /**
  * @brief How to extract a scalar value from a source image for packing.
  */
-enum class PackSource {
+enum class PackSource : int {
     Luminance, // 0.3 R + 0.5 G + 0.2 B (plane 0 for grayscale sources)
     Red,
     Green,

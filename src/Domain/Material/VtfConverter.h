@@ -13,7 +13,7 @@ namespace Domain::Material {
 /**
  * @brief Output image file formats supported for VTF decoding.
  */
-enum class ImageFileFormat {
+enum class ImageFileFormat : int {
     Png,
     Tga,
     Jpg,

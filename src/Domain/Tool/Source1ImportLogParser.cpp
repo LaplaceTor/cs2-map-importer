@@ -2,8 +2,23 @@
 
 #include <QDir>
 #include <QRegularExpression>
+#include <QSet>
+#include <QStringTokenizer>
+#include <QStringView>
 
 namespace Domain::Tool {
+
+namespace {
+
+void appendUnique(QStringList& target, QSet<QString>& seen, const QString& value)
+{
+    if (!seen.contains(value)) {
+        seen.insert(value);
+        target.append(value);
+    }
+}
+
+} // namespace
 
 Source1ImportLogResult Source1ImportLogParser::parse(
     const QString& stdOut,
@@ -48,80 +63,84 @@ Source1ImportLogResult Source1ImportLogParser::parse(
 
     bool hasOkBanner = false;
     bool hasErrorBanner = false;
+    QSet<QString> seenVpcfPaths;
+    QSet<QString> seenWarnings;
+    QSet<QString> seenErrorMessages;
 
-    auto checkAndAddVpcf = [&result, &workingDirectory](const QString& rawPath) {
-        if (!rawPath.endsWith(QStringLiteral(".vpcf"), Qt::CaseInsensitive)) {
+    auto checkAndAddVpcf = [&result, &seenVpcfPaths, &workingDirectory](QStringView rawPath) {
+        if (!rawPath.endsWith(u".vpcf", Qt::CaseInsensitive)) {
             return;
         }
-        QString resolved = rawPath;
+        QString resolved = rawPath.toString();
         if (QDir::isRelativePath(resolved) && !workingDirectory.isEmpty()) {
             resolved = QDir(workingDirectory).absoluteFilePath(resolved);
         }
-        QString clean = QDir::cleanPath(resolved);
-        if (!result.generatedVpcfPaths.contains(clean)) {
-            result.generatedVpcfPaths.append(clean);
-        }
+        const QString clean = QDir::cleanPath(resolved);
+        appendUnique(result.generatedVpcfPaths, seenVpcfPaths, clean);
     };
 
     // Parse standard output line by line
-    const QStringList outLines = stdOut.split(QLatin1Char('\n'));
-    for (const QString& line : outLines) {
-        QString trimmed = line.trimmed();
+    QStringView lastMeaningfulOutLine;
+    for (const QStringView line : QStringView(stdOut).tokenize(u'\n')) {
+        const QStringView trimmed = line.trimmed();
         if (trimmed.isEmpty()) {
             continue;
         }
+        if (!trimmed.startsWith(u'-') && !trimmed.startsWith(u'=')) {
+            lastMeaningfulOutLine = trimmed;
+        }
 
         // Writing file pattern
-        auto matchWriting = writingFileRegex.match(trimmed);
+        const auto matchWriting = writingFileRegex.matchView(trimmed);
         if (matchWriting.hasMatch()) {
-            checkAndAddVpcf(matchWriting.captured(1));
+            checkAndAddVpcf(matchWriting.capturedView(1));
         }
 
         // Mapping pattern
-        auto matchMapping = mappingRegex.match(trimmed);
+        const auto matchMapping = mappingRegex.matchView(trimmed);
         if (matchMapping.hasMatch()) {
-            checkAndAddVpcf(matchMapping.captured(2));
+            checkAndAddVpcf(matchMapping.capturedView(2));
         }
 
         // Summary banners
-        auto matchOk = okBannerRegex.match(trimmed);
+        const auto matchOk = okBannerRegex.matchView(trimmed);
         if (matchOk.hasMatch()) {
             hasOkBanner = true;
-            result.importedCount = matchOk.captured(1).toInt();
-            result.failedCount = matchOk.captured(2).toInt();
-            result.skippedCount = matchOk.captured(3).toInt();
-            if (!matchOk.captured(4).isEmpty()) {
-                result.unknownCount = matchOk.captured(4).toInt();
+            result.importedCount = matchOk.capturedView(1).toInt();
+            result.failedCount = matchOk.capturedView(2).toInt();
+            result.skippedCount = matchOk.capturedView(3).toInt();
+            if (!matchOk.capturedView(4).isEmpty()) {
+                result.unknownCount = matchOk.capturedView(4).toInt();
             }
         }
 
-        auto matchError = errorBannerRegex.match(trimmed);
+        const auto matchError = errorBannerRegex.matchView(trimmed);
         if (matchError.hasMatch()) {
             hasErrorBanner = true;
-            result.importedCount = matchError.captured(1).toInt();
-            result.failedCount = matchError.captured(2).toInt();
-            result.skippedCount = matchError.captured(3).toInt();
-            if (!matchError.captured(4).isEmpty()) {
-                result.unknownCount = matchError.captured(4).toInt();
+            result.importedCount = matchError.capturedView(1).toInt();
+            result.failedCount = matchError.capturedView(2).toInt();
+            result.skippedCount = matchError.capturedView(3).toInt();
+            if (!matchError.capturedView(4).isEmpty()) {
+                result.unknownCount = matchError.capturedView(4).toInt();
             }
         }
 
         // Warning tracking
-        if (trimmed.startsWith(QStringLiteral("WARNING:"), Qt::CaseInsensitive)) {
-            result.warnings.append(trimmed);
+        if (trimmed.startsWith(u"WARNING:", Qt::CaseInsensitive)) {
+            appendUnique(result.warnings, seenWarnings, trimmed.toString());
         }
 
         // Error tracking
-        if (trimmed.contains(QStringLiteral("*** Error"), Qt::CaseInsensitive) ||
-            trimmed.startsWith(QStringLiteral("FATAL ERROR:"), Qt::CaseInsensitive) ||
-            trimmed.startsWith(QStringLiteral("FAILED:"), Qt::CaseInsensitive) ||
-            trimmed.startsWith(QStringLiteral("Error:"), Qt::CaseInsensitive) ||
-            trimmed.startsWith(QStringLiteral("Unable to load"), Qt::CaseInsensitive) ||
-            trimmed.contains(QStringLiteral("Unable to load source 1 mod gameinfo"), Qt::CaseInsensitive) ||
-            trimmed.contains(QStringLiteral("Failed to make path"), Qt::CaseInsensitive) ||
-            (trimmed.startsWith(QStringLiteral("Failed to "), Qt::CaseInsensitive) &&
-             !trimmed.contains(QStringLiteral("Note this is ok"), Qt::CaseInsensitive))) {
-            result.errorMessages.append(trimmed);
+        if (trimmed.contains(u"*** Error", Qt::CaseInsensitive) ||
+            trimmed.startsWith(u"FATAL ERROR:", Qt::CaseInsensitive) ||
+            trimmed.startsWith(u"FAILED:", Qt::CaseInsensitive) ||
+            trimmed.startsWith(u"Error:", Qt::CaseInsensitive) ||
+            trimmed.startsWith(u"Unable to load", Qt::CaseInsensitive) ||
+            trimmed.contains(u"Unable to load source 1 mod gameinfo", Qt::CaseInsensitive) ||
+            trimmed.contains(u"Failed to make path", Qt::CaseInsensitive) ||
+            (trimmed.startsWith(u"Failed to ", Qt::CaseInsensitive) &&
+             !trimmed.contains(u"Note this is ok", Qt::CaseInsensitive))) {
+            appendUnique(result.errorMessages, seenErrorMessages, trimmed.toString());
         }
     }
 
@@ -129,20 +148,20 @@ Source1ImportLogResult Source1ImportLogParser::parse(
     // source1import may emit ordinary progress/diagnostic lines on stderr. Only
     // explicit WARNING: lines are tracked (with the known "Failed to make path"
     // escalation); all other stderr lines are retained as warnings for diagnostics.
+    QStringView lastMeaningfulErrLine;
     if (!stdErr.isEmpty()) {
-        const QStringList errLines = stdErr.split(QLatin1Char('\n'));
-        for (const QString& line : errLines) {
-            QString trimmed = line.trimmed();
+        for (const QStringView line : QStringView(stdErr).tokenize(u'\n')) {
+            const QStringView trimmed = line.trimmed();
             if (trimmed.isEmpty()) {
                 continue;
             }
-            if (trimmed.startsWith(QStringLiteral("WARNING:"), Qt::CaseInsensitive)) {
-                result.warnings.append(trimmed);
-                if (trimmed.contains(QStringLiteral("Failed to make path"), Qt::CaseInsensitive)) {
-                    result.errorMessages.append(trimmed);
-                }
-            } else {
-                result.warnings.append(trimmed);
+            if (!trimmed.startsWith(u'-') && !trimmed.startsWith(u'=')) {
+                lastMeaningfulErrLine = trimmed;
+            }
+            appendUnique(result.warnings, seenWarnings, trimmed.toString());
+            if (trimmed.startsWith(u"WARNING:", Qt::CaseInsensitive) &&
+                trimmed.contains(u"Failed to make path", Qt::CaseInsensitive)) {
+                appendUnique(result.errorMessages, seenErrorMessages, trimmed.toString());
             }
         }
     }
@@ -150,32 +169,17 @@ Source1ImportLogResult Source1ImportLogParser::parse(
     // If non-zero exit code but no explicit error messages matched, promote the last
     // meaningful stderr line (then stdout line) so the failure keeps a concrete cause.
     if (exitCode != 0 && result.errorMessages.isEmpty()) {
-        const QStringList errLines = stdErr.split(QLatin1Char('\n'));
-        for (auto it = errLines.crbegin(); it != errLines.crend(); ++it) {
-            QString trimmed = it->trimmed();
-            if (!trimmed.isEmpty() &&
-                !trimmed.startsWith(QLatin1Char('-')) &&
-                !trimmed.startsWith(QLatin1Char('='))) {
-                result.errorMessages.append(trimmed);
-                break;
-            }
-        }
-    }
-    if (exitCode != 0 && result.errorMessages.isEmpty()) {
-        for (auto it = outLines.crbegin(); it != outLines.crend(); ++it) {
-            QString trimmed = it->trimmed();
-            if (!trimmed.isEmpty() &&
-                !trimmed.startsWith(QLatin1Char('-')) &&
-                !trimmed.startsWith(QLatin1Char('='))) {
-                result.errorMessages.append(trimmed);
-                break;
-            }
+        if (!lastMeaningfulErrLine.isEmpty()) {
+            appendUnique(result.errorMessages, seenErrorMessages, lastMeaningfulErrLine.toString());
+        } else if (!lastMeaningfulOutLine.isEmpty()) {
+            appendUnique(result.errorMessages, seenErrorMessages, lastMeaningfulOutLine.toString());
         }
     }
 
     // If 0 files imported and everything was skipped, mark as failure if no error message was extracted
     if (hasOkBanner && result.importedCount == 0 && result.skippedCount > 0 && result.errorMessages.isEmpty()) {
-        result.errorMessages.append(QStringLiteral("No assets imported; %1 asset(s) skipped").arg(result.skippedCount));
+        appendUnique(result.errorMessages, seenErrorMessages,
+                     QStringLiteral("No assets imported; %1 asset(s) skipped").arg(result.skippedCount));
     }
 
     // Determine success:

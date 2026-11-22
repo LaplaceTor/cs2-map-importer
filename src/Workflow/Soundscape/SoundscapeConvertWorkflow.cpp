@@ -242,7 +242,7 @@ Core::Result<SoundscapeWorkflowResult> SoundscapeConvertWorkflow::execute(
             uniqueAssets.insert(raw);
         }
 
-        const double progress = (static_cast<double>(i + 1) / static_cast<double>(totalFiles)) * 100.0;
+        const double progress = static_cast<double>(i + 1) / static_cast<double>(totalFiles);
         context.updateProgress(progress);
     }
 

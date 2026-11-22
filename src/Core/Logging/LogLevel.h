@@ -4,12 +4,12 @@
 
 namespace Core::Logging {
 
-enum class LogLevel {
+enum class LogLevel : int {
     Debug,
     Info,
     Warning,
     Error,
-    Critical
+    Critical,
 };
 
 inline QString logLevelToString(LogLevel level)

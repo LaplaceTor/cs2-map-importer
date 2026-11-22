@@ -4,14 +4,14 @@
 
 namespace Core::FileSystem {
 
-enum class FileLeaseError {
+enum class FileLeaseError : int {
     None,
     InvalidPath,
     NotFound,
     AlreadyInUse,   // Win32 ERROR_SHARING_VIOLATION / ERROR_LOCK_VIOLATION
     AccessDenied,   // Win32 ERROR_ACCESS_DENIED
     Unsupported,
-    Unknown
+    Unknown,
 };
 
 struct FileLeaseResult {

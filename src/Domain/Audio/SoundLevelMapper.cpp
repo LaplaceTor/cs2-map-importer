@@ -1,55 +1,76 @@
 #include "Domain/Audio/SoundLevelMapper.h"
+#include <QLatin1StringView>
 #include <QRegularExpression>
-#include <cmath>
+#include <QStringView>
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <utility>
 
 namespace Domain::Audio {
 
+namespace {
+
+constexpr auto kSoundLevelTable = std::to_array<std::pair<QLatin1StringView, int>>({
+    // Symbolic SNDLVL constants
+    {QLatin1StringView("SNDLVL_NONE"),    0},
+    {QLatin1StringView("SNDLVL_20DB"),    20},
+    {QLatin1StringView("SNDLVL_25DB"),    25},
+    {QLatin1StringView("SNDLVL_30DB"),    30},
+    {QLatin1StringView("SNDLVL_35DB"),    35},
+    {QLatin1StringView("SNDLVL_40DB"),    40},
+    {QLatin1StringView("SNDLVL_45DB"),    45},
+    {QLatin1StringView("SNDLVL_50DB"),    50},
+    {QLatin1StringView("SNDLVL_55DB"),    55},
+    {QLatin1StringView("SNDLVL_IDLE"),    60},
+    {QLatin1StringView("SNDLVL_TALKING"), 60},
+    {QLatin1StringView("SNDLVL_60DB"),    60},
+    {QLatin1StringView("SNDLVL_STATIC"),  65},
+    {QLatin1StringView("SNDLVL_65DB"),    65},
+    {QLatin1StringView("SNDLVL_70DB"),    70},
+    {QLatin1StringView("SNDLVL_NORM"),    75},
+    {QLatin1StringView("SNDLVL_75DB"),    75},
+    {QLatin1StringView("SNDLVL_80DB"),    80},
+    {QLatin1StringView("SNDLVL_85DB"),    85},
+    {QLatin1StringView("SNDLVL_90DB"),    90},
+    {QLatin1StringView("SNDLVL_95DB"),    95},
+    {QLatin1StringView("SNDLVL_100DB"),   100},
+    {QLatin1StringView("SNDLVL_105DB"),   105},
+    {QLatin1StringView("SNDLVL_120DB"),   120},
+    {QLatin1StringView("SNDLVL_130DB"),   130},
+    {QLatin1StringView("SNDLVL_GUNFIRE"), 140},
+    {QLatin1StringView("SNDLVL_140DB"),   140},
+    {QLatin1StringView("SNDLVL_150DB"),   150},
+
+    // Attenuation constants
+    {QLatin1StringView("ATTN_NONE"),      0},
+    {QLatin1StringView("ATTN_NORM"),      75},
+    {QLatin1StringView("ATTN_IDLE"),      60},
+    {QLatin1StringView("ATTN_STATIC"),    66},
+    {QLatin1StringView("ATTN_RICOCHET"),  65},
+    {QLatin1StringView("ATTN_GUNFIRE"),   140},
+});
+
+} // namespace
+
 std::optional<int> SoundLevelMapper::parseSoundLevelToDecibels(const QString& soundLevelStr) {
-    const QString s = soundLevelStr.trimmed().toUpper();
-    if (s.isEmpty()) {
+    const QStringView trimmed = QStringView(soundLevelStr).trimmed();
+    if (trimmed.isEmpty()) {
         return std::nullopt;
     }
 
-    // Symbolic SNDLVL constants
-    if (s == QStringLiteral("SNDLVL_NONE")) return 0;
-    if (s == QStringLiteral("SNDLVL_20DB")) return 20;
-    if (s == QStringLiteral("SNDLVL_25DB")) return 25;
-    if (s == QStringLiteral("SNDLVL_30DB")) return 30;
-    if (s == QStringLiteral("SNDLVL_35DB")) return 35;
-    if (s == QStringLiteral("SNDLVL_40DB")) return 40;
-    if (s == QStringLiteral("SNDLVL_45DB")) return 45;
-    if (s == QStringLiteral("SNDLVL_50DB")) return 50;
-    if (s == QStringLiteral("SNDLVL_55DB")) return 55;
-    if (s == QStringLiteral("SNDLVL_IDLE") || s == QStringLiteral("SNDLVL_TALKING") || s == QStringLiteral("SNDLVL_60DB")) return 60;
-    if (s == QStringLiteral("SNDLVL_STATIC") || s == QStringLiteral("SNDLVL_65DB")) return 65;
-    if (s == QStringLiteral("SNDLVL_70DB")) return 70;
-    if (s == QStringLiteral("SNDLVL_NORM") || s == QStringLiteral("SNDLVL_75DB")) return 75;
-    if (s == QStringLiteral("SNDLVL_80DB")) return 80;
-    if (s == QStringLiteral("SNDLVL_85DB")) return 85;
-    if (s == QStringLiteral("SNDLVL_90DB")) return 90;
-    if (s == QStringLiteral("SNDLVL_95DB")) return 95;
-    if (s == QStringLiteral("SNDLVL_100DB")) return 100;
-    if (s == QStringLiteral("SNDLVL_105DB")) return 105;
-    if (s == QStringLiteral("SNDLVL_120DB")) return 120;
-    if (s == QStringLiteral("SNDLVL_130DB")) return 130;
-    if (s == QStringLiteral("SNDLVL_GUNFIRE") || s == QStringLiteral("SNDLVL_140DB")) return 140;
-    if (s == QStringLiteral("SNDLVL_150DB")) return 150;
-
-    // Attenuation constants
-    if (s == QStringLiteral("ATTN_NONE")) return 0;
-    if (s == QStringLiteral("ATTN_NORM")) return 75;
-    if (s == QStringLiteral("ATTN_IDLE")) return 60;
-    if (s == QStringLiteral("ATTN_STATIC")) return 66;
-    if (s == QStringLiteral("ATTN_RICOCHET")) return 65;
-    if (s == QStringLiteral("ATTN_GUNFIRE")) return 140;
+    for (const auto& [name, db] : kSoundLevelTable) {
+        if (trimmed.compare(name, Qt::CaseInsensitive) == 0) {
+            return db;
+        }
+    }
 
     // Regex extraction for formats like "SNDLVL_75dB", "75dB", "75"
     static const QRegularExpression dbRegex(QStringLiteral("(\\d+)(?:\\s*DB)?"), QRegularExpression::CaseInsensitiveOption);
-    const auto match = dbRegex.match(s);
+    const auto match = dbRegex.matchView(trimmed);
     if (match.hasMatch()) {
         bool ok = false;
-        int val = match.captured(1).toInt(&ok);
+        const int val = match.capturedView(1).toInt(&ok);
         if (ok) {
             return val;
         }

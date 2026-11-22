@@ -11,13 +11,13 @@
 
 namespace Application::Environment {
 
-enum class VpkSignatureLeaseStatus {
+enum class VpkSignatureLeaseStatus : int {
     Inactive,      // Not a CS2 installation or no lease requested
     Acquired,      // Exclusive lease actively held
     AlreadyInUse,  // File is locked by another process (e.g. CS2)
     NotFound,      // vpk.signatures not found
     AccessDenied,  // Permission denied
-    Failed         // Other OS failure
+    Failed,        // Other OS failure
 };
 
 struct VpkSignatureLeaseResult {

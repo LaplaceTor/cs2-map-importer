@@ -28,7 +28,7 @@ public:
     /**
      * @brief Returns Source 2 preset name for given DSP index (or empty string if disabled/unknown).
      */
-    static QString getPresetName(int dspIndex);
+    static QString presetName(int dspIndex);
 };
 
 } // namespace Domain::Audio

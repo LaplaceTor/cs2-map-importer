@@ -7,17 +7,17 @@
 
 namespace Core::Logging {
 
-enum class FaultBarrierState {
+enum class FaultBarrierState : int {
     Running,
     FaultDetected,
     Draining,
-    Terminated
+    Terminated,
 };
 
-enum class LogSubmissionStatus {
+enum class LogSubmissionStatus : int {
     Accepted,
     RejectedAfterFault,
-    RejectedAfterTermination
+    RejectedAfterTermination,
 };
 
 struct LogSubmissionResult {

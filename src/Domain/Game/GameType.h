@@ -2,12 +2,12 @@
 
 namespace Domain::Game {
 
-enum class EngineType {
+enum class EngineType : int {
     Source1,
-    Source2
+    Source2,
 };
 
-enum class GameType {
+enum class GameType : int {
     Unknown,
     CS2,
     CSGO,
@@ -20,7 +20,7 @@ enum class GameType {
     TF2,
     GMod,
     BlackMesa,
-    Custom
+    Custom,
 };
 
 } // namespace Domain::Game

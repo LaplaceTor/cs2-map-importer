@@ -1,10 +1,14 @@
 #include <QCoreApplication>
 #include "Domain/Audio/SoundscapeParser.h"
-#include <QSet>
+#include <QStringView>
 
 namespace Domain::Audio {
 
 namespace {
+
+bool equalsIgnoreCase(QStringView a, QStringView b) {
+    return a.trimmed().compare(b, Qt::CaseInsensitive) == 0;
+}
 
 QString cleanVal(QString val) {
     val = val.trimmed();
@@ -50,9 +54,8 @@ Core::Result<std::vector<SoundscapeDefinition>> SoundscapeParser::parseDocument(
             continue;
         }
 
-        const QString lowerName = node.name().trimmed().toLower();
-        if (lowerName == QStringLiteral("soundscapes_manifest") ||
-            lowerName == QStringLiteral("soundscaples_manifest")) {
+        if (equalsIgnoreCase(node.name(), u"soundscapes_manifest") ||
+            equalsIgnoreCase(node.name(), u"soundscaples_manifest")) {
             continue;
         }
 
@@ -74,26 +77,26 @@ std::optional<SoundscapeDefinition> SoundscapeParser::parseSoundscapeNode(const 
     def.name = node.name().trimmed();
 
     for (const auto& child : node.children()) {
-        const QString key = child.name().trimmed().toLower();
         if (child.isProperty()) {
+            const QStringView key = QStringView(child.name()).trimmed();
             const QString val = cleanVal(child.value());
-            if (key == QStringLiteral("dsp")) {
+            if (equalsIgnoreCase(key, u"dsp")) {
                 bool ok = false;
                 int dsp = val.toInt(&ok);
                 if (ok) def.dspIndex = dsp;
-            } else if (key == QStringLiteral("dsp_volume") || key == QStringLiteral("dsp_spatial")) {
+            } else if (equalsIgnoreCase(key, u"dsp_volume") || equalsIgnoreCase(key, u"dsp_spatial")) {
                 bool ok = false;
                 double v = val.toDouble(&ok);
                 if (ok) def.dspVolume = v;
-            } else if (key == QStringLiteral("fadetime")) {
+            } else if (equalsIgnoreCase(key, u"fadetime")) {
                 bool ok = false;
                 double ft = val.toDouble(&ok);
                 if (ok) def.fadeTime = ft;
-            } else if (key == QStringLiteral("origin")) {
+            } else if (equalsIgnoreCase(key, u"origin")) {
                 def.origin = Vector3::fromString(val);
-            } else if (key == QStringLiteral("position")) {
+            } else if (equalsIgnoreCase(key, u"position")) {
                 def.position = val;
-            } else if (key == QStringLiteral("positionoverride") || key == QStringLiteral("ambientpositionoverride")) {
+            } else if (equalsIgnoreCase(key, u"positionoverride") || equalsIgnoreCase(key, u"ambientpositionoverride")) {
                 bool ok = false;
                 int po = val.toInt(&ok);
                 if (ok) def.positionOverride = po;
@@ -111,12 +114,12 @@ void SoundscapeParser::extractElementsFromNode(const Core::KeyValues::KeyValuesN
             continue;
         }
 
-        const QString lowerName = child.name().trimmed().toLower();
-        if (lowerName == QStringLiteral("playlooping")) {
+        const QStringView name = QStringView(child.name()).trimmed();
+        if (equalsIgnoreCase(name, u"playlooping")) {
             elements.push_back(parsePlayLooping(child));
-        } else if (lowerName == QStringLiteral("playrandom")) {
+        } else if (equalsIgnoreCase(name, u"playrandom")) {
             elements.push_back(parsePlayRandom(child));
-        } else if (lowerName == QStringLiteral("playsoundscape")) {
+        } else if (equalsIgnoreCase(name, u"playsoundscape")) {
             elements.push_back(parsePlaySoundscape(child));
         } else {
             // Nested subsection that may contain playlooping/playrandom/playsoundscape
@@ -130,24 +133,24 @@ PlayLoopingElement SoundscapeParser::parsePlayLooping(const Core::KeyValues::Key
 
     for (const auto& child : node.children()) {
         if (child.isProperty()) {
-            const QString key = child.name().trimmed().toLower();
+            const QStringView key = QStringView(child.name()).trimmed();
             const QString val = cleanVal(child.value());
 
-            if (key == QStringLiteral("wave")) {
+            if (equalsIgnoreCase(key, u"wave")) {
                 elem.wave = val;
-            } else if (key == QStringLiteral("volume")) {
+            } else if (equalsIgnoreCase(key, u"volume")) {
                 auto r = DoubleRange::fromString(val);
                 if (r) elem.volume = *r;
-            } else if (key == QStringLiteral("pitch")) {
+            } else if (equalsIgnoreCase(key, u"pitch")) {
                 auto r = DoubleRange::fromString(val);
                 if (r) elem.pitch = *r;
-            } else if (key == QStringLiteral("soundlevel")) {
+            } else if (equalsIgnoreCase(key, u"soundlevel")) {
                 elem.soundLevel = val;
-            } else if (key == QStringLiteral("origin")) {
+            } else if (equalsIgnoreCase(key, u"origin")) {
                 elem.origin = Vector3::fromString(val);
-            } else if (key == QStringLiteral("position")) {
+            } else if (equalsIgnoreCase(key, u"position")) {
                 elem.position = val;
-            } else if (key == QStringLiteral("positionoverride") || key == QStringLiteral("ambientpositionoverride")) {
+            } else if (equalsIgnoreCase(key, u"positionoverride") || equalsIgnoreCase(key, u"ambientpositionoverride")) {
                 bool ok = false;
                 int po = val.toInt(&ok);
                 if (ok) elem.positionOverride = po;
@@ -162,36 +165,36 @@ PlayRandomElement SoundscapeParser::parsePlayRandom(const Core::KeyValues::KeyVa
     PlayRandomElement elem;
 
     for (const auto& child : node.children()) {
-        const QString key = child.name().trimmed().toLower();
+        const QStringView key = QStringView(child.name()).trimmed();
         if (child.isProperty()) {
             const QString val = cleanVal(child.value());
 
-            if (key == QStringLiteral("time")) {
+            if (equalsIgnoreCase(key, u"time")) {
                 auto r = DoubleRange::fromString(val);
                 if (r) elem.timeInterval = *r;
-            } else if (key == QStringLiteral("volume")) {
+            } else if (equalsIgnoreCase(key, u"volume")) {
                 auto r = DoubleRange::fromString(val);
                 if (r) elem.volume = *r;
-            } else if (key == QStringLiteral("pitch")) {
+            } else if (equalsIgnoreCase(key, u"pitch")) {
                 auto r = DoubleRange::fromString(val);
                 if (r) elem.pitch = *r;
-            } else if (key == QStringLiteral("soundlevel")) {
+            } else if (equalsIgnoreCase(key, u"soundlevel")) {
                 elem.soundLevel = val;
-            } else if (key == QStringLiteral("origin")) {
+            } else if (equalsIgnoreCase(key, u"origin")) {
                 elem.origin = Vector3::fromString(val);
-            } else if (key == QStringLiteral("position")) {
+            } else if (equalsIgnoreCase(key, u"position")) {
                 elem.position = val;
-            } else if (key == QStringLiteral("positionoverride") || key == QStringLiteral("ambientpositionoverride")) {
+            } else if (equalsIgnoreCase(key, u"positionoverride") || equalsIgnoreCase(key, u"ambientpositionoverride")) {
                 bool ok = false;
                 int po = val.toInt(&ok);
                 if (ok) elem.positionOverride = po;
-            } else if (key == QStringLiteral("wave")) {
+            } else if (equalsIgnoreCase(key, u"wave")) {
                 elem.waves.append(val);
             }
         } else if (child.isSection()) {
-            if (key == QStringLiteral("rndwave")) {
+            if (equalsIgnoreCase(key, u"rndwave")) {
                 for (const auto& sub : child.children()) {
-                    if (sub.isProperty() && sub.name().trimmed().toLower() == QStringLiteral("wave")) {
+                    if (sub.isProperty() && equalsIgnoreCase(sub.name(), u"wave")) {
                         elem.waves.append(cleanVal(sub.value()));
                     }
                 }
@@ -207,20 +210,20 @@ PlaySoundscapeElement SoundscapeParser::parsePlaySoundscape(const Core::KeyValue
 
     for (const auto& child : node.children()) {
         if (child.isProperty()) {
-            const QString key = child.name().trimmed().toLower();
+            const QStringView key = QStringView(child.name()).trimmed();
             const QString val = cleanVal(child.value());
 
-            if (key == QStringLiteral("name")) {
+            if (equalsIgnoreCase(key, u"name")) {
                 elem.targetSoundscape = val;
-            } else if (key == QStringLiteral("volume")) {
+            } else if (equalsIgnoreCase(key, u"volume")) {
                 bool ok = false;
                 double v = val.toDouble(&ok);
                 if (ok) elem.volume = v;
-            } else if (key == QStringLiteral("origin")) {
+            } else if (equalsIgnoreCase(key, u"origin")) {
                 elem.origin = Vector3::fromString(val);
-            } else if (key == QStringLiteral("position")) {
+            } else if (equalsIgnoreCase(key, u"position")) {
                 elem.position = val;
-            } else if (key == QStringLiteral("positionoverride") || key == QStringLiteral("ambientpositionoverride")) {
+            } else if (equalsIgnoreCase(key, u"positionoverride") || equalsIgnoreCase(key, u"ambientpositionoverride")) {
                 bool ok = false;
                 int po = val.toInt(&ok);
                 if (ok) elem.positionOverride = po;

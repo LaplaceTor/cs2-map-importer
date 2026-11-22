@@ -65,7 +65,7 @@ ProcessResult ProcessRunner::execute(const QString& executable, const ProcessOpt
             result.errorMessage = QCoreApplication::translate("ProcessRunner", "Process startup timed out.");
         } else {
             result.status = ProcessStatus::FailedToStart;
-            result.errorMessage = QString("Failed to start executable '%1': %2")
+            result.errorMessage = QStringLiteral("Failed to start executable '%1': %2")
                                       .arg(executable, process.errorString());
         }
         return result;
@@ -137,7 +137,7 @@ ProcessResult ProcessRunner::execute(const QString& executable, const ProcessOpt
             }
             result.status = ProcessStatus::TimedOut;
             result.exitCode = -1;
-            result.errorMessage = QString("Process execution timed out after %1 ms.").arg(options.timeout);
+            result.errorMessage = QStringLiteral("Process execution timed out after %1 ms.").arg(options.timeout);
             result.stdOut = fullStdOut;
             result.stdErr = fullStdErr;
             return result;
@@ -172,10 +172,10 @@ ProcessResult ProcessRunner::execute(const QString& executable, const ProcessOpt
 
     if (process.exitStatus() == QProcess::CrashExit) {
         result.status = ProcessStatus::Crashed;
-        result.errorMessage = QString("Process crashed with error: %1").arg(process.errorString());
+        result.errorMessage = QStringLiteral("Process crashed with error: %1").arg(process.errorString());
     } else if (result.exitCode != 0) {
         result.status = ProcessStatus::NonZeroExit;
-        result.errorMessage = QString("Process exited with non-zero code %1").arg(result.exitCode);
+        result.errorMessage = QStringLiteral("Process exited with non-zero code %1").arg(result.exitCode);
     } else {
         result.status = ProcessStatus::Success;
     }

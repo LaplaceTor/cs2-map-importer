@@ -3,6 +3,7 @@
 #include "Core/FileSystem/FileSystem.h"
 #include "Core/FileSystem/AtomicFile.h"
 #include "Core/Error/Exception.h"
+#include "Core/Error/ExecutionGuard.h"
 #include "Core/Error/ErrorCode.h"
 #include <utility>
 
@@ -67,16 +68,14 @@ Core::Result<void> KeyValuesDocument::loadFromFile(const Path::FilesystemPath& p
             path.toString());
     }
 
-    try {
+    const Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Loading KeyValues document"),
+        .resourcePath = path.toString()
+    };
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
         const QByteArray data = FileSystem::FileSystem::readAll(path.toString());
         return loadFromData(data, options);
-    } catch (const Error::Exception& e) {
-        return Core::Result<void>::failure(e.error());
-    } catch (const std::exception& e) {
-        return Core::Result<void>::failure(
-            Core::Error::ErrorCode::ReadFailed,
-            QString::fromUtf8(e.what()));
-    }
+    }, ctx);
 }
 
 Core::Result<void> KeyValuesDocument::loadFromString(const QString& content, KeyValuesReadOptions options) {
@@ -94,16 +93,14 @@ Core::Result<void> KeyValuesDocument::saveToFile(
     const Path::FilesystemPath& expectedBaseDir,
     const KeyValuesWriter::Options& options) const {
     const QByteArray data = saveToData(options);
-    try {
+    const Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Saving KeyValues document"),
+        .targetPath = path.toString()
+    };
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
         FileSystem::AtomicFile::writeAtomic(path.toString(), data, expectedBaseDir);
         return Core::Result<void>::success();
-    } catch (const Error::Exception& e) {
-        return Core::Result<void>::failure(e.error());
-    } catch (const std::exception& e) {
-        return Core::Result<void>::failure(
-            Core::Error::ErrorCode::WriteFailed,
-            QString::fromUtf8(e.what()));
-    }
+    }, ctx);
 }
 
 QString KeyValuesDocument::saveToString(const KeyValuesWriter::Options& options) const {

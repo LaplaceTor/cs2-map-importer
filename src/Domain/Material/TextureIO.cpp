@@ -1,15 +1,18 @@
 #include "Domain/Material/TextureIO.h"
 
 #include <QCoreApplication>
-#include <QDir>
-#include <QFileInfo>
 #include <QImage>
 #include <QImageReader>
 #include <QImageWriter>
 #include <QString>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <cstddef>
 
+#include "Core/Error/ExecutionGuard.h"
+#include "Core/FileSystem/AtomicFile.h"
 #include "Core/FileSystem/FileSystem.h"
 #include "Domain/Material/TgaCodec.h"
 #include "Domain/Material/VtfCodec.h"
@@ -23,11 +26,17 @@ namespace {
  */
 float srgbDecodeChannel(unsigned char encoded)
 {
-    const float c = static_cast<float>(encoded) / 255.0f;
-    if (c <= 0.04045f) {
-        return c / 12.92f;
-    }
-    return std::pow((c + 0.055f) / 1.055f, 2.4f);
+    static const std::array<float, 256> kLut = [] {
+        std::array<float, 256> table{};
+        for (std::size_t i = 0; i < table.size(); ++i) {
+            const float c = static_cast<float>(i) / 255.0f;
+            table[i] = c <= 0.04045f
+                ? (c / 12.92f)
+                : std::pow((c + 0.055f) / 1.055f, 2.4f);
+        }
+        return table;
+    }();
+    return kLut[encoded];
 }
 
 /**
@@ -177,7 +186,8 @@ Core::Result<TextureImage> TextureIO::loadTexture(const Core::Path::FilesystemPa
 
 Core::Result<void> TextureIO::writeTexture(const Core::Path::FilesystemPath& path,
                                            const TextureImage& image,
-                                           bool srgbEncode)
+                                           bool srgbEncode,
+                                           const Core::Path::FilesystemPath& expectedBaseDir)
 {
     if (path.isEmpty() || !path.isValid()) {
         return Core::Result<void>::failure(
@@ -231,11 +241,12 @@ Core::Result<void> TextureIO::writeTexture(const Core::Path::FilesystemPath& pat
         }
     }
 
-    return writeImage(path, target);
+    return writeImage(path, target, expectedBaseDir);
 }
 
 Core::Result<void> TextureIO::writeImage(const Core::Path::FilesystemPath& path,
-                                         const QImage& image)
+                                         const QImage& image,
+                                         const Core::Path::FilesystemPath& expectedBaseDir)
 {
     if (path.isEmpty() || !path.isValid()) {
         return Core::Result<void>::failure(
@@ -256,25 +267,26 @@ Core::Result<void> TextureIO::writeImage(const Core::Path::FilesystemPath& path,
             path.toString());
     }
 
-    const QFileInfo fileInfo(path.toString());
-    const QDir parentDir = fileInfo.dir();
-    if (!parentDir.exists()) {
-        if (!parentDir.mkpath(QStringLiteral("."))) {
+    Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Writing PNG texture"),
+        .targetPath = path.toString()
+    };
+
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
+        Core::FileSystem::FileSystem::createDirectory(path.parentPath().toString());
+        Core::FileSystem::AtomicFile atomic(path.toString(), expectedBaseDir);
+        atomic.open();
+
+        QImageWriter writer(atomic.device(), "png");
+        if (!writer.write(image)) {
             return Core::Result<void>::failure(
                 Core::Error::ErrorCode::WriteFailed,
-                QCoreApplication::translate("TextureIO", "failed to create destination directory"),
-                parentDir.path());
+                QCoreApplication::translate("TextureIO", "failed to write PNG file"),
+                path.toString() + QStringLiteral(" | ") + writer.errorString());
         }
-    }
-
-    QImageWriter writer(path.toString(), "png");
-    if (!writer.write(image)) {
-        return Core::Result<void>::failure(
-            Core::Error::ErrorCode::WriteFailed,
-            QCoreApplication::translate("TextureIO", "failed to write PNG file"),
-            path.toString() + QStringLiteral(" | ") + writer.errorString());
-    }
-    return Core::Result<void>::success();
+        atomic.commit();
+        return Core::Result<void>::success();
+    }, ctx);
 }
 
 } // namespace Domain::Material

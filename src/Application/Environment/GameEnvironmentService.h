@@ -85,7 +85,7 @@ public:
 
     // VPK signature lease operations encapsulated in facade
     std::shared_ptr<VpkSignatureLeaseService> leaseService() const noexcept { return m_leaseService; }
-    void setVpkSignatureLeaseService(std::shared_ptr<VpkSignatureLeaseService> service) noexcept;
+    void setVpkSignatureLeaseService(std::shared_ptr<VpkSignatureLeaseService> service);
     bool isVpkLeaseHeld() const noexcept;
     VpkSignatureLeaseStatus vpkLeaseStatus() const noexcept;
     QString leasedVpkFilePath() const;

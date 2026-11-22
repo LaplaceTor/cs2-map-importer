@@ -6,9 +6,9 @@
 
 namespace Domain::Game {
 
-enum class SearchTargetType {
+enum class SearchTargetType : int {
     Directory,
-    Vpk
+    Vpk,
 };
 
 class SearchTarget {

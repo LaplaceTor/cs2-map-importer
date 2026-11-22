@@ -295,18 +295,23 @@ QImage SkyboxCubeBuilder::rotateImage(const QImage& src, Rotation rotation)
         return QImage();
     }
 
+    uchar* dstBits = dst.bits();
+    const qsizetype dstStride = dst.bytesPerLine();
+
     if (rotation == Rotation::Deg90) {
         for (int y = 0; y < h; ++y) {
             const auto* srcRow = reinterpret_cast<const quint32*>(formatted.constScanLine(y));
+            const int dstCol = h - 1 - y;
             for (int x = 0; x < w; ++x) {
-                auto* dstRow = reinterpret_cast<quint32*>(dst.scanLine(x));
-                dstRow[h - 1 - y] = srcRow[x];
+                auto* dstRow = reinterpret_cast<quint32*>(dstBits + static_cast<qsizetype>(x) * dstStride);
+                dstRow[dstCol] = srcRow[x];
             }
         }
     } else if (rotation == Rotation::Deg180) {
         for (int y = 0; y < h; ++y) {
             const auto* srcRow = reinterpret_cast<const quint32*>(formatted.constScanLine(y));
-            auto* dstRow = reinterpret_cast<quint32*>(dst.scanLine(h - 1 - y));
+            auto* dstRow = reinterpret_cast<quint32*>(
+                dstBits + static_cast<qsizetype>(h - 1 - y) * dstStride);
             for (int x = 0; x < w; ++x) {
                 dstRow[w - 1 - x] = srcRow[x];
             }
@@ -315,7 +320,8 @@ QImage SkyboxCubeBuilder::rotateImage(const QImage& src, Rotation rotation)
         for (int y = 0; y < h; ++y) {
             const auto* srcRow = reinterpret_cast<const quint32*>(formatted.constScanLine(y));
             for (int x = 0; x < w; ++x) {
-                auto* dstRow = reinterpret_cast<quint32*>(dst.scanLine(w - 1 - x));
+                auto* dstRow = reinterpret_cast<quint32*>(
+                    dstBits + static_cast<qsizetype>(w - 1 - x) * dstStride);
                 dstRow[y] = srcRow[x];
             }
         }
@@ -331,31 +337,47 @@ std::vector<QRgb> SkyboxCubeBuilder::extractEdgePixels(const QImage& img, FaceEd
     if (img.isNull() || w <= 0 || h <= 0) {
         return pixels;
     }
+    const QImage rgba = (img.format() == QImage::Format_RGBA8888)
+        ? img
+        : img.convertToFormat(QImage::Format_RGBA8888);
+    if (rgba.isNull()) {
+        return pixels;
+    }
     switch (edge) {
-    case FaceEdge::Top:
+    case FaceEdge::Top: {
         pixels.reserve(w);
+        const uchar* row = rgba.constScanLine(0);
         for (int x = 0; x < w; ++x) {
-            pixels.push_back(img.pixel(x, 0));
+            const uchar* px = row + x * 4;
+            pixels.push_back(qRgba(px[0], px[1], px[2], px[3]));
         }
         break;
-    case FaceEdge::Bottom:
+    }
+    case FaceEdge::Bottom: {
         pixels.reserve(w);
+        const uchar* row = rgba.constScanLine(h - 1);
         for (int x = 0; x < w; ++x) {
-            pixels.push_back(img.pixel(x, h - 1));
+            const uchar* px = row + x * 4;
+            pixels.push_back(qRgba(px[0], px[1], px[2], px[3]));
         }
         break;
+    }
     case FaceEdge::Left:
         pixels.reserve(h);
         for (int y = 0; y < h; ++y) {
-            pixels.push_back(img.pixel(0, y));
+            const uchar* px = rgba.constScanLine(y);
+            pixels.push_back(qRgba(px[0], px[1], px[2], px[3]));
         }
         break;
-    case FaceEdge::Right:
+    case FaceEdge::Right: {
         pixels.reserve(h);
+        const int offset = (w - 1) * 4;
         for (int y = 0; y < h; ++y) {
-            pixels.push_back(img.pixel(w - 1, y));
+            const uchar* px = rgba.constScanLine(y) + offset;
+            pixels.push_back(qRgba(px[0], px[1], px[2], px[3]));
         }
         break;
+    }
     }
     return pixels;
 }
@@ -436,22 +458,14 @@ double SkyboxCubeBuilder::computeGradientCost(
     }
     const std::size_t n = pixelsA.size();
 
-    // If reversed, physically reverse the B pixel sequence first
-    std::vector<QRgb> bSeq;
-    if (reversed) {
-        bSeq.resize(n);
-        for (std::size_t i = 0; i < n; ++i) {
-            bSeq[i] = pixelsB[n - 1 - i];
-        }
-    }
-    const auto& effB = reversed ? bSeq : pixelsB;
-
     double gradDiffSum = 0.0;
     for (std::size_t i = 0; i < n - 1; ++i) {
+        const std::size_t idx0 = reversed ? (n - 1 - i) : i;
+        const std::size_t idx1 = reversed ? (n - 2 - i) : (i + 1);
         const QRgb pA0 = pixelsA[i];
         const QRgb pA1 = pixelsA[i + 1];
-        const QRgb pB0 = effB[i];
-        const QRgb pB1 = effB[i + 1];
+        const QRgb pB0 = pixelsB[idx0];
+        const QRgb pB1 = pixelsB[idx1];
 
         const int drA = qRed(pA1) - qRed(pA0);
         const int dgA = qGreen(pA1) - qGreen(pA0);

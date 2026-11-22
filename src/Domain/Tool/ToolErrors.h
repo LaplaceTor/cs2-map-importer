@@ -10,7 +10,7 @@ namespace Domain::Tool {
 /**
  * @brief Fine-grained business error codes for external CLI tools and parsers.
  */
-enum class ToolErrorCode {
+enum class ToolErrorCode : int {
     None = 0,
     ExecutableNotFound,
     ExecutionFailed,
@@ -19,7 +19,7 @@ enum class ToolErrorCode {
     NoMatchingFiles,
     ImportFailed,
     CompilationFailed,
-    ParseError
+    ParseError,
 };
 
 /**

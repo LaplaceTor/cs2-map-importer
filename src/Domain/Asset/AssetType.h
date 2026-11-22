@@ -2,12 +2,12 @@
 
 namespace Domain::Asset {
 
-enum class AssetType {
+enum class AssetType : int {
     Unknown,
     Model,
     Particle,
     Material,
-    Map
+    Map,
 };
 
 } // namespace Domain::Asset

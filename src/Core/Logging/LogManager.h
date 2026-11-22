@@ -105,13 +105,13 @@ public:
     /**
      * @brief Retrieves already sealed blocks for a task.
      */
-    QVector<LogBlock> getSealedBlocks(quint64 taskId) const;
+    QVector<LogBlock> sealedBlocks(quint64 taskId) const;
 
     /**
      * @brief Retrieves sealed blocks from an absolute block index onward.
      * This is the preferred incremental-read API for future UI consumers.
      */
-    QVector<LogBlock> getSealedBlocksFrom(quint64 taskId, quint64 firstBlockIndex) const;
+    QVector<LogBlock> sealedBlocksFrom(quint64 taskId, quint64 firstBlockIndex) const;
 
     /**
      * @brief Zero-copy inspection of a task's sealed log blocks.
@@ -123,7 +123,7 @@ public:
     /**
      * @brief Retrieves all blocks (sealed and active) for a task.
      */
-    QVector<LogBlock> getAllBlocks(quint64 taskId) const;
+    QVector<LogBlock> allBlocks(quint64 taskId) const;
 
     /**
      * @brief Zero-copy inspection of all blocks (sealed and active) for a task.
@@ -149,7 +149,7 @@ public:
     /**
      * @brief Retrieves an explicit read-only snapshot copy of the task's active log block.
      */
-    LogBlock getLogBlockSnapshot(quint64 taskId) const;
+    LogBlock logBlockSnapshot(quint64 taskId) const;
 
     QVector<quint64> taskIds() const;
     QVector<TaskSnapshot> taskSnapshots() const;

@@ -305,20 +305,20 @@ bool ParticleImportService::isImporting() const
     return m_activeImportsCount.load(std::memory_order_relaxed) > 0;
 }
 
-void ParticleImportService::setWorkflowRunner(WorkflowRunner runner) noexcept
+void ParticleImportService::setWorkflowRunner(WorkflowRunner runner)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_workflowRunner = std::move(runner);
 }
 
-std::shared_ptr<Common::ImportPrerequisiteService> ParticleImportService::prerequisiteService() const noexcept
+std::shared_ptr<Common::ImportPrerequisiteService> ParticleImportService::prerequisiteService() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_prerequisiteService;
 }
 
 void ParticleImportService::setPrerequisiteService(
-    std::shared_ptr<Common::ImportPrerequisiteService> service) noexcept
+    std::shared_ptr<Common::ImportPrerequisiteService> service)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_prerequisiteService = service

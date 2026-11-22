@@ -3,6 +3,7 @@
 
 #include "ResourceCompilerLogParser.h"
 #include "ToolErrors.h"
+#include "Core/Error/ExecutionGuard.h"
 #include "Core/Process/ProcessRunner.h"
 #include "Core/Process/ProcessOptions.h"
 #include "Core/Process/ProcessResult.h"
@@ -18,7 +19,11 @@ namespace {
 
 Core::Result<Core::Temp::TempFile> writeFileList(const QStringList& files)
 {
-    try {
+    const Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Writing resourcecompiler filelist"),
+        .targetPath = QDir::tempPath()
+    };
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<Core::Temp::TempFile> {
         auto tempFile = Core::Temp::TempFile::create(QStringLiteral("rc_filelist_XXXXXX.txt"));
         QFile file(tempFile.path());
         if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -43,13 +48,7 @@ Core::Result<Core::Temp::TempFile> writeFileList(const QStringList& files)
         out.flush();
         file.close();
         return Core::Result<Core::Temp::TempFile>::success(std::move(tempFile));
-    } catch (const Core::Error::Exception& ex) {
-        return Core::Result<Core::Temp::TempFile>::failure(ex.error());
-    } catch (const std::exception& ex) {
-        return Core::Result<Core::Temp::TempFile>::failure(
-            Core::Error::ErrorCode::WriteFailed,
-            QString::fromUtf8(ex.what()));
-    }
+    }, ctx);
 }
 
 Core::Result<ResourceCompilerToolResult> compileInternal(

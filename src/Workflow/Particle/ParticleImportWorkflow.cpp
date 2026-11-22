@@ -6,6 +6,7 @@
 #include "Domain/Tool/Cs2PathLayout.h"
 #include "Domain/Tool/ToolErrors.h"
 #include "Core/Error/ErrorCode.h"
+#include "Core/Error/ExecutionGuard.h"
 #include "Core/FileSystem/FileSystem.h"
 #include "Core/Temp/TempFile.h"
 #include <QFile>
@@ -131,33 +132,34 @@ Core::Result<ParticleImportWorkflowResult> ParticleImportWorkflow::execute(
                 targetPcfPathStr = s1ParticlesDir.filePath(uniqueTempName);
             }
 
-            try {
+            Core::Error::ExecutionContext copyCtx{
+                .stage = QStringLiteral("Staging PCF file"),
+                .resourcePath = pcfPath.toString(),
+                .targetPath = targetPcfPathStr
+            };
+            auto copyRes = Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
                 Core::FileSystem::FileSystem::copy(
                     pcfPath.toString(),
                     targetPcfPathStr,
                     true,
                     context.token(),
                     Core::Path::FilesystemPath(s1ParticlesDir.absolutePath()));
-            } catch (const Core::Error::Exception& ex) {
-                if (ex.error().code() == Core::Error::ErrorCode::Cancelled) {
-                    cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context, options.cs2BaseDir);
-                    return Core::Result<ParticleImportWorkflowResult>::cancelled(ex.error().message());
-                }
-                const QString detail = !ex.error().details().isEmpty()
-                    ? (ex.error().message() + QStringLiteral(" (") + ex.error().details() + QLatin1Char(')'))
-                    : (ex.error().message().isEmpty() ? QString::fromUtf8(ex.what()) : ex.error().message());
+                return Core::Result<void>::success();
+            }, copyCtx);
+
+            if (copyRes.isCancelled() || copyRes.errorCode() == Core::Error::ErrorCode::Cancelled) {
+                cleanupGeneratedArtifacts(workflowResult.generatedVpcfFiles, context, options.cs2BaseDir);
+                return Core::Result<ParticleImportWorkflowResult>::cancelled(copyRes.message());
+            }
+            if (copyRes.isFailure()) {
+                const QString& errMsg = copyRes.error().message();
+                const QString& errDetails = copyRes.error().details();
+                const QString detail = !errDetails.isEmpty()
+                    ? (errMsg.isEmpty() ? errDetails : (errMsg + QStringLiteral(" (") + errDetails + QLatin1Char(')')))
+                    : errMsg;
                 failureDiagnostics.append(pcfFileName + QStringLiteral(": ") + detail);
                 context.warning(QCoreApplication::translate("ParticleImportWorkflow", "Failed to copy PCF file to Source 1 particles folder: %1 (%2)")
-                    .arg(targetPcfPathStr).arg(detail));
-                workflowResult.failedPcfFiles.append(pcfPath.toString());
-                workflowResult.totalFailed += 1;
-                context.updateProgress(progress);
-                continue;
-            } catch (const std::exception& ex) {
-                const QString detail = QString::fromUtf8(ex.what());
-                failureDiagnostics.append(pcfFileName + QStringLiteral(": ") + detail);
-                context.warning(QCoreApplication::translate("ParticleImportWorkflow", "Failed to copy PCF file to Source 1 particles folder: %1 (%2)")
-                    .arg(targetPcfPathStr).arg(detail));
+                    .arg(targetPcfPathStr, detail));
                 workflowResult.failedPcfFiles.append(pcfPath.toString());
                 workflowResult.totalFailed += 1;
                 context.updateProgress(progress);

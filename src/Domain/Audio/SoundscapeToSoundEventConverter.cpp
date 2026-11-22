@@ -2,9 +2,75 @@
 #include "Domain/Audio/DspPresetRegistry.h"
 #include "Domain/Audio/SoundLevelMapper.h"
 #include "Core/Path/PathUtils.h"
+#include <QStringView>
 #include <algorithm>
+#include <variant>
 
 namespace Domain::Audio {
+
+namespace {
+
+template <typename ElementT>
+void populateCommonChildFields(
+    SoundEvent& child,
+    const QString& partName,
+    const QString& defaultMixgroup,
+    const ElementT& elem) {
+    child.name = partName;
+    child.type = QStringLiteral("csgo_mega");
+    child.mixgroup = defaultMixgroup;
+    child.distanceEffectMix = 0.0;
+    child.restrictSourceReverb = true;
+
+    // Volume
+    if (elem.volume.isFixed()) {
+        child.volume = elem.volume.min();
+    } else {
+        child.volume = elem.volume.min();
+        child.volumeRandomMax = elem.volume.delta();
+    }
+
+    // Pitch (100 is 1.0)
+    if (elem.pitch.isFixed()) {
+        child.pitch = elem.pitch.min() / 100.0;
+    } else {
+        child.pitch = 1.0;
+        child.pitchRandomMin = (elem.pitch.min() - 100.0) / 100.0;
+        child.pitchRandomMax = (elem.pitch.max() - 100.0) / 100.0;
+    }
+
+    // Positioning
+    const QStringView posView = QStringView(elem.position).trimmed();
+    if (posView.compare(u"random", Qt::CaseInsensitive) == 0) {
+        child.positionRelativeToPlayer = true;
+        child.position = Vector3(0.0, 0.0, 0.0);
+        child.randomizePositionMinRadius = 0.0;
+        child.randomizePositionMaxRadius = 300.0;
+        child.useWorldPosition = false;
+    } else if (elem.origin.has_value() && !elem.origin->isZero()) {
+        child.position = *elem.origin;
+        child.useWorldPosition = true;
+        child.positionRelativeToPlayer = false;
+    } else if (!posView.isEmpty() || elem.positionOverride.has_value()) {
+        child.positionRelativeToPlayer = false;
+        child.position = Vector3(0.0, 0.0, 0.0);
+        child.useWorldPosition = false;
+    } else {
+        child.positionRelativeToPlayer = true;
+        child.position = Vector3(0.0, 0.0, 0.0);
+        child.useWorldPosition = false;
+    }
+
+    // Soundlevel curve
+    if (!QStringView(elem.soundLevel).trimmed().isEmpty()) {
+        child.distanceVolumeMappingCurve = SoundLevelMapper::createDistanceVolumeCurve(elem.soundLevel);
+        if (!child.distanceVolumeMappingCurve.empty()) {
+            child.useDistanceVolumeMappingCurve = true;
+        }
+    }
+}
+
+} // namespace
 
 QString SoundscapeToSoundEventConverter::formatVsndPath(const QString& rawWavePath) {
     QString p = Core::Path::PathUtils::normalize(rawWavePath.trimmed());
@@ -86,188 +152,92 @@ ConversionResult SoundscapeToSoundEventConverter::convert(const SoundscapeDefini
         master.position = *def.origin;
     }
 
+    // Reserve slot 0 upfront for master to avoid O(N) front insertion after building children
+    result.soundEvents.reserve(def.elements.size() + 1);
+    result.soundEvents.push_back(std::move(master));
+
     // 2. Build Child SoundEvents
     int partIndex = 1;
     for (const auto& elem : def.elements) {
-        if (std::holds_alternative<PlayLoopingElement>(elem)) {
-            const auto& looping = std::get<PlayLoopingElement>(elem);
-            QString partName = QStringLiteral("%1.part%2").arg(def.name).arg(partIndex++);
-            master.childEvents.append(partName);
+        std::visit([&](const auto& node) {
+            using T = std::decay_t<decltype(node)>;
+            if constexpr (std::is_same_v<T, PlayLoopingElement>) {
+                const QString partName = QStringLiteral("%1.part%2").arg(def.name).arg(partIndex++);
+                result.soundEvents.front().childEvents.append(partName);
 
-            SoundEvent child;
-            child.name = partName;
-            child.type = QStringLiteral("csgo_mega");
-            child.mixgroup = defaultMixgroup;
-            child.distanceEffectMix = 0.0;
-            child.restrictSourceReverb = true;
+                SoundEvent child;
+                populateCommonChildFields(child, partName, defaultMixgroup, node);
 
-            // Volume
-            if (looping.volume.isFixed()) {
-                child.volume = looping.volume.min();
-            } else {
-                child.volume = looping.volume.min();
-                child.volumeRandomMax = looping.volume.delta();
-            }
+                // Audio wave
+                if (!QStringView(node.wave).trimmed().isEmpty()) {
+                    child.vsndFiles.append(formatVsndPath(node.wave));
+                    result.uniqueRawSoundAssets.insert(formatRawAssetPath(node.wave));
+                }
 
-            // Pitch (100 is 1.0)
-            if (looping.pitch.isFixed()) {
-                child.pitch = looping.pitch.min() / 100.0;
-            } else {
-                child.pitch = 1.0;
-                child.pitchRandomMin = (looping.pitch.min() - 100.0) / 100.0;
-                child.pitchRandomMax = (looping.pitch.max() - 100.0) / 100.0;
-            }
+                result.soundEvents.push_back(std::move(child));
+            } else if constexpr (std::is_same_v<T, PlayRandomElement>) {
+                const QString partName = QStringLiteral("%1.part%2").arg(def.name).arg(partIndex++);
+                result.soundEvents.front().childEvents.append(partName);
 
-            // Positioning
-            if (looping.position.trimmed().toLower() == QStringLiteral("random")) {
-                child.positionRelativeToPlayer = true;
-                child.position = Vector3(0.0, 0.0, 0.0);
-                child.randomizePositionMinRadius = 0.0;
-                child.randomizePositionMaxRadius = 300.0;
-                child.useWorldPosition = false;
-            } else if (looping.origin.has_value() && !looping.origin->isZero()) {
-                child.position = *looping.origin;
-                child.useWorldPosition = true;
-                child.positionRelativeToPlayer = false;
-            } else if (!looping.position.trimmed().isEmpty() || looping.positionOverride.has_value()) {
-                child.positionRelativeToPlayer = false;
-                child.position = Vector3(0.0, 0.0, 0.0);
-                child.useWorldPosition = false;
-            } else {
-                child.positionRelativeToPlayer = true;
-                child.position = Vector3(0.0, 0.0, 0.0);
-                child.useWorldPosition = false;
-            }
+                SoundEvent child;
+                populateCommonChildFields(child, partName, defaultMixgroup, node);
 
-            // Soundlevel curve
-            if (!looping.soundLevel.trimmed().isEmpty()) {
-                child.distanceVolumeMappingCurve = SoundLevelMapper::createDistanceVolumeCurve(looping.soundLevel);
-                if (!child.distanceVolumeMappingCurve.empty()) {
-                    child.useDistanceVolumeMappingCurve = true;
+                // Retrigger
+                child.enableRetrigger = true;
+                child.retriggerIntervalMin = node.timeInterval.min();
+                child.retriggerIntervalMax = node.timeInterval.max();
+
+                // Audio waves
+                for (const auto& w : node.waves) {
+                    if (!QStringView(w).trimmed().isEmpty()) {
+                        child.vsndFiles.append(formatVsndPath(w));
+                        result.uniqueRawSoundAssets.insert(formatRawAssetPath(w));
+                    }
+                }
+
+                result.soundEvents.push_back(std::move(child));
+            } else if constexpr (std::is_same_v<T, PlaySoundscapeElement>) {
+                const QString target = node.targetSoundscape.trimmed();
+                if (!target.isEmpty()) {
+                    result.soundEvents.front().childEvents.append(target);
                 }
             }
-
-            // Audio wave
-            if (!looping.wave.trimmed().isEmpty()) {
-                child.vsndFiles.append(formatVsndPath(looping.wave));
-                result.uniqueRawSoundAssets.insert(formatRawAssetPath(looping.wave));
-            }
-
-            result.soundEvents.push_back(std::move(child));
-
-        } else if (std::holds_alternative<PlayRandomElement>(elem)) {
-            const auto& randomElem = std::get<PlayRandomElement>(elem);
-            QString partName = QStringLiteral("%1.part%2").arg(def.name).arg(partIndex++);
-            master.childEvents.append(partName);
-
-            SoundEvent child;
-            child.name = partName;
-            child.type = QStringLiteral("csgo_mega");
-            child.mixgroup = defaultMixgroup;
-            child.distanceEffectMix = 0.0;
-            child.restrictSourceReverb = true;
-
-            // Retrigger
-            child.enableRetrigger = true;
-            child.retriggerIntervalMin = randomElem.timeInterval.min();
-            child.retriggerIntervalMax = randomElem.timeInterval.max();
-
-            // Volume
-            if (randomElem.volume.isFixed()) {
-                child.volume = randomElem.volume.min();
-            } else {
-                child.volume = randomElem.volume.min();
-                child.volumeRandomMax = randomElem.volume.delta();
-            }
-
-            // Pitch (100 is 1.0)
-            if (randomElem.pitch.isFixed()) {
-                child.pitch = randomElem.pitch.min() / 100.0;
-            } else {
-                child.pitch = 1.0;
-                child.pitchRandomMin = (randomElem.pitch.min() - 100.0) / 100.0;
-                child.pitchRandomMax = (randomElem.pitch.max() - 100.0) / 100.0;
-            }
-
-            // Positioning
-            if (randomElem.position.trimmed().toLower() == QStringLiteral("random")) {
-                child.positionRelativeToPlayer = true;
-                child.position = Vector3(0.0, 0.0, 0.0);
-                child.randomizePositionMinRadius = 0.0;
-                child.randomizePositionMaxRadius = 300.0;
-                child.useWorldPosition = false;
-            } else if (randomElem.origin.has_value() && !randomElem.origin->isZero()) {
-                child.position = *randomElem.origin;
-                child.useWorldPosition = true;
-                child.positionRelativeToPlayer = false;
-            } else if (!randomElem.position.trimmed().isEmpty() || randomElem.positionOverride.has_value()) {
-                child.positionRelativeToPlayer = false;
-                child.position = Vector3(0.0, 0.0, 0.0);
-                child.useWorldPosition = false;
-            } else {
-                child.positionRelativeToPlayer = true;
-                child.position = Vector3(0.0, 0.0, 0.0);
-                child.useWorldPosition = false;
-            }
-
-            // Soundlevel curve
-            if (!randomElem.soundLevel.trimmed().isEmpty()) {
-                child.distanceVolumeMappingCurve = SoundLevelMapper::createDistanceVolumeCurve(randomElem.soundLevel);
-                if (!child.distanceVolumeMappingCurve.empty()) {
-                    child.useDistanceVolumeMappingCurve = true;
-                }
-            }
-
-            // Audio waves
-            for (const auto& w : randomElem.waves) {
-                if (!w.trimmed().isEmpty()) {
-                    child.vsndFiles.append(formatVsndPath(w));
-                    result.uniqueRawSoundAssets.insert(formatRawAssetPath(w));
-                }
-            }
-
-            result.soundEvents.push_back(std::move(child));
-
-        } else if (std::holds_alternative<PlaySoundscapeElement>(elem)) {
-            const auto& scape = std::get<PlaySoundscapeElement>(elem);
-            if (!scape.targetSoundscape.trimmed().isEmpty()) {
-                master.childEvents.append(scape.targetSoundscape.trimmed());
-            }
-        }
+        }, elem);
     }
 
     // If this soundscape produced exactly 1 child event and has no additional playsoundscape references,
     // the child directly becomes the soundscape event itself (e.g. Birds instead of Birds.part1).
-    if (result.soundEvents.size() == 1 && master.childEvents.size() == 1) {
-        auto& singleChild = result.soundEvents.front();
+    if (result.soundEvents.size() == 2 && result.soundEvents.front().childEvents.size() == 1) {
+        const SoundEvent& masterRef = result.soundEvents.front();
+        SoundEvent& singleChild = result.soundEvents[1];
         singleChild.name = def.name;
 
         // Inherit DSP and Reverb preset from the parent soundscape definition
-        if (!master.dspPreset.isEmpty()) {
-            singleChild.dspPreset = master.dspPreset;
-            singleChild.overrideDspPreset = master.overrideDspPreset;
-            singleChild.reverbWet = master.reverbWet;
+        if (!masterRef.dspPreset.isEmpty()) {
+            singleChild.dspPreset = masterRef.dspPreset;
+            singleChild.overrideDspPreset = masterRef.overrideDspPreset;
+            singleChild.reverbWet = masterRef.reverbWet;
         }
 
         // Inherit Fade/Time volume mapping curves from definition
-        if (master.useTimeVolumeMappingCurve) {
+        if (masterRef.useTimeVolumeMappingCurve) {
             singleChild.useTimeVolumeMappingCurve = true;
-            singleChild.timeVolumeMappingCurve = master.timeVolumeMappingCurve;
-            singleChild.fadetimeVolumeMappingCurve = master.fadetimeVolumeMappingCurve;
+            singleChild.timeVolumeMappingCurve = masterRef.timeVolumeMappingCurve;
+            singleChild.fadetimeVolumeMappingCurve = masterRef.fadetimeVolumeMappingCurve;
         }
 
         // Inherit world position / origin if child does not specify its own
-        if (master.setChildPosition && !singleChild.useWorldPosition) {
-            singleChild.position = master.position;
+        if (masterRef.setChildPosition && !singleChild.useWorldPosition) {
+            singleChild.position = masterRef.position;
             singleChild.useWorldPosition = true;
             singleChild.positionRelativeToPlayer = false;
         }
 
+        result.soundEvents.front() = std::move(singleChild);
+        result.soundEvents.pop_back();
         return result;
     }
 
-    // Insert master at the beginning of this soundscape's event list
-    result.soundEvents.insert(result.soundEvents.begin(), std::move(master));
     return result;
 }
 

@@ -5,7 +5,7 @@ namespace Core::Error {
 /**
  * @brief Standardized error codes for infrastructure, system, and general operations.
  */
-enum class ErrorCode {
+enum class ErrorCode : int {
     Success = 0,
     Unknown = 1,
 
@@ -45,7 +45,7 @@ enum class ErrorCode {
     OutOfMemory,
 
     // Domain Specific Fallback
-    DomainError
+    DomainError,
 };
 
 } // namespace Core::Error

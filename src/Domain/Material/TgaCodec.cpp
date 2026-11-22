@@ -4,10 +4,9 @@
 #include <QImage>
 
 #include <cstring>
-#include <exception>
 #include <vector>
 
-#include "Core/Error/Exception.h"
+#include "Core/Error/ExecutionGuard.h"
 #include "Core/FileSystem/FileSystem.h"
 
 namespace {
@@ -24,23 +23,6 @@ constexpr std::uint8_t kDescriptorTopDown = 0x20;
 std::uint16_t readLittleEndianU16(const unsigned char* bytes)
 {
     return static_cast<std::uint16_t>(bytes[0]) | (static_cast<std::uint16_t>(bytes[1]) << 8);
-}
-
-/**
- * @brief Exception boundary for filesystem access inside the codec.
- */
-template<typename Fn>
-auto runGuarded(Fn&& fn) -> decltype(fn())
-{
-    try {
-        return fn();
-    } catch (const Core::Error::Exception& ex) {
-        return decltype(fn())::failure(ex.error());
-    } catch (const std::exception& ex) {
-        return decltype(fn())::failure(
-            Core::Error::ErrorCode::OperationFailed,
-            QString::fromUtf8(ex.what()));
-    }
 }
 
 struct TgaHeader {
@@ -175,7 +157,12 @@ Core::Result<QImage> TgaCodec::read(const Core::Path::FilesystemPath& path)
             path.toString());
     }
 
-    return runGuarded([&]() -> Core::Result<QImage> {
+    Core::Error::ExecutionContext ctx{
+        .stage = QStringLiteral("Decoding TGA image"),
+        .resourcePath = path.toString()
+    };
+
+    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<QImage> {
         // Throws Core::Error::Exception on IO failure; guarded above.
         const QByteArray data = Core::FileSystem::FileSystem::readAll(path.toString());
 
@@ -244,7 +231,7 @@ Core::Result<QImage> TgaCodec::read(const Core::Path::FilesystemPath& path)
             }
         }
         return Core::Result<QImage>::success(std::move(image));
-    });
+    }, ctx);
 }
 
 } // namespace Domain::Material

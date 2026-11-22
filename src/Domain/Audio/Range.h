@@ -1,13 +1,37 @@
 #pragma once
 
 #include <QString>
-#include <QStringList>
-#include <QRegularExpression>
+#include <QStringView>
 #include <optional>
 #include <cmath>
 #include <type_traits>
 
 namespace Domain::Audio {
+
+namespace detail {
+
+template <typename Callback>
+inline void forEachCommaOrSpaceToken(QStringView view, Callback&& fn) {
+    const qsizetype len = view.size();
+    qsizetype i = 0;
+    while (i < len) {
+        while (i < len && (view[i] == u',' || view[i].isSpace())) {
+            ++i;
+        }
+        if (i >= len) {
+            break;
+        }
+        const qsizetype start = i;
+        while (i < len && view[i] != u',' && !view[i].isSpace()) {
+            ++i;
+        }
+        if (!fn(view.sliced(start, i - start))) {
+            break;
+        }
+    }
+}
+
+} // namespace detail
 
 /**
  * @brief Represents a 3D coordinate in game space.
@@ -38,27 +62,35 @@ struct Vector3 {
      * @brief Parses a 3D coordinate from string formats like "100, 200, 300", "100 200 300", or "100, 200, 300;".
      */
     static std::optional<Vector3> fromString(const QString& str) {
-        QString clean = str.trimmed();
-        if (clean.endsWith(';')) {
+        QStringView clean = QStringView(str).trimmed();
+        if (clean.endsWith(u';')) {
             clean.chop(1);
             clean = clean.trimmed();
         }
 
-        const QStringList parts = clean.split(QRegularExpression(QStringLiteral("[,\\s]+")), Qt::SkipEmptyParts);
-        if (parts.size() != 3) {
+        double coords[3] = {0.0, 0.0, 0.0};
+        int count = 0;
+        bool parseOk = true;
+        detail::forEachCommaOrSpaceToken(clean, [&](QStringView token) -> bool {
+            if (count >= 3) {
+                ++count;
+                return false;
+            }
+            bool ok = false;
+            coords[count] = token.toDouble(&ok);
+            if (!ok) {
+                parseOk = false;
+                return false;
+            }
+            ++count;
+            return true;
+        });
+
+        if (!parseOk || count != 3) {
             return std::nullopt;
         }
 
-        bool okX = false, okY = false, okZ = false;
-        double x = parts[0].toDouble(&okX);
-        double y = parts[1].toDouble(&okY);
-        double z = parts[2].toDouble(&okZ);
-
-        if (!okX || !okY || !okZ) {
-            return std::nullopt;
-        }
-
-        return Vector3(x, y, z);
+        return Vector3(coords[0], coords[1], coords[2]);
     }
 };
 
@@ -111,61 +143,62 @@ public:
      * @brief Parses a range from string formats like "0.4", ".4", "0.1, 0.5", "85, 105", "13 35".
      */
     static std::optional<Range<T>> fromString(const QString& str) {
-        QString clean = str.trimmed();
+        const QStringView clean = QStringView(str).trimmed();
         if (clean.isEmpty()) {
             return std::nullopt;
         }
 
-        const QStringList parts = clean.split(QRegularExpression(QStringLiteral("[,\\s]+")), Qt::SkipEmptyParts);
-        if (parts.isEmpty()) {
-            return std::nullopt;
-        }
+        bool hasAny = false;
+        bool parseOk = true;
+        T minVal{};
+        T maxVal{};
 
-        if (parts.size() == 1) {
+        detail::forEachCommaOrSpaceToken(clean, [&](QStringView token) -> bool {
             bool ok = false;
-            T val = parseValue(parts[0], &ok);
+            const T val = parseValue(token, &ok);
             if (!ok) {
-                return std::nullopt;
+                parseOk = false;
+                return false;
             }
-            return Range<T>(val);
-        }
-
-        if (parts.size() >= 2) {
-            bool ok = false;
-            T minVal = parseValue(parts[0], &ok);
-            if (!ok) {
-                return std::nullopt;
-            }
-            T maxVal = minVal;
-
-            for (int i = 1; i < parts.size(); ++i) {
-                bool okPart = false;
-                T val = parseValue(parts[i], &okPart);
-                if (!okPart) {
-                    return std::nullopt;
-                }
+            if (!hasAny) {
+                minVal = val;
+                maxVal = val;
+                hasAny = true;
+            } else {
                 if (val < minVal) minVal = val;
                 if (val > maxVal) maxVal = val;
             }
-            return Range<T>(minVal, maxVal);
+            return true;
+        });
+
+        if (!parseOk || !hasAny) {
+            return std::nullopt;
         }
 
-        return std::nullopt;
+        return Range<T>(minVal, maxVal);
     }
 
 private:
-    static T parseValue(const QString& s, bool* ok) {
-        QString normalized = s.trimmed();
-        if (normalized.startsWith(QLatin1Char('.'))) {
-            normalized.prepend(QLatin1Char('0'));
-        } else if (normalized.startsWith(QStringLiteral("-."))) {
-            normalized.replace(0, 2, QStringLiteral("-0."));
+    static T parseValue(QStringView s, bool* ok) {
+        const QStringView trimmed = s.trimmed();
+        if (trimmed.startsWith(u'.') || trimmed.startsWith(QStringView(u"-."))) {
+            QString normalized = trimmed.toString();
+            if (normalized.startsWith(u'.')) {
+                normalized.prepend(u'0');
+            } else {
+                normalized.replace(0, 2, QStringLiteral("-0."));
+            }
+            if constexpr (std::is_floating_point_v<T>) {
+                return static_cast<T>(normalized.toDouble(ok));
+            } else {
+                return static_cast<T>(normalized.toLongLong(ok));
+            }
         }
 
         if constexpr (std::is_floating_point_v<T>) {
-            return static_cast<T>(normalized.toDouble(ok));
+            return static_cast<T>(trimmed.toDouble(ok));
         } else {
-            return static_cast<T>(normalized.toLongLong(ok));
+            return static_cast<T>(trimmed.toLongLong(ok));
         }
     }
 

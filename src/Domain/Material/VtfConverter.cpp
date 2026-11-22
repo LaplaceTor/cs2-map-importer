@@ -3,6 +3,7 @@
 #include <QBuffer>
 #include <QByteArray>
 #include <QCoreApplication>
+#include <QIODevice>
 #include <QImage>
 #include <QImageWriter>
 
@@ -14,6 +15,7 @@
 #include <vector>
 
 #include "Core/Error/ExecutionGuard.h"
+#include "Core/FileSystem/AtomicFile.h"
 #include "Core/FileSystem/FileSystem.h"
 #include "Domain/Material/VtfCodec.h"
 
@@ -27,6 +29,62 @@ Core::Result<std::vector<float>> readVtfMip0RgbaFloat(
 } // namespace Detail
 
 namespace {
+
+struct QtImageEncodeSpec {
+    const char* format = nullptr;
+    int quality = -1;
+};
+
+QtImageEncodeSpec qtEncodeSpecFor(ImageFileFormat format)
+{
+    switch (format) {
+        case ImageFileFormat::Png:
+            return {"png", -1};
+        case ImageFileFormat::Jpg:
+            return {"jpg", 100};
+        case ImageFileFormat::Bmp:
+            return {"bmp", -1};
+        case ImageFileFormat::Tga:
+        case ImageFileFormat::Hdr:
+            break;
+    }
+    return {};
+}
+
+QImage prepareImageForQtFormat(const QImage& image, ImageFileFormat format)
+{
+    switch (format) {
+        case ImageFileFormat::Jpg:
+            return image.convertToFormat(QImage::Format_RGB888);
+        case ImageFileFormat::Bmp:
+            return image.convertToFormat(QImage::Format_ARGB32);
+        case ImageFileFormat::Png:
+        case ImageFileFormat::Tga:
+        case ImageFileFormat::Hdr:
+            break;
+    }
+    return image;
+}
+
+Core::Result<void> writeWithQImageWriter(
+    const QImage& image,
+    const char* qtFormat,
+    int quality,
+    QIODevice* device,
+    const Core::Path::FilesystemPath& vtfPath)
+{
+    QImageWriter writer(device, qtFormat);
+    if (quality >= 0) {
+        writer.setQuality(quality);
+    }
+    if (!writer.write(image)) {
+        return Core::Result<void>::failure(
+            Core::Error::ErrorCode::OperationFailed,
+            QCoreApplication::translate("VtfConverter", "Failed to encode VTF image to target format"),
+            vtfPath.toString() + QStringLiteral(" | ") + writer.errorString());
+    }
+    return Core::Result<void>::success();
+}
 
 Core::Result<std::vector<std::byte>> encodeWithQImageWriter(
     const QImage& image,
@@ -43,15 +101,9 @@ Core::Result<std::vector<std::byte>> encodeWithQImageWriter(
             vtfPath.toString());
     }
 
-    QImageWriter writer(&buffer, qtFormat);
-    if (quality >= 0) {
-        writer.setQuality(quality);
-    }
-    if (!writer.write(image)) {
-        return Core::Result<std::vector<std::byte>>::failure(
-            Core::Error::ErrorCode::OperationFailed,
-            QCoreApplication::translate("VtfConverter", "Failed to encode VTF image to target format"),
-            vtfPath.toString() + QStringLiteral(" | ") + writer.errorString());
+    auto writeRes = writeWithQImageWriter(image, qtFormat, quality, &buffer, vtfPath);
+    if (writeRes.isFailure()) {
+        return Core::Result<std::vector<std::byte>>::failure(writeRes.error());
     }
 
     std::vector<std::byte> out(static_cast<std::size_t>(encoded.size()));
@@ -170,17 +222,13 @@ Core::Result<std::vector<std::byte>> VtfConverter::convertToImageBuffer(
     }
 
     const QImage& image = readRes.value();
-    switch (format) {
-        case ImageFileFormat::Png:
-            return encodeWithQImageWriter(image, "png", -1, vtfPath);
-        case ImageFileFormat::Jpg:
-            return encodeWithQImageWriter(image.convertToFormat(QImage::Format_RGB888), "jpg", 100, vtfPath);
-        case ImageFileFormat::Bmp:
-            return encodeWithQImageWriter(image.convertToFormat(QImage::Format_ARGB32), "bmp", -1, vtfPath);
-        case ImageFileFormat::Tga:
-            return Core::Result<std::vector<std::byte>>::success(encodeTga32(image));
-        case ImageFileFormat::Hdr:
-            break;
+    const QtImageEncodeSpec spec = qtEncodeSpecFor(format);
+    if (spec.format != nullptr) {
+        return encodeWithQImageWriter(
+            prepareImageForQtFormat(image, format), spec.format, spec.quality, vtfPath);
+    }
+    if (format == ImageFileFormat::Tga) {
+        return Core::Result<std::vector<std::byte>>::success(encodeTga32(image));
     }
 
     return Core::Result<std::vector<std::byte>>::failure(
@@ -201,9 +249,35 @@ Core::Result<void> VtfConverter::convertToImageFile(
             QCoreApplication::translate("VtfConverter", "destination image path is empty or invalid"));
     }
 
-    auto imageBytes = convertToImageBuffer(vtfPath, format);
-    if (imageBytes.isFailure()) {
-        return Core::Result<void>::failure(imageBytes.error());
+    const QtImageEncodeSpec qtSpec = qtEncodeSpecFor(format);
+    if (qtSpec.format == nullptr && format != ImageFileFormat::Tga && format != ImageFileFormat::Hdr) {
+        return Core::Result<void>::failure(
+            Core::Error::ErrorCode::NotSupported,
+            QCoreApplication::translate("VtfConverter", "Unsupported target image format"),
+            vtfPath.toString());
+    }
+
+    // Decode and prepare image/buffer BEFORE opening AtomicFile so failed decodes never touch disk.
+    QImage preparedImage;
+    std::vector<std::byte> encodedBytes;
+    if (format == ImageFileFormat::Hdr) {
+        int width = 0;
+        int height = 0;
+        auto floatRes = Detail::readVtfMip0RgbaFloat(vtfPath, width, height);
+        if (floatRes.isFailure()) {
+            return Core::Result<void>::failure(floatRes.error());
+        }
+        encodedBytes = encodeRadianceHdr(floatRes.value(), width, height);
+    } else {
+        auto readRes = VtfCodec::read(vtfPath);
+        if (readRes.isFailure()) {
+            return Core::Result<void>::failure(readRes.error());
+        }
+        if (format == ImageFileFormat::Tga) {
+            encodedBytes = encodeTga32(readRes.value());
+        } else {
+            preparedImage = prepareImageForQtFormat(readRes.value(), format);
+        }
     }
 
     Core::Error::ExecutionContext ctx{
@@ -214,12 +288,31 @@ Core::Result<void> VtfConverter::convertToImageFile(
 
     return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
         // Core::FileSystem helpers throw Core::Error::Exception on failure; guarded above.
-        // Tier 1 + Tier 2 base directory boundary is enforced by FileSystem::writeAll -> AtomicFile.
+        // Tier 1 + Tier 2 base directory boundary is enforced by AtomicFile::open() / commit().
         Core::FileSystem::FileSystem::createDirectory(destImagePath.parentPath().toString());
-        Core::FileSystem::FileSystem::writeAll(destImagePath.toString(), QByteArray(
-            reinterpret_cast<const char*>(imageBytes.value().data()),
-            static_cast<qsizetype>(imageBytes.value().size())),
-            expectedBaseDir);
+        Core::FileSystem::AtomicFile atomic(destImagePath.toString(), expectedBaseDir);
+        atomic.open();
+
+        if (qtSpec.format != nullptr) {
+            auto writeRes = writeWithQImageWriter(
+                preparedImage, qtSpec.format, qtSpec.quality, atomic.device(), vtfPath);
+            if (writeRes.isFailure()) {
+                return writeRes;
+            }
+        } else {
+            QIODevice* device = atomic.device();
+            const qint64 expectedSize = static_cast<qint64>(encodedBytes.size());
+            const qint64 written = device->write(
+                reinterpret_cast<const char*>(encodedBytes.data()), expectedSize);
+            if (written != expectedSize) {
+                return Core::Result<void>::failure(
+                    Core::Error::ErrorCode::WriteFailed,
+                    QCoreApplication::translate("VtfConverter", "Failed to write converted VTF image to disk"),
+                    destImagePath.toString() + QStringLiteral(" | ") + device->errorString());
+            }
+        }
+
+        atomic.commit();
         return Core::Result<void>::success();
     }, ctx);
 }

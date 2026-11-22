@@ -4,10 +4,10 @@
 
 namespace Core::Logging {
 
-enum class LogSource {
+enum class LogSource : int {
     Application,
     Workflow,
-    ExternalTool
+    ExternalTool,
 };
 
 inline QString logSourceToString(LogSource source)

@@ -593,7 +593,7 @@ void LogManager::setDefaultAutoFlushIntervalMs(qint64 ms)
     m_defaultAutoFlushIntervalMs = std::max<qint64>(0, ms);
 }
 
-QVector<LogBlock> LogManager::getSealedBlocks(quint64 taskId) const
+QVector<LogBlock> LogManager::sealedBlocks(quint64 taskId) const
 {
     std::shared_ptr<TaskLoggingContext> task = findTask(taskId);
     if (!task) {
@@ -602,7 +602,7 @@ QVector<LogBlock> LogManager::getSealedBlocks(quint64 taskId) const
     return task->sealedBlocks();
 }
 
-QVector<LogBlock> LogManager::getSealedBlocksFrom(quint64 taskId, quint64 firstBlockIndex) const
+QVector<LogBlock> LogManager::sealedBlocksFrom(quint64 taskId, quint64 firstBlockIndex) const
 {
     std::shared_ptr<TaskLoggingContext> task = findTask(taskId);
     if (!task) {
@@ -621,7 +621,7 @@ bool LogManager::readSealedBlocks(quint64 taskId, const std::function<void(const
     return true;
 }
 
-QVector<LogBlock> LogManager::getAllBlocks(quint64 taskId) const
+QVector<LogBlock> LogManager::allBlocks(quint64 taskId) const
 {
     std::shared_ptr<TaskLoggingContext> task = findTask(taskId);
     if (!task) {
@@ -671,7 +671,7 @@ bool LogManager::flushTask(quint64 taskId)
         QMutexLocker locker(&m_mutex);
         if (m_sinks.isEmpty()) {
             // Sealed blocks are intentionally RETAINED for inspection APIs
-            // (getSealedBlocks/getAllBlocks must keep serving the task history even
+            // (sealedBlocks/allBlocks must keep serving the task history even
             // without sinks). Retention stays bounded in practice: terminal flushes
             // release committed blocks and removing the last sink releases the rest.
             return true;
@@ -785,7 +785,7 @@ bool LogManager::readLogBlock(quint64 taskId, const std::function<void(const Log
     return true;
 }
 
-LogBlock LogManager::getLogBlockSnapshot(quint64 taskId) const
+LogBlock LogManager::logBlockSnapshot(quint64 taskId) const
 {
     std::shared_ptr<TaskLoggingContext> task;
     {

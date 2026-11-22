@@ -21,11 +21,11 @@ namespace Core {
  * AsyncTaskRunner bridges the two: evaluating the business outcome (along with logged errors
  * and exception safety) to transition the underlying TaskState in LogManager.
  */
-enum class ResultStatus {
+enum class ResultStatus : int {
     Success,
     Failure,
     Cancelled,
-    Skipped
+    Skipped,
 };
 
 /**
