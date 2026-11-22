@@ -105,7 +105,18 @@ void AtomicFile::open() {
     m_isOpen = true;
 }
 
+QIODevice* AtomicFile::device() {
+    if (!m_isOpen || !m_saveFile) {
+        return nullptr;
+    }
+    return m_saveFile.get();
+}
+
 void AtomicFile::write(const QByteArray& data) {
+    write(data.constData(), data.size());
+}
+
+void AtomicFile::write(const char* data, qint64 size) {
     if (!m_isOpen) {
         open();
     }
@@ -116,12 +127,27 @@ void AtomicFile::write(const QByteArray& data) {
             QCoreApplication::translate("AtomicFile", "AtomicFile QSaveFile is not open"));
     }
 
-    qint64 written = m_saveFile->write(data);
-    if (written != data.size()) {
+    if (size <= 0) {
+        return;
+    }
+
+    if (data == nullptr) {
         throw Core::Error::Exception(
             Core::Error::ErrorCode::OperationFailed,
-            QCoreApplication::translate("AtomicFile", "Failed to write to QSaveFile for target '%1': %2")
-                .arg(m_targetFilePath, m_saveFile->errorString()));
+            QCoreApplication::translate("AtomicFile", "Failed to write to QSaveFile for target '%1': null data buffer")
+                .arg(m_targetFilePath));
+    }
+
+    qint64 totalWritten = 0;
+    while (totalWritten < size) {
+        const qint64 written = m_saveFile->write(data + totalWritten, size - totalWritten);
+        if (written <= 0) {
+            throw Core::Error::Exception(
+                Core::Error::ErrorCode::OperationFailed,
+                QCoreApplication::translate("AtomicFile", "Failed to write to QSaveFile for target '%1': %2")
+                    .arg(m_targetFilePath, m_saveFile->errorString()));
+        }
+        totalWritten += written;
     }
 }
 

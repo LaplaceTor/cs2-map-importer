@@ -1,22 +1,21 @@
 #pragma once
 
 #include <QByteArray>
+#include <QByteArrayView>
 #include <QColor>
-#include <QHash>
-#include <QLatin1StringView>
+#include <QIODevice>
 #include <QSet>
 #include <QString>
 #include <QStringView>
 
 #include <concepts>
 #include <map>
-#include <memory>
 #include <optional>
 #include <random>
-#include <utility>
 #include <vector>
 
 #include "Core/KeyValues/KeyValuesWriter.h"
+#include "Core/Result/Result.h"
 #include "Domain/Bsp/BspDecompileConfig.h"
 #include "Domain/Bsp/Internal/BspMath.h"
 #include "Domain/Bsp/Internal/BspStructs.h"
@@ -33,6 +32,8 @@ struct Camera {
 
 /**
  * @brief Formatted VMF text writer matching Java BSPSource's VmfWriter output.
+ *
+ * Supports both in-memory buffering and streaming writes to a QIODevice.
  */
 class VmfWriter {
 public:
@@ -43,39 +44,43 @@ public:
         bool nullOutput = false,
         const BspDecompileConfig* config = nullptr);
 
-    void start(QStringView name);
-    void end(QStringView name);
+    VmfWriter(
+        QIODevice* device,
+        int doubleScale,
+        int doubleScaleTextureAxes,
+        int doubleScaleTextureScale,
+        bool nullOutput = false,
+        const BspDecompileConfig* config = nullptr);
 
+    void start(QByteArrayView name);
+    void end(QByteArrayView name);
+
+    void put(QByteArrayView key, QByteArrayView value);
+    void put(QByteArrayView key, QStringView value);
     void put(QStringView key, QStringView value);
-    void put(QStringView key, QLatin1StringView value);
-    void put(QStringView key, const char16_t* value);
-    void put(QStringView key, const char* value);
-    void put(QStringView key, int value);
-    void put(QStringView key, int v0, int v1, int v2);
-    void put(QStringView key, double value);
+    void put(QByteArrayView key, int value);
+    void put(QByteArrayView key, int v0, int v1, int v2);
+    void put(QByteArrayView key, double value);
     template <std::same_as<bool> B>
-    void put(QStringView key, B value)
+    void put(QByteArrayView key, B value)
     {
         putBool(key, value);
     }
-    void put(QStringView key, const Vector3f& v, int p = 0);
-    void put(QStringView key, const Vector3d& v, int p = 0);
-    void put(QStringView key, const Vector3d& v1, const Vector3d& v2, const Vector3d& v3);
-    void put(QStringView key, const TextureAxis& axis);
-    void put(const std::vector<std::pair<QString, QString>>& orderedMap);
+    void put(QByteArrayView key, const Vector3f& v, int p = 0);
+    void put(QByteArrayView key, const Vector3d& v, int p = 0);
+    void put(QByteArrayView key, const Vector3d& v1, const Vector3d& v2, const Vector3d& v3);
+    void put(QByteArrayView key, const TextureAxis& axis);
     void put(const BspEntity& entity);
     void put(const Texture& tex);
     void put(const EntityKeyValue& kv);
 
+    Core::Result<void> flush();
     QByteArray finish();
 
 private:
-    void putBool(QStringView key, bool value);
+    void putBool(QByteArrayView key, bool value);
     void logWarning(const QString& message) const;
-
-    QString formatVector3d(const Vector3d& v, int p) const;
-    QString formatTextureAxis(const TextureAxis& tx) const;
-    QString formatFloat(double f, int decimalPlaces) const;
+    void warnUnclosedSections() const;
 
     int m_doubleScale = 8;
     int m_doubleScaleTextureAxes = 4;
@@ -91,8 +96,17 @@ private:
 class VmfMeta {
 public:
     class Visgroup {
+    private:
+        struct PassKey {};
+
     public:
-        Visgroup* getVisgroup(const QString& visgroupName);
+        Visgroup(PassKey, VmfMeta& meta, QString name, Visgroup* parent);
+        Visgroup(const Visgroup&) = delete;
+        Visgroup& operator=(const Visgroup&) = delete;
+        Visgroup(Visgroup&&) = delete;
+        Visgroup& operator=(Visgroup&&) = delete;
+
+        Visgroup* childVisgroup(const QString& visgroupName);
         Visgroup* setColor(const QColor& color);
         const QColor& color() const noexcept { return m_color; }
         const QString& name() const noexcept { return m_name; }
@@ -102,8 +116,6 @@ public:
 
     private:
         friend class VmfMeta;
-
-        Visgroup(VmfMeta& meta, QString name, Visgroup* parent);
 
         Visgroup* rootVisgroup() noexcept;
         std::vector<QString> visgroupPath() const;
@@ -116,26 +128,26 @@ public:
         int m_id = 0;
         QColor m_color;
         Visgroup* m_parent = nullptr;
-        std::map<QString, std::unique_ptr<Visgroup>, AlphanumComparator> m_children;
+        std::map<QString, Visgroup, AlphanumComparator> m_children;
         bool m_used = false;
     };
 
     VmfMeta(BspFileReader& reader, VmfWriter& writer, const BspDecompileConfig& config);
 
-    QSet<int>& getUIDBlackList() noexcept { return m_uidBlacklist; }
-    const QSet<int>& getUIDBlackList() const noexcept { return m_uidBlacklist; }
+    QSet<int>& uidBlacklist() noexcept { return m_uidBlacklist; }
+    const QSet<int>& uidBlacklist() const noexcept { return m_uidBlacklist; }
 
-    int getUID();
+    int allocateUid();
 
-    int getFaceUID(int iface) const;
-    std::optional<int> setFaceUID(int iface, int id);
-    std::optional<int> setOrigFaceUID(int iface, int id);
+    int faceUid(int iface) const;
+    std::optional<int> setFaceUid(int iface, int id);
+    std::optional<int> setOrigFaceUid(int iface, int id);
 
-    int getDispInfoUID(int idispinfo) const;
-    std::optional<int> setDispInfoUID(int idispinfo, int id);
+    int dispInfoUid(int idispinfo) const;
+    std::optional<int> setDispInfoUid(int idispinfo, int id);
 
     void appendComment(const QString& comment);
-    std::optional<QString> getComment() const;
+    std::optional<QString> comment() const;
 
     void writeWorldHeader();
     void writeWorldFooter();
@@ -149,17 +161,17 @@ public:
     void writeMetaVisgroup(const QString& visgroupName);
     void writeMetaVisgroups(const std::vector<Visgroup*>& visgroups);
 
-    Visgroup* visgroups() noexcept { return m_rootVisgroup.get(); }
+    Visgroup* visgroups() noexcept { return m_rootVisgroup ? &(*m_rootVisgroup) : nullptr; }
 
     bool reserveVisgroupId(int visgroupId, const std::vector<QString>& visgroupPath);
 
     void writeCameras();
     void writeCordon();
-    std::vector<Camera>& getCameras() noexcept { return m_cameras; }
-    const std::vector<Camera>& getCameras() const noexcept { return m_cameras; }
+    std::vector<Camera>& cameras() noexcept { return m_cameras; }
+    const std::vector<Camera>& cameras() const noexcept { return m_cameras; }
 
 private:
-    int getNewVisgroupId(const Visgroup& vg);
+    int newVisgroupId(const Visgroup& vg);
     void writeVisgroup(VmfWriter& targetWriter, const Visgroup& visgroup) const;
     BspEntity& worldspawnEntity() noexcept;
     const BspEntity& worldspawnEntity() const noexcept;
@@ -170,16 +182,16 @@ private:
 
     std::mt19937 m_rng;
 
-    QHash<int, int> m_faceUIDs;
-    QHash<int, int> m_origFaceUIDs;
-    QHash<int, int> m_dispinfoUIDs;
+    std::vector<int> m_faceUids;
+    std::vector<int> m_origFaceUids;
+    std::vector<int> m_dispinfoUids;
     QSet<int> m_uidBlacklist;
     int m_uid = 0;
 
     std::map<std::vector<QString>, int> m_reservedVisgroups;
     QSet<int> m_reservedVisgroupIds;
     int m_visgroupIndex = 0;
-    std::unique_ptr<Visgroup> m_rootVisgroup;
+    std::optional<Visgroup> m_rootVisgroup;
 
     std::vector<Camera> m_cameras;
 

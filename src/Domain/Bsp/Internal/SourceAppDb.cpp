@@ -593,7 +593,7 @@ int SourceAppDb::find(const QString& bspName, int bspVersion, const QSet<QString
     return bestAppId;
 }
 
-std::optional<QString> SourceAppDb::getName(int appId) const {
+std::optional<QString> SourceAppDb::appName(int appId) const {
     for (const auto& app : appDatabase()) {
         if (app.appId == appId) {
             return app.name;

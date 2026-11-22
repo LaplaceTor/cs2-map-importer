@@ -37,8 +37,8 @@ public:
 
     bool isFuncDetail(const DBrush& dBrush) const noexcept;
 
-    int getBrushSideIDForIndex(int ibrushside) const;
-    int getBrushIDForIndex(int ibrush) const;
+    int brushSideIdForIndex(int ibrushside) const;
+    int brushIdForIndex(int ibrush) const;
 
     void writeBrushes();
     bool writeBrush(
@@ -50,7 +50,7 @@ public:
         const std::optional<Vector3d>& origin = std::nullopt,
         const std::optional<Vector3d>& angles = std::nullopt);
 
-    int getWorldbrushes() const noexcept { return m_worldbrushes; }
+    int worldBrushCount() const noexcept { return m_worldbrushes; }
 
 private:
     struct DBrushModel {
@@ -81,8 +81,8 @@ private:
     std::vector<DBrushModel> m_models;
     int m_worldbrushes = 0;
 
-    QHash<int, int> m_brushSideToID;
-    QHash<int, int> m_brushIndexToID;
+    std::vector<int> m_brushSideToId;
+    std::vector<int> m_brushIndexToId;
 };
 
 /**
@@ -116,7 +116,6 @@ public:
         const std::optional<Vector3d>& angles = std::nullopt);
 
     void writeAreaportal(int portalKey);
-    void writeAreaportal(const DAreaportal& ap);
 
     void writeOccluder(int occluderKey);
     void writeOccluder(const DOccluderData& od);
@@ -213,7 +212,7 @@ public:
 
 private:
     void processEntities();
-    int getHammerID(const BspEntity& ent) const;
+    int hammerId(const BspEntity& ent) const;
     void fixLightEntity(BspEntity& ent) const;
     void createCamera(const BspEntity& ent);
 

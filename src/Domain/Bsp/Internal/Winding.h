@@ -2,10 +2,12 @@
 
 #include <array>
 #include <cstddef>
-#include <unordered_map>
+#include <optional>
+#include <span>
 #include <vector>
 
 #include <QString>
+#include <QVarLengthArray>
 
 #include "Domain/Bsp/Internal/BspMath.h"
 #include "Domain/Bsp/Internal/BspStructs.h"
@@ -28,13 +30,13 @@ public:
     static constexpr double EPS_DEGEN = 0.1f;
 
     Winding() = default;
-    explicit Winding(std::vector<Vector3d> verts);
+    explicit Winding(QVarLengthArray<Vector3d, 16> verts);
+    explicit Winding(std::span<const Vector3d> verts);
 
-    const std::vector<Vector3d>& vertices() const noexcept { return m_verts; }
-    std::size_t size() const noexcept { return m_verts.size(); }
-    bool isEmpty() const noexcept { return m_verts.empty(); }
-    const Vector3d& get(std::size_t i) const noexcept { return m_verts[i]; }
-    const Vector3d& operator[](std::size_t i) const noexcept { return m_verts[i]; }
+    const QVarLengthArray<Vector3d, 16>& vertices() const noexcept { return m_verts; }
+    std::size_t size() const noexcept { return static_cast<std::size_t>(m_verts.size()); }
+    bool isEmpty() const noexcept { return m_verts.isEmpty(); }
+    const Vector3d& operator[](std::size_t i) const { return m_verts[static_cast<qsizetype>(i)]; }
 
     auto begin() const noexcept { return m_verts.begin(); }
     auto end() const noexcept { return m_verts.end(); }
@@ -42,6 +44,11 @@ public:
     Winding clipEpsilon(const Vector3d& normal, double dist, double eps, bool back) const;
     Winding clipPlane(const DPlane& pl, bool back) const;
     Winding clipWinding(const Winding& other, const Vector3d& projNormal) const;
+
+    Winding& removeDegeneratedInPlace();
+    Winding& removeCollinearInPlace();
+    Winding& rotateInPlace(const Vector3d& angles);
+    Winding& translateInPlace(const Vector3d& offset);
 
     Winding removeDegenerated() const;
     Winding removeCollinear() const;
@@ -53,18 +60,18 @@ public:
     bool matches(const Winding& that) const;
     bool isInside(const Vector3d& pt) const;
 
-    AABB getBounds() const;
-    Vector3d getCenter() const;
+    AABB bounds() const;
+    Vector3d center() const;
     std::array<Vector3d, 3> buildPlane() const;
     bool hasDuplicates() const;
-    double getArea() const;
+    double area() const;
 
     QString toString() const;
 
-    bool operator==(const Winding& other) const noexcept = default;
+    bool operator==(const Winding& other) const = default;
 
 private:
-    std::vector<Vector3d> m_verts;
+    QVarLengthArray<Vector3d, 16> m_verts;
 };
 
 /**
@@ -80,38 +87,24 @@ public:
     explicit WindingFactory(int coordSize);
     static WindingFactory forAppId(int appId);
 
-    Winding fromFace(const BspData& bsp, int faceIndex, bool isOrigFace);
-    Winding fromFace(const BspData& bsp, const DFace& face);
-
-    Winding fromSide(const BspData& bsp, int brushIndex, int sideIndex);
-    Winding fromSide(const BspData& bsp, const DBrush& brush, int sideIndex);
-    Winding fromSide(const BspData& bsp, const DBrush& brush, const DBrushSide& bside);
-
-    Winding fromAreaportal(const BspData& bsp, const DAreaportal& ap);
-    Winding fromOccluder(const BspData& bsp, const DOccluderPolyData& opd);
-    Winding fromPlane(const DPlane& pl);
+    const Winding& fromFace(const BspData& bsp, int faceIndex, bool isOrigFace);
+    const Winding& fromSide(const BspData& bsp, int brushIndex, int brushSideIndex);
+    const Winding& fromAreaportal(const BspData& bsp, int areaportalIndex);
+    const Winding& fromOccluder(const BspData& bsp, int occluderPolyIndex);
+    const Winding& fromPlane(const BspData& bsp, int planeIndex);
+    Winding fromPlane(const DPlane& pl) const;
 
     bool isHuge(const Winding& winding) const noexcept;
     bool isHuge(const Vector3f& v) const noexcept;
     bool isHuge(const Vector3d& v) const noexcept;
 
 private:
-    struct BrushSideKey {
-        const DBrush* brush = nullptr;
-        const DBrushSide* side = nullptr;
-
-        bool operator==(const BrushSideKey& other) const noexcept = default;
-    };
-
-    struct BrushSideKeyHash {
-        std::size_t operator()(const BrushSideKey& key) const noexcept;
-    };
-
-    std::unordered_map<const DFace*, Winding> m_faceCache;
-    std::unordered_map<BrushSideKey, Winding, BrushSideKeyHash> m_brushSideCache;
-    std::unordered_map<const DAreaportal*, Winding> m_areaportalCache;
-    std::unordered_map<const DOccluderPolyData*, Winding> m_occluderCache;
-    std::unordered_map<const DPlane*, Winding> m_planeCache;
+    std::vector<std::optional<Winding>> m_faceCache;
+    std::vector<std::optional<Winding>> m_origFaceCache;
+    std::vector<std::optional<Winding>> m_brushSideCache;
+    std::vector<std::optional<Winding>> m_areaportalCache;
+    std::vector<std::optional<Winding>> m_occluderCache;
+    std::vector<std::optional<Winding>> m_planeCache;
 };
 
 /**
@@ -126,11 +119,11 @@ public:
     void reset() noexcept;
     void walk(int nodeIndex);
 
-    int getMinBrushLeaf() const noexcept { return m_bmin; }
-    int getMaxBrushLeaf() const noexcept { return m_bmax; }
-    int getMinFaceLeaf() const noexcept { return m_fmin; }
-    int getMaxFaceLeaf() const noexcept { return m_fmax; }
-    int getMaxNode() const noexcept { return m_nmax; }
+    int minBrushLeaf() const noexcept { return m_bmin; }
+    int maxBrushLeaf() const noexcept { return m_bmax; }
+    int minFaceLeaf() const noexcept { return m_fmin; }
+    int maxFaceLeaf() const noexcept { return m_fmax; }
+    int maxNode() const noexcept { return m_nmax; }
 
 private:
     const BspData& m_bsp;
@@ -150,11 +143,11 @@ class BrushBounds {
 public:
     explicit BrushBounds(WindingFactory& wf);
 
-    AABB getBounds(const BspData& bsp, const DBrush& brush);
+    AABB bounds(const BspData& bsp, int brushIndex);
 
 private:
     WindingFactory& m_wf;
-    std::unordered_map<const DBrush*, AABB> m_aabbCache;
+    std::vector<std::optional<AABB>> m_aabbCache;
 };
 
 } // namespace Domain::Bsp::Internal

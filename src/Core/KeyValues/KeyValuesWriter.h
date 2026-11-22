@@ -4,6 +4,7 @@
 #include "Core/Result/Result.h"
 
 #include <QByteArray>
+#include <QByteArrayView>
 #include <QIODevice>
 #include <QString>
 #include <QStringView>
@@ -59,6 +60,10 @@ public:
     void startSection(QStringView name);
     bool endSection(QStringView expectedName = {});
     void writeProperty(QStringView key, QStringView value);
+    void startSectionUtf8(QByteArrayView name);
+    bool endSectionUtf8(QByteArrayView expectedName = {});
+    void writePropertyUtf8(QByteArrayView key, QByteArrayView value);
+    void writePropertyUtf8(QByteArrayView key, QStringView value);
     void writeNode(const KeyValuesNode& node);
 
     int depth() const noexcept;
@@ -78,8 +83,10 @@ private:
     bool canEmitBytes() const noexcept;
     void appendIndent();
     void appendToken(QStringView token, QuoteStyle style);
+    void appendTokenUtf8(QByteArrayView token, QuoteStyle style);
     void appendUtf8Raw(QStringView text);
     void appendUtf8Escaped(QStringView text);
+    void appendUtf8BytesEscaped(QByteArrayView bytes);
     Core::Result<void> flushToDevice();
     void maybeAutoFlush();
 

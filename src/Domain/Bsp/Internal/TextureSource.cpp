@@ -1,7 +1,9 @@
 #include "Domain/Bsp/Internal/TextureSource.h"
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
+#include <cstdint>
 #include <utility>
 
 #include <QCoreApplication>
@@ -33,8 +35,9 @@ const QRegularExpression& originPatchRegex() {
 class ToolTextureDefBuilder {
 public:
     ToolTextureDefBuilder() = default;
-    explicit ToolTextureDefBuilder(QString surfaceProperty)
-        : m_def{std::move(surfaceProperty), {}, {}} {}
+    explicit ToolTextureDefBuilder(QString surfaceProperty) {
+        m_def.surfaceProperty = std::move(surfaceProperty);
+    }
     explicit ToolTextureDefBuilder(const ToolTextureDefinition& base)
         : m_def(base) {}
 
@@ -45,24 +48,25 @@ public:
 
     template <typename... Flags>
     ToolTextureDefBuilder& setRequiredBrushFlags(Flags... flags) {
-        ((m_def.brushFlagRequirements.insert(flags, true)), ...);
+        ((m_def.requiredBrushFlags.setFlag(flags, true), m_def.forbiddenBrushFlags.setFlag(flags, false)), ...);
         return *this;
     }
 
     template <typename... Flags>
     ToolTextureDefBuilder& setForbiddenBrushFlags(Flags... flags) {
-        ((m_def.brushFlagRequirements.insert(flags, false)), ...);
+        ((m_def.forbiddenBrushFlags.setFlag(flags, true), m_def.requiredBrushFlags.setFlag(flags, false)), ...);
         return *this;
     }
 
     template <typename... Flags>
     ToolTextureDefBuilder& setRequiredSurfaceFlags(Flags... flags) {
-        ((m_def.surfaceFlagRequirements.insert(flags, true)), ...);
+        ((m_def.requiredSurfaceFlags.setFlag(flags, true), m_def.forbiddenSurfaceFlags.setFlag(flags, false)), ...);
         return *this;
     }
 
     ToolTextureDefBuilder& clearSurfaceFlagRequirements() {
-        m_def.surfaceFlagRequirements.clear();
+        m_def.requiredSurfaceFlags = {};
+        m_def.forbiddenSurfaceFlags = {};
         return *this;
     }
 
@@ -257,23 +261,32 @@ QHash<QString, ToolTextureDefinition> buildToolTextureSetForApp(int appId) {
     return defs;
 }
 
-template <typename Enum>
-bool matchesRequirements(const QHash<Enum, bool>& requirements, const QSet<Enum>* set) {
-    if (set == nullptr) {
-        return true;
-    }
-    for (auto it = requirements.cbegin(); it != requirements.cend(); ++it) {
-        if (set->contains(it.key()) != it.value()) {
-            return false;
-        }
-    }
-    return true;
+bool matchesBrushFlags(const ToolTextureDefinition& def, BrushFlags brushFlags) noexcept {
+    return (brushFlags & def.requiredBrushFlags) == def.requiredBrushFlags
+        && (brushFlags & def.forbiddenBrushFlags) == BrushFlags{};
 }
 
-int ttDefinitionScore(const ToolTextureDefinition& definition, bool ignoreSurfaceFlags) {
-    const int brushFlagRequirements = definition.brushFlagRequirements.size();
-    const int surfaceFlagRequirements = definition.surfaceFlagRequirements.size();
-    return brushFlagRequirements + (ignoreSurfaceFlags ? 0 : surfaceFlagRequirements);
+bool matchesSurfaceFlags(
+    const ToolTextureDefinition& def,
+    std::optional<SurfaceFlags> surfaceFlags) noexcept {
+    if (!surfaceFlags.has_value()) {
+        return true;
+    }
+    return (*surfaceFlags & def.requiredSurfaceFlags) == def.requiredSurfaceFlags
+        && (*surfaceFlags & def.forbiddenSurfaceFlags) == SurfaceFlags{};
+}
+
+int ttDefinitionScore(const ToolTextureDefinition& definition, bool ignoreSurfaceFlags) noexcept {
+    const int brushFlagRequirements =
+        std::popcount(static_cast<std::uint32_t>(definition.requiredBrushFlags.toInt()))
+        + std::popcount(static_cast<std::uint32_t>(definition.forbiddenBrushFlags.toInt()));
+    if (ignoreSurfaceFlags) {
+        return brushFlagRequirements;
+    }
+    const int surfaceFlagRequirements =
+        std::popcount(static_cast<std::uint32_t>(definition.requiredSurfaceFlags.toInt()))
+        + std::popcount(static_cast<std::uint32_t>(definition.forbiddenSurfaceFlags.toInt()));
+    return brushFlagRequirements + surfaceFlagRequirements;
 }
 
 int javaRoundToInt(double v) noexcept {
@@ -302,18 +315,18 @@ ToolTextureMatcher ToolTextureMatcher::forAppId(int appId) {
 
 std::optional<QString> ToolTextureMatcher::fixToolTexture(
     const QString& originalTextureName,
-    const QSet<BrushFlag>& brushFlags,
-    const QSet<SurfaceFlag>& surfaceFlags) const {
-    return fixToolTextureOptional(originalTextureName, brushFlags, &surfaceFlags);
+    BrushFlags brushFlags,
+    SurfaceFlags surfaceFlags) const {
+    return fixToolTextureOptional(originalTextureName, brushFlags, surfaceFlags);
 }
 
 std::optional<QString> ToolTextureMatcher::fixToolTextureOptional(
     const QString& originalTextureName,
-    const QSet<BrushFlag>& brushFlags,
-    const QSet<SurfaceFlag>* surfaceFlags) const {
-    const bool isClip = brushFlags.contains(BrushFlag::CONTENTS_PLAYERCLIP)
-        || brushFlags.contains(BrushFlag::CONTENTS_MONSTERCLIP);
-    const bool ignoreSurfaceFlags = (surfaceFlags == nullptr);
+    BrushFlags brushFlags,
+    std::optional<SurfaceFlags> surfaceFlags) const {
+    const bool isClip = brushFlags.testFlag(BrushFlag::CONTENTS_PLAYERCLIP)
+        || brushFlags.testFlag(BrushFlag::CONTENTS_MONSTERCLIP);
+    const bool ignoreSurfaceFlags = !surfaceFlags.has_value();
 
     std::optional<QString> bestName;
     int bestScore = 0;
@@ -324,10 +337,10 @@ std::optional<QString> ToolTextureMatcher::fixToolTextureOptional(
         if (!((isClip && m_clipOptimization) || matchesSurfaceProperty(def, originalTextureName))) {
             continue;
         }
-        if (!matchesRequirements(def.brushFlagRequirements, &brushFlags)) {
+        if (!matchesBrushFlags(def, brushFlags)) {
             continue;
         }
-        if (!((isClip && m_clipOptimization) || matchesRequirements(def.surfaceFlagRequirements, surfaceFlags))) {
+        if (!((isClip && m_clipOptimization) || matchesSurfaceFlags(def, surfaceFlags))) {
             continue;
         }
 
@@ -472,8 +485,8 @@ TextureBuilder::Axes TextureBuilder::buildUV(
     const double utw = 1.0 / uaxis.length();
     const double vtw = 1.0 / vaxis.length();
 
-    uaxis = uaxis.scalar(utw);
-    vaxis = vaxis.scalar(vtw);
+    uaxis *= utw;
+    vaxis *= vtw;
 
     double ushift = static_cast<double>(tvec[0][3]);
     double vshift = static_cast<double>(tvec[1][3]);
@@ -489,11 +502,11 @@ TextureBuilder::Axes TextureBuilder::buildUV(
 
         Vector3d shift = Vector3d::kNull;
         if (origin.has_value()) {
-            shift = shift.sub(*origin);
+            shift -= *origin;
         }
         shift = shift.rotate(*angles);
         if (origin.has_value()) {
-            shift = shift.add(*origin);
+            shift += *origin;
         }
 
         ushift -= shift.dot(uaxis) / utw;
@@ -530,8 +543,8 @@ std::optional<QString> TextureBuilder::fixToolTexture(
     const QString& originalTextureName,
     bool isOccluderBrush,
     bool isOccluderBrushSide,
-    const QSet<BrushFlag>& brushFlags,
-    const QSet<SurfaceFlag>* surfaceFlags,
+    BrushFlags brushFlags,
+    std::optional<SurfaceFlags> surfaceFlags,
     const ToolTextureMatcher& matcher) {
     if (isOccluderBrush) {
         return isOccluderBrushSide ? ToolTexture::kOccluder : ToolTexture::kNodraw;
@@ -546,7 +559,7 @@ std::optional<QString> TextureBuilder::fixToolTexture(
 TextureSource::TextureSource(BspFileReader& reader, const BspDecompileConfig& config)
     : m_reader(reader)
     , m_config(config)
-    , m_toolTextureMatcher(ToolTextureMatcher::forAppId(reader.getBspFile().appId())) {
+    , m_toolTextureMatcher(ToolTextureMatcher::forAppId(reader.bspFile().appId())) {
     m_reader.loadTexInfo();
     m_reader.loadTexData();
     m_reader.loadCubemaps();
@@ -555,7 +568,7 @@ TextureSource::TextureSource(BspFileReader& reader, const BspDecompileConfig& co
 }
 
 void TextureSource::processTextureNames() {
-    const BspData& bsp = m_reader.getData();
+    const BspData& bsp = m_reader.data();
     m_texnamesFixed.clear();
     m_texnamesFixed.reserve(bsp.texnames.size());
 
@@ -596,7 +609,7 @@ void TextureSource::processTextureNames() {
 }
 
 void TextureSource::setCubemapForTexname(int itexname, int cx, int cy, int cz) {
-    const BspData& bsp = m_reader.getData();
+    const BspData& bsp = m_reader.data();
     for (std::size_t i = 0; i < bsp.cubemaps.size(); ++i) {
         const auto& origin = bsp.cubemaps[i].origin;
         if (cx == origin[0] || cy == origin[1] || cz == origin[2]) {
@@ -614,7 +627,7 @@ void TextureSource::addBrushSideID(int itexname, int side) {
     m_cubemapToSideList[it.value()].insert(side);
 }
 
-std::vector<int> TextureSource::getBrushSidesForCubemap(int icubemap) const {
+std::vector<int> TextureSource::brushSidesForCubemap(int icubemap) const {
     const auto it = m_cubemapToSideList.constFind(icubemap);
     if (it == m_cubemapToSideList.constEnd()) {
         return {};
@@ -632,7 +645,7 @@ QString TextureSource::canonizeTextureName(QString textureNew) {
     return std::move(textureNew).toLower().replace(QLatin1Char('\\'), QLatin1Char('/'));
 }
 
-std::optional<QString> TextureSource::getTextureName(
+std::optional<QString> TextureSource::textureName(
     int itexinfo,
     const std::vector<DTexInfo>& texinfos,
     const std::vector<DTexData>& texdatas,

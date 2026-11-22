@@ -1,11 +1,15 @@
 #include "Domain/Bsp/Internal/BspDecompilerModules.h"
 
+#include <QByteArray>
+#include <QByteArrayView>
 #include <QRegularExpression>
+#include <QStringView>
 
 #include <algorithm>
 #include <array>
 #include <charconv>
 #include <cmath>
+#include <cstring>
 #include <numbers>
 #include <string_view>
 #include <utility>
@@ -24,99 +28,6 @@ bool usesNonObjectBrushLadders(int appId) noexcept
     return appId == SourceAppId::kCounterStrikeGo;
 }
 
-QString formatBrushFlagsDebug(const QSet<BrushFlag>& flags)
-{
-    struct Entry {
-        BrushFlag flag;
-        QLatin1StringView name;
-    };
-    static constexpr std::array<Entry, 29> kEntries = {{
-        {BrushFlag::CONTENTS_SOLID, "CONTENTS_SOLID"},
-        {BrushFlag::CONTENTS_WINDOW, "CONTENTS_WINDOW"},
-        {BrushFlag::CONTENTS_AUX, "CONTENTS_AUX"},
-        {BrushFlag::CONTENTS_GRATE, "CONTENTS_GRATE"},
-        {BrushFlag::CONTENTS_SLIME, "CONTENTS_SLIME"},
-        {BrushFlag::CONTENTS_WATER, "CONTENTS_WATER"},
-        {BrushFlag::CONTENTS_BLOCKLOS, "CONTENTS_BLOCKLOS"},
-        {BrushFlag::CONTENTS_OPAQUE, "CONTENTS_OPAQUE"},
-        {BrushFlag::CONTENTS_TESTFOGVOLUME, "CONTENTS_TESTFOGVOLUME"},
-        {BrushFlag::CONTENTS_TEAM1, "CONTENTS_TEAM1"},
-        {BrushFlag::CONTENTS_TEAM2, "CONTENTS_TEAM2"},
-        {BrushFlag::CONTENTS_IGNORE_NODRAW_OPAQUE, "CONTENTS_IGNORE_NODRAW_OPAQUE"},
-        {BrushFlag::CONTENTS_MOVEABLE, "CONTENTS_MOVEABLE"},
-        {BrushFlag::CONTENTS_AREAPORTAL, "CONTENTS_AREAPORTAL"},
-        {BrushFlag::CONTENTS_PLAYERCLIP, "CONTENTS_PLAYERCLIP"},
-        {BrushFlag::CONTENTS_MONSTERCLIP, "CONTENTS_MONSTERCLIP"},
-        {BrushFlag::CONTENTS_CURRENT_0, "CONTENTS_CURRENT_0"},
-        {BrushFlag::CONTENTS_CURRENT_90, "CONTENTS_CURRENT_90"},
-        {BrushFlag::CONTENTS_CURRENT_180, "CONTENTS_CURRENT_180"},
-        {BrushFlag::CONTENTS_CURRENT_270, "CONTENTS_CURRENT_270"},
-        {BrushFlag::CONTENTS_CURRENT_UP, "CONTENTS_CURRENT_UP"},
-        {BrushFlag::CONTENTS_CURRENT_DOWN, "CONTENTS_CURRENT_DOWN"},
-        {BrushFlag::CONTENTS_ORIGIN, "CONTENTS_ORIGIN"},
-        {BrushFlag::CONTENTS_MONSTER, "CONTENTS_MONSTER"},
-        {BrushFlag::CONTENTS_DEBRIS, "CONTENTS_DEBRIS"},
-        {BrushFlag::CONTENTS_DETAIL, "CONTENTS_DETAIL"},
-        {BrushFlag::CONTENTS_TRANSLUCENT, "CONTENTS_TRANSLUCENT"},
-        {BrushFlag::CONTENTS_LADDER, "CONTENTS_LADDER"},
-        {BrushFlag::CONTENTS_HITBOX, "CONTENTS_HITBOX"},
-    }};
-
-    QString out = QStringLiteral("[");
-    bool first = true;
-    for (const auto& e : kEntries) {
-        if (flags.contains(e.flag)) {
-            if (!first) {
-                out += QStringLiteral(", ");
-            }
-            out += e.name;
-            first = false;
-        }
-    }
-    out += QLatin1Char(']');
-    return out;
-}
-
-QString formatSurfaceFlagsDebug(const QSet<SurfaceFlag>& flags)
-{
-    struct Entry {
-        SurfaceFlag flag;
-        QLatin1StringView name;
-    };
-    static constexpr std::array<Entry, 16> kEntries = {{
-        {SurfaceFlag::SURF_LIGHT, "SURF_LIGHT"},
-        {SurfaceFlag::SURF_SKY2D, "SURF_SKY2D"},
-        {SurfaceFlag::SURF_SKY, "SURF_SKY"},
-        {SurfaceFlag::SURF_WARP, "SURF_WARP"},
-        {SurfaceFlag::SURF_TRANS, "SURF_TRANS"},
-        {SurfaceFlag::SURF_NOPORTAL, "SURF_NOPORTAL"},
-        {SurfaceFlag::SURF_TRIGGER, "SURF_TRIGGER"},
-        {SurfaceFlag::SURF_NODRAW, "SURF_NODRAW"},
-        {SurfaceFlag::SURF_HINT, "SURF_HINT"},
-        {SurfaceFlag::SURF_SKIP, "SURF_SKIP"},
-        {SurfaceFlag::SURF_NOLIGHT, "SURF_NOLIGHT"},
-        {SurfaceFlag::SURF_BUMPLIGHT, "SURF_BUMPLIGHT"},
-        {SurfaceFlag::SURF_NOSHADOWS, "SURF_NOSHADOWS"},
-        {SurfaceFlag::SURF_NODECALS, "SURF_NODECALS"},
-        {SurfaceFlag::SURF_NOCHOP, "SURF_NOCHOP"},
-        {SurfaceFlag::SURF_HITBOX, "SURF_HITBOX"},
-    }};
-
-    QString out = QStringLiteral("[");
-    bool first = true;
-    for (const auto& e : kEntries) {
-        if (flags.contains(e.flag)) {
-            if (!first) {
-                out += QStringLiteral(", ");
-            }
-            out += e.name;
-            first = false;
-        }
-    }
-    out += QLatin1Char(']');
-    return out;
-}
-
 QString formatFloatArray4(const float (&arr)[4])
 {
     return QStringLiteral("[%1, %2, %3, %4]")
@@ -126,43 +37,81 @@ QString formatFloatArray4(const float (&arr)[4])
              QString::number(arr[3], 'g', 9));
 }
 
-void appendJavaFloat(QString& out, float value)
+void appendIntUtf8(QByteArray& out, int value)
+{
+    char buf[32];
+    auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), value);
+    if (ec == std::errc{}) {
+        out.append(buf, static_cast<qsizetype>(ptr - buf));
+    }
+}
+
+void appendJavaFloatUtf8(QByteArray& out, float value)
 {
     if (std::isnan(value)) {
-        out += QStringLiteral("NaN");
+        out.append("NaN", 3);
         return;
     }
     if (std::isinf(value)) {
-        out += (value < 0.0f) ? QStringLiteral("-Infinity") : QStringLiteral("Infinity");
+        if (value < 0.0f) {
+            out.append("-Infinity", 9);
+        } else {
+            out.append("Infinity", 8);
+        }
         return;
     }
 
     char buf[64];
-    auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf) - 3, value);
+    auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf) - 2, value);
     if (ec == std::errc{}) {
-        std::string_view sv(buf, static_cast<std::size_t>(ptr - buf));
-        out += QString::fromLatin1(sv.data(), static_cast<qsizetype>(sv.size()));
+        const std::string_view sv(buf, static_cast<std::size_t>(ptr - buf));
+        out.append(sv.data(), static_cast<qsizetype>(sv.size()));
         if (sv.find('.') == std::string_view::npos
             && sv.find('e') == std::string_view::npos
             && sv.find('E') == std::string_view::npos) {
-            out += QStringLiteral(".0");
+            out.append(".0", 2);
         }
         return;
     }
 
-    out += QString::number(static_cast<double>(value), 'g', 9);
+    out.append(QByteArray::number(static_cast<double>(value), 'g', 9));
 }
 
-QString joinSortedIntSet(const std::vector<int>& values)
+QByteArrayView formatRowKey(char (&buf)[16], int row) noexcept
 {
-    QString out;
+    buf[0] = 'r';
+    buf[1] = 'o';
+    buf[2] = 'w';
+    auto [ptr, ec] = std::to_chars(buf + 3, buf + sizeof(buf), row);
+    if (ec != std::errc{}) {
+        return QByteArrayView("row0");
+    }
+    return QByteArrayView(buf, static_cast<qsizetype>(ptr - buf));
+}
+
+QByteArray joinSortedIntSet(const std::vector<int>& values)
+{
+    QByteArray out;
+    out.reserve(static_cast<qsizetype>(values.size() * 6));
     for (std::size_t i = 0; i < values.size(); ++i) {
         if (i > 0) {
-            out += QLatin1Char(' ');
+            out.append(' ');
         }
-        out += QString::number(values[i]);
+        appendIntUtf8(out, values[i]);
     }
     return out;
+}
+
+void setIndexedId(std::vector<int>& vec, int index, int id)
+{
+    if (index < 0) {
+        return;
+    }
+    const auto idx = static_cast<std::size_t>(index);
+    if (idx >= vec.size()) {
+        vec.resize(idx + 1, -1);
+    }
+    vec[idx] = id;
 }
 
 double radiansToDegrees(double rad) noexcept
@@ -187,8 +136,8 @@ BrushSource::BrushSource(
     WindingFactory& windingFactory,
     const OccluderMapper::ReallocationData& occReallocationData)
     : m_reader(reader)
-    , m_bspFile(reader.getBspFile())
-    , m_bsp(reader.getData())
+    , m_bspFile(reader.bspFile())
+    , m_bsp(reader.data())
     , m_writer(writer)
     , m_config(config)
     , m_texsrc(texsrc)
@@ -197,6 +146,8 @@ BrushSource::BrushSource(
     , m_brushSideFaceMapper(brushSideFaceMapper)
     , m_windingFactory(windingFactory)
     , m_occReallocationData(occReallocationData)
+    , m_brushSideToId(m_bsp.brushSides.size(), -1)
+    , m_brushIndexToId(m_bsp.brushes.size(), -1)
 {
     assignBrushes();
 }
@@ -209,18 +160,18 @@ bool BrushSource::isFuncDetail(const DBrush& dBrush) const noexcept
         && dBrush.isDetail();
 }
 
-int BrushSource::getBrushSideIDForIndex(int ibrushside) const
+int BrushSource::brushSideIdForIndex(int ibrushside) const
 {
-    if (const auto it = m_brushSideToID.constFind(ibrushside); it != m_brushSideToID.constEnd()) {
-        return it.value();
+    if (ibrushside >= 0 && static_cast<std::size_t>(ibrushside) < m_brushSideToId.size()) {
+        return m_brushSideToId[static_cast<std::size_t>(ibrushside)];
     }
     return -1;
 }
 
-int BrushSource::getBrushIDForIndex(int ibrush) const
+int BrushSource::brushIdForIndex(int ibrush) const
 {
-    if (const auto it = m_brushIndexToID.constFind(ibrush); it != m_brushIndexToID.constEnd()) {
-        return it.value();
+    if (ibrush >= 0 && static_cast<std::size_t>(ibrush) < m_brushIndexToId.size()) {
+        return m_brushIndexToId[static_cast<std::size_t>(ibrush)];
     }
     return -1;
 }
@@ -239,15 +190,15 @@ void BrushSource::assignBrushes()
         m_config.log(BspLogLevel::Debug, QStringLiteral("Walked worldspawn tree"));
     }
 
-    m_worldbrushes = tl.getMaxBrushLeaf() + 1;
+    m_worldbrushes = tl.maxBrushLeaf() + 1;
 
     for (const DModel& model : m_bsp.models) {
         tl.reset();
         tl.walk(model.headnode);
 
         DBrushModel bmodel;
-        bmodel.fstbrush = tl.getMinBrushLeaf();
-        bmodel.numbrush = tl.getMaxBrushLeaf() - tl.getMinBrushLeaf() + 1;
+        bmodel.fstbrush = tl.minBrushLeaf();
+        bmodel.numbrush = tl.maxBrushLeaf() - tl.minBrushLeaf() + 1;
         m_models.push_back(bmodel);
     }
 
@@ -289,8 +240,8 @@ bool BrushSource::writeBrush(
     }
 
     const DBrush& brush = m_bsp.brushes[static_cast<std::size_t>(ibrush)];
-    const int brushID = m_vmfmeta.getUID();
-    m_brushIndexToID.insert(ibrush, brushID);
+    const int brushID = m_vmfmeta.allocateUid();
+    setIndexedId(m_brushIndexToId, ibrush, brushID);
 
     std::vector<std::pair<int, Winding>> validBrushSides;
     validBrushSides.reserve(static_cast<std::size_t>(std::max(0, brush.numside)));
@@ -306,7 +257,8 @@ bool BrushSource::writeBrush(
             continue;
         }
 
-        Winding wind = m_windingFactory.fromSide(m_bsp, brush, brushSide).removeDegenerated();
+        Winding wind = m_windingFactory.fromSide(m_bsp, ibrush, ibrushside);
+        wind.removeDegeneratedInPlace();
 
         QString skipReason;
         if (wind.isEmpty()) {
@@ -334,10 +286,10 @@ bool BrushSource::writeBrush(
         }
 
         if (angles.has_value()) {
-            wind = wind.rotate(*angles);
+            wind.rotateInPlace(*angles);
         }
         if (origin.has_value()) {
-            wind = wind.translate(*origin);
+            wind.translateInPlace(*origin);
         }
 
         validBrushSides.emplace_back(ibrushside, std::move(wind));
@@ -353,14 +305,14 @@ bool BrushSource::writeBrush(
         return false;
     }
 
-    m_writer.start(u"solid");
-    m_writer.put(u"id", brushID);
+    m_writer.start("solid");
+    m_writer.put("id", brushID);
 
     if (m_config.debug) {
-        m_writer.start(u"bspsrc_debug");
-        m_writer.put(u"brush_index", ibrush);
-        m_writer.put(u"brush_contents", formatBrushFlagsDebug(brush.contents));
-        m_writer.end(u"bspsrc_debug");
+        m_writer.start("bspsrc_debug");
+        m_writer.put("brush_index", ibrush);
+        m_writer.put("brush_contents", QStringView(formatBrushFlagsBracketed(brush.contents)));
+        m_writer.end("bspsrc_debug");
     }
 
     for (const auto& [ibrushside, wind] : validBrushSides) {
@@ -371,7 +323,7 @@ bool BrushSource::writeBrush(
         m_vmfmeta.writeMetaVisgroup(QStringLiteral("VMEX protector brushes"));
     }
 
-    m_writer.end(u"solid");
+    m_writer.end("solid");
     return true;
 }
 
@@ -390,8 +342,8 @@ bool BrushSource::writeSide(
     const Vector3d& e2 = plane[1];
     const Vector3d& e3 = plane[2];
 
-    const Vector3d ev12 = e2.sub(e1);
-    const Vector3d ev13 = e3.sub(e1);
+    const Vector3d ev12 = e2 - e1;
+    const Vector3d ev13 = e3 - e1;
     const Vector3d normal = ev12.cross(ev13).normalize();
 
     const DTexInfo* texinfo = TextureBuilder::lookupTexinfo(brushSide.texinfo, m_bsp.texinfos, m_config);
@@ -405,7 +357,7 @@ bool BrushSource::writeSide(
     std::optional<Texture> textureOpt;
     if (texname.has_value()) {
         const QString& usedTexname = m_config.fixCubemapTextures
-            ? m_texsrc.getFixedTextureNames()[static_cast<std::size_t>(texdata->texname)]
+            ? m_texsrc.fixedTextureNames()[static_cast<std::size_t>(texdata->texname)]
             : *texname;
         textureOpt = TextureBuilder::buildFromTexinfo(*texinfo, *texdata, usedTexname, origin, angles, normal);
     }
@@ -414,7 +366,7 @@ bool BrushSource::writeSide(
         ? std::move(*textureOpt)
         : TextureBuilder::buildFromNormal(normal, ToolTexture::kSkip);
 
-    const bool noFaceForSide = !m_brushSideFaceMapper.getOrigFaceIndex(ibrushside).has_value();
+    const bool noFaceForSide = !m_brushSideFaceMapper.origFaceIndex(ibrushside).has_value();
     std::optional<QString> fixedToolTexture;
     if (m_config.fixToolTextures && noFaceForSide) {
         const bool isOccluderBrush = m_occReallocationData.isOccluderBrush(ibrush);
@@ -425,8 +377,8 @@ bool BrushSource::writeSide(
             isOccluderBrush,
             isOccluderBrushSide,
             brush.contents,
-            texinfo == nullptr ? nullptr : &texinfo->flags,
-            m_texsrc.getToolTextureMatcher());
+            texinfo == nullptr ? std::nullopt : std::optional<SurfaceFlags>(texinfo->flags),
+            m_texsrc.toolTextureMatcher());
         if (fixedToolTexture.has_value()) {
             texture.texture = *fixedToolTexture;
         }
@@ -440,62 +392,62 @@ bool BrushSource::writeSide(
         texture.texture = m_config.faceTexture;
     }
 
-    const int sideID = m_vmfmeta.getUID();
+    const int sideID = m_vmfmeta.allocateUid();
 
     if (texdata != nullptr) {
         m_texsrc.addBrushSideID(texdata->texname, sideID);
     }
 
-    m_brushSideToID.insert(ibrushside, sideID);
+    setIndexedId(m_brushSideToId, ibrushside, sideID);
 
     int smoothingGroups = 0;
-    if (const auto origFaceIdx = m_brushSideFaceMapper.getOrigFaceIndex(ibrushside); origFaceIdx.has_value()) {
+    if (const auto origFaceIdx = m_brushSideFaceMapper.origFaceIndex(ibrushside); origFaceIdx.has_value()) {
         if (*origFaceIdx >= 0 && *origFaceIdx < static_cast<int>(m_bsp.origFaces.size())) {
             smoothingGroups = m_bsp.origFaces[static_cast<std::size_t>(*origFaceIdx)].smoothingGroups;
         }
     }
 
-    m_writer.start(u"side");
-    m_writer.put(u"id", sideID);
+    m_writer.start("side");
+    m_writer.put("id", sideID);
 
     if (m_config.debug) {
-        m_writer.start(u"bspsrc_debug");
-        m_writer.put(u"brushside_index", ibrushside);
-        m_writer.put(u"normal", normal);
-        m_writer.put(u"winding", wind.toString());
+        m_writer.start("bspsrc_debug");
+        m_writer.put("brushside_index", ibrushside);
+        m_writer.put("normal", normal);
+        m_writer.put("winding", QStringView(wind.toString()));
 
         if (!texname.has_value() || texture.texture != *texname) {
-            m_writer.put(u"original_material", texture.texture);
+            m_writer.put("original_material", QStringView(texture.texture));
         }
 
         if (brushSide.texinfo != -1 && brushSide.texinfo >= 0
             && brushSide.texinfo < static_cast<int>(m_bsp.texinfos.size())) {
             const DTexInfo& ti = m_bsp.texinfos[static_cast<std::size_t>(brushSide.texinfo)];
-            m_writer.put(u"texinfo_index", brushSide.texinfo);
-            m_writer.put(u"texinfo_flags", formatSurfaceFlagsDebug(ti.flags));
-            m_writer.put(u"texturevecs_u", formatFloatArray4(ti.textureVecsTexels[0]));
-            m_writer.put(u"texturevecs_v", formatFloatArray4(ti.textureVecsTexels[1]));
+            m_writer.put("texinfo_index", brushSide.texinfo);
+            m_writer.put("texinfo_flags", QStringView(formatSurfaceFlagsBracketed(ti.flags)));
+            m_writer.put("texturevecs_u", QStringView(formatFloatArray4(ti.textureVecsTexels[0])));
+            m_writer.put("texturevecs_v", QStringView(formatFloatArray4(ti.textureVecsTexels[1])));
 
             const Vector3d uaxis{ti.textureVecsTexels[0][0], ti.textureVecsTexels[0][1], ti.textureVecsTexels[0][2]};
             const Vector3d vaxis{ti.textureVecsTexels[1][0], ti.textureVecsTexels[1][1], ti.textureVecsTexels[1][2]};
             Vector3d texNorm = uaxis.cross(vaxis);
             double angle = radiansToDegrees(std::acos(normal.dot(texNorm) / texNorm.length()));
-            m_writer.put(u"input_uv_normal", texNorm);
-            m_writer.put(u"input_uv_angle", std::isnan(angle) ? 0.0 : angle);
+            m_writer.put("input_uv_normal", texNorm);
+            m_writer.put("input_uv_angle", std::isnan(angle) ? 0.0 : angle);
 
             texNorm = texture.u.axis.cross(texture.v.axis);
             angle = radiansToDegrees(std::acos(normal.dot(texNorm)));
-            m_writer.put(u"output_uv_normal", texNorm);
-            m_writer.put(u"output_uv_angle", std::isnan(angle) ? 0.0 : angle);
+            m_writer.put("output_uv_normal", texNorm);
+            m_writer.put("output_uv_angle", std::isnan(angle) ? 0.0 : angle);
         }
-        m_writer.end(u"bspsrc_debug");
+        m_writer.end("bspsrc_debug");
     }
 
-    m_writer.put(u"plane", e1, e2, e3);
-    m_writer.put(u"smoothing_groups", smoothingGroups);
+    m_writer.put("plane", e1, e2, e3);
+    m_writer.put("smoothing_groups", smoothingGroups);
     m_writer.put(texture);
 
-    m_writer.end(u"side");
+    m_writer.end("side");
     return true;
 }
 
@@ -529,8 +481,8 @@ FaceSource::FaceSource(
     WindingFactory& windingFactory,
     const OccluderMapper::ReallocationData& occReallocationData)
     : m_reader(reader)
-    , m_bspFile(reader.getBspFile())
-    , m_bsp(reader.getData())
+    , m_bspFile(reader.bspFile())
+    , m_bsp(reader.data())
     , m_writer(writer)
     , m_config(config)
     , m_texsrc(texsrc)
@@ -693,13 +645,13 @@ void FaceSource::writeFace(
         return;
     }
 
-    Winding wind = m_windingFactory.fromFace(m_bsp, face);
+    Winding wind = m_windingFactory.fromFace(m_bsp, iface, orig);
 
     if (angles.has_value()) {
-        wind = wind.rotate(*angles);
+        wind.rotateInPlace(*angles);
     }
     if (origin.has_value()) {
-        wind = wind.translate(*origin);
+        wind.translateInPlace(*origin);
     }
 
     const auto plane = wind.buildPlane();
@@ -712,8 +664,8 @@ void FaceSource::writeFace(
         return;
     }
 
-    const Vector3d ev12 = e2.sub(e1);
-    const Vector3d ev13 = e3.sub(e1);
+    const Vector3d ev12 = e2 - e1;
+    const Vector3d ev13 = e3 - e1;
     const Vector3d normal = ev12.cross(ev13).normalize();
 
     if (normal.isNaN() || normal.isInfinite()) {
@@ -723,30 +675,30 @@ void FaceSource::writeFace(
         return;
     }
 
-    m_writer.start(u"solid");
-    m_writer.put(u"id", m_vmfmeta.getUID());
+    m_writer.start("solid");
+    m_writer.put("id", m_vmfmeta.allocateUid());
 
     if (m_config.debug) {
-        m_writer.start(u"bspsrc_debug");
-        m_writer.put(u"face_index", iface);
-        m_writer.put(u"normal", normal);
-        m_writer.put(u"winding", wind.toString());
+        m_writer.start("bspsrc_debug");
+        m_writer.put("face_index", iface);
+        m_writer.put("normal", normal);
+        m_writer.put("winding", QStringView(wind.toString()));
 
         if (face.texinfo != -1 && face.texinfo >= 0
             && face.texinfo < static_cast<int>(m_bsp.texinfos.size())) {
-            m_writer.put(u"texinfo_index", face.texinfo);
+            m_writer.put("texinfo_index", face.texinfo);
             m_writer.put(
-                u"texinfo_flags",
-                formatSurfaceFlagsDebug(m_bsp.texinfos[static_cast<std::size_t>(face.texinfo)].flags));
+                "texinfo_flags",
+                QStringView(formatSurfaceFlagsBracketed(m_bsp.texinfos[static_cast<std::size_t>(face.texinfo)].flags)));
         }
-        m_writer.end(u"bspsrc_debug");
+        m_writer.end("bspsrc_debug");
     }
 
-    const int sideID = m_vmfmeta.getUID();
+    const int sideID = m_vmfmeta.allocateUid();
     if (orig) {
-        m_vmfmeta.setOrigFaceUID(iface, sideID);
+        m_vmfmeta.setOrigFaceUid(iface, sideID);
     } else {
-        m_vmfmeta.setFaceUID(iface, sideID);
+        m_vmfmeta.setFaceUid(iface, sideID);
     }
 
     const DTexInfo* texinfo = TextureBuilder::lookupTexinfo(face.texinfo, m_bsp.texinfos, m_config);
@@ -757,7 +709,7 @@ void FaceSource::writeFace(
         ? std::nullopt
         : TextureBuilder::lookupTexname(
             texdata->texname,
-            m_config.fixCubemapTextures ? m_texsrc.getFixedTextureNames() : m_bsp.texnames,
+            m_config.fixCubemapTextures ? m_texsrc.fixedTextureNames() : m_bsp.texnames,
             m_config);
 
     std::optional<Texture> textureOpt;
@@ -777,19 +729,19 @@ void FaceSource::writeFace(
         m_texsrc.addBrushSideID(texdata->texname, sideID);
     }
 
-    m_writer.start(u"side");
-    m_writer.put(u"id", sideID);
-    m_writer.put(u"plane", e1, e2, e3);
-    m_writer.put(u"smoothing_groups", face.smoothingGroups);
+    m_writer.start("side");
+    m_writer.put("id", sideID);
+    m_writer.put("plane", e1, e2, e3);
+    m_writer.put("smoothing_groups", face.smoothingGroups);
     m_writer.put(texture);
 
     const bool disp = face.dispInfo != -1;
     if (disp && m_config.writeDisp) {
-        m_vmfmeta.setDispInfoUID(face.dispInfo, sideID);
+        m_vmfmeta.setDispInfoUid(face.dispInfo, sideID);
         writeDisplacement(face.dispInfo);
     }
 
-    m_writer.end(u"side");
+    m_writer.end("side");
 
     if (!m_config.backfaceTexture.isEmpty()) {
         texture.texture = m_config.backfaceTexture;
@@ -801,7 +753,7 @@ void FaceSource::writeFace(
         writePyramBack(wind, texture);
     }
 
-    m_writer.end(u"solid");
+    m_writer.end("solid");
 }
 
 void FaceSource::writePrismBack(const Winding& wind, Texture texture, double depth)
@@ -811,27 +763,27 @@ void FaceSource::writePrismBack(const Winding& wind, Texture texture, double dep
     Vector3d e2 = plane[1];
     Vector3d e3 = plane[2];
 
-    const Vector3d ev12 = e2.sub(e1);
-    const Vector3d ev13 = e3.sub(e1);
+    const Vector3d ev12 = e2 - e1;
+    const Vector3d ev13 = e3 - e1;
     const Vector3d normal = ev12.cross(ev13).normalize();
 
-    const Vector3d bedge = normal.scalar(depth);
-    e1 = e1.add(bedge);
-    e2 = e2.add(bedge);
-    e3 = e3.add(bedge);
+    const Vector3d bedge = normal * depth;
+    e1 += bedge;
+    e2 += bedge;
+    e3 += bedge;
 
-    texture.u = TextureAxis{texture.u.axis.scalar(-1.0)};
+    texture.u = TextureAxis{texture.u.axis * -1.0};
     writeBackSide(texture, e1, e2, e3);
 
     const Vector3d tv2 = bedge.normalize();
     const std::size_t size = wind.size();
 
     for (std::size_t i = 0; i < size; ++i) {
-        e1 = wind.get(i);
-        e2 = wind.get((i + 1) % size);
-        e3 = e1.add(bedge);
+        e1 = wind[i];
+        e2 = wind[(i + 1) % size];
+        e3 = e1 + bedge;
 
-        Vector3d tv1 = e1.sub(e2).normalize();
+        Vector3d tv1 = (e1 - e2).normalize();
         if (!tv1.isValid()) {
             tv1 = Vector3d::kNull;
         }
@@ -855,16 +807,16 @@ void FaceSource::writePyramBack(const Winding& wind, const Texture& texture, dou
     Vector3d e2 = plane[1];
     Vector3d e3 = plane[2];
 
-    const Vector3d ev12 = e2.sub(e1);
-    const Vector3d ev13 = e3.sub(e1);
+    const Vector3d ev12 = e2 - e1;
+    const Vector3d ev13 = e3 - e1;
     const Vector3d normal = ev12.cross(ev13).normalize();
 
-    e3 = wind.getCenter().add(normal.scalar(depth));
+    e3 = wind.center() + (normal * depth);
 
     const std::size_t size = wind.size();
     for (std::size_t i = 0; i < size; ++i) {
-        e1 = wind.get(i);
-        e2 = wind.get((i + 1) % size);
+        e1 = wind[i];
+        e2 = wind[(i + 1) % size];
         writeBackSide(texture, e1, e2, e3);
     }
 }
@@ -876,21 +828,16 @@ void FaceSource::writePyramBack(const Winding& wind, const Texture& texture)
 
 void FaceSource::writeAreaportal(int portalKey)
 {
-    for (const DAreaportal& ap : m_bsp.areaportals) {
-        if (ap.portalKey == portalKey) {
-            writeAreaportal(ap);
+    for (int i = 0; i < static_cast<int>(m_bsp.areaportals.size()); ++i) {
+        if (m_bsp.areaportals[static_cast<std::size_t>(i)].portalKey == portalKey) {
+            const Winding& wind = m_windingFactory.fromAreaportal(m_bsp, i);
+            writePolygon(wind, ToolTexture::kAreaportal, true);
             return;
         }
     }
     m_config.log(
         BspLogLevel::Warning,
         QStringLiteral("Tried to write non existing areaportal with portalkey %1").arg(portalKey));
-}
-
-void FaceSource::writeAreaportal(const DAreaportal& ap)
-{
-    const Winding wind = m_windingFactory.fromAreaportal(m_bsp, ap);
-    writePolygon(wind, ToolTexture::kAreaportal, true);
 }
 
 void FaceSource::writeOccluder(int occluderKey)
@@ -909,8 +856,7 @@ void FaceSource::writeOccluder(const DOccluderData& od)
         if (polyIndex < 0 || polyIndex >= static_cast<int>(m_bsp.occluderPolyDatas.size())) {
             continue;
         }
-        const DOccluderPolyData& opd = m_bsp.occluderPolyDatas[static_cast<std::size_t>(polyIndex)];
-        const Winding wind = m_windingFactory.fromOccluder(m_bsp, opd);
+        const Winding& wind = m_windingFactory.fromOccluder(m_bsp, polyIndex);
         writePolygon(wind, ToolTexture::kOccluder, ToolTexture::kNodraw, true, 1.0);
     }
 }
@@ -936,8 +882,8 @@ void FaceSource::writePolygon(
         return;
     }
 
-    const Vector3d ev12 = e2.sub(e1);
-    const Vector3d ev13 = e3.sub(e1);
+    const Vector3d ev12 = e2 - e1;
+    const Vector3d ev13 = e3 - e1;
     const Vector3d normal = ev12.cross(ev13).normalize();
 
     if (normal.isNaN() || normal.isInfinite()) {
@@ -947,17 +893,17 @@ void FaceSource::writePolygon(
         return;
     }
 
-    m_writer.start(u"solid");
-    m_writer.put(u"id", m_vmfmeta.getUID());
+    m_writer.start("solid");
+    m_writer.put("id", m_vmfmeta.allocateUid());
 
-    const int sideID = m_vmfmeta.getUID();
+    const int sideID = m_vmfmeta.allocateUid();
     Texture texture = TextureBuilder::buildFromNormal(normal, frontMaterial);
 
-    m_writer.start(u"side");
-    m_writer.put(u"id", sideID);
-    m_writer.put(u"plane", e1, e2, e3);
+    m_writer.start("side");
+    m_writer.put("id", sideID);
+    m_writer.put("plane", e1, e2, e3);
     m_writer.put(texture);
-    m_writer.end(u"side");
+    m_writer.end("side");
 
     texture.texture = backMaterial;
 
@@ -967,7 +913,7 @@ void FaceSource::writePolygon(
         writePyramBack(wind, texture, depth);
     }
 
-    m_writer.end(u"solid");
+    m_writer.end("solid");
 }
 
 void FaceSource::writePolygon(
@@ -1002,12 +948,12 @@ void FaceSource::writeBackSide(
     const Vector3d& e2,
     const Vector3d& e3)
 {
-    m_writer.start(u"side");
-    m_writer.put(u"id", m_vmfmeta.getUID());
-    m_writer.put(u"plane", e1, e3, e2);
-    m_writer.put(u"smoothing_groups", 0);
+    m_writer.start("side");
+    m_writer.put("id", m_vmfmeta.allocateUid());
+    m_writer.put("plane", e1, e3, e2);
+    m_writer.put("smoothing_groups", 0);
     m_writer.put(texture);
-    m_writer.end(u"side");
+    m_writer.end("side");
 }
 
 void FaceSource::writeDisplacement(int idispinfo)
@@ -1017,223 +963,225 @@ void FaceSource::writeDisplacement(int idispinfo)
     }
 
     const DDispInfo& di = m_bsp.dispinfos[static_cast<std::size_t>(idispinfo)];
-
-    std::vector<std::pair<QString, QString>> normalMap;
-    std::vector<std::pair<QString, QString>> distanceMap;
-    std::vector<std::pair<QString, QString>> alphaMap;
-    std::vector<std::pair<QString, QString>> triangleTagMap;
-    std::vector<std::pair<QString, QString>> multiBlendMap;
-    std::vector<std::pair<QString, QString>> alphaBlendMap;
-    std::array<std::vector<std::pair<QString, QString>>, DDispMultiBlend::kMaxMultiBlendChannels> multiBlendColorMaps;
-
-    QString normalSb;
-    QString distanceSb;
-    QString alphaSb;
-    QString multiblendSb;
-    QString alphablendSb;
-    std::array<QString, DDispMultiBlend::kMaxMultiBlendChannels> multiblendColorSbs;
-    QString triangleTagSb;
-    QString allowedVertSb;
-
-    const int vertcount = di.getVertexCount();
-    const int psize = di.getPowerSize();
+    const int vertcount = di.vertexCount();
+    const int psize = di.powerSize();
+    const int rowVerts = psize + 1;
     const bool hasMultiBlend = !m_bsp.dispmultiblend.empty() && di.hasMultiBlend();
 
-    for (int i = 0; i < vertcount; ++i) {
-        const int vertIdx = di.dispVertStart + i;
-        if (vertIdx < 0 || vertIdx >= static_cast<int>(m_bsp.dispverts.size())) {
-            break;
-        }
-        const DDispVert& dv = m_bsp.dispverts[static_cast<std::size_t>(vertIdx)];
+    const int availVerts = (di.dispVertStart >= 0
+                            && di.dispVertStart < static_cast<int>(m_bsp.dispverts.size()))
+        ? std::min(vertcount, static_cast<int>(m_bsp.dispverts.size()) - di.dispVertStart)
+        : 0;
+    const int completeRows = rowVerts > 0 ? (availVerts / rowVerts) : 0;
 
-        const DDispMultiBlend* dmb = nullptr;
-        if (hasMultiBlend) {
-            const int mbIdx = m_multiblendOffset + i;
-            if (mbIdx >= 0 && mbIdx < static_cast<int>(m_bsp.dispmultiblend.size())) {
-                dmb = &m_bsp.dispmultiblend[static_cast<std::size_t>(mbIdx)];
-            }
-        }
+    QByteArray rowBuf;
+    rowBuf.reserve(static_cast<qsizetype>(rowVerts * 48));
+    char keyBuf[16];
 
-        appendJavaFloat(normalSb, dv.vector.x);
-        normalSb += QLatin1Char(' ');
-        appendJavaFloat(normalSb, dv.vector.y);
-        normalSb += QLatin1Char(' ');
-        appendJavaFloat(normalSb, dv.vector.z);
+    m_writer.start("dispinfo");
 
-        appendJavaFloat(distanceSb, dv.dist);
-        appendJavaFloat(alphaSb, dv.alpha);
-
-        if (dmb != nullptr) {
-            appendJavaFloat(multiblendSb, dmb->multiblend.x);
-            multiblendSb += QLatin1Char(' ');
-            appendJavaFloat(multiblendSb, dmb->multiblend.y);
-            multiblendSb += QLatin1Char(' ');
-            appendJavaFloat(multiblendSb, dmb->multiblend.z);
-            multiblendSb += QLatin1Char(' ');
-            appendJavaFloat(multiblendSb, dmb->multiblend.w);
-
-            appendJavaFloat(alphablendSb, dmb->alphablend.x);
-            alphablendSb += QLatin1Char(' ');
-            appendJavaFloat(alphablendSb, dmb->alphablend.y);
-            alphablendSb += QLatin1Char(' ');
-            appendJavaFloat(alphablendSb, dmb->alphablend.z);
-            alphablendSb += QLatin1Char(' ');
-            appendJavaFloat(alphablendSb, dmb->alphablend.w);
-
-            for (int j = 0; j < DDispMultiBlend::kMaxMultiBlendChannels; ++j) {
-                QString& mbcsb = multiblendColorSbs[static_cast<std::size_t>(j)];
-                appendJavaFloat(mbcsb, dmb->multiblendcolors[static_cast<std::size_t>(j)].x);
-                mbcsb += QLatin1Char(' ');
-                appendJavaFloat(mbcsb, dmb->multiblendcolors[static_cast<std::size_t>(j)].y);
-                mbcsb += QLatin1Char(' ');
-                appendJavaFloat(mbcsb, dmb->multiblendcolors[static_cast<std::size_t>(j)].z);
-            }
-        }
-
-        if (i % (psize + 1) == psize) {
-            normalMap.emplace_back(QStringLiteral("row%1").arg(normalMap.size()), normalSb);
-            distanceMap.emplace_back(QStringLiteral("row%1").arg(distanceMap.size()), distanceSb);
-            alphaMap.emplace_back(QStringLiteral("row%1").arg(alphaMap.size()), alphaSb);
-
-            normalSb.clear();
-            distanceSb.clear();
-            alphaSb.clear();
-
-            if (dmb != nullptr) {
-                multiBlendMap.emplace_back(QStringLiteral("row%1").arg(multiBlendMap.size()), multiblendSb);
-                alphaBlendMap.emplace_back(QStringLiteral("row%1").arg(alphaBlendMap.size()), alphablendSb);
-                for (int j = 0; j < DDispMultiBlend::kMaxMultiBlendChannels; ++j) {
-                    auto& colorMap = multiBlendColorMaps[static_cast<std::size_t>(j)];
-                    colorMap.emplace_back(
-                        QStringLiteral("row%1").arg(colorMap.size()),
-                        multiblendColorSbs[static_cast<std::size_t>(j)]);
-                    multiblendColorSbs[static_cast<std::size_t>(j)].clear();
-                }
-                multiblendSb.clear();
-                alphablendSb.clear();
-            }
-        } else {
-            normalSb += QLatin1Char(' ');
-            distanceSb += QLatin1Char(' ');
-            alphaSb += QLatin1Char(' ');
-
-            if (dmb != nullptr) {
-                multiblendSb += QLatin1Char(' ');
-                alphablendSb += QLatin1Char(' ');
-                for (int j = 0; j < DDispMultiBlend::kMaxMultiBlendChannels; ++j) {
-                    multiblendColorSbs[static_cast<std::size_t>(j)] += QLatin1Char(' ');
-                }
-            }
-        }
+    if (m_config.debug) {
+        m_writer.put("bspsrc_dispinfo_index", idispinfo);
     }
 
+    m_writer.put("power", di.power);
+    m_writer.put("startposition", di.startPos.toDouble(), 2);
+    m_writer.put("flags", di.surfaceFlags());
+    m_writer.put("elevation", 0);
+    m_writer.put("subdiv", 0);
+
+    m_writer.start("normals");
+    for (int row = 0; row < completeRows; ++row) {
+        rowBuf.clear();
+        const int rowStart = di.dispVertStart + row * rowVerts;
+        for (int col = 0; col < rowVerts; ++col) {
+            if (col > 0) {
+                rowBuf.append(' ');
+            }
+            const DDispVert& dv = m_bsp.dispverts[static_cast<std::size_t>(rowStart + col)];
+            appendJavaFloatUtf8(rowBuf, dv.vector.x);
+            rowBuf.append(' ');
+            appendJavaFloatUtf8(rowBuf, dv.vector.y);
+            rowBuf.append(' ');
+            appendJavaFloatUtf8(rowBuf, dv.vector.z);
+        }
+        m_writer.put(formatRowKey(keyBuf, row), QByteArrayView(rowBuf));
+    }
+    m_writer.end("normals");
+
+    m_writer.start("distances");
+    for (int row = 0; row < completeRows; ++row) {
+        rowBuf.clear();
+        const int rowStart = di.dispVertStart + row * rowVerts;
+        for (int col = 0; col < rowVerts; ++col) {
+            if (col > 0) {
+                rowBuf.append(' ');
+            }
+            appendJavaFloatUtf8(rowBuf, m_bsp.dispverts[static_cast<std::size_t>(rowStart + col)].dist);
+        }
+        m_writer.put(formatRowKey(keyBuf, row), QByteArrayView(rowBuf));
+    }
+    m_writer.end("distances");
+
+    rowBuf.clear();
+    for (int col = 0; col < rowVerts; ++col) {
+        if (col > 0) {
+            rowBuf.append(' ');
+        }
+        rowBuf.append("0 0 0", 5);
+    }
+
+    m_writer.start("offsets");
+    for (int row = 0; row < rowVerts; ++row) {
+        m_writer.put(formatRowKey(keyBuf, row), QByteArrayView(rowBuf));
+    }
+    m_writer.end("offsets");
+
+    rowBuf.clear();
+    for (int col = 0; col < rowVerts; ++col) {
+        if (col > 0) {
+            rowBuf.append(' ');
+        }
+        rowBuf.append("0 0 1", 5);
+    }
+
+    m_writer.start("offset_normals");
+    for (int row = 0; row < rowVerts; ++row) {
+        m_writer.put(formatRowKey(keyBuf, row), QByteArrayView(rowBuf));
+    }
+    m_writer.end("offset_normals");
+
+    m_writer.start("alphas");
+    for (int row = 0; row < completeRows; ++row) {
+        rowBuf.clear();
+        const int rowStart = di.dispVertStart + row * rowVerts;
+        for (int col = 0; col < rowVerts; ++col) {
+            if (col > 0) {
+                rowBuf.append(' ');
+            }
+            appendJavaFloatUtf8(rowBuf, m_bsp.dispverts[static_cast<std::size_t>(rowStart + col)].alpha);
+        }
+        m_writer.put(formatRowKey(keyBuf, row), QByteArrayView(rowBuf));
+    }
+    m_writer.end("alphas");
+
+    const int tcount = di.triangleTagCount();
+    const int triRowCols = 2 * psize;
+    const int triRows = triRowCols > 0 ? (tcount / triRowCols) : 0;
+
+    m_writer.start("triangle_tags");
+    for (int row = 0; row < triRows; ++row) {
+        rowBuf.clear();
+        for (int col = 0; col < triRowCols; ++col) {
+            if (col > 0) {
+                rowBuf.append(' ');
+            }
+            const int triIdx = di.dispTriStart + row * triRowCols + col;
+            int dt = (triIdx >= 0 && triIdx < static_cast<int>(m_bsp.disptris.size()))
+                ? m_bsp.disptris[static_cast<std::size_t>(triIdx)].tags
+                : 0;
+            if (dt < 0 || dt > 6) {
+                dt = 0;
+            }
+            appendIntUtf8(rowBuf, kTriConv[static_cast<std::size_t>(dt)]);
+        }
+        m_writer.put(formatRowKey(keyBuf, row), QByteArrayView(rowBuf));
+    }
+    m_writer.end("triangle_tags");
+
+    rowBuf.clear();
+    for (std::size_t i = 0; i < di.allowedVerts.size(); ++i) {
+        if (i > 0) {
+            rowBuf.append(' ');
+        }
+        appendIntUtf8(rowBuf, di.allowedVerts[i]);
+    }
+
+    m_writer.start("allowed_verts");
+    m_writer.put("10", QByteArrayView(rowBuf));
+    m_writer.end("allowed_verts");
+
     if (hasMultiBlend) {
+        const int availMbVerts = (m_multiblendOffset >= 0
+                                  && m_multiblendOffset < static_cast<int>(m_bsp.dispmultiblend.size()))
+            ? std::min(availVerts, static_cast<int>(m_bsp.dispmultiblend.size()) - m_multiblendOffset)
+            : 0;
+        const int mbRows = rowVerts > 0 ? (availMbVerts / rowVerts) : 0;
+
+        m_writer.start("multiblend");
+        for (int row = 0; row < mbRows; ++row) {
+            rowBuf.clear();
+            const int rowStart = m_multiblendOffset + row * rowVerts;
+            for (int col = 0; col < rowVerts; ++col) {
+                if (col > 0) {
+                    rowBuf.append(' ');
+                }
+                const auto& mb = m_bsp.dispmultiblend[static_cast<std::size_t>(rowStart + col)].multiblend;
+                appendJavaFloatUtf8(rowBuf, mb.x);
+                rowBuf.append(' ');
+                appendJavaFloatUtf8(rowBuf, mb.y);
+                rowBuf.append(' ');
+                appendJavaFloatUtf8(rowBuf, mb.z);
+                rowBuf.append(' ');
+                appendJavaFloatUtf8(rowBuf, mb.w);
+            }
+            m_writer.put(formatRowKey(keyBuf, row), QByteArrayView(rowBuf));
+        }
+        m_writer.end("multiblend");
+
+        m_writer.start("alphablend");
+        for (int row = 0; row < mbRows; ++row) {
+            rowBuf.clear();
+            const int rowStart = m_multiblendOffset + row * rowVerts;
+            for (int col = 0; col < rowVerts; ++col) {
+                if (col > 0) {
+                    rowBuf.append(' ');
+                }
+                const auto& ab = m_bsp.dispmultiblend[static_cast<std::size_t>(rowStart + col)].alphablend;
+                appendJavaFloatUtf8(rowBuf, ab.x);
+                rowBuf.append(' ');
+                appendJavaFloatUtf8(rowBuf, ab.y);
+                rowBuf.append(' ');
+                appendJavaFloatUtf8(rowBuf, ab.z);
+                rowBuf.append(' ');
+                appendJavaFloatUtf8(rowBuf, ab.w);
+            }
+            m_writer.put(formatRowKey(keyBuf, row), QByteArrayView(rowBuf));
+        }
+        m_writer.end("alphablend");
+
+        for (int j = 0; j < DDispMultiBlend::kMaxMultiBlendChannels; ++j) {
+            char secBuf[32];
+            constexpr QByteArrayView kPrefix("multiblend_color_");
+            std::memcpy(secBuf, kPrefix.data(), static_cast<std::size_t>(kPrefix.size()));
+            auto [ptr, ec] = std::to_chars(secBuf + kPrefix.size(), secBuf + sizeof(secBuf), j);
+            const QByteArrayView sectionName(secBuf, static_cast<qsizetype>(ptr - secBuf));
+
+            m_writer.start(sectionName);
+            for (int row = 0; row < mbRows; ++row) {
+                rowBuf.clear();
+                const int rowStart = m_multiblendOffset + row * rowVerts;
+                for (int col = 0; col < rowVerts; ++col) {
+                    if (col > 0) {
+                        rowBuf.append(' ');
+                    }
+                    const auto& color = m_bsp.dispmultiblend[static_cast<std::size_t>(rowStart + col)]
+                        .multiblendcolors[static_cast<std::size_t>(j)];
+                    appendJavaFloatUtf8(rowBuf, color.x);
+                    rowBuf.append(' ');
+                    appendJavaFloatUtf8(rowBuf, color.y);
+                    rowBuf.append(' ');
+                    appendJavaFloatUtf8(rowBuf, color.z);
+                }
+                m_writer.put(formatRowKey(keyBuf, row), QByteArrayView(rowBuf));
+            }
+            m_writer.end(sectionName);
+        }
+
         m_multiblendOffset += vertcount;
     }
 
-    const int tcount = di.getTriangleTagCount();
-    for (int i = 0; i < tcount; ++i) {
-        const int triIdx = di.dispTriStart + i;
-        int dt = (triIdx >= 0 && triIdx < static_cast<int>(m_bsp.disptris.size()))
-            ? m_bsp.disptris[static_cast<std::size_t>(triIdx)].tags
-            : 0;
-        if (dt < 0 || dt > 6) {
-            dt = 0;
-        }
-
-        triangleTagSb += QString::number(kTriConv[static_cast<std::size_t>(dt)]);
-
-        if (i % (2 * psize) == 2 * psize - 1) {
-            triangleTagMap.emplace_back(QStringLiteral("row%1").arg(triangleTagMap.size()), triangleTagSb);
-            triangleTagSb.clear();
-        } else {
-            triangleTagSb += QLatin1Char(' ');
-        }
-    }
-
-    for (std::size_t i = 0; i < di.allowedVerts.size(); ++i) {
-        allowedVertSb += QString::number(di.allowedVerts[i]);
-        if (i + 1 < di.allowedVerts.size()) {
-            allowedVertSb += QLatin1Char(' ');
-        }
-    }
-
-    m_writer.start(u"dispinfo");
-
-    if (m_config.debug) {
-        m_writer.put(u"bspsrc_dispinfo_index", idispinfo);
-    }
-
-    m_writer.put(u"power", di.power);
-    m_writer.put(u"startposition", di.startPos.toDouble(), 2);
-    m_writer.put(u"flags", di.getSurfaceFlags());
-    m_writer.put(u"elevation", 0);
-    m_writer.put(u"subdiv", 0);
-
-    m_writer.start(u"normals");
-    m_writer.put(normalMap);
-    m_writer.end(u"normals");
-
-    m_writer.start(u"distances");
-    m_writer.put(distanceMap);
-    m_writer.end(u"distances");
-
-    const int rowVerts = psize + 1;
-    QString offsetRowStr;
-    offsetRowStr.reserve(rowVerts * 6);
-    QString offsetNormalRowStr;
-    offsetNormalRowStr.reserve(rowVerts * 6);
-    for (int col = 0; col < rowVerts; ++col) {
-        if (col > 0) {
-            offsetRowStr += QLatin1Char(' ');
-            offsetNormalRowStr += QLatin1Char(' ');
-        }
-        offsetRowStr += QStringLiteral("0 0 0");
-        offsetNormalRowStr += QStringLiteral("0 0 1");
-    }
-
-    m_writer.start(u"offsets");
-    for (int row = 0; row < rowVerts; ++row) {
-        m_writer.put(QStringLiteral("row%1").arg(row), offsetRowStr);
-    }
-    m_writer.end(u"offsets");
-
-    m_writer.start(u"offset_normals");
-    for (int row = 0; row < rowVerts; ++row) {
-        m_writer.put(QStringLiteral("row%1").arg(row), offsetNormalRowStr);
-    }
-    m_writer.end(u"offset_normals");
-
-    m_writer.start(u"alphas");
-    m_writer.put(alphaMap);
-    m_writer.end(u"alphas");
-
-    m_writer.start(u"triangle_tags");
-    m_writer.put(triangleTagMap);
-    m_writer.end(u"triangle_tags");
-
-    m_writer.start(u"allowed_verts");
-    m_writer.put(u"10", allowedVertSb);
-    m_writer.end(u"allowed_verts");
-
-    if (hasMultiBlend) {
-        m_writer.start(u"multiblend");
-        m_writer.put(multiBlendMap);
-        m_writer.end(u"multiblend");
-
-        m_writer.start(u"alphablend");
-        m_writer.put(alphaBlendMap);
-        m_writer.end(u"alphablend");
-
-        for (int j = 0; j < DDispMultiBlend::kMaxMultiBlendChannels; ++j) {
-            const QString sectionName = QStringLiteral("multiblend_color_%1").arg(j);
-            m_writer.start(sectionName);
-            m_writer.put(multiBlendColorMaps[static_cast<std::size_t>(j)]);
-            m_writer.end(sectionName);
-        }
-    }
-
-    m_writer.end(u"dispinfo");
+    m_writer.end("dispinfo");
 }
 
 void FaceSource::createFaceMapping()
@@ -1254,8 +1202,8 @@ void FaceSource::createFaceMapping()
         DFace& origFace = m_bsp.origFaces[static_cast<std::size_t>(i)];
 
         if (origFace.area == 0.0f) {
-            const Winding wind = m_windingFactory.fromFace(m_bsp, origFace);
-            origFace.area = static_cast<float>(wind.getArea());
+            const Winding& wind = m_windingFactory.fromFace(m_bsp, i, true);
+            origFace.area = static_cast<float>(wind.area());
         }
 
         float carea = 0.0f;
@@ -1293,8 +1241,8 @@ EntitySource::EntitySource(
     const AreaportalMapper::ReallocationData& areaportalReallocationData,
     const OccluderMapper::ReallocationData& occluderReallocationData)
     : m_reader(reader)
-    , m_bspFile(reader.getBspFile())
-    , m_bsp(reader.getData())
+    , m_bspFile(reader.bspFile())
+    , m_bsp(reader.data())
     , m_writer(writer)
     , m_config(config)
     , m_brushsrc(brushsrc)
@@ -1318,48 +1266,49 @@ void EntitySource::writeEntities()
     const bool fixEntityRot = m_config.fixEntityRot;
 
     VmfMeta::Visgroup* reallocatedVg = m_vmfmeta.visgroups()
-        ->getVisgroup(QStringLiteral("Reallocated"))
+        ->childVisgroup(QStringLiteral("Reallocated"))
         ->setColor(QColor(0, 255, 0));
 
     VmfMeta::Visgroup* rebuildVg = m_vmfmeta.visgroups()
-        ->getVisgroup(QStringLiteral("Rebuild"))
+        ->childVisgroup(QStringLiteral("Rebuild"))
         ->setColor(QColor(255, 0, 0));
 
     VmfMeta::Visgroup* reallocatedAreaportalVg = reallocatedVg
-        ->getVisgroup(QStringLiteral("Areaportal"))
+        ->childVisgroup(QStringLiteral("Areaportal"))
         ->setColor(QColor(0, 255, 255));
     VmfMeta::Visgroup* rebuildAreaportalVg = rebuildVg
-        ->getVisgroup(QStringLiteral("Areaportal"))
+        ->childVisgroup(QStringLiteral("Areaportal"))
         ->setColor(QColor(0, 178, 178));
 
     VmfMeta::Visgroup* reallocatedOccluderVg = reallocatedVg
-        ->getVisgroup(QStringLiteral("Occluder"))
+        ->childVisgroup(QStringLiteral("Occluder"))
         ->setColor(QColor(255, 0, 255));
     VmfMeta::Visgroup* rebuildOccluderVg = rebuildVg
-        ->getVisgroup(QStringLiteral("Occluder"))
+        ->childVisgroup(QStringLiteral("Occluder"))
         ->setColor(QColor(178, 0, 178));
 
     static const QRegularExpression instancePrefixRegex(QStringLiteral("^([^-]+)-"));
     std::vector<VmfMeta::Visgroup*> visgroups;
 
-    for (BspEntity& ent : m_bsp.entities) {
+    for (int entityIdx = 0; entityIdx < static_cast<int>(m_bsp.entities.size()); ++entityIdx) {
+        BspEntity& ent = m_bsp.entities[static_cast<std::size_t>(entityIdx)];
         visgroups.clear();
 
         const QString className = ent.className();
 
-        if (className == QStringLiteral("worldspawn")) {
+        if (className == QLatin1StringView("worldspawn")) {
             continue;
         }
 
-        if (className == QStringLiteral("env_sprite")) {
+        if (className == QLatin1StringView("env_sprite")) {
             if (const auto model = ent.value(u"model");
-                model.has_value() && model->startsWith(QStringLiteral("model"))) {
+                model.has_value() && model->startsWith(QLatin1StringView("model"))) {
                 ent.removeValue(u"scale");
             }
         }
 
-        const bool isAreaportal = className.startsWith(QStringLiteral("func_areaportal"));
-        const bool isOccluder = className == QStringLiteral("func_occluder");
+        const bool isAreaportal = className.startsWith(QLatin1StringView("func_areaportal"));
+        const bool isOccluder = className == QLatin1StringView("func_occluder");
         const bool hasBrush = ent.modelNum() > 0 || isAreaportal || isOccluder;
 
         if (!m_config.writePointEntities && !hasBrush) {
@@ -1374,11 +1323,11 @@ void EntitySource::writeEntities()
         if (!m_config.writeOccluders && isOccluder) {
             continue;
         }
-        if (className == QStringLiteral("info_ladder")) {
+        if (className == QLatin1StringView("info_ladder")) {
             continue;
         }
 
-        if (className == QStringLiteral("info_overlay_accessor")) {
+        if (className == QLatin1StringView("info_overlay_accessor")) {
             if (const auto oidStr = ent.value(u"OverlayID");
                 oidStr.has_value() && !oidStr->isEmpty()) {
                 bool ok = false;
@@ -1466,7 +1415,7 @@ void EntitySource::writeEntities()
             }
         }
 
-        int entID = getHammerID(ent);
+        int entID = hammerId(ent);
 
         if (m_nmo.has_value()) {
             if (const auto targetName = ent.targetName(); targetName.has_value()) {
@@ -1480,11 +1429,11 @@ void EntitySource::writeEntities()
         }
 
         if (entID == -1) {
-            entID = m_vmfmeta.getUID();
+            entID = m_vmfmeta.allocateUid();
         }
 
-        m_writer.start(u"entity");
-        m_writer.put(u"id", entID);
+        m_writer.start("entity");
+        m_writer.put("id", entID);
 
         const int modelNum = ent.modelNum();
 
@@ -1492,35 +1441,35 @@ void EntitySource::writeEntities()
             const QString& key = kv.key;
             const QString& value = kv.value;
 
-            if (key == QStringLiteral("angles") && modelNum >= 0 && fixEntityRot) {
+            if (key == QLatin1StringView("angles") && modelNum >= 0 && fixEntityRot) {
                 continue;
             }
-            if (key == QStringLiteral("origin") && modelNum == 0) {
+            if (key == QLatin1StringView("origin") && modelNum == 0) {
                 continue;
             }
-            if (key == QStringLiteral("model") && modelNum != -2) {
+            if (key == QLatin1StringView("model") && modelNum != -2) {
                 continue;
             }
-            if (key == QStringLiteral("hammerid")) {
+            if (key == QLatin1StringView("hammerid")) {
                 continue;
             }
             if ((isAreaportal || isOccluder)
-                && (key == QStringLiteral("angles") || key == QStringLiteral("origin"))) {
+                && (key == QLatin1StringView("angles") || key == QLatin1StringView("origin"))) {
                 continue;
             }
 
-            m_writer.put(key, value);
+            m_writer.put(QStringView(key), QStringView(value));
         }
 
-        m_writer.put(u"classname", className);
+        m_writer.put("classname", QStringView(className));
 
         const auto& io = ent.io();
         if (!io.empty()) {
-            m_writer.start(u"connections");
+            m_writer.start("connections");
             for (const EntityKeyValue& kv : io) {
                 m_writer.put(kv);
             }
-            m_writer.end(u"connections");
+            m_writer.end("connections");
         }
 
         std::optional<Vector3d> origin;
@@ -1554,8 +1503,8 @@ void EntitySource::writeEntities()
                 if (m_config.debug) {
                     visgroups.push_back(
                         m_vmfmeta.visgroups()
-                            ->getVisgroup(QStringLiteral("AreaportalID"))
-                            ->getVisgroup(QString::number(portalNum)));
+                            ->childVisgroup(QStringLiteral("AreaportalID"))
+                            ->childVisgroup(QString::number(portalNum)));
                 }
             }
 
@@ -1581,14 +1530,14 @@ void EntitySource::writeEntities()
             if (match.hasMatch()) {
                 visgroups.push_back(
                     m_vmfmeta.visgroups()
-                        ->getVisgroup(QStringLiteral("Instances"))
-                        ->getVisgroup(match.captured(1)));
+                        ->childVisgroup(QStringLiteral("Instances"))
+                        ->childVisgroup(match.captured(1)));
             }
         }
 
-        if (m_bspprot.isProtectedEntity(ent)) {
+        if (m_bspprot.isProtectedEntityIndex(entityIdx)) {
             visgroups.push_back(
-                m_vmfmeta.visgroups()->getVisgroup(QStringLiteral("VMEX flagged entities")));
+                m_vmfmeta.visgroups()->childVisgroup(QStringLiteral("VMEX flagged entities")));
         }
 
         if (m_nmo.has_value()) {
@@ -1600,8 +1549,8 @@ void EntitySource::writeEntities()
                     if (matched) {
                         visgroups.push_back(
                             m_vmfmeta.visgroups()
-                                ->getVisgroup(QStringLiteral("Objectives"))
-                                ->getVisgroup(objective.name));
+                                ->childVisgroup(QStringLiteral("Objectives"))
+                                ->childVisgroup(objective.name));
                     }
                 }
 
@@ -1611,9 +1560,9 @@ void EntitySource::writeEntities()
                     if (matched) {
                         visgroups.push_back(
                             m_vmfmeta.visgroups()
-                                ->getVisgroup(QStringLiteral("Objectives"))
-                                ->getVisgroup(QStringLiteral("anti"))
-                                ->getVisgroup(anti.name));
+                                ->childVisgroup(QStringLiteral("Objectives"))
+                                ->childVisgroup(QStringLiteral("anti"))
+                                ->childVisgroup(anti.name));
                     }
                 }
             }
@@ -1623,7 +1572,7 @@ void EntitySource::writeEntities()
             m_vmfmeta.writeMetaVisgroups(visgroups);
         }
 
-        m_writer.end(u"entity");
+        m_writer.end("entity");
     }
 
     if (m_config.debug) {
@@ -1652,15 +1601,13 @@ void EntitySource::writeDetails()
         brushGroups.reserve(funcDetailBrushIndices.size());
 
         for (int brushIdx : funcDetailBrushIndices) {
-            const AABB bounds = m_brushBounds.getBounds(m_bsp, m_bsp.brushes[static_cast<std::size_t>(brushIdx)]);
+            const AABB bounds = m_brushBounds.bounds(m_bsp, brushIdx);
             const AABB extendedBounds = bounds.expand(static_cast<double>(m_config.detailMergeThresh));
 
             QSet<int> intersectingGroupIds;
             for (const auto& [otherBrushIdx, groupId] : brushGroups) {
                 if (!intersectingGroupIds.contains(groupId)) {
-                    const AABB otherBounds = m_brushBounds.getBounds(
-                        m_bsp,
-                        m_bsp.brushes[static_cast<std::size_t>(otherBrushIdx)]);
+                    const AABB otherBounds = m_brushBounds.bounds(m_bsp, otherBrushIdx);
                     if (extendedBounds.intersectsWith(otherBounds)) {
                         intersectingGroupIds.insert(groupId);
                     }
@@ -1693,29 +1640,29 @@ void EntitySource::writeDetails()
     }
 
     for (const auto& group : funcDetailBrushGroups) {
-        m_writer.start(u"entity");
-        m_writer.put(u"id", m_vmfmeta.getUID());
-        m_writer.put(u"classname", u"func_detail");
+        m_writer.start("entity");
+        m_writer.put("id", m_vmfmeta.allocateUid());
+        m_writer.put("classname", "func_detail");
 
         for (int brushIdx : group) {
             m_brushsrc.writeBrush(brushIdx);
         }
 
-        m_writer.end(u"entity");
+        m_writer.end("entity");
     }
 
-    const auto& protBrushes = m_bspprot.getProtectedBrushIndices();
+    const auto& protBrushes = m_bspprot.protectedBrushIndices();
     if (!protBrushes.empty()) {
-        m_writer.start(u"entity");
-        m_writer.put(u"id", m_vmfmeta.getUID());
-        m_writer.put(u"classname", u"func_detail");
+        m_writer.start("entity");
+        m_writer.put("id", m_vmfmeta.allocateUid());
+        m_writer.put("classname", "func_detail");
         m_vmfmeta.writeMetaVisgroup(QStringLiteral("VMEX protector brushes"));
 
         for (int protBrushIdx : protBrushes) {
             m_brushsrc.writeBrush(protBrushIdx);
         }
 
-        m_writer.end(u"entity");
+        m_writer.end("entity");
     }
 }
 
@@ -1728,7 +1675,7 @@ void EntitySource::writeVisClusters()
         if (dLeaf.cluster < 0) {
             continue;
         }
-        const Vector3f size = dLeaf.maxs.sub(dLeaf.mins);
+        const Vector3f size = dLeaf.maxs - dLeaf.mins;
         if (size.x > 0.0f && size.y > 0.0f && size.z > 0.0f) {
             leafsByCluster[dLeaf.cluster].push_back(&dLeaf);
         }
@@ -1744,12 +1691,12 @@ void EntitySource::writeVisClusters()
             bounds = bounds.include(AABB{dLeaf->mins.toDouble(), dLeaf->maxs.toDouble()});
         }
 
-        m_writer.start(u"entity");
-        m_writer.put(u"id", m_vmfmeta.getUID());
-        m_writer.put(u"classname", u"func_viscluster");
+        m_writer.start("entity");
+        m_writer.put("id", m_vmfmeta.allocateUid());
+        m_writer.put("classname", "func_viscluster");
 
         m_facesrc.writePolygon(
-            Winding({
+            Winding(std::array<Vector3d, 4>{
                 bounds.min,
                 bounds.min.withX(bounds.max.x),
                 bounds.min.withX(bounds.max.x).withY(bounds.max.y),
@@ -1761,21 +1708,21 @@ void EntitySource::writeVisClusters()
 
         m_vmfmeta.writeMetaVisgroups({
             m_vmfmeta.visgroups()
-                ->getVisgroup(QStringLiteral("Rebuild"))
-                ->getVisgroup(QStringLiteral("Vis Cluster"))
-                ->getVisgroup(QString::number(cluster)),
+                ->childVisgroup(QStringLiteral("Rebuild"))
+                ->childVisgroup(QStringLiteral("Vis Cluster"))
+                ->childVisgroup(QString::number(cluster)),
         });
 
-        m_writer.end(u"entity");
+        m_writer.end("entity");
 
         if (m_config.debug) {
             for (const DLeaf* leaf : leaves) {
-                m_writer.start(u"entity");
-                m_writer.put(u"id", m_vmfmeta.getUID());
-                m_writer.put(u"classname", u"func_detail");
+                m_writer.start("entity");
+                m_writer.put("id", m_vmfmeta.allocateUid());
+                m_writer.put("classname", "func_detail");
 
                 m_facesrc.writePolygon(
-                    Winding({
+                    Winding(std::array<Vector3d, 4>{
                         leaf->mins.toDouble(),
                         leaf->mins.withX(leaf->maxs.x).toDouble(),
                         leaf->mins.withX(leaf->maxs.x).withY(leaf->maxs.y).toDouble(),
@@ -1787,12 +1734,12 @@ void EntitySource::writeVisClusters()
 
                 m_vmfmeta.writeMetaVisgroups({
                     m_vmfmeta.visgroups()
-                        ->getVisgroup(QStringLiteral("debug"))
-                        ->getVisgroup(QStringLiteral("leafs-in-cluster"))
-                        ->getVisgroup(QString::number(cluster)),
+                        ->childVisgroup(QStringLiteral("debug"))
+                        ->childVisgroup(QStringLiteral("leafs-in-cluster"))
+                        ->childVisgroup(QString::number(cluster)),
                 });
 
-                m_writer.end(u"entity");
+                m_writer.end("entity");
             }
         }
     }
@@ -1830,53 +1777,54 @@ void EntitySource::writeOverlays()
         const bool vflip = o.uvpoints[3].z == 1.0f;
         Vector3f vbasis = o.basisNormal.cross(ubasis).normalize();
         if (vflip) {
-            vbasis = vbasis.scalar(-1.0f);
+            vbasis = -vbasis;
         }
 
-        m_writer.start(u"entity");
-        m_writer.put(u"id", m_vmfmeta.getUID());
-        m_writer.put(u"classname", u"info_overlay");
+        m_writer.start("entity");
+        m_writer.put("id", m_vmfmeta.allocateUid());
+        m_writer.put("classname", "info_overlay");
 
-        const auto material = TextureSource::getTextureName(
+        const auto material = TextureSource::textureName(
             o.texinfo,
             m_bsp.texinfos,
             m_bsp.texdatas,
-            m_config.fixCubemapTextures ? m_texsrc.getFixedTextureNames() : m_bsp.texnames);
-        m_writer.put(u"material", material.value_or(ToolTexture::kHint));
-        m_writer.put(u"StartU", static_cast<double>(o.u[0]));
-        m_writer.put(u"EndU", static_cast<double>(o.u[1]));
-        m_writer.put(u"StartV", static_cast<double>(o.v[0]));
-        m_writer.put(u"EndV", static_cast<double>(o.v[1]));
-        m_writer.put(u"BasisOrigin", o.origin);
-        m_writer.put(u"BasisU", ubasis);
-        m_writer.put(u"BasisV", vbasis);
-        m_writer.put(u"BasisNormal", o.basisNormal);
-        m_writer.put(u"origin", o.origin);
+            m_config.fixCubemapTextures ? m_texsrc.fixedTextureNames() : m_bsp.texnames);
+        m_writer.put("material", material.has_value() ? QStringView(*material) : QStringView(ToolTexture::kHint));
+        m_writer.put("StartU", static_cast<double>(o.u[0]));
+        m_writer.put("EndU", static_cast<double>(o.u[1]));
+        m_writer.put("StartV", static_cast<double>(o.v[0]));
+        m_writer.put("EndV", static_cast<double>(o.v[1]));
+        m_writer.put("BasisOrigin", o.origin);
+        m_writer.put("BasisU", ubasis);
+        m_writer.put("BasisV", vbasis);
+        m_writer.put("BasisNormal", o.basisNormal);
+        m_writer.put("origin", o.origin);
 
         if (!m_bsp.overlayFades.empty()
             && overlayI < static_cast<int>(m_bsp.overlayFades.size())) {
             const DOverlayFade& of = m_bsp.overlayFades[static_cast<std::size_t>(overlayI)];
-            m_writer.put(u"fademindist", static_cast<double>(of.fadeDistMinSq));
-            m_writer.put(u"fademaxdist", static_cast<double>(of.fadeDistMaxSq));
+            m_writer.put("fademindist", static_cast<double>(of.fadeDistMinSq));
+            m_writer.put("fademaxdist", static_cast<double>(of.fadeDistMaxSq));
         }
 
         if (!m_bsp.overlaySysLevels.empty()
             && overlayI < static_cast<int>(m_bsp.overlaySysLevels.size())) {
             const DOverlaySystemLevel& osl = m_bsp.overlaySysLevels[static_cast<std::size_t>(overlayI)];
-            m_writer.put(u"mincpulevel", osl.minCPULevel);
-            m_writer.put(u"maxcpulevel", osl.maxCPULevel);
-            m_writer.put(u"mingpulevel", osl.minGPULevel);
-            m_writer.put(u"maxgpulevel", osl.maxGPULevel);
+            m_writer.put("mincpulevel", osl.minCPULevel);
+            m_writer.put("maxcpulevel", osl.maxCPULevel);
+            m_writer.put("mingpulevel", osl.minGPULevel);
+            m_writer.put("maxgpulevel", osl.maxGPULevel);
         }
 
         for (int j = 0; j < 4; ++j) {
-            m_writer.put(QStringLiteral("uv%1").arg(j), o.uvpoints[static_cast<std::size_t>(j)].withZ(0.0f));
+            const char uvKey[4] = {'u', 'v', static_cast<char>('0' + j), '\0'};
+            m_writer.put(QByteArrayView(uvKey, 3), o.uvpoints[static_cast<std::size_t>(j)].withZ(0.0f));
         }
 
-        m_writer.put(u"RenderOrder", o.getRenderOrder());
+        m_writer.put("RenderOrder", o.renderOrder());
 
         QSet<int> sideSet;
-        const int faceCount = std::min(o.getFaceCount(), static_cast<int>(o.ofaces.size()));
+        const int faceCount = std::min(o.faceCount(), static_cast<int>(o.ofaces.size()));
 
         if (m_config.brushMode == BrushMode::BrushPlanes) {
             for (int j = 0; j < faceCount; ++j) {
@@ -1887,15 +1835,15 @@ void EntitySource::writeOverlays()
                 const DFace& dFace = m_bsp.faces[static_cast<std::size_t>(faceIdx)];
 
                 if (dFace.dispInfo >= 0) {
-                    sideSet.insert(m_vmfmeta.getDispInfoUID(dFace.dispInfo));
+                    sideSet.insert(m_vmfmeta.dispInfoUid(dFace.dispInfo));
                 } else {
                     const int origFaceI = dFace.origFace;
                     if (origFaceI < 0) {
                         continue;
                     }
 
-                    for (int brushSideI : m_brushSideFaceMapper.getBrushSideIndices(origFaceI)) {
-                        const int brushSideId = m_brushsrc.getBrushSideIDForIndex(brushSideI);
+                    for (int brushSideI : m_brushSideFaceMapper.brushSideIndices(origFaceI)) {
+                        const int brushSideId = m_brushsrc.brushSideIdForIndex(brushSideI);
                         if (brushSideId >= 0) {
                             sideSet.insert(brushSideId);
                         } else {
@@ -1912,7 +1860,7 @@ void EntitySource::writeOverlays()
         } else {
             for (int j = 0; j < faceCount; ++j) {
                 const int iface = o.ofaces[static_cast<std::size_t>(j)];
-                const int faceId = m_vmfmeta.getFaceUID(iface);
+                const int faceId = m_vmfmeta.faceUid(iface);
                 if (faceId != -1) {
                     sideSet.insert(faceId);
                 }
@@ -1921,13 +1869,13 @@ void EntitySource::writeOverlays()
 
         std::vector<int> sortedSides(sideSet.cbegin(), sideSet.cend());
         std::sort(sortedSides.begin(), sortedSides.end());
-        m_writer.put(u"sides", joinSortedIntSet(sortedSides));
+        m_writer.put("sides", QByteArrayView(joinSortedIntSet(sortedSides)));
 
         if (const auto nameIt = m_overlayNames.constFind(o.id); nameIt != m_overlayNames.constEnd()) {
-            m_writer.put(u"targetname", nameIt.value());
+            m_writer.put("targetname", QStringView(nameIt.value()));
         }
 
-        m_writer.end(u"entity");
+        m_writer.end("entity");
     }
 }
 
@@ -1949,113 +1897,113 @@ void EntitySource::writeStaticProps()
     };
 
     for (const DStaticProp& pst : m_bsp.staticProps) {
-        m_writer.start(u"entity");
-        m_writer.put(u"id", m_vmfmeta.getUID());
-        m_writer.put(u"classname", u"prop_static");
-        m_writer.put(u"origin", pst.origin);
-        m_writer.put(u"angles", pst.angles);
-        m_writer.put(u"skin", pst.skin);
-        m_writer.put(u"fademindist", static_cast<double>(pst.fademin == 0.0f ? -1.0f : pst.fademin));
-        m_writer.put(u"fademaxdist", static_cast<double>(pst.fademax));
-        m_writer.put(u"solid", pst.solid);
+        m_writer.start("entity");
+        m_writer.put("id", m_vmfmeta.allocateUid());
+        m_writer.put("classname", "prop_static");
+        m_writer.put("origin", pst.origin);
+        m_writer.put("angles", pst.angles);
+        m_writer.put("skin", pst.skin);
+        m_writer.put("fademindist", static_cast<double>(pst.fademin == 0.0f ? -1.0f : pst.fademin));
+        m_writer.put("fademaxdist", static_cast<double>(pst.fademax));
+        m_writer.put("solid", pst.solid);
 
         if (pst.propType >= 0 && pst.propType < static_cast<int>(m_bsp.staticPropName.size())) {
-            m_writer.put(u"model", m_bsp.staticPropName[static_cast<std::size_t>(pst.propType)]);
+            m_writer.put("model", QStringView(m_bsp.staticPropName[static_cast<std::size_t>(pst.propType)]));
         }
 
         const bool screenSpaceFade = pst.hasV10Csgo ? false : pst.hasScreenSpaceFadeInPixels();
-        m_writer.put(u"screenspacefade", screenSpaceFade);
-        m_writer.put(u"ignorenormals", pst.hasIgnoreNormals());
-        m_writer.put(u"disableselfshadowing", pst.hasNoSelfShadowing());
-        m_writer.put(u"disablevertexlighting", pst.hasNoPerVertexLighting());
+        m_writer.put("screenspacefade", screenSpaceFade);
+        m_writer.put("ignorenormals", pst.hasIgnoreNormals());
+        m_writer.put("disableselfshadowing", pst.hasNoSelfShadowing());
+        m_writer.put("disablevertexlighting", pst.hasNoPerVertexLighting());
 
         if (pst.usesLightingOrigin()) {
-            m_writer.put(u"lightingorigin", findOrAddLightingOrigin(pst.lightingOrigin));
+            m_writer.put("lightingorigin", QStringView(findOrAddLightingOrigin(pst.lightingOrigin)));
         }
 
-        m_writer.put(u"disableshadows", pst.hasNoShadowing());
+        m_writer.put("disableshadows", pst.hasNoShadowing());
 
         if (pst.hasV5) {
-            m_writer.put(u"fadescale", static_cast<double>(pst.forcedFadeScale));
+            m_writer.put("fadescale", static_cast<double>(pst.forcedFadeScale));
         }
 
         if (pst.hasV6) {
-            m_writer.put(u"maxdxlevel", pst.maxDXLevel);
-            m_writer.put(u"mindxlevel", pst.minDXLevel);
+            m_writer.put("maxdxlevel", pst.maxDXLevel);
+            m_writer.put("mindxlevel", pst.minDXLevel);
         }
 
         if (pst.hasVinScaling) {
-            m_writer.put(u"scale", pst.vinScaling);
+            m_writer.put("scale", pst.vinScaling);
         }
 
         if (pst.hasV8) {
-            m_writer.put(u"maxcpulevel", pst.maxCPULevel);
-            m_writer.put(u"mincpulevel", pst.minCPULevel);
-            m_writer.put(u"maxgpulevel", pst.maxGPULevel);
-            m_writer.put(u"mingpulevel", pst.minGPULevel);
+            m_writer.put("maxcpulevel", pst.maxCPULevel);
+            m_writer.put("mincpulevel", pst.minCPULevel);
+            m_writer.put("maxgpulevel", pst.maxGPULevel);
+            m_writer.put("mingpulevel", pst.minGPULevel);
         }
 
         if (pst.hasDiffuseModulation && !pst.isV11Lite) {
             m_writer.put(
-                u"rendercolor",
+                "rendercolor",
                 pst.diffuseModulation.r,
                 pst.diffuseModulation.g,
                 pst.diffuseModulation.b);
-            m_writer.put(u"renderamt", pst.diffuseModulation.a);
+            m_writer.put("renderamt", pst.diffuseModulation.a);
         }
 
         if (pst.hasV9) {
-            m_writer.put(u"disableX360", pst.disableX360);
+            m_writer.put("disableX360", pst.disableX360);
         }
 
         if (pst.hasTargetName) {
-            m_writer.put(u"targetname", pst.targetname);
+            m_writer.put("targetname", QStringView(pst.targetname));
         }
 
         if (pst.hasV10) {
             const bool genLightmaps = !pst.hasNoPerTexelLighting();
-            m_writer.put(u"generatelightmaps", genLightmaps);
+            m_writer.put("generatelightmaps", genLightmaps);
             if (genLightmaps) {
-                m_writer.put(u"lightmapresolutionx", pst.lightmapResolutionX);
-                m_writer.put(u"lightmapresolutiony", pst.lightmapResolutionY);
+                m_writer.put("lightmapresolutionx", pst.lightmapResolutionX);
+                m_writer.put("lightmapresolutiony", pst.lightmapResolutionY);
             }
         }
 
         if (pst.hasDiffuseModulation && pst.isV11Lite) {
             if (pst.diffuseModulation.rgba != -1) {
                 m_writer.put(
-                    u"rendercolor",
+                    "rendercolor",
                     pst.diffuseModulation.r,
                     pst.diffuseModulation.g,
                     pst.diffuseModulation.b);
-                m_writer.put(u"renderamt", pst.diffuseModulation.a);
+                m_writer.put("renderamt", pst.diffuseModulation.a);
             }
         }
 
         if (pst.hasV10Csgo) {
-            m_writer.put(u"drawinfastreflection", pst.hasRenderInFastReflection());
-            m_writer.put(u"disableshadowdepth", pst.hasDisableShadowDepth());
-            m_writer.put(u"enablelightbounce", pst.hasEnableLightBounce());
+            m_writer.put("drawinfastreflection", pst.hasRenderInFastReflection());
+            m_writer.put("disableshadowdepth", pst.hasDisableShadowDepth());
+            m_writer.put("enablelightbounce", pst.hasEnableLightBounce());
         }
 
         if (pst.hasV11Csgo) {
-            m_writer.put(u"uniformscale", static_cast<double>(pst.uniformScale));
+            m_writer.put("uniformscale", static_cast<double>(pst.uniformScale));
         }
 
         if (pst.hasV13) {
-            m_writer.put(u"scale", pst.scale);
+            m_writer.put("scale", pst.scale);
         }
 
-        m_writer.end(u"entity");
+        m_writer.end("entity");
     }
 
     for (const auto& [origin, targetName] : lightingOrigins) {
-        m_writer.start(u"entity");
-        m_writer.put(u"id", m_vmfmeta.getUID());
-        m_writer.put(u"classname", u"info_lighting");
-        m_writer.put(u"targetname", targetName);
-        m_writer.put(u"origin", origin);
-        m_writer.end(u"entity");
+        m_writer.start("entity");
+        m_writer.put("id", m_vmfmeta.allocateUid());
+        m_writer.put("classname", "info_lighting");
+        m_writer.put("targetname", QStringView(targetName));
+        m_writer.put("origin", origin);
+        m_writer.end("entity");
     }
 }
 
@@ -2066,20 +2014,20 @@ void EntitySource::writeCubemaps()
     for (int i = 0; i < static_cast<int>(m_bsp.cubemaps.size()); ++i) {
         const DCubemapSample& cm = m_bsp.cubemaps[static_cast<std::size_t>(i)];
 
-        m_writer.start(u"entity");
-        m_writer.put(u"id", m_vmfmeta.getUID());
-        m_writer.put(u"classname", u"env_cubemap");
-        m_writer.put(u"origin", cm.origin[0], cm.origin[1], cm.origin[2]);
-        m_writer.put(u"cubemapsize", cm.size);
+        m_writer.start("entity");
+        m_writer.put("id", m_vmfmeta.allocateUid());
+        m_writer.put("classname", "env_cubemap");
+        m_writer.put("origin", cm.origin[0], cm.origin[1], cm.origin[2]);
+        m_writer.put("cubemapsize", cm.size);
 
-        std::vector<int> sideList = m_texsrc.getBrushSidesForCubemap(i);
+        std::vector<int> sideList = m_texsrc.brushSidesForCubemap(i);
         const int cmSides = static_cast<int>(sideList.size());
         if (cmSides > 0 && cmSides < m_config.maxCubemapSides) {
             std::sort(sideList.begin(), sideList.end());
-            m_writer.put(u"sides", joinSortedIntSet(sideList));
+            m_writer.put("sides", QByteArrayView(joinSortedIntSet(sideList)));
         }
 
-        m_writer.end(u"entity");
+        m_writer.end("entity");
     }
 }
 
@@ -2087,20 +2035,20 @@ void EntitySource::writeLadders()
 {
     m_config.log(BspLogLevel::Info, QStringLiteral("Writing func_ladders"));
 
-    const int limit = std::min(m_brushsrc.getWorldbrushes(), static_cast<int>(m_bsp.brushes.size()));
+    const int limit = std::min(m_brushsrc.worldBrushCount(), static_cast<int>(m_bsp.brushes.size()));
     for (int i = 0; i < limit; ++i) {
         const DBrush& brush = m_bsp.brushes[static_cast<std::size_t>(i)];
         if (!brush.isLadder()) {
             continue;
         }
 
-        m_writer.start(u"entity");
-        m_writer.put(u"id", m_vmfmeta.getUID());
-        m_writer.put(u"classname", u"func_ladder");
+        m_writer.start("entity");
+        m_writer.put("id", m_vmfmeta.allocateUid());
+        m_writer.put("classname", "func_ladder");
 
         m_brushsrc.writeBrush(i);
 
-        m_writer.end(u"entity");
+        m_writer.end("entity");
     }
 }
 
@@ -2109,7 +2057,7 @@ void EntitySource::processEntities()
     for (BspEntity& ent : m_bsp.entities) {
         const QString className = ent.className();
 
-        if (className == QStringLiteral("worldspawn")) {
+        if (className == QLatin1StringView("worldspawn")) {
             ent.removeValue(u"world_mins");
             ent.removeValue(u"world_maxs");
             ent.removeValue(u"hammerid");
@@ -2141,37 +2089,37 @@ void EntitySource::processEntities()
             }
         }
 
-        if (className == QStringLiteral("func_simpleladder")) {
+        if (className == QLatin1StringView("func_simpleladder")) {
             const int modelNum = ent.modelNum();
-            const auto hammerId = ent.value(u"hammerid");
+            const auto hammerIdVal = ent.value(u"hammerid");
 
             ent.clear();
             ent.setClassName(QStringLiteral("func_ladder"));
             ent.setModelNum(modelNum);
 
-            if (hammerId.has_value()) {
-                ent.setValue(QStringLiteral("hammerid"), *hammerId);
+            if (hammerIdVal.has_value()) {
+                ent.setValue(QStringLiteral("hammerid"), *hammerIdVal);
             }
         }
 
         const QString updatedClassName = ent.className();
-        if (updatedClassName.startsWith(QStringLiteral("light"))
-            && updatedClassName != QStringLiteral("light_dynamic")) {
+        if (updatedClassName.startsWith(QLatin1StringView("light"))
+            && updatedClassName != QLatin1StringView("light_dynamic")) {
             fixLightEntity(ent);
         }
 
-        if (updatedClassName.startsWith(QStringLiteral("info_player_"))) {
+        if (updatedClassName.startsWith(QLatin1StringView("info_player_"))) {
             createCamera(ent);
         }
 
-        const int hammerid = getHammerID(ent);
+        const int hammerid = hammerId(ent);
         if (hammerid != -1) {
-            m_vmfmeta.getUIDBlackList().insert(hammerid);
+            m_vmfmeta.uidBlacklist().insert(hammerid);
         }
     }
 }
 
-int EntitySource::getHammerID(const BspEntity& ent) const
+int EntitySource::hammerId(const BspEntity& ent) const
 {
     const auto hammeridStr = ent.value(u"hammerid");
     if (!hammeridStr.has_value()) {
@@ -2230,11 +2178,11 @@ void EntitySource::createCamera(const BspEntity& ent)
     const auto anglesOpt = ent.angles();
     const Vector3d angles = anglesOpt.has_value() ? anglesOpt->toDouble() : Vector3d::kNull;
 
-    Vector3d pos = origin.add(Vector3d{0.0, 0.0, 64.0});
-    const Vector3d look = Vector3d{192.0, 0.0, 0.0}.rotate(angles).add(origin);
-    pos = look.sub(pos).normalize().scalar(-64.0).add(pos);
+    Vector3d pos = origin + Vector3d{0.0, 0.0, 64.0};
+    const Vector3d look = Vector3d{192.0, 0.0, 0.0}.rotate(angles) + origin;
+    pos = (look - pos).normalize() * -64.0 + pos;
 
-    m_vmfmeta.getCameras().push_back(Camera{pos, look});
+    m_vmfmeta.cameras().push_back(Camera{pos, look});
 }
 
 void EntitySource::setNmo(const NmoData& nmoData)
@@ -2254,7 +2202,7 @@ void EntitySource::setNmo(const NmoData& nmoData)
     }
 
     for (const NmoExtraction& extraction : nmoData.extractions) {
-        m_vmfmeta.getUIDBlackList().insert(extraction.id);
+        m_vmfmeta.uidBlacklist().insert(extraction.id);
     }
 }
 
@@ -2268,22 +2216,22 @@ void EntitySource::writeDebugPortals(
     for (int iAreaportal = 0; iAreaportal < static_cast<int>(bsp.areaportals.size()); ++iAreaportal) {
         const DAreaportal& areaportal = bsp.areaportals[static_cast<std::size_t>(iAreaportal)];
 
-        writer.start(u"entity");
-        writer.put(u"id", vmfMeta.getUID());
-        writer.put(u"classname", u"func_detail");
-        writer.put(u"iAreaportal", iAreaportal);
-        writer.put(u"portalKey", areaportal.portalKey);
-        writer.put(u"otherPortal", areaportal.otherportal);
+        writer.start("entity");
+        writer.put("id", vmfMeta.allocateUid());
+        writer.put("classname", "func_detail");
+        writer.put("iAreaportal", iAreaportal);
+        writer.put("portalKey", areaportal.portalKey);
+        writer.put("otherPortal", areaportal.otherportal);
 
-        faceSource.writePolygon(windingFactory.fromAreaportal(bsp, areaportal), ToolTexture::kSkip, false);
+        faceSource.writePolygon(windingFactory.fromAreaportal(bsp, iAreaportal), ToolTexture::kSkip, false);
         vmfMeta.writeMetaVisgroups({
             vmfMeta.visgroups()
-                ->getVisgroup(QStringLiteral("debug"))
-                ->getVisgroup(QStringLiteral("areaportal-visualization"))
-                ->getVisgroup(QString::number(areaportal.portalKey)),
+                ->childVisgroup(QStringLiteral("debug"))
+                ->childVisgroup(QStringLiteral("areaportal-visualization"))
+                ->childVisgroup(QString::number(areaportal.portalKey)),
         });
 
-        writer.end(u"entity");
+        writer.end("entity");
     }
 }
 
@@ -2303,24 +2251,24 @@ void EntitySource::writeDebugOccluders(
             }
             const DOccluderPolyData& occluderPoly = bsp.occluderPolyDatas[static_cast<std::size_t>(polyIdx)];
 
-            writer.start(u"entity");
-            writer.put(u"id", vmfMeta.getUID());
-            writer.put(u"classname", u"func_detail");
-            writer.put(u"iOccluder", iOccluder);
-            writer.put(u"side", sideOfOccluder);
-            writer.put(u"flags", occluder.flags);
-            writer.put(u"iOccluderPoly", polyIdx);
-            writer.put(u"planenum", occluderPoly.planenum);
+            writer.start("entity");
+            writer.put("id", vmfMeta.allocateUid());
+            writer.put("classname", "func_detail");
+            writer.put("iOccluder", iOccluder);
+            writer.put("side", sideOfOccluder);
+            writer.put("flags", occluder.flags);
+            writer.put("iOccluderPoly", polyIdx);
+            writer.put("planenum", occluderPoly.planenum);
 
-            faceSource.writePolygon(windingFactory.fromOccluder(bsp, occluderPoly), ToolTexture::kSkip, false);
+            faceSource.writePolygon(windingFactory.fromOccluder(bsp, polyIdx), ToolTexture::kSkip, false);
             vmfMeta.writeMetaVisgroups({
                 vmfMeta.visgroups()
-                    ->getVisgroup(QStringLiteral("debug"))
-                    ->getVisgroup(QStringLiteral("occluder-visualization"))
-                    ->getVisgroup(QString::number(iOccluder)),
+                    ->childVisgroup(QStringLiteral("debug"))
+                    ->childVisgroup(QStringLiteral("occluder-visualization"))
+                    ->childVisgroup(QString::number(iOccluder)),
             });
 
-            writer.end(u"entity");
+            writer.end("entity");
         }
     }
 }

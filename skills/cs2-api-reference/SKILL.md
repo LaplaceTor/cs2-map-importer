@@ -75,11 +75,11 @@ description: >-
 * **`Core::KeyValues`**：
   * `KeyValuesLexer`：原生 UTF-8 缓冲流式词法器（支持 `QIODevice*` 64KB 滑窗分块读取、`QByteArray`、`QString`，自动跳过 UTF-8 BOM，`KeyValuesLexerOptions::vdfDefault()` / `vmf()`）。
   * `KeyValuesReader`：流式拉取（Pull）解析器，提供 `readNext()` 事件驱动（`BeginSection` / `EndSection` / `Property` / `EndOfDocument`）、`readSubtree()` 局部子树物化、`skipCurrentSection()` 零分配跳过与 `readDocument()` 整树填充，支持 `KeyValuesReadOptions::vdfDefault()` / `vmf()` 方言预设。
-  * `KeyValuesWriter`：双模流式（Push）UTF-8 序列化器（内存 `QByteArray` 或 `QIODevice*` 64KB 自动刷写），提供 `startSection()` / `endSection()` / `writeProperty()` / `writeNode()` 与静态便捷方法（`toUtf8` / `toString` / `write`），支持 `Options::vdfDefault()` / `vmf(nullOutput)` 方言预设。
+  * `KeyValuesWriter`：双模流式（Push）UTF-8 序列化器（内存 `QByteArray` 或 `QIODevice*` 64KB 自动刷写），提供 `startSection()` / `endSection()` / `writeProperty()`、零转码 UTF-8 快路径（`startSectionUtf8()` / `endSectionUtf8()` / `writePropertyUtf8()`）、`writeNode()` 与静态便捷方法（`toUtf8` / `toString` / `write`），支持 `Options::vdfDefault()` / `vmf(nullOutput)` 方言预设。
   * `KeyValuesNode` / `KeyValuesDocument`：通用 VDF/KeyValues 局部子树与文档 DOM 模型，支持位置感知 CRUD、方言预设透传及 `AtomicFile` 原子落盘（含 `expectedBaseDir` Tier 2 校验）。
 * **`Core::FileSystem`**：
   * `FileSystem`：`copy()` 与 `move()` 支持 `CancellationToken` 与可选 `expectedBaseDir`（自动执行 Tier 1 + Tier 2 `verifyFileWithinBase`，越界即清理并抛 `ErrorCode::InvalidPath`）；`writeAll()` 内部经 `AtomicFile` 执行单点路径边界校验；`isSubdirectoryOrEqual` 代理至 `FilesystemPath::isSubpathOf`。
-  * `AtomicFile`：临时文件重命名原子落盘，内置 `expectedBaseDir` Tier 1 + Tier 2 校验。
+  * `AtomicFile`：临时文件重命名原子落盘，内置 `expectedBaseDir` Tier 1 + Tier 2 校验，提供 `device()` 流式写句柄（需先 `open()`、写完 `commit()`）与 `write(const char*, qint64)`。
   * `DirectorySnapshot` / `FileLease`：目录递归快照 / RAII 排他文件租约。
 * **`Core::Process`**：
   * `ProcessRunner` / `ProcessOptions` / `ProcessResult`：控制台进程封装，支持逐行流式回调（`onStdOutLine` / `onStdErrLine`）、超时、`CancellationToken` 及 `toError()` / `toErrorCode()` 机械结果映射。

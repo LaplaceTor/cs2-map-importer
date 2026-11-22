@@ -11,24 +11,36 @@
 
 namespace Domain::Bsp::Internal {
 
+namespace {
+
+const Winding& emptyWinding() noexcept {
+    static const Winding kEmpty;
+    return kEmpty;
+}
+
+} // namespace
+
 // ---------------------------------------------------------------------------
 // Winding
 // ---------------------------------------------------------------------------
 
-Winding::Winding(std::vector<Vector3d> verts)
+Winding::Winding(QVarLengthArray<Vector3d, 16> verts)
     : m_verts(std::move(verts)) {}
 
+Winding::Winding(std::span<const Vector3d> verts)
+    : m_verts(verts.begin(), verts.end()) {}
+
 Winding Winding::clipEpsilon(const Vector3d& normal, double dist, double eps, bool back) const {
-    const std::size_t size = m_verts.size();
-    if (size == 0) {
+    const qsizetype count = m_verts.size();
+    if (count == 0) {
         return Winding{};
     }
 
     int counts[3] = {0, 0, 0};
-    std::vector<double> dists(size + 1, 0.0);
-    std::vector<int> sides(size + 1, 0);
+    QVarLengthArray<double, 17> dists(count + 1, 0.0);
+    QVarLengthArray<int, 17> sides(count + 1, 0);
 
-    for (std::size_t i = 0; i < size; ++i) {
+    for (qsizetype i = 0; i < count; ++i) {
         double dot = m_verts[i].dot(normal);
         dot -= dist;
         dists[i] = dot;
@@ -44,8 +56,8 @@ Winding Winding::clipEpsilon(const Vector3d& normal, double dist, double eps, bo
         counts[sides[i]]++;
     }
 
-    sides[size] = sides[0];
-    dists[size] = dists[0];
+    sides[count] = sides[0];
+    dists[count] = dists[0];
 
     if (counts[SIDE_FRONT] == 0) {
         if (!back) {
@@ -66,10 +78,10 @@ Winding Winding::clipEpsilon(const Vector3d& normal, double dist, double eps, bo
         }
     }
 
-    std::vector<Vector3d> vertsNew;
-    vertsNew.reserve(size + 4);
+    QVarLengthArray<Vector3d, 16> vertsNew;
+    vertsNew.reserve(count + 4);
 
-    for (std::size_t i = 0; i < size; ++i) {
+    for (qsizetype i = 0; i < count; ++i) {
         const Vector3d& p1 = m_verts[i];
 
         if (sides[i] == SIDE_ON) {
@@ -93,17 +105,17 @@ Winding Winding::clipEpsilon(const Vector3d& normal, double dist, double eps, bo
             continue;
         }
 
-        const Vector3d& p2 = (i == size - 1) ? m_verts[0] : m_verts[i + 1];
+        const Vector3d& p2 = (i == count - 1) ? m_verts[0] : m_verts[i + 1];
         const double dot = dists[i] / (dists[i] - dists[i + 1]);
 
         Vector3d mv = Vector3d::kNull;
         for (int j = 0; j < 3; ++j) {
-            if (normal.get(j) == 1.0) {
+            if (normal[j] == 1.0) {
                 mv = mv.with(j, dist);
-            } else if (normal.get(j) == -1.0) {
+            } else if (normal[j] == -1.0) {
                 mv = mv.with(j, -dist);
             } else {
-                mv = mv.with(j, p1.get(j) + dot * (p2.get(j) - p1.get(j)));
+                mv = mv.with(j, p1[j] + dot * (p2[j] - p1[j]));
             }
         }
 
@@ -125,101 +137,121 @@ Winding Winding::clipWinding(const Winding& other, const Vector3d& projNormal) c
     Winding result = *this;
     const std::size_t otherSize = other.size();
     for (std::size_t i = 0; i < otherSize; ++i) {
-        const Vector3d edge = other.get((i + 1) % otherSize).sub(other.get(i));
+        const Vector3d edge = other[(i + 1) % otherSize] - other[i];
         const Vector3d normal = edge.cross(projNormal).normalize();
-        const double dist = normal.dot(other.get(i));
+        const double dist = normal.dot(other[i]);
 
         result = result.clipEpsilon(normal, dist, EPS_SPLIT, false);
     }
     return result;
 }
 
-Winding Winding::removeDegenerated() const {
-    if (m_verts.empty()) {
+Winding& Winding::removeDegeneratedInPlace() {
+    if (m_verts.isEmpty()) {
         return *this;
     }
 
-    const std::size_t size = m_verts.size();
-    std::vector<Vector3d> vertsNew;
-    vertsNew.reserve(size);
+    const qsizetype count = m_verts.size();
+    QVarLengthArray<Vector3d, 16> vertsNew;
+    vertsNew.reserve(count);
 
-    for (std::size_t i = 0; i < size; ++i) {
-        const std::size_t j = (i + 1) % size;
-        if (m_verts[i].sub(m_verts[j]).length() > EPS_DEGEN) {
+    for (qsizetype i = 0; i < count; ++i) {
+        const qsizetype j = (i + 1) % count;
+        if ((m_verts[i] - m_verts[j]).length() > EPS_DEGEN) {
             vertsNew.push_back(m_verts[i]);
         }
     }
 
-    return Winding{std::move(vertsNew)};
+    m_verts = std::move(vertsNew);
+    return *this;
 }
 
-Winding Winding::removeCollinear() const {
-    if (m_verts.empty()) {
+Winding& Winding::removeCollinearInPlace() {
+    if (m_verts.isEmpty()) {
         return *this;
     }
 
-    const std::size_t size = m_verts.size();
-    std::vector<Vector3d> vertsNew;
-    vertsNew.reserve(size);
+    const qsizetype count = m_verts.size();
+    QVarLengthArray<Vector3d, 16> vertsNew;
+    vertsNew.reserve(count);
 
-    for (std::size_t i = 0; i < size; ++i) {
-        const std::size_t j = (i + 1) % size;
-        const std::size_t k = (i + size - 1) % size;
-        const Vector3d v1 = m_verts[j].sub(m_verts[i]).normalize();
-        const Vector3d v2 = m_verts[i].sub(m_verts[k]).normalize();
+    for (qsizetype i = 0; i < count; ++i) {
+        const qsizetype j = (i + 1) % count;
+        const qsizetype k = (i + count - 1) % count;
+        const Vector3d v1 = (m_verts[j] - m_verts[i]).normalize();
+        const Vector3d v2 = (m_verts[i] - m_verts[k]).normalize();
 
         if (v1.dot(v2) < 0.999) {
             vertsNew.push_back(m_verts[i]);
         }
     }
 
-    return Winding{std::move(vertsNew)};
+    m_verts = std::move(vertsNew);
+    return *this;
+}
+
+Winding& Winding::rotateInPlace(const Vector3d& angles) {
+    if (m_verts.isEmpty() || (angles.x == 0.0 && angles.y == 0.0 && angles.z == 0.0)) {
+        return *this;
+    }
+
+    for (Vector3d& vert : m_verts) {
+        vert = vert.rotate(angles);
+    }
+
+    return *this;
+}
+
+Winding& Winding::translateInPlace(const Vector3d& offset) {
+    if (m_verts.isEmpty()) {
+        return *this;
+    }
+
+    for (Vector3d& vert : m_verts) {
+        vert += offset;
+    }
+
+    return *this;
+}
+
+Winding Winding::removeDegenerated() const {
+    Winding copy = *this;
+    copy.removeDegeneratedInPlace();
+    return copy;
+}
+
+Winding Winding::removeCollinear() const {
+    Winding copy = *this;
+    copy.removeCollinearInPlace();
+    return copy;
 }
 
 Winding Winding::rotate(const Vector3d& angles) const {
-    if (m_verts.empty()) {
-        return *this;
-    }
-
-    std::vector<Vector3d> vertsNew;
-    vertsNew.reserve(m_verts.size());
-    for (const Vector3d& vert : m_verts) {
-        vertsNew.push_back(vert.rotate(angles));
-    }
-
-    return Winding{std::move(vertsNew)};
+    Winding copy = *this;
+    copy.rotateInPlace(angles);
+    return copy;
 }
 
 Winding Winding::translate(const Vector3d& offset) const {
-    if (m_verts.empty()) {
-        return *this;
-    }
-
-    std::vector<Vector3d> vertsNew;
-    vertsNew.reserve(m_verts.size());
-    for (const Vector3d& vert : m_verts) {
-        vertsNew.push_back(vert.add(offset));
-    }
-
-    return Winding{std::move(vertsNew)};
+    Winding copy = *this;
+    copy.translateInPlace(offset);
+    return copy;
 }
 
 Winding Winding::addBackface() const {
-    if (m_verts.empty()) {
+    if (m_verts.isEmpty()) {
         return *this;
     }
 
-    const std::size_t size = m_verts.size();
-    std::vector<Vector3d> vertsNew;
-    vertsNew.reserve(size * 2);
+    const qsizetype count = m_verts.size();
+    QVarLengthArray<Vector3d, 16> vertsNew;
+    vertsNew.reserve(count * 2);
 
-    for (std::size_t i = 0; i < size; ++i) {
+    for (qsizetype i = 0; i < count; ++i) {
         if (i != 0) {
             vertsNew.push_back(m_verts[i]);
         }
-        if (i != size) {
-            vertsNew.push_back(m_verts[i]);
-        }
+        vertsNew.push_back(m_verts[i]);
     }
 
     return Winding{std::move(vertsNew)};
@@ -233,7 +265,7 @@ bool Winding::matches(const Winding& that) const {
     for (const Vector3d& v1 : m_verts) {
         double minDist = 1e6f;
         for (const Vector3d& v2 : that.m_verts) {
-            minDist = std::min(minDist, v1.sub(v2).length());
+            minDist = std::min(minDist, (v1 - v2).length());
         }
         if (minDist > EPS_COMP) {
             return false;
@@ -248,14 +280,14 @@ bool Winding::isInside(const Vector3d& pt) const {
         return false;
     }
 
-    Vector3d toPt = pt.sub(m_verts[0]);
-    Vector3d edge = m_verts[1].sub(m_verts[0]);
+    Vector3d toPt = pt - m_verts[0];
+    Vector3d edge = m_verts[1] - m_verts[0];
     const Vector3d testCross = edge.cross(toPt).normalize();
 
-    const std::size_t size = m_verts.size();
-    for (std::size_t i = 1; i < size; ++i) {
-        toPt = pt.sub(m_verts[i]);
-        edge = m_verts[(i + 1) % size].sub(m_verts[i]);
+    const qsizetype count = m_verts.size();
+    for (qsizetype i = 1; i < count; ++i) {
+        toPt = pt - m_verts[i];
+        edge = m_verts[(i + 1) % count] - m_verts[i];
         const Vector3d cross = edge.cross(toPt).normalize();
 
         if (cross.dot(testCross) < 0.0) {
@@ -266,7 +298,7 @@ bool Winding::isInside(const Vector3d& pt) const {
     return true;
 }
 
-AABB Winding::getBounds() const {
+AABB Winding::bounds() const {
     Vector3d mins = Vector3d::kMaxValue;
     Vector3d maxs = Vector3d::kMinValue;
 
@@ -278,17 +310,17 @@ AABB Winding::getBounds() const {
     return AABB{mins, maxs};
 }
 
-Vector3d Winding::getCenter() const {
-    if (m_verts.empty()) {
+Vector3d Winding::center() const {
+    if (m_verts.isEmpty()) {
         return Vector3d::kNull;
     }
 
     Vector3d sum = Vector3d::kNull;
     for (const Vector3d& vert : m_verts) {
-        sum = sum.add(vert);
+        sum += vert;
     }
 
-    return sum.scalar(static_cast<double>(1.0f / static_cast<float>(m_verts.size())));
+    return sum * static_cast<double>(1.0f / static_cast<float>(m_verts.size()));
 }
 
 std::array<Vector3d, 3> Winding::buildPlane() const {
@@ -298,27 +330,27 @@ std::array<Vector3d, 3> Winding::buildPlane() const {
         return {invalid, invalid, invalid};
     }
 
-    const std::size_t size = m_verts.size();
+    const qsizetype count = m_verts.size();
     std::array<Vector3d, 3> plane{};
     plane[0] = m_verts[0];
 
-    std::vector<Vector3d> vertsNew;
-    vertsNew.reserve(size);
-    for (std::size_t i = 0; i < size; ++i) {
-        vertsNew.push_back(m_verts[i].sub(plane[0]));
+    QVarLengthArray<Vector3d, 16> vertsNew;
+    vertsNew.reserve(count);
+    for (qsizetype i = 0; i < count; ++i) {
+        vertsNew.push_back(m_verts[i] - plane[0]);
     }
 
     double maxmcp = -1.0;
-    int imax = -1;
-    int jmax = -1;
+    qsizetype imax = -1;
+    qsizetype jmax = -1;
 
-    for (std::size_t i = 1; i < size; ++i) {
-        for (std::size_t j = i + 1; j < size; ++j) {
+    for (qsizetype i = 1; i < count; ++i) {
+        for (qsizetype j = i + 1; j < count; ++j) {
             const double mcp = vertsNew[i].cross(vertsNew[j]).length();
             if (mcp > maxmcp) {
                 maxmcp = mcp;
-                imax = static_cast<int>(i);
-                jmax = static_cast<int>(j);
+                imax = i;
+                jmax = j;
             }
         }
     }
@@ -329,16 +361,16 @@ std::array<Vector3d, 3> Winding::buildPlane() const {
         return {invalid, invalid, invalid};
     }
 
-    plane[1] = m_verts[static_cast<std::size_t>(imax)];
-    plane[2] = m_verts[static_cast<std::size_t>(jmax)];
+    plane[1] = m_verts[imax];
+    plane[2] = m_verts[jmax];
 
     return plane;
 }
 
 bool Winding::hasDuplicates() const {
-    const std::size_t size = m_verts.size();
-    for (std::size_t i = 0; i < size; ++i) {
-        for (std::size_t j = 0; j < size; ++j) {
+    const qsizetype count = m_verts.size();
+    for (qsizetype i = 0; i < count; ++i) {
+        for (qsizetype j = 0; j < count; ++j) {
             if (i == j) {
                 continue;
             }
@@ -350,12 +382,12 @@ bool Winding::hasDuplicates() const {
     return false;
 }
 
-double Winding::getArea() const {
+double Winding::area() const {
     double total = 0.0;
-    const std::size_t size = m_verts.size();
-    for (std::size_t i = 2; i < size; ++i) {
-        const Vector3d v1 = m_verts[i - 1].sub(m_verts[0]);
-        const Vector3d v2 = m_verts[i].sub(m_verts[0]);
+    const qsizetype count = m_verts.size();
+    for (qsizetype i = 2; i < count; ++i) {
+        const Vector3d v1 = m_verts[i - 1] - m_verts[0];
+        const Vector3d v2 = m_verts[i] - m_verts[0];
         total += v1.cross(v2).length();
     }
     return total * 0.5f;
@@ -363,7 +395,7 @@ double Winding::getArea() const {
 
 QString Winding::toString() const {
     QStringList parts;
-    parts.reserve(static_cast<qsizetype>(m_verts.size()));
+    parts.reserve(m_verts.size());
     for (const Vector3d& v : m_verts) {
         parts.append(QStringLiteral("(%1, %2, %3)")
                          .arg(QString::number(v.x), QString::number(v.y), QString::number(v.z)));
@@ -375,12 +407,6 @@ QString Winding::toString() const {
 // WindingFactory
 // ---------------------------------------------------------------------------
 
-std::size_t WindingFactory::BrushSideKeyHash::operator()(const BrushSideKey& key) const noexcept {
-    const auto h1 = std::hash<const DBrush*>{}(key.brush);
-    const auto h2 = std::hash<const DBrushSide*>{}(key.side);
-    return h1 ^ (h2 + 0x9e3779b97f4a7c15ULL + (h1 << 6) + (h1 >> 2));
-}
-
 WindingFactory::WindingFactory(int coordSize)
     : maxLen(static_cast<int>(std::ceil(std::sqrt(3.0) * coordSize)))
     , maxCoord(coordSize) {}
@@ -390,97 +416,94 @@ WindingFactory WindingFactory::forAppId(int appId) {
     return WindingFactory{coordSize};
 }
 
-Winding WindingFactory::fromFace(const BspData& bsp, int faceIndex, bool isOrigFace) {
+const Winding& WindingFactory::fromFace(const BspData& bsp, int faceIndex, bool isOrigFace) {
     const auto& faceList = isOrigFace ? bsp.origFaces : bsp.faces;
     if (faceIndex < 0 || static_cast<std::size_t>(faceIndex) >= faceList.size()) {
-        return Winding{};
-    }
-    return fromFace(bsp, faceList[static_cast<std::size_t>(faceIndex)]);
-}
-
-Winding WindingFactory::fromFace(const BspData& bsp, const DFace& face) {
-    if (auto it = m_faceCache.find(&face); it != m_faceCache.end()) {
-        return it->second;
+        return emptyWinding();
     }
 
+    auto& cache = isOrigFace ? m_origFaceCache : m_faceCache;
+    if (cache.size() < faceList.size()) {
+        cache.resize(faceList.size());
+    }
+
+    const auto idx = static_cast<std::size_t>(faceIndex);
+    if (cache[idx].has_value()) {
+        return *cache[idx];
+    }
+
+    const DFace& face = faceList[idx];
     if (face.numedge <= 0 || face.fstedge < 0
         || static_cast<std::size_t>(face.fstedge) + static_cast<std::size_t>(face.numedge) > bsp.surfEdges.size()) {
-        return Winding{};
+        return emptyWinding();
     }
 
-    std::vector<Vector3d> verts;
-    verts.reserve(static_cast<std::size_t>(face.numedge));
+    QVarLengthArray<Vector3d, 16> verts;
+    verts.reserve(face.numedge);
 
     for (int i = 0; i < face.numedge; ++i) {
         const int sedge = bsp.surfEdges[static_cast<std::size_t>(face.fstedge + i)];
         const int edgeIndex = (sedge < 0) ? -sedge : sedge;
         if (edgeIndex < 0 || static_cast<std::size_t>(edgeIndex) >= bsp.edges.size()) {
-            return Winding{};
+            return emptyWinding();
         }
 
         const int v = (sedge < 0)
             ? bsp.edges[static_cast<std::size_t>(edgeIndex)].v[1]
             : bsp.edges[static_cast<std::size_t>(edgeIndex)].v[0];
         if (v < 0 || static_cast<std::size_t>(v) >= bsp.verts.size()) {
-            return Winding{};
+            return emptyWinding();
         }
 
         verts.push_back(bsp.verts[static_cast<std::size_t>(v)].point.toDouble());
     }
 
-    Winding w{std::move(verts)};
-    m_faceCache.emplace(&face, w);
-    return w;
+    cache[idx].emplace(std::move(verts));
+    return *cache[idx];
 }
 
-Winding WindingFactory::fromSide(const BspData& bsp, int brushIndex, int sideIndex) {
+const Winding& WindingFactory::fromSide(const BspData& bsp, int brushIndex, int brushSideIndex) {
+    if (brushSideIndex < 0 || static_cast<std::size_t>(brushSideIndex) >= bsp.brushSides.size()) {
+        return emptyWinding();
+    }
+    if (m_brushSideCache.size() < bsp.brushSides.size()) {
+        m_brushSideCache.resize(bsp.brushSides.size());
+    }
+
+    const auto bsIdx = static_cast<std::size_t>(brushSideIndex);
+    if (m_brushSideCache[bsIdx].has_value()) {
+        return *m_brushSideCache[bsIdx];
+    }
+
     if (brushIndex < 0 || static_cast<std::size_t>(brushIndex) >= bsp.brushes.size()) {
-        return Winding{};
+        return emptyWinding();
     }
-    return fromSide(bsp, bsp.brushes[static_cast<std::size_t>(brushIndex)], sideIndex);
-}
-
-Winding WindingFactory::fromSide(const BspData& bsp, const DBrush& brush, int sideIndex) {
-    if (sideIndex < 0 || sideIndex >= brush.numside || brush.fstside < 0) {
-        return Winding{};
-    }
-    const std::size_t ibside = static_cast<std::size_t>(brush.fstside + sideIndex);
-    if (ibside >= bsp.brushSides.size()) {
-        return Winding{};
-    }
-    return fromSide(bsp, brush, bsp.brushSides[ibside]);
-}
-
-Winding WindingFactory::fromSide(const BspData& bsp, const DBrush& brush, const DBrushSide& bside) {
-    const BrushSideKey key{&brush, &bside};
-    if (auto it = m_brushSideCache.find(key); it != m_brushSideCache.end()) {
-        return it->second;
-    }
-
-    if (bside.pnum < 0 || static_cast<std::size_t>(bside.pnum) >= bsp.planes.size()) {
-        return Winding{};
-    }
+    const DBrush& brush = bsp.brushes[static_cast<std::size_t>(brushIndex)];
     if (brush.fstside < 0 || brush.numside < 0
         || static_cast<std::size_t>(brush.fstside) + static_cast<std::size_t>(brush.numside) > bsp.brushSides.size()) {
-        return Winding{};
+        return emptyWinding();
+    }
+    if (brushSideIndex < brush.fstside || brushSideIndex >= brush.fstside + brush.numside) {
+        return emptyWinding();
     }
 
-    Winding w = fromPlane(bsp.planes[static_cast<std::size_t>(bside.pnum)]);
-    bool hasSide = false;
+    const DBrushSide& bside = bsp.brushSides[bsIdx];
+    if (bside.pnum < 0 || static_cast<std::size_t>(bside.pnum) >= bsp.planes.size()) {
+        return emptyWinding();
+    }
+
+    Winding w = fromPlane(bsp, bside.pnum);
 
     for (int i = 0; i < brush.numside; ++i) {
-        const std::size_t ibside2 = static_cast<std::size_t>(brush.fstside + i);
-        const DBrushSide& bside2 = bsp.brushSides[ibside2];
-
-        if (&bside2 == &bside) {
-            hasSide = true;
+        const int otherIdx = brush.fstside + i;
+        if (otherIdx == brushSideIndex) {
             continue;
         }
 
+        const DBrushSide& bside2 = bsp.brushSides[static_cast<std::size_t>(otherIdx)];
         if (bside2.bevel) {
             continue;
         }
-
         if (bside2.pnum < 0 || static_cast<std::size_t>(bside2.pnum) >= bsp.planes.size()) {
             continue;
         }
@@ -488,74 +511,104 @@ Winding WindingFactory::fromSide(const BspData& bsp, const DBrush& brush, const 
         w = w.clipPlane(bsp.planes[static_cast<std::size_t>(bside2.pnum)], true);
     }
 
-    if (!hasSide) {
-        return Winding{};
-    }
-
-    m_brushSideCache.emplace(key, w);
-    return w;
+    m_brushSideCache[bsIdx] = std::move(w);
+    return *m_brushSideCache[bsIdx];
 }
 
-Winding WindingFactory::fromAreaportal(const BspData& bsp, const DAreaportal& ap) {
-    if (auto it = m_areaportalCache.find(&ap); it != m_areaportalCache.end()) {
-        return it->second;
+const Winding& WindingFactory::fromAreaportal(const BspData& bsp, int areaportalIndex) {
+    if (areaportalIndex < 0 || static_cast<std::size_t>(areaportalIndex) >= bsp.areaportals.size()) {
+        return emptyWinding();
+    }
+    if (m_areaportalCache.size() < bsp.areaportals.size()) {
+        m_areaportalCache.resize(bsp.areaportals.size());
     }
 
+    const auto idx = static_cast<std::size_t>(areaportalIndex);
+    if (m_areaportalCache[idx].has_value()) {
+        return *m_areaportalCache[idx];
+    }
+
+    const DAreaportal& ap = bsp.areaportals[idx];
     if (ap.clipPortalVerts <= 0 || ap.firstClipPortalVert < 0
         || static_cast<std::size_t>(ap.firstClipPortalVert) + static_cast<std::size_t>(ap.clipPortalVerts)
                > bsp.clipPortalVerts.size()) {
-        return Winding{};
+        return emptyWinding();
     }
 
-    std::vector<Vector3d> verts;
-    verts.reserve(static_cast<std::size_t>(ap.clipPortalVerts));
+    QVarLengthArray<Vector3d, 16> verts;
+    verts.reserve(ap.clipPortalVerts);
     for (int i = 0; i < ap.clipPortalVerts; ++i) {
         verts.push_back(bsp.clipPortalVerts[static_cast<std::size_t>(ap.firstClipPortalVert + i)].point.toDouble());
     }
 
-    Winding w{std::move(verts)};
-    m_areaportalCache.emplace(&ap, w);
-    return w;
+    m_areaportalCache[idx].emplace(std::move(verts));
+    return *m_areaportalCache[idx];
 }
 
-Winding WindingFactory::fromOccluder(const BspData& bsp, const DOccluderPolyData& opd) {
-    if (auto it = m_occluderCache.find(&opd); it != m_occluderCache.end()) {
-        return it->second;
+const Winding& WindingFactory::fromOccluder(const BspData& bsp, int occluderPolyIndex) {
+    if (occluderPolyIndex < 0 || static_cast<std::size_t>(occluderPolyIndex) >= bsp.occluderPolyDatas.size()) {
+        return emptyWinding();
+    }
+    if (m_occluderCache.size() < bsp.occluderPolyDatas.size()) {
+        m_occluderCache.resize(bsp.occluderPolyDatas.size());
     }
 
+    const auto idx = static_cast<std::size_t>(occluderPolyIndex);
+    if (m_occluderCache[idx].has_value()) {
+        return *m_occluderCache[idx];
+    }
+
+    const DOccluderPolyData& opd = bsp.occluderPolyDatas[idx];
     if (opd.vertexcount <= 0 || opd.firstvertexindex < 0
         || static_cast<std::size_t>(opd.firstvertexindex) + static_cast<std::size_t>(opd.vertexcount)
                > bsp.occluderVerts.size()) {
-        return Winding{};
+        return emptyWinding();
     }
 
-    std::vector<Vector3d> verts;
-    verts.reserve(static_cast<std::size_t>(opd.vertexcount));
+    QVarLengthArray<Vector3d, 16> verts;
+    verts.reserve(opd.vertexcount);
     for (int k = 0; k < opd.vertexcount; ++k) {
         const int pvi = bsp.occluderVerts[static_cast<std::size_t>(opd.firstvertexindex + k)];
         if (pvi < 0 || static_cast<std::size_t>(pvi) >= bsp.verts.size()) {
-            return Winding{};
+            return emptyWinding();
         }
         verts.push_back(bsp.verts[static_cast<std::size_t>(pvi)].point.toDouble());
     }
 
-    Winding w{std::move(verts)};
-    m_occluderCache.emplace(&opd, w);
-    return w;
+    m_occluderCache[idx].emplace(std::move(verts));
+    return *m_occluderCache[idx];
 }
 
-Winding WindingFactory::fromPlane(const DPlane& pl) {
-    if (auto it = m_planeCache.find(&pl); it != m_planeCache.end()) {
-        return it->second;
+const Winding& WindingFactory::fromPlane(const BspData& bsp, int planeIndex) {
+    if (planeIndex < 0 || static_cast<std::size_t>(planeIndex) >= bsp.planes.size()) {
+        return emptyWinding();
+    }
+    if (m_planeCache.size() < bsp.planes.size()) {
+        m_planeCache.resize(bsp.planes.size());
     }
 
+    const auto idx = static_cast<std::size_t>(planeIndex);
+    if (m_planeCache[idx].has_value()) {
+        return *m_planeCache[idx];
+    }
+
+    Winding w = fromPlane(bsp.planes[idx]);
+    if (w.isEmpty()) {
+        return emptyWinding();
+    }
+
+    m_planeCache[idx] = std::move(w);
+    return *m_planeCache[idx];
+}
+
+Winding WindingFactory::fromPlane(const DPlane& pl) const {
     const Vector3d plNormal = pl.normal.toDouble();
 
     double dmax = -1.0;
     int idir = -1;
 
     for (int i = 0; i < 3; ++i) {
-        const double dc = std::abs(plNormal.get(i));
+        const double dc = std::abs(plNormal[i]);
         if (dc <= dmax) {
             continue;
         }
@@ -581,25 +634,22 @@ Winding WindingFactory::fromPlane(const DPlane& pl) {
     }
 
     const double vdot = vup.dot(plNormal);
-    vup = vup.add(plNormal.scalar(-vdot));
-    vup = vup.normalize();
+    vup = (vup + plNormal * (-vdot)).normalize();
 
-    const Vector3d org = plNormal.scalar(pl.dist);
+    const Vector3d org = plNormal * pl.dist;
     Vector3d vrt = vup.cross(plNormal);
 
-    vup = vup.scalar(static_cast<double>(maxLen));
-    vrt = vrt.scalar(static_cast<double>(maxLen));
+    vup *= static_cast<double>(maxLen);
+    vrt *= static_cast<double>(maxLen);
 
-    std::vector<Vector3d> verts;
+    QVarLengthArray<Vector3d, 16> verts;
     verts.reserve(4);
-    verts.push_back(org.sub(vrt).add(vup));
-    verts.push_back(org.add(vrt).add(vup));
-    verts.push_back(org.add(vrt).sub(vup));
-    verts.push_back(org.sub(vrt).sub(vup));
+    verts.push_back(org - vrt + vup);
+    verts.push_back(org + vrt + vup);
+    verts.push_back(org + vrt - vup);
+    verts.push_back(org - vrt - vup);
 
-    Winding w{std::move(verts)};
-    m_planeCache.emplace(&pl, w);
-    return w;
+    return Winding{std::move(verts)};
 }
 
 bool WindingFactory::isHuge(const Winding& winding) const noexcept {
@@ -686,18 +736,28 @@ void BspTreeStats::walk(int nodeIndex) {
 BrushBounds::BrushBounds(WindingFactory& wf)
     : m_wf(wf) {}
 
-AABB BrushBounds::getBounds(const BspData& bsp, const DBrush& brush) {
-    if (auto it = m_aabbCache.find(&brush); it != m_aabbCache.end()) {
-        return it->second;
+AABB BrushBounds::bounds(const BspData& bsp, int brushIndex) {
+    if (brushIndex < 0 || static_cast<std::size_t>(brushIndex) >= bsp.brushes.size()) {
+        return AABB::kZero;
+    }
+    if (m_aabbCache.size() < bsp.brushes.size()) {
+        m_aabbCache.resize(bsp.brushes.size());
     }
 
-    AABB bounds = AABB::kZero;
+    const auto idx = static_cast<std::size_t>(brushIndex);
+    if (m_aabbCache[idx].has_value()) {
+        return *m_aabbCache[idx];
+    }
+
+    const DBrush& brush = bsp.brushes[idx];
+    AABB result = AABB::kZero;
     for (int i = 0; i < brush.numside; ++i) {
-        bounds = bounds.include(m_wf.fromSide(bsp, brush, i).getBounds());
+        const int brushSideIndex = brush.fstside + i;
+        result = result.include(m_wf.fromSide(bsp, brushIndex, brushSideIndex).bounds());
     }
 
-    m_aabbCache.emplace(&brush, bounds);
-    return bounds;
+    m_aabbCache[idx] = result;
+    return result;
 }
 
 } // namespace Domain::Bsp::Internal

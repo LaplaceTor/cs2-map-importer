@@ -1,11 +1,11 @@
 #include "Domain/Bsp/Internal/VmfWriter.h"
 
-#include <QByteArrayView>
-
 #include <algorithm>
 #include <charconv>
 #include <cmath>
+#include <cstring>
 #include <string_view>
+#include <utility>
 
 #include "Domain/Bsp/Internal/BspFileReader.h"
 
@@ -33,6 +33,168 @@ QString joinVisgroupPath(const std::vector<QString>& path)
     return out;
 }
 
+class StackUtf8Buffer {
+public:
+    void append(char ch)
+    {
+        append(&ch, 1);
+    }
+
+    void append(std::string_view sv)
+    {
+        append(sv.data(), sv.size());
+    }
+
+    void append(const char* data, std::size_t size)
+    {
+        if (size == 0) {
+            return;
+        }
+        if (m_useHeap) {
+            m_heap.append(data, static_cast<qsizetype>(size));
+            return;
+        }
+        if (m_size + size <= kStackCapacity) {
+            std::memcpy(m_stack + m_size, data, size);
+            m_size += size;
+            return;
+        }
+        m_heap.reserve(static_cast<qsizetype>(m_size + size));
+        m_heap.append(m_stack, static_cast<qsizetype>(m_size));
+        m_heap.append(data, static_cast<qsizetype>(size));
+        m_useHeap = true;
+    }
+
+    void appendInt(int value)
+    {
+        char tmp[32];
+        auto [ptr, ec] = std::to_chars(tmp, tmp + sizeof(tmp), value);
+        if (ec == std::errc{}) {
+            append(tmp, static_cast<std::size_t>(ptr - tmp));
+        }
+    }
+
+    void appendFloat(double f, int decimalPlaces)
+    {
+        if (std::isnan(f)) {
+            append("NaN");
+            return;
+        }
+        if (std::isinf(f)) {
+            append(f < 0.0 ? "-Infinity" : "Infinity");
+            return;
+        }
+
+        char tmp[512];
+        if (decimalPlaces <= 0) {
+            auto [ptr, ec] = std::to_chars(tmp, tmp + sizeof(tmp), f);
+            if (ec == std::errc{}) {
+                const std::string_view sv(tmp, static_cast<std::size_t>(ptr - tmp));
+                if (sv == "-0") {
+                    append("0.0");
+                    return;
+                }
+                append(sv);
+                if (sv.find('.') == std::string_view::npos
+                    && sv.find('e') == std::string_view::npos
+                    && sv.find('E') == std::string_view::npos) {
+                    append(".0");
+                }
+                return;
+            }
+            const QByteArray fallback = QByteArray::number(f, 'g', 15);
+            append(fallback.constData(), static_cast<std::size_t>(fallback.size()));
+            return;
+        }
+
+        auto [ptr, ec] = std::to_chars(tmp, tmp + sizeof(tmp), f, std::chars_format::fixed, decimalPlaces);
+        std::string_view sv;
+        QByteArray fallback;
+        if (ec == std::errc{}) {
+            sv = std::string_view(tmp, static_cast<std::size_t>(ptr - tmp));
+        } else {
+            fallback = QByteArray::number(f, 'f', decimalPlaces);
+            sv = std::string_view(fallback.constData(), static_cast<std::size_t>(fallback.size()));
+        }
+
+        if (sv.find('.') != std::string_view::npos) {
+            while (!sv.empty() && sv.back() == '0') {
+                sv.remove_suffix(1);
+            }
+            if (!sv.empty() && sv.back() == '.') {
+                sv.remove_suffix(1);
+            }
+        }
+
+        if (sv == "-0") {
+            sv = "0";
+        }
+
+        append(sv);
+    }
+
+    QByteArrayView view() const noexcept
+    {
+        if (m_useHeap) {
+            return QByteArrayView(m_heap);
+        }
+        return QByteArrayView(m_stack, static_cast<qsizetype>(m_size));
+    }
+
+private:
+    static constexpr std::size_t kStackCapacity = 256;
+    char m_stack[kStackCapacity]{};
+    std::size_t m_size = 0;
+    QByteArray m_heap;
+    bool m_useHeap = false;
+};
+
+template <typename WarnFn>
+void appendVector3dFormatted(
+    StackUtf8Buffer& out,
+    const Vector3d& v,
+    int p,
+    int doubleScale,
+    const WarnFn& onInvalid)
+{
+    if (p == 1) {
+        out.append('(');
+    } else if (p == 2) {
+        out.append('[');
+    }
+
+    if (!v.isValid()) {
+        onInvalid(v);
+        out.append("0 0 0");
+    } else {
+        out.appendFloat(v.x, doubleScale);
+        out.append(' ');
+        out.appendFloat(v.y, doubleScale);
+        out.append(' ');
+        out.appendFloat(v.z, doubleScale);
+    }
+
+    if (p == 1) {
+        out.append(')');
+    } else if (p == 2) {
+        out.append(']');
+    }
+}
+
+std::optional<int> setIndexedUid(std::vector<int>& vec, int index, int id)
+{
+    if (index < 0) {
+        return std::nullopt;
+    }
+    const auto idx = static_cast<std::size_t>(index);
+    if (idx >= vec.size()) {
+        vec.resize(idx + 1, -1);
+    }
+    const int prevVal = vec[idx];
+    vec[idx] = id;
+    return prevVal != -1 ? std::optional<int>(prevVal) : std::nullopt;
+}
+
 } // namespace
 
 VmfWriter::VmfWriter(
@@ -49,6 +211,21 @@ VmfWriter::VmfWriter(
 {
 }
 
+VmfWriter::VmfWriter(
+    QIODevice* device,
+    int doubleScale,
+    int doubleScaleTextureAxes,
+    int doubleScaleTextureScale,
+    bool nullOutput,
+    const BspDecompileConfig* config)
+    : m_doubleScale(doubleScale)
+    , m_doubleScaleTextureAxes(doubleScaleTextureAxes)
+    , m_doubleScaleTextureScale(doubleScaleTextureScale)
+    , m_config(config)
+    , m_kvWriter(device, Core::KeyValues::KeyValuesWriter::Options::vmf(nullOutput))
+{
+}
+
 void VmfWriter::logWarning(const QString& message) const
 {
     if (m_config != nullptr) {
@@ -56,116 +233,7 @@ void VmfWriter::logWarning(const QString& message) const
     }
 }
 
-void VmfWriter::start(QStringView name)
-{
-    m_kvWriter.startSection(name);
-}
-
-void VmfWriter::end(QStringView name)
-{
-    const auto& open = m_kvWriter.openSections();
-    if (open.empty()) {
-        logWarning(QStringLiteral("VmfWriter::end('%1'): no open sections left").arg(name.toString()));
-        return;
-    }
-
-    if ((name.isEmpty() && !open.back().isEmpty()) || !m_kvWriter.endSection(name)) {
-        logWarning(QStringLiteral("VMF section end name mismatch. Expected: '%1', got '%2'")
-                       .arg(name.toString(), open.back()));
-    }
-}
-
-void VmfWriter::put(QStringView key, QStringView value)
-{
-    m_kvWriter.writeProperty(key, value);
-}
-
-void VmfWriter::put(QStringView key, QLatin1StringView value)
-{
-    put(key, QString(value));
-}
-
-void VmfWriter::put(QStringView key, const char16_t* value)
-{
-    put(key, value != nullptr ? QStringView(value) : QStringView{});
-}
-
-void VmfWriter::put(QStringView key, const char* value)
-{
-    put(key, value != nullptr ? QString::fromUtf8(value) : QString{});
-}
-
-void VmfWriter::put(QStringView key, int value)
-{
-    put(key, QString::number(value));
-}
-
-void VmfWriter::put(QStringView key, int v0, int v1, int v2)
-{
-    put(key, QStringLiteral("%1 %2 %3").arg(v0).arg(v1).arg(v2));
-}
-
-void VmfWriter::put(QStringView key, double value)
-{
-    put(key, formatFloat(value, m_doubleScale));
-}
-
-void VmfWriter::putBool(QStringView key, bool value)
-{
-    put(key, value ? QStringView{u"1"} : QStringView{u"0"});
-}
-
-void VmfWriter::put(QStringView key, const Vector3f& v, int p)
-{
-    put(key, formatVector3d(v.toDouble(), p));
-}
-
-void VmfWriter::put(QStringView key, const Vector3d& v, int p)
-{
-    put(key, formatVector3d(v, p));
-}
-
-void VmfWriter::put(QStringView key, const Vector3d& v1, const Vector3d& v2, const Vector3d& v3)
-{
-    put(key,
-        formatVector3d(v1, 1) + QLatin1Char(' ')
-            + formatVector3d(v2, 1) + QLatin1Char(' ')
-            + formatVector3d(v3, 1));
-}
-
-void VmfWriter::put(QStringView key, const TextureAxis& axis)
-{
-    put(key, formatTextureAxis(axis));
-}
-
-void VmfWriter::put(const std::vector<std::pair<QString, QString>>& orderedMap)
-{
-    for (const auto& [k, v] : orderedMap) {
-        put(k, v);
-    }
-}
-
-void VmfWriter::put(const BspEntity& entity)
-{
-    for (const EntityKeyValue& kv : entity.keyValues()) {
-        put(kv.key, kv.value);
-    }
-}
-
-void VmfWriter::put(const Texture& tex)
-{
-    put(u"material", tex.texture);
-    put(u"uaxis", tex.u);
-    put(u"vaxis", tex.v);
-    put(u"lightmapscale", tex.lmscale);
-}
-
-void VmfWriter::put(const EntityKeyValue& kv)
-{
-    put(kv.key, kv.value);
-}
-
-QByteArray VmfWriter::finish()
+void VmfWriter::warnUnclosedSections() const
 {
     const auto& open = m_kvWriter.openSections();
     if (!open.empty()) {
@@ -178,131 +246,172 @@ QByteArray VmfWriter::finish()
         }
         logWarning(QStringLiteral("Unclosed VMF chunk: %1").arg(stackState));
     }
-
-    return m_kvWriter.finish();
 }
 
-QString VmfWriter::formatVector3d(const Vector3d& v, int p) const
+void VmfWriter::start(QByteArrayView name)
 {
-    QString out;
-    if (p == 1) {
-        out += QLatin1Char('(');
-    } else if (p == 2) {
-        out += QLatin1Char('[');
-    }
-
-    if (!v.isValid()) {
-        logWarning(QStringLiteral("Invalid vector: %1").arg(formatVectorDebug(v)));
-        out += QStringLiteral("0 0 0");
-    } else {
-        out += formatFloat(v.x, m_doubleScale);
-        out += QLatin1Char(' ');
-        out += formatFloat(v.y, m_doubleScale);
-        out += QLatin1Char(' ');
-        out += formatFloat(v.z, m_doubleScale);
-    }
-
-    if (p == 1) {
-        out += QLatin1Char(')');
-    } else if (p == 2) {
-        out += QLatin1Char(']');
-    }
-
-    return out;
+    m_kvWriter.startSectionUtf8(name);
 }
 
-QString VmfWriter::formatTextureAxis(const TextureAxis& tx) const
+void VmfWriter::end(QByteArrayView name)
 {
-    QString out;
-    out += QLatin1Char('[');
-
-    if (!tx.axis.isValid()) {
-        logWarning(QStringLiteral("Invalid vector: %1").arg(formatVectorDebug(tx.axis)));
-        out += QStringLiteral("0 0 0 ");
-    } else {
-        out += formatFloat(tx.axis.x, m_doubleScaleTextureAxes);
-        out += QLatin1Char(' ');
-        out += formatFloat(tx.axis.y, m_doubleScaleTextureAxes);
-        out += QLatin1Char(' ');
-        out += formatFloat(tx.axis.z, m_doubleScaleTextureAxes);
-        out += QLatin1Char(' ');
+    const auto& open = m_kvWriter.openSections();
+    if (open.empty()) {
+        logWarning(QStringLiteral("VmfWriter::end('%1'): no open sections left")
+                       .arg(QString::fromUtf8(name)));
+        return;
     }
 
-    out += QString::number(tx.shift);
-    out += QStringLiteral("] ");
-    out += formatFloat(tx.tw, m_doubleScaleTextureScale);
-    return out;
+    if ((name.isEmpty() && !open.back().isEmpty()) || !m_kvWriter.endSectionUtf8(name)) {
+        logWarning(QStringLiteral("VMF section end name mismatch. Expected: '%1', got '%2'")
+                       .arg(QString::fromUtf8(name), open.back()));
+    }
 }
 
-QString VmfWriter::formatFloat(double f, int decimalPlaces) const
+void VmfWriter::put(QByteArrayView key, QByteArrayView value)
 {
-    if (std::isnan(f)) {
-        return QStringLiteral("NaN");
-    }
-    if (std::isinf(f)) {
-        return f < 0.0 ? QStringLiteral("-Infinity") : QStringLiteral("Infinity");
-    }
+    m_kvWriter.writePropertyUtf8(key, value);
+}
 
-    char buf[128];
+void VmfWriter::put(QByteArrayView key, QStringView value)
+{
+    m_kvWriter.writePropertyUtf8(key, value);
+}
 
-    if (decimalPlaces <= 0) {
-        auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf) - 3, f);
-        if (ec == std::errc{}) {
-            std::string_view sv(buf, static_cast<std::size_t>(ptr - buf));
-            if (sv == "-0") {
-                return QStringLiteral("0.0");
-            }
-            if (sv.find('.') == std::string_view::npos
-                && sv.find('e') == std::string_view::npos
-                && sv.find('E') == std::string_view::npos) {
-                return QString::fromLatin1(sv.data(), static_cast<qsizetype>(sv.size()))
-                    + QStringLiteral(".0");
-            }
-            return QString::fromLatin1(sv.data(), static_cast<qsizetype>(sv.size()));
-        }
-        return QString::number(f, 'g', 15);
-    }
+void VmfWriter::put(QStringView key, QStringView value)
+{
+    m_kvWriter.writeProperty(key, value);
+}
 
-    auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), f, std::chars_format::fixed, decimalPlaces);
-    std::string_view sv;
-    QByteArray fallbackStorage;
+void VmfWriter::put(QByteArrayView key, int value)
+{
+    char buf[32];
+    auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), value);
     if (ec == std::errc{}) {
-        sv = std::string_view(buf, static_cast<std::size_t>(ptr - buf));
+        m_kvWriter.writePropertyUtf8(key, QByteArrayView(buf, static_cast<qsizetype>(ptr - buf)));
+    }
+}
+
+void VmfWriter::put(QByteArrayView key, int v0, int v1, int v2)
+{
+    StackUtf8Buffer buf;
+    buf.appendInt(v0);
+    buf.append(' ');
+    buf.appendInt(v1);
+    buf.append(' ');
+    buf.appendInt(v2);
+    m_kvWriter.writePropertyUtf8(key, buf.view());
+}
+
+void VmfWriter::put(QByteArrayView key, double value)
+{
+    StackUtf8Buffer buf;
+    buf.appendFloat(value, m_doubleScale);
+    m_kvWriter.writePropertyUtf8(key, buf.view());
+}
+
+void VmfWriter::putBool(QByteArrayView key, bool value)
+{
+    m_kvWriter.writePropertyUtf8(key, value ? QByteArrayView("1") : QByteArrayView("0"));
+}
+
+void VmfWriter::put(QByteArrayView key, const Vector3f& v, int p)
+{
+    put(key, v.toDouble(), p);
+}
+
+void VmfWriter::put(QByteArrayView key, const Vector3d& v, int p)
+{
+    StackUtf8Buffer buf;
+    appendVector3dFormatted(buf, v, p, m_doubleScale, [this](const Vector3d& bad) {
+        logWarning(QStringLiteral("Invalid vector: %1").arg(formatVectorDebug(bad)));
+    });
+    m_kvWriter.writePropertyUtf8(key, buf.view());
+}
+
+void VmfWriter::put(QByteArrayView key, const Vector3d& v1, const Vector3d& v2, const Vector3d& v3)
+{
+    StackUtf8Buffer buf;
+    auto onInvalid = [this](const Vector3d& bad) {
+        logWarning(QStringLiteral("Invalid vector: %1").arg(formatVectorDebug(bad)));
+    };
+    appendVector3dFormatted(buf, v1, 1, m_doubleScale, onInvalid);
+    buf.append(' ');
+    appendVector3dFormatted(buf, v2, 1, m_doubleScale, onInvalid);
+    buf.append(' ');
+    appendVector3dFormatted(buf, v3, 1, m_doubleScale, onInvalid);
+    m_kvWriter.writePropertyUtf8(key, buf.view());
+}
+
+void VmfWriter::put(QByteArrayView key, const TextureAxis& axis)
+{
+    StackUtf8Buffer buf;
+    buf.append('[');
+
+    if (!axis.axis.isValid()) {
+        logWarning(QStringLiteral("Invalid vector: %1").arg(formatVectorDebug(axis.axis)));
+        buf.append("0 0 0 ");
     } else {
-        fallbackStorage = QString::number(f, 'f', decimalPlaces).toLatin1();
-        sv = std::string_view(fallbackStorage.constData(), static_cast<std::size_t>(fallbackStorage.size()));
+        buf.appendFloat(axis.axis.x, m_doubleScaleTextureAxes);
+        buf.append(' ');
+        buf.appendFloat(axis.axis.y, m_doubleScaleTextureAxes);
+        buf.append(' ');
+        buf.appendFloat(axis.axis.z, m_doubleScaleTextureAxes);
+        buf.append(' ');
     }
 
-    if (sv.find('.') != std::string_view::npos) {
-        while (!sv.empty() && sv.back() == '0') {
-            sv.remove_suffix(1);
-        }
-        if (!sv.empty() && sv.back() == '.') {
-            sv.remove_suffix(1);
-        }
-    }
+    buf.appendInt(axis.shift);
+    buf.append("] ");
+    buf.appendFloat(axis.tw, m_doubleScaleTextureScale);
+    m_kvWriter.writePropertyUtf8(key, buf.view());
+}
 
-    if (sv == "-0") {
-        sv = "0";
+void VmfWriter::put(const BspEntity& entity)
+{
+    for (const EntityKeyValue& kv : entity.keyValues()) {
+        put(QStringView(kv.key), QStringView(kv.value));
     }
+}
 
-    return QString::fromLatin1(sv.data(), static_cast<qsizetype>(sv.size()));
+void VmfWriter::put(const Texture& tex)
+{
+    put("material", QStringView(tex.texture));
+    put("uaxis", tex.u);
+    put("vaxis", tex.v);
+    put("lightmapscale", tex.lmscale);
+}
+
+void VmfWriter::put(const EntityKeyValue& kv)
+{
+    put(QStringView(kv.key), QStringView(kv.value));
+}
+
+Core::Result<void> VmfWriter::flush()
+{
+    warnUnclosedSections();
+    return m_kvWriter.flush();
+}
+
+QByteArray VmfWriter::finish()
+{
+    warnUnclosedSections();
+    return m_kvWriter.finish();
 }
 
 // ============================================================================
 // VmfMeta::Visgroup
 // ============================================================================
 
-VmfMeta::Visgroup::Visgroup(VmfMeta& meta, QString name, Visgroup* parent)
+VmfMeta::Visgroup::Visgroup(PassKey, VmfMeta& meta, QString name, Visgroup* parent)
     : m_meta(meta)
     , m_name(std::move(name))
     , m_color(generateNewVisgroupColor())
     , m_parent(parent)
 {
-    m_id = m_meta.getNewVisgroupId(*this);
+    m_id = m_meta.newVisgroupId(*this);
 }
 
-VmfMeta::Visgroup* VmfMeta::Visgroup::getVisgroup(const QString& visgroupName)
+VmfMeta::Visgroup* VmfMeta::Visgroup::childVisgroup(const QString& visgroupName)
 {
     if (visgroupName.isEmpty()) {
         m_meta.m_config.log(BspLogLevel::Warning, QStringLiteral("Ignoring empty visgroup name"));
@@ -311,13 +420,11 @@ VmfMeta::Visgroup* VmfMeta::Visgroup::getVisgroup(const QString& visgroupName)
 
     auto it = m_children.find(visgroupName);
     if (it != m_children.end()) {
-        return it->second.get();
+        return &it->second;
     }
 
-    auto child = std::unique_ptr<Visgroup>(new Visgroup(m_meta, visgroupName, this));
-    Visgroup* raw = child.get();
-    m_children.emplace(visgroupName, std::move(child));
-    return raw;
+    auto [insertedIt, inserted] = m_children.try_emplace(visgroupName, PassKey{}, m_meta, visgroupName, this);
+    return &insertedIt->second;
 }
 
 VmfMeta::Visgroup* VmfMeta::Visgroup::setColor(const QColor& color)
@@ -352,8 +459,8 @@ bool VmfMeta::Visgroup::isTreeUsed() const noexcept
     if (m_used) {
         return true;
     }
-    for (const auto& [childName, childPtr] : m_children) {
-        if (childPtr->isTreeUsed()) {
+    for (const auto& [childName, child] : m_children) {
+        if (child.isTreeUsed()) {
             return true;
         }
     }
@@ -365,8 +472,8 @@ bool VmfMeta::Visgroup::containsVisgroupId(int id) const noexcept
     if (m_id == id) {
         return true;
     }
-    for (const auto& [childName, childPtr] : m_children) {
-        if (childPtr->containsVisgroupId(id)) {
+    for (const auto& [childName, child] : m_children) {
+        if (child.containsVisgroupId(id)) {
             return true;
         }
     }
@@ -392,9 +499,9 @@ VmfMeta::VmfMeta(BspFileReader& reader, VmfWriter& writer, const BspDecompileCon
     , m_config(config)
     , m_rng(std::random_device{}())
 {
-    m_rootVisgroup = std::unique_ptr<Visgroup>(new Visgroup(*this, QStringLiteral("root"), nullptr));
+    m_rootVisgroup.emplace(Visgroup::PassKey{}, *this, QStringLiteral("root"), nullptr);
 
-    auto& entities = m_reader.getData().entities;
+    auto& entities = m_reader.data().entities;
     for (BspEntity& ent : entities) {
         if (ent.className().compare(QStringLiteral("worldspawn"), Qt::CaseInsensitive) == 0) {
             m_worldspawn = &ent;
@@ -412,12 +519,12 @@ VmfMeta::VmfMeta(BspFileReader& reader, VmfWriter& writer, const BspDecompileCon
         m_fallbackWorldspawn->setClassName(QStringLiteral("worldspawn"));
     }
 
-    if (const auto comment = worldspawnEntity().value(u"comment"); comment.has_value()) {
-        m_config.log(BspLogLevel::Info, QStringLiteral("Map comment: %1").arg(*comment));
+    if (const auto commentOpt = worldspawnEntity().value(u"comment"); commentOpt.has_value()) {
+        m_config.log(BspLogLevel::Info, QStringLiteral("Map comment: %1").arg(*commentOpt));
     }
 
     if (!worldspawnEntity().hasKey(u"mapversion")) {
-        worldspawnEntity().setValue(QStringLiteral("mapversion"), m_reader.getBspFile().revision());
+        worldspawnEntity().setValue(QStringLiteral("mapversion"), m_reader.bspFile().revision());
     }
 }
 
@@ -431,7 +538,7 @@ const BspEntity& VmfMeta::worldspawnEntity() const noexcept
     return m_worldspawn != nullptr ? *m_worldspawn : *m_fallbackWorldspawn;
 }
 
-int VmfMeta::getUID()
+int VmfMeta::allocateUid()
 {
     if (m_uidBlacklist.isEmpty()) {
         return m_uid++;
@@ -444,86 +551,74 @@ int VmfMeta::getUID()
     return m_uid;
 }
 
-int VmfMeta::getFaceUID(int iface) const
+int VmfMeta::faceUid(int iface) const
 {
-    if (const auto it = m_faceUIDs.constFind(iface); it != m_faceUIDs.constEnd()) {
-        return it.value();
+    if (iface >= 0 && static_cast<std::size_t>(iface) < m_faceUids.size()) {
+        const int uid = m_faceUids[static_cast<std::size_t>(iface)];
+        if (uid != -1) {
+            return uid;
+        }
     }
 
-    const auto& faces = m_reader.getData().faces;
+    const auto& faces = m_reader.data().faces;
     if (iface >= 0 && iface < static_cast<int>(faces.size())) {
         const int ioface = faces[static_cast<std::size_t>(iface)].origFace;
-        if (const auto itOrig = m_origFaceUIDs.constFind(ioface); itOrig != m_origFaceUIDs.constEnd()) {
-            return itOrig.value();
+        if (ioface >= 0 && static_cast<std::size_t>(ioface) < m_origFaceUids.size()) {
+            return m_origFaceUids[static_cast<std::size_t>(ioface)];
         }
     }
 
     return -1;
 }
 
-std::optional<int> VmfMeta::setFaceUID(int iface, int id)
+std::optional<int> VmfMeta::setFaceUid(int iface, int id)
 {
-    std::optional<int> prev;
-    if (const auto it = m_faceUIDs.constFind(iface); it != m_faceUIDs.constEnd()) {
-        prev = it.value();
-    }
-    m_faceUIDs.insert(iface, id);
-    return prev;
+    return setIndexedUid(m_faceUids, iface, id);
 }
 
-std::optional<int> VmfMeta::setOrigFaceUID(int iface, int id)
+std::optional<int> VmfMeta::setOrigFaceUid(int iface, int id)
 {
-    std::optional<int> prev;
-    if (const auto it = m_origFaceUIDs.constFind(iface); it != m_origFaceUIDs.constEnd()) {
-        prev = it.value();
-    }
-    m_origFaceUIDs.insert(iface, id);
-    return prev;
+    return setIndexedUid(m_origFaceUids, iface, id);
 }
 
-int VmfMeta::getDispInfoUID(int idispinfo) const
+int VmfMeta::dispInfoUid(int idispinfo) const
 {
-    if (const auto it = m_dispinfoUIDs.constFind(idispinfo); it != m_dispinfoUIDs.constEnd()) {
-        return it.value();
+    if (idispinfo >= 0 && static_cast<std::size_t>(idispinfo) < m_dispinfoUids.size()) {
+        return m_dispinfoUids[static_cast<std::size_t>(idispinfo)];
     }
     return -1;
 }
 
-std::optional<int> VmfMeta::setDispInfoUID(int idispinfo, int id)
+std::optional<int> VmfMeta::setDispInfoUid(int idispinfo, int id)
 {
-    std::optional<int> prev;
-    if (const auto it = m_dispinfoUIDs.constFind(idispinfo); it != m_dispinfoUIDs.constEnd()) {
-        prev = it.value();
-    }
-    m_dispinfoUIDs.insert(idispinfo, id);
-    return prev;
+    return setIndexedUid(m_dispinfoUids, idispinfo, id);
 }
 
-void VmfMeta::appendComment(const QString& comment)
+void VmfMeta::appendComment(const QString& commentText)
 {
-    const auto prev = getComment();
+    const auto prev = comment();
     const QString combined = prev.has_value()
-        ? (*prev + QStringLiteral(" | ") + comment)
-        : comment;
+        ? (*prev + QStringLiteral(" | ") + commentText)
+        : commentText;
     worldspawnEntity().setValue(QStringLiteral("comment"), combined);
 }
 
-std::optional<QString> VmfMeta::getComment() const
+std::optional<QString> VmfMeta::comment() const
 {
     return worldspawnEntity().value(u"comment");
 }
 
 void VmfMeta::writeWorldHeader()
 {
-    m_writer.start(u"world");
-    m_writer.put(u"id", getUID());
+    m_writer.start("world");
+    m_writer.put("id", allocateUid());
     m_writer.put(worldspawnEntity());
-    m_writer.put(u"classname", u"worldspawn");
+    m_writer.put("classname", "worldspawn");
 }
 
 void VmfMeta::writeWorldFooter()
 {
-    m_writer.end(u"world");
+    m_writer.end("world");
 }
 
 QString VmfMeta::mapVersion() const
@@ -537,13 +632,13 @@ QString VmfMeta::mapVersion() const
 
 void VmfMeta::writeVersionInfo(VmfWriter& targetWriter) const
 {
-    targetWriter.start(u"versioninfo");
-    targetWriter.put(u"editorversion", 400);
-    targetWriter.put(u"editorbuild", 9999);
-    targetWriter.put(u"mapversion", mapVersion());
-    targetWriter.put(u"formatversion", 100);
-    targetWriter.put(u"prefab", 0);
-    targetWriter.end(u"versioninfo");
+    targetWriter.start("versioninfo");
+    targetWriter.put("editorversion", 400);
+    targetWriter.put("editorbuild", 9999);
+    targetWriter.put("mapversion", QStringView(mapVersion()));
+    targetWriter.put("formatversion", 100);
+    targetWriter.put("prefab", 0);
+    targetWriter.end("versioninfo");
 }
 
 void VmfMeta::writeVisgroups()
@@ -553,11 +648,13 @@ void VmfMeta::writeVisgroups()
 
 void VmfMeta::writeVisgroups(VmfWriter& targetWriter) const
 {
-    targetWriter.start(u"visgroups");
-    for (const auto& [childName, childPtr] : m_rootVisgroup->m_children) {
-        writeVisgroup(targetWriter, *childPtr);
+    targetWriter.start("visgroups");
+    if (m_rootVisgroup.has_value()) {
+        for (const auto& [childName, child] : m_rootVisgroup->m_children) {
+            writeVisgroup(targetWriter, child);
+        }
     }
-    targetWriter.end(u"visgroups");
+    targetWriter.end("visgroups");
 }
 
 void VmfMeta::writeVisgroup(VmfWriter& targetWriter, const Visgroup& visgroup) const
@@ -566,54 +663,54 @@ void VmfMeta::writeVisgroup(VmfWriter& targetWriter, const Visgroup& visgroup) c
         return;
     }
 
-    targetWriter.start(u"visgroup");
-    targetWriter.put(u"name", visgroup.name());
-    targetWriter.put(u"visgroupid", visgroup.id());
-    targetWriter.put(
-        u"color",
-        QStringLiteral("%1 %2 %3")
-            .arg(visgroup.color().red())
-            .arg(visgroup.color().blue())
-            .arg(visgroup.color().green()));
+    targetWriter.start("visgroup");
+    targetWriter.put("name", QStringView(visgroup.name()));
+    targetWriter.put("visgroupid", visgroup.id());
+    targetWriter.put("color", visgroup.color().red(), visgroup.color().green(), visgroup.color().blue());
 
-    for (const auto& [childName, childPtr] : visgroup.m_children) {
-        writeVisgroup(targetWriter, *childPtr);
+    for (const auto& [childName, child] : visgroup.m_children) {
+        writeVisgroup(targetWriter, child);
     }
 
-    targetWriter.end(u"visgroup");
+    targetWriter.end("visgroup");
 }
 
 void VmfMeta::writeViewSettings(VmfWriter& targetWriter) const
 {
-    targetWriter.start(u"viewsettings");
-    targetWriter.put(u"bSnapToGrid", 1);
-    targetWriter.put(u"bShowGrid", 1);
-    targetWriter.put(u"bShowLogicalGrid", 0);
-    targetWriter.put(u"nGridSpacing", 64);
-    targetWriter.put(u"bShow3DGrid", 0);
-    targetWriter.end(u"viewsettings");
+    targetWriter.start("viewsettings");
+    targetWriter.put("bSnapToGrid", 1);
+    targetWriter.put("bShowGrid", 1);
+    targetWriter.put("bShowLogicalGrid", 0);
+    targetWriter.put("nGridSpacing", 64);
+    targetWriter.put("bShow3DGrid", 0);
+    targetWriter.end("viewsettings");
 }
 
 void VmfMeta::writeMetaVisgroup(const QString& visgroupName)
 {
-    Visgroup* vg = m_rootVisgroup->getVisgroup(visgroupName);
-    if (vg != nullptr && vg != m_rootVisgroup.get()) {
+    Visgroup* root = visgroups();
+    if (root == nullptr) {
+        return;
+    }
+    Visgroup* vg = root->childVisgroup(visgroupName);
+    if (vg != nullptr && vg != root) {
         writeMetaVisgroups({vg});
     }
 }
 
-void VmfMeta::writeMetaVisgroups(const std::vector<Visgroup*>& visgroups)
+void VmfMeta::writeMetaVisgroups(const std::vector<Visgroup*>& visgroupsList)
 {
-    m_writer.start(u"editor");
-    for (Visgroup* vg : visgroups) {
+    Visgroup* root = visgroups();
+    m_writer.start("editor");
+    for (Visgroup* vg : visgroupsList) {
         if (vg == nullptr) {
             continue;
         }
-        if (vg == m_rootVisgroup.get()) {
+        if (vg == root) {
             m_config.log(BspLogLevel::Warning, QStringLiteral("Root visgroup cannot be written"));
             continue;
         }
-        if (vg->rootVisgroup() != m_rootVisgroup.get()) {
+        if (vg->rootVisgroup() != root) {
             m_config.log(
                 BspLogLevel::Warning,
                 QStringLiteral("Visgroup '%1' is not part of this VmfMeta's root visgroup")
@@ -621,13 +718,13 @@ void VmfMeta::writeMetaVisgroups(const std::vector<Visgroup*>& visgroups)
             continue;
         }
 
-        m_writer.put(u"visgroupid", vg->id());
+        m_writer.put("visgroupid", vg->id());
         vg->setUsed(true);
     }
-    m_writer.end(u"editor");
+    m_writer.end("editor");
 }
 
-int VmfMeta::getNewVisgroupId(const Visgroup& vg)
+int VmfMeta::newVisgroupId(const Visgroup& vg)
 {
     const auto path = vg.visgroupPath();
     if (const auto it = m_reservedVisgroups.find(path); it != m_reservedVisgroups.end()) {
@@ -694,31 +791,31 @@ bool VmfMeta::reserveVisgroupId(int visgroupId, const std::vector<QString>& visg
 
 void VmfMeta::writeCameras()
 {
-    m_writer.start(u"cameras");
+    m_writer.start("cameras");
 
     if (m_cameras.empty()) {
-        m_writer.put(u"activecamera", -1);
+        m_writer.put("activecamera", -1);
     } else {
-        m_writer.put(u"activecamera", 0);
+        m_writer.put("activecamera", 0);
 
         for (const Camera& camera : m_cameras) {
-            m_writer.start(u"camera");
-            m_writer.put(u"position", camera.pos, 2);
-            m_writer.put(u"look", camera.look, 2);
-            m_writer.end(u"camera");
+            m_writer.start("camera");
+            m_writer.put("position", camera.pos, 2);
+            m_writer.put("look", camera.look, 2);
+            m_writer.end("camera");
         }
     }
 
-    m_writer.end(u"cameras");
+    m_writer.end("cameras");
 }
 
 void VmfMeta::writeCordon()
 {
-    m_writer.start(u"cordon");
-    m_writer.put(u"mins", u"(-1024 -1024 -1024)");
-    m_writer.put(u"maxs", u"(1024 1024 1024)");
-    m_writer.put(u"active", 0);
-    m_writer.end(u"cordon");
+    m_writer.start("cordon");
+    m_writer.put("mins", "(-1024 -1024 -1024)");
+    m_writer.put("maxs", "(1024 1024 1024)");
+    m_writer.put("active", 0);
+    m_writer.end("cordon");
 }
 
 } // namespace Domain::Bsp::Internal

@@ -3,9 +3,10 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <vector>
 
-#include <QSet>
+#include <QFlags>
 #include <QString>
 #include <QStringList>
 #include <QStringView>
@@ -224,58 +225,8 @@ enum class SurfaceFlag : std::uint32_t {
     SURF_NOCHOP = 1u << 14,
     SURF_HITBOX = 1u << 15,
 };
-
-inline QSet<SurfaceFlag> surfaceFlagsFromInt(std::int32_t raw) {
-    QSet<SurfaceFlag> result;
-    const std::uint32_t mask = static_cast<std::uint32_t>(raw);
-    for (int bit = 0; bit <= 15; ++bit) {
-        const std::uint32_t flagBit = 1u << bit;
-        if ((mask & flagBit) != 0u) {
-            result.insert(static_cast<SurfaceFlag>(flagBit));
-        }
-    }
-    return result;
-}
-
-inline std::int32_t surfaceFlagsToInt(const QSet<SurfaceFlag>& flags) {
-    std::uint32_t mask = 0u;
-    for (SurfaceFlag flag : flags) {
-        mask |= static_cast<std::uint32_t>(flag);
-    }
-    return static_cast<std::int32_t>(mask);
-}
-
-inline QString formatSurfaceFlags(const QSet<SurfaceFlag>& flags) {
-    struct FlagName {
-        SurfaceFlag flag;
-        QLatin1StringView name;
-    };
-    static constexpr std::array<FlagName, 16> kNames = {{
-        {SurfaceFlag::SURF_LIGHT, QLatin1StringView("SURF_LIGHT")},
-        {SurfaceFlag::SURF_SKY2D, QLatin1StringView("SURF_SKY2D")},
-        {SurfaceFlag::SURF_SKY, QLatin1StringView("SURF_SKY")},
-        {SurfaceFlag::SURF_WARP, QLatin1StringView("SURF_WARP")},
-        {SurfaceFlag::SURF_TRANS, QLatin1StringView("SURF_TRANS")},
-        {SurfaceFlag::SURF_NOPORTAL, QLatin1StringView("SURF_NOPORTAL")},
-        {SurfaceFlag::SURF_TRIGGER, QLatin1StringView("SURF_TRIGGER")},
-        {SurfaceFlag::SURF_NODRAW, QLatin1StringView("SURF_NODRAW")},
-        {SurfaceFlag::SURF_HINT, QLatin1StringView("SURF_HINT")},
-        {SurfaceFlag::SURF_SKIP, QLatin1StringView("SURF_SKIP")},
-        {SurfaceFlag::SURF_NOLIGHT, QLatin1StringView("SURF_NOLIGHT")},
-        {SurfaceFlag::SURF_BUMPLIGHT, QLatin1StringView("SURF_BUMPLIGHT")},
-        {SurfaceFlag::SURF_NOSHADOWS, QLatin1StringView("SURF_NOSHADOWS")},
-        {SurfaceFlag::SURF_NODECALS, QLatin1StringView("SURF_NODECALS")},
-        {SurfaceFlag::SURF_NOCHOP, QLatin1StringView("SURF_NOCHOP")},
-        {SurfaceFlag::SURF_HITBOX, QLatin1StringView("SURF_HITBOX")},
-    }};
-    QStringList parts;
-    for (const auto& item : kNames) {
-        if (flags.contains(item.flag)) {
-            parts.append(item.name);
-        }
-    }
-    return parts.join(QLatin1StringView(" | "));
-}
+Q_DECLARE_FLAGS(SurfaceFlags, SurfaceFlag)
+Q_DECLARE_OPERATORS_FOR_FLAGS(SurfaceFlags)
 
 enum class BrushFlag : std::uint32_t {
     CONTENTS_SOLID = 1u << 0,
@@ -310,42 +261,136 @@ enum class BrushFlag : std::uint32_t {
     CONTENTS_LADDER = 1u << 29,
     CONTENTS_HITBOX = 1u << 30,
 };
-
-inline QSet<BrushFlag> brushFlagsFromInt(std::int32_t raw) {
-    QSet<BrushFlag> result;
-    const std::uint32_t mask = static_cast<std::uint32_t>(raw);
-    for (int bit = 0; bit <= 30; ++bit) {
-        const std::uint32_t flagBit = 1u << bit;
-        if ((mask & flagBit) != 0u) {
-            result.insert(static_cast<BrushFlag>(flagBit));
-        }
-    }
-    return result;
-}
-
-inline std::int32_t brushFlagsToInt(const QSet<BrushFlag>& flags) {
-    std::uint32_t mask = 0u;
-    for (BrushFlag flag : flags) {
-        mask |= static_cast<std::uint32_t>(flag);
-    }
-    return static_cast<std::int32_t>(mask);
-}
+Q_DECLARE_FLAGS(BrushFlags, BrushFlag)
+Q_DECLARE_OPERATORS_FOR_FLAGS(BrushFlags)
 
 enum class LevelFlag : std::uint32_t {
     LVLFLAGS_BAKED_STATIC_PROP_LIGHTING_NONHDR = 1u << 0,
     LVLFLAGS_BAKED_STATIC_PROP_LIGHTING_HDR = 1u << 1,
 };
+Q_DECLARE_FLAGS(LevelFlags, LevelFlag)
+Q_DECLARE_OPERATORS_FOR_FLAGS(LevelFlags)
 
-inline QSet<LevelFlag> levelFlagsFromInt(std::int32_t raw) {
-    QSet<LevelFlag> result;
-    const std::uint32_t mask = static_cast<std::uint32_t>(raw);
-    if ((mask & 1u) != 0u) {
-        result.insert(LevelFlag::LVLFLAGS_BAKED_STATIC_PROP_LIGHTING_NONHDR);
+constexpr SurfaceFlags surfaceFlagsFromInt(std::int32_t raw) noexcept {
+    return SurfaceFlags::fromInt(static_cast<SurfaceFlags::Int>(raw));
+}
+
+constexpr std::int32_t surfaceFlagsToInt(SurfaceFlags flags) noexcept {
+    return static_cast<std::int32_t>(flags.toInt());
+}
+
+constexpr BrushFlags brushFlagsFromInt(std::int32_t raw) noexcept {
+    return BrushFlags::fromInt(static_cast<BrushFlags::Int>(raw));
+}
+
+constexpr std::int32_t brushFlagsToInt(BrushFlags flags) noexcept {
+    return static_cast<std::int32_t>(flags.toInt());
+}
+
+constexpr LevelFlags levelFlagsFromInt(std::int32_t raw) noexcept {
+    return LevelFlags::fromInt(static_cast<LevelFlags::Int>(raw));
+}
+
+constexpr std::int32_t levelFlagsToInt(LevelFlags flags) noexcept {
+    return static_cast<std::int32_t>(flags.toInt());
+}
+
+namespace detail {
+
+template <typename Flags, typename Enum, std::size_t N>
+inline QString formatFlagTable(
+    Flags flags,
+    const std::array<std::pair<Enum, QLatin1StringView>, N>& table,
+    QLatin1StringView separator,
+    bool bracketed)
+{
+    QString out;
+    if (bracketed) {
+        out += QLatin1Char('[');
     }
-    if ((mask & 2u) != 0u) {
-        result.insert(LevelFlag::LVLFLAGS_BAKED_STATIC_PROP_LIGHTING_HDR);
+    bool first = true;
+    for (const auto& [flag, name] : table) {
+        if (flags.testFlag(flag)) {
+            if (!first) {
+                out += separator;
+            }
+            out += name;
+            first = false;
+        }
     }
-    return result;
+    if (bracketed) {
+        out += QLatin1Char(']');
+    }
+    return out;
+}
+
+inline constexpr std::array<std::pair<SurfaceFlag, QLatin1StringView>, 16> kSurfaceFlagNames{{
+    {SurfaceFlag::SURF_LIGHT, QLatin1StringView("SURF_LIGHT")},
+    {SurfaceFlag::SURF_SKY2D, QLatin1StringView("SURF_SKY2D")},
+    {SurfaceFlag::SURF_SKY, QLatin1StringView("SURF_SKY")},
+    {SurfaceFlag::SURF_WARP, QLatin1StringView("SURF_WARP")},
+    {SurfaceFlag::SURF_TRANS, QLatin1StringView("SURF_TRANS")},
+    {SurfaceFlag::SURF_NOPORTAL, QLatin1StringView("SURF_NOPORTAL")},
+    {SurfaceFlag::SURF_TRIGGER, QLatin1StringView("SURF_TRIGGER")},
+    {SurfaceFlag::SURF_NODRAW, QLatin1StringView("SURF_NODRAW")},
+    {SurfaceFlag::SURF_HINT, QLatin1StringView("SURF_HINT")},
+    {SurfaceFlag::SURF_SKIP, QLatin1StringView("SURF_SKIP")},
+    {SurfaceFlag::SURF_NOLIGHT, QLatin1StringView("SURF_NOLIGHT")},
+    {SurfaceFlag::SURF_BUMPLIGHT, QLatin1StringView("SURF_BUMPLIGHT")},
+    {SurfaceFlag::SURF_NOSHADOWS, QLatin1StringView("SURF_NOSHADOWS")},
+    {SurfaceFlag::SURF_NODECALS, QLatin1StringView("SURF_NODECALS")},
+    {SurfaceFlag::SURF_NOCHOP, QLatin1StringView("SURF_NOCHOP")},
+    {SurfaceFlag::SURF_HITBOX, QLatin1StringView("SURF_HITBOX")},
+}};
+
+inline constexpr std::array<std::pair<BrushFlag, QLatin1StringView>, 29> kBrushFlagNames{{
+    {BrushFlag::CONTENTS_SOLID, QLatin1StringView("CONTENTS_SOLID")},
+    {BrushFlag::CONTENTS_WINDOW, QLatin1StringView("CONTENTS_WINDOW")},
+    {BrushFlag::CONTENTS_AUX, QLatin1StringView("CONTENTS_AUX")},
+    {BrushFlag::CONTENTS_GRATE, QLatin1StringView("CONTENTS_GRATE")},
+    {BrushFlag::CONTENTS_SLIME, QLatin1StringView("CONTENTS_SLIME")},
+    {BrushFlag::CONTENTS_WATER, QLatin1StringView("CONTENTS_WATER")},
+    {BrushFlag::CONTENTS_BLOCKLOS, QLatin1StringView("CONTENTS_BLOCKLOS")},
+    {BrushFlag::CONTENTS_OPAQUE, QLatin1StringView("CONTENTS_OPAQUE")},
+    {BrushFlag::CONTENTS_TESTFOGVOLUME, QLatin1StringView("CONTENTS_TESTFOGVOLUME")},
+    {BrushFlag::CONTENTS_TEAM1, QLatin1StringView("CONTENTS_TEAM1")},
+    {BrushFlag::CONTENTS_TEAM2, QLatin1StringView("CONTENTS_TEAM2")},
+    {BrushFlag::CONTENTS_IGNORE_NODRAW_OPAQUE, QLatin1StringView("CONTENTS_IGNORE_NODRAW_OPAQUE")},
+    {BrushFlag::CONTENTS_MOVEABLE, QLatin1StringView("CONTENTS_MOVEABLE")},
+    {BrushFlag::CONTENTS_AREAPORTAL, QLatin1StringView("CONTENTS_AREAPORTAL")},
+    {BrushFlag::CONTENTS_PLAYERCLIP, QLatin1StringView("CONTENTS_PLAYERCLIP")},
+    {BrushFlag::CONTENTS_MONSTERCLIP, QLatin1StringView("CONTENTS_MONSTERCLIP")},
+    {BrushFlag::CONTENTS_CURRENT_0, QLatin1StringView("CONTENTS_CURRENT_0")},
+    {BrushFlag::CONTENTS_CURRENT_90, QLatin1StringView("CONTENTS_CURRENT_90")},
+    {BrushFlag::CONTENTS_CURRENT_180, QLatin1StringView("CONTENTS_CURRENT_180")},
+    {BrushFlag::CONTENTS_CURRENT_270, QLatin1StringView("CONTENTS_CURRENT_270")},
+    {BrushFlag::CONTENTS_CURRENT_UP, QLatin1StringView("CONTENTS_CURRENT_UP")},
+    {BrushFlag::CONTENTS_CURRENT_DOWN, QLatin1StringView("CONTENTS_CURRENT_DOWN")},
+    {BrushFlag::CONTENTS_ORIGIN, QLatin1StringView("CONTENTS_ORIGIN")},
+    {BrushFlag::CONTENTS_MONSTER, QLatin1StringView("CONTENTS_MONSTER")},
+    {BrushFlag::CONTENTS_DEBRIS, QLatin1StringView("CONTENTS_DEBRIS")},
+    {BrushFlag::CONTENTS_DETAIL, QLatin1StringView("CONTENTS_DETAIL")},
+    {BrushFlag::CONTENTS_TRANSLUCENT, QLatin1StringView("CONTENTS_TRANSLUCENT")},
+    {BrushFlag::CONTENTS_LADDER, QLatin1StringView("CONTENTS_LADDER")},
+    {BrushFlag::CONTENTS_HITBOX, QLatin1StringView("CONTENTS_HITBOX")},
+}};
+
+} // namespace detail
+
+inline QString formatSurfaceFlags(SurfaceFlags flags) {
+    return detail::formatFlagTable(flags, detail::kSurfaceFlagNames, QLatin1StringView(" | "), false);
+}
+
+inline QString formatSurfaceFlagsBracketed(SurfaceFlags flags) {
+    return detail::formatFlagTable(flags, detail::kSurfaceFlagNames, QLatin1StringView(", "), true);
+}
+
+inline QString formatBrushFlags(BrushFlags flags) {
+    return detail::formatFlagTable(flags, detail::kBrushFlagNames, QLatin1StringView(" | "), false);
+}
+
+inline QString formatBrushFlagsBracketed(BrushFlags flags) {
+    return detail::formatFlagTable(flags, detail::kBrushFlagNames, QLatin1StringView(", "), true);
 }
 
 struct Color32 {
@@ -415,31 +460,29 @@ struct DFace {
 struct DBrush {
     int fstside = 0;
     int numside = 0;
-    std::int32_t contentsRaw = 0;
-    QSet<BrushFlag> contents;
+    BrushFlags contents;
 
-    bool hasContentFlag(BrushFlag flag) const {
-        return (static_cast<std::uint32_t>(contentsRaw) & static_cast<std::uint32_t>(flag)) != 0u
-            || contents.contains(flag);
+    bool hasContentFlag(BrushFlag flag) const noexcept {
+        return contents.testFlag(flag);
     }
 
-    bool isSolid() const { return hasContentFlag(BrushFlag::CONTENTS_SOLID); }
-    bool isDetail() const { return hasContentFlag(BrushFlag::CONTENTS_DETAIL); }
-    bool isOpaque() const { return hasContentFlag(BrushFlag::CONTENTS_OPAQUE); }
-    bool isTranslucent() const { return hasContentFlag(BrushFlag::CONTENTS_TRANSLUCENT); }
-    bool isAreaportal() const { return hasContentFlag(BrushFlag::CONTENTS_AREAPORTAL); }
-    bool isLadder() const { return hasContentFlag(BrushFlag::CONTENTS_LADDER); }
-    bool isPlayerClip() const { return hasContentFlag(BrushFlag::CONTENTS_PLAYERCLIP); }
-    bool isMonsterClip() const { return hasContentFlag(BrushFlag::CONTENTS_MONSTERCLIP); }
-    bool isNpcClip() const { return isMonsterClip(); }
-    bool isBlockLos() const { return hasContentFlag(BrushFlag::CONTENTS_BLOCKLOS); }
-    bool isGrate() const { return hasContentFlag(BrushFlag::CONTENTS_GRATE); }
-    bool isWindow() const { return hasContentFlag(BrushFlag::CONTENTS_WINDOW); }
-    bool isWater() const { return hasContentFlag(BrushFlag::CONTENTS_WATER); }
-    bool isSlime() const { return hasContentFlag(BrushFlag::CONTENTS_SLIME); }
-    bool isIgnoreNodrawOpaque() const { return hasContentFlag(BrushFlag::CONTENTS_IGNORE_NODRAW_OPAQUE); }
-    bool isCurrent90() const { return hasContentFlag(BrushFlag::CONTENTS_CURRENT_90); }
-    bool isCurrent180() const { return hasContentFlag(BrushFlag::CONTENTS_CURRENT_180); }
+    bool isSolid() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_SOLID); }
+    bool isDetail() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_DETAIL); }
+    bool isOpaque() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_OPAQUE); }
+    bool isTranslucent() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_TRANSLUCENT); }
+    bool isAreaportal() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_AREAPORTAL); }
+    bool isLadder() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_LADDER); }
+    bool isPlayerClip() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_PLAYERCLIP); }
+    bool isMonsterClip() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_MONSTERCLIP); }
+    bool isNpcClip() const noexcept { return isMonsterClip(); }
+    bool isBlockLos() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_BLOCKLOS); }
+    bool isGrate() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_GRATE); }
+    bool isWindow() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_WINDOW); }
+    bool isWater() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_WATER); }
+    bool isSlime() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_SLIME); }
+    bool isIgnoreNodrawOpaque() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_IGNORE_NODRAW_OPAQUE); }
+    bool isCurrent90() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_CURRENT_90); }
+    bool isCurrent180() const noexcept { return hasContentFlag(BrushFlag::CONTENTS_CURRENT_180); }
 };
 
 struct DBrushSide {
@@ -487,13 +530,11 @@ struct DTexInfo {
 
     float textureVecsTexels[2][4]{};
     float lightmapVecsLuxels[2][4]{};
-    std::int32_t flagsRaw = 0;
-    QSet<SurfaceFlag> flags;
+    SurfaceFlags flags;
     int texdata = -1;
 
-    bool hasSurfaceFlag(SurfaceFlag flag) const {
-        return (static_cast<std::uint32_t>(flagsRaw) & static_cast<std::uint32_t>(flag)) != 0u
-            || flags.contains(flag);
+    bool hasSurfaceFlag(SurfaceFlag flag) const noexcept {
+        return flags.testFlag(flag);
     }
 };
 
@@ -522,15 +563,15 @@ struct DDispInfo {
     int lightmapSamplePositionStart = 0;
     std::array<int, 10> allowedVerts{};
 
-    int getPowerSize() const noexcept { return 1 << power; }
+    int powerSize() const noexcept { return 1 << power; }
 
-    int getVertexCount() const noexcept {
-        const int s = getPowerSize() + 1;
+    int vertexCount() const noexcept {
+        const int s = powerSize() + 1;
         return s * s;
     }
 
-    int getTriangleTagCount() const noexcept {
-        const int s = getPowerSize();
+    int triangleTagCount() const noexcept {
+        const int s = powerSize();
         return 2 * s * s;
     }
 
@@ -538,7 +579,7 @@ struct DDispInfo {
         return ((static_cast<std::uint32_t>(minTess) + kDispInfoFlagMagic) & kDispInfoFlagHasMultiBlend) != 0u;
     }
 
-    int getSurfaceFlags() const noexcept {
+    int surfaceFlags() const noexcept {
         const std::uint32_t u = static_cast<std::uint32_t>(minTess);
         if ((u & kDispInfoFlagMagic) != 0u) {
             return static_cast<int>(u & ~(kDispInfoFlagMagic | kDispInfoFlagHasMultiBlend));
@@ -580,8 +621,8 @@ struct DOverlay {
     Vector3f origin;
     Vector3f basisNormal;
 
-    int getFaceCount() const noexcept { return faceCountAndRenderOrder & 0x3fff; }
-    int getRenderOrder() const noexcept { return (faceCountAndRenderOrder >> 14) & 0x3; }
+    int faceCount() const noexcept { return faceCountAndRenderOrder & 0x3fff; }
+    int renderOrder() const noexcept { return (faceCountAndRenderOrder >> 14) & 0x3; }
 };
 
 struct DOverlayFade {
@@ -808,7 +849,7 @@ public:
         return value(QStringLiteral("targetname"));
     }
 
-    std::optional<Vector3f> getVector3f(QStringView key) const {
+    std::optional<Vector3f> vector3f(QStringView key) const {
         auto strOpt = value(key);
         if (!strOpt.has_value()) {
             return std::nullopt;
@@ -833,11 +874,11 @@ public:
     }
 
     std::optional<Vector3f> origin() const {
-        return getVector3f(QStringLiteral("origin"));
+        return vector3f(QStringLiteral("origin"));
     }
 
     std::optional<Vector3f> angles() const {
-        auto a = getVector3f(QStringLiteral("angles"));
+        auto a = vector3f(QStringLiteral("angles"));
         if (!a.has_value()) {
             return std::nullopt;
         }
@@ -933,7 +974,7 @@ struct BspData {
     std::vector<DOccluderData> occluderDatas;
     std::vector<DOccluderPolyData> occluderPolyDatas;
     std::vector<int> occluderVerts;
-    QSet<LevelFlag> mapFlags;
+    LevelFlags mapFlags;
     std::vector<DPrimitive> prims;
     std::vector<int> primIndices;
     std::vector<DVertex> primVerts;

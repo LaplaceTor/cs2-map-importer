@@ -41,12 +41,14 @@ struct FaceIndexKeyHash {
     }
 };
 
-double matchingAreaPercentage(
-    const DOccluderPolyData& occluderPolyData,
-    const DBrush& brush,
-    const DBrushSide& brushSide,
+double matchingOccluderAreaPercentage(
+    int occluderPolyIndex,
+    int brushIndex,
+    int brushSideIndex,
     const BspData& bsp,
     WindingFactory& windingFactory) {
+    const DOccluderPolyData& occluderPolyData = bsp.occluderPolyDatas[static_cast<std::size_t>(occluderPolyIndex)];
+    const DBrushSide& brushSide = bsp.brushSides[static_cast<std::size_t>(brushSideIndex)];
     if (occluderPolyData.planenum != brushSide.pnum) {
         return 0.0;
     }
@@ -54,18 +56,20 @@ double matchingAreaPercentage(
         return 0.0;
     }
 
-    const Winding w1 = windingFactory.fromOccluder(bsp, occluderPolyData);
-    const Winding w2 = windingFactory.fromSide(bsp, brush, brushSide);
+    const Winding& w1 = windingFactory.fromOccluder(bsp, occluderPolyIndex);
+    const Winding& w2 = windingFactory.fromSide(bsp, brushIndex, brushSideIndex);
     const Winding clipped = w1.clipWinding(w2, bsp.planes[static_cast<std::size_t>(brushSide.pnum)].normal.toDouble());
-    return clipped.getArea() / w1.getArea();
+    return clipped.area() / w1.area();
 }
 
-double matchingAreaPercentage(
-    const DAreaportal& areaportal,
-    const DBrush& brush,
-    const DBrushSide& brushSide,
+double matchingAreaportalAreaPercentage(
+    int areaportalIndex,
+    int brushIndex,
+    int brushSideIndex,
     const BspData& bsp,
     WindingFactory& windingFactory) {
+    const DAreaportal& areaportal = bsp.areaportals[static_cast<std::size_t>(areaportalIndex)];
+    const DBrushSide& brushSide = bsp.brushSides[static_cast<std::size_t>(brushSideIndex)];
     if (areaportal.planenum != brushSide.pnum) {
         return 0.0;
     }
@@ -73,10 +77,10 @@ double matchingAreaPercentage(
         return 0.0;
     }
 
-    const Winding w1 = windingFactory.fromAreaportal(bsp, areaportal);
-    const Winding w2 = windingFactory.fromSide(bsp, brush, brushSide);
+    const Winding& w1 = windingFactory.fromAreaportal(bsp, areaportalIndex);
+    const Winding& w2 = windingFactory.fromSide(bsp, brushIndex, brushSideIndex);
     const Winding clipped = w1.clipWinding(w2, bsp.planes[static_cast<std::size_t>(brushSide.pnum)].normal.toDouble());
-    return clipped.getArea() / w1.getArea();
+    return clipped.area() / w1.area();
 }
 
 HungarianAlgorithm::Result hungarianImpl(
@@ -243,22 +247,25 @@ void BrushSideFaceMapper::load() {
     m_reader.loadEdges();
     m_reader.loadVertices();
 
-    m_brushSideToOrigFace.clear();
+    m_brushSideToOrigFace.assign(m_reader.data().brushSides.size(), -1);
     m_origFaceToBrushSide.clear();
 
     identifyExactMatches();
     identifyMergedMatches();
 }
 
-std::optional<int> BrushSideFaceMapper::getOrigFaceIndex(int brushSideI) const {
-    const auto it = m_brushSideToOrigFace.constFind(brushSideI);
-    if (it == m_brushSideToOrigFace.constEnd()) {
+std::optional<int> BrushSideFaceMapper::origFaceIndex(int brushSideI) const {
+    if (brushSideI < 0 || static_cast<std::size_t>(brushSideI) >= m_brushSideToOrigFace.size()) {
         return std::nullopt;
     }
-    return it.value();
+    const int origFace = m_brushSideToOrigFace[static_cast<std::size_t>(brushSideI)];
+    if (origFace < 0) {
+        return std::nullopt;
+    }
+    return origFace;
 }
 
-std::vector<int> BrushSideFaceMapper::getBrushSideIndices(int origFaceI) const {
+std::vector<int> BrushSideFaceMapper::brushSideIndices(int origFaceI) const {
     const auto it = m_origFaceToBrushSide.constFind(origFaceI);
     if (it == m_origFaceToBrushSide.constEnd()) {
         return {};
@@ -273,7 +280,7 @@ std::vector<int> BrushSideFaceMapper::getBrushSideIndices(int origFaceI) const {
 }
 
 void BrushSideFaceMapper::identifyExactMatches() {
-    const BspData& bsp = m_reader.getData();
+    const BspData& bsp = m_reader.data();
 
     std::unordered_map<FaceIndexKey, std::vector<int>, FaceIndexKeyHash> origFaceIndex;
     origFaceIndex.reserve(bsp.origFaces.size());
@@ -281,7 +288,9 @@ void BrushSideFaceMapper::identifyExactMatches() {
         origFaceIndex[FaceIndexKey::fromFace(bsp.origFaces[i])].push_back(static_cast<int>(i));
     }
 
-    for (const DBrush& brush : bsp.brushes) {
+    int exactMatchesFound = 0;
+    for (std::size_t brushIdx = 0; brushIdx < bsp.brushes.size(); ++brushIdx) {
+        const DBrush& brush = bsp.brushes[brushIdx];
         if (brush.fstside < 0 || brush.numside <= 0) {
             continue;
         }
@@ -291,7 +300,8 @@ void BrushSideFaceMapper::identifyExactMatches() {
                 continue;
             }
             const DBrushSide& brushSide = bsp.brushSides[static_cast<std::size_t>(brushSideIndex)];
-            const Winding brushSideWinding = m_windingFactory.fromSide(bsp, brush, brushSide);
+            const Winding& brushSideWinding =
+                m_windingFactory.fromSide(bsp, static_cast<int>(brushIdx), brushSideIndex);
 
             auto it = origFaceIndex.find(FaceIndexKey::fromBrushSide(brushSide));
             if (it == origFaceIndex.end()) {
@@ -301,8 +311,11 @@ void BrushSideFaceMapper::identifyExactMatches() {
             std::vector<int>& potentialFaces = it->second;
             for (auto faceIt = potentialFaces.begin(); faceIt != potentialFaces.end(); ++faceIt) {
                 const int origFaceI = *faceIt;
-                if (m_windingFactory.fromFace(bsp, bsp.origFaces[static_cast<std::size_t>(origFaceI)]).matches(brushSideWinding)) {
-                    m_brushSideToOrigFace.insert(brushSideIndex, origFaceI);
+                if (m_windingFactory.fromFace(bsp, origFaceI, true).matches(brushSideWinding)) {
+                    if (m_brushSideToOrigFace[static_cast<std::size_t>(brushSideIndex)] < 0) {
+                        ++exactMatchesFound;
+                    }
+                    m_brushSideToOrigFace[static_cast<std::size_t>(brushSideIndex)] = origFaceI;
                     m_origFaceToBrushSide[origFaceI].insert(brushSideIndex);
                     potentialFaces.erase(faceIt);
                     break;
@@ -311,7 +324,6 @@ void BrushSideFaceMapper::identifyExactMatches() {
         }
     }
 
-    const int exactMatchesFound = m_brushSideToOrigFace.size();
     const int exactMatchesPossible = static_cast<int>(bsp.brushSides.size());
     const double exactPct = exactMatchesPossible > 0
         ? 100.0 * static_cast<double>(exactMatchesFound) / static_cast<double>(exactMatchesPossible)
@@ -361,7 +373,7 @@ void BrushSideFaceMapper::identifyExactMatches() {
 }
 
 void BrushSideFaceMapper::identifyMergedMatches() {
-    const BspData& bsp = m_reader.getData();
+    const BspData& bsp = m_reader.data();
 
     std::unordered_map<FaceIndexKey, std::vector<int>, FaceIndexKeyHash> faceIndex;
     faceIndex.reserve(bsp.faces.size());
@@ -369,18 +381,19 @@ void BrushSideFaceMapper::identifyMergedMatches() {
         faceIndex[FaceIndexKey::fromFace(bsp.faces[i])].push_back(static_cast<int>(i));
     }
 
-    const int oldMappingCount = m_brushSideToOrigFace.size();
+    int newMatchesCount = 0;
 
-    for (const DBrush& brush : bsp.brushes) {
+    for (std::size_t brushIdx = 0; brushIdx < bsp.brushes.size(); ++brushIdx) {
+        const DBrush& brush = bsp.brushes[brushIdx];
         if (brush.fstside < 0 || brush.numside <= 0) {
             continue;
         }
         for (int i = 0; i < brush.numside; ++i) {
             const int brushSideIndex = brush.fstside + i;
-            if (m_brushSideToOrigFace.contains(brushSideIndex)) {
+            if (brushSideIndex < 0 || static_cast<std::size_t>(brushSideIndex) >= bsp.brushSides.size()) {
                 continue;
             }
-            if (brushSideIndex < 0 || static_cast<std::size_t>(brushSideIndex) >= bsp.brushSides.size()) {
+            if (m_brushSideToOrigFace[static_cast<std::size_t>(brushSideIndex)] >= 0) {
                 continue;
             }
 
@@ -394,7 +407,8 @@ void BrushSideFaceMapper::identifyMergedMatches() {
                 continue;
             }
 
-            const Winding brushSideWinding = m_windingFactory.fromSide(bsp, brush, brushSide);
+            const Winding& brushSideWinding =
+                m_windingFactory.fromSide(bsp, static_cast<int>(brushIdx), brushSideIndex);
             const Vector3d normal = bsp.planes[static_cast<std::size_t>(brushSide.pnum)].normal.toDouble();
 
             std::unordered_map<int, double> areaByOrigFace;
@@ -403,9 +417,9 @@ void BrushSideFaceMapper::identifyMergedMatches() {
                 if (dFace.origFace < 0) {
                     continue;
                 }
-                const double area = m_windingFactory.fromFace(bsp, dFace)
+                const double area = m_windingFactory.fromFace(bsp, faceI, false)
                                         .clipWinding(brushSideWinding, normal)
-                                        .getArea();
+                                        .area();
                 areaByOrigFace[dFace.origFace] += area;
             }
 
@@ -419,13 +433,13 @@ void BrushSideFaceMapper::identifyMergedMatches() {
             }
 
             if (bestOrigFace >= 0) {
-                m_brushSideToOrigFace.insert(brushSideIndex, bestOrigFace);
+                m_brushSideToOrigFace[static_cast<std::size_t>(brushSideIndex)] = bestOrigFace;
                 m_origFaceToBrushSide[bestOrigFace].insert(brushSideIndex);
+                ++newMatchesCount;
             }
         }
     }
 
-    const int newMatchesCount = m_brushSideToOrigFace.size() - oldMappingCount;
     const double partialPct = !bsp.brushSides.empty()
         ? 100.0 * static_cast<double>(newMatchesCount) / static_cast<double>(bsp.brushSides.size())
         : 0.0;
@@ -522,7 +536,6 @@ AreaportalMapper::ReallocationData manualApMapping(
 
             double bestScore = 0.0;
             for (int iAreaportal : areaportalsByPortalKey[portal].second) {
-                const DAreaportal& areaportal = bsp.areaportals[static_cast<std::size_t>(iAreaportal)];
                 if (brush.fstside < 0 || brush.numside <= 0) {
                     continue;
                 }
@@ -530,10 +543,10 @@ AreaportalMapper::ReallocationData manualApMapping(
                     static_cast<std::size_t>(brush.fstside) + static_cast<std::size_t>(brush.numside),
                     bsp.brushSides.size());
                 for (std::size_t s = static_cast<std::size_t>(brush.fstside); s < endSide; ++s) {
-                    const double newScore = matchingAreaPercentage(
-                        areaportal,
-                        brush,
-                        bsp.brushSides[s],
+                    const double newScore = matchingAreaportalAreaPercentage(
+                        iAreaportal,
+                        areaportalIBrush,
+                        static_cast<int>(s),
                         bsp,
                         windingFactory);
                     if (std::isfinite(newScore)) {
@@ -702,7 +715,7 @@ struct OccluderPoly {
 int getFirstNonWorldBrushId(const BspData& bsp) {
     BspTreeStats tree{bsp};
     tree.walk(0);
-    return tree.getMaxBrushLeaf() + 1;
+    return tree.maxBrushLeaf() + 1;
 }
 
 } // namespace
@@ -756,7 +769,6 @@ OccluderMapper::ReallocationData OccluderMapper::createReallocationData(
             if (polyIdx < 0 || static_cast<std::size_t>(polyIdx) >= bsp.occluderPolyDatas.size()) {
                 continue;
             }
-            const DOccluderPolyData& occluderPolyData = bsp.occluderPolyDatas[static_cast<std::size_t>(polyIdx)];
             const int flattenedOccluderPoly =
                 (iOccluder > 0 ? occluderPolyIndices[iOccluder - 1] : 0) + sideOfOccluder;
 
@@ -773,13 +785,12 @@ OccluderMapper::ReallocationData OccluderMapper::createReallocationData(
                     if (bsIdx < 0 || static_cast<std::size_t>(bsIdx) >= bsp.brushSides.size()) {
                         continue;
                     }
-                    const DBrushSide& brushSide = bsp.brushSides[static_cast<std::size_t>(bsIdx)];
                     const int flattenedBrushSide = baseBrushSide + sideOfBrush;
 
-                    double score = matchingAreaPercentage(
-                        occluderPolyData,
-                        brush,
-                        brushSide,
+                    double score = matchingOccluderAreaPercentage(
+                        polyIdx,
+                        static_cast<int>(iBrush),
+                        bsIdx,
                         bsp,
                         windingFactory);
                     if (!std::isfinite(score)) {

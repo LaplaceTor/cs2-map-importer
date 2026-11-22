@@ -42,8 +42,8 @@ public:
 
     void load();
 
-    std::optional<int> getOrigFaceIndex(int brushSideI) const;
-    std::vector<int> getBrushSideIndices(int origFaceI) const;
+    std::optional<int> origFaceIndex(int brushSideI) const;
+    std::vector<int> brushSideIndices(int origFaceI) const;
 
 private:
     void identifyExactMatches();
@@ -53,7 +53,7 @@ private:
     WindingFactory& m_windingFactory;
     const BspDecompileConfig& m_config;
 
-    QHash<int, int> m_brushSideToOrigFace;
+    std::vector<int> m_brushSideToOrigFace;
     QHash<int, QSet<int>> m_origFaceToBrushSide;
 };
 

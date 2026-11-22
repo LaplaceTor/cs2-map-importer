@@ -335,27 +335,32 @@
         <translation>安全边界违规：原子写入目标“%1”经由重解析点或符号链接逃逸出预期的基目录“%2”</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/AtomicFile.cpp" line="116"/>
+        <location filename="../src/Core/FileSystem/AtomicFile.cpp" line="127"/>
         <source>AtomicFile QSaveFile is not open</source>
         <translation>AtomicFile 的 QSaveFile 未打开</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/AtomicFile.cpp" line="123"/>
+        <location filename="../src/Core/FileSystem/AtomicFile.cpp" line="137"/>
+        <source>Failed to write to QSaveFile for target &apos;%1&apos;: null data buffer</source>
+        <translation>写入 %1 的 QSaveFile 失败：空数据缓冲区</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/FileSystem/AtomicFile.cpp" line="147"/>
         <source>Failed to write to QSaveFile for target &apos;%1&apos;: %2</source>
         <translation>写入 %1 的 QSaveFile 失败：%2</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/AtomicFile.cpp" line="136"/>
+        <location filename="../src/Core/FileSystem/AtomicFile.cpp" line="162"/>
         <source>Cannot commit AtomicFile: File was not opened or written</source>
         <translation>无法提交 AtomicFile：文件未打开或未写入</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/AtomicFile.cpp" line="142"/>
+        <location filename="../src/Core/FileSystem/AtomicFile.cpp" line="168"/>
         <source>Failed to commit QSaveFile for target &apos;%1&apos;: %2</source>
         <translation>提交 %1 的 QSaveFile 失败：%2</translation>
     </message>
     <message>
-        <location filename="../src/Core/FileSystem/AtomicFile.cpp" line="155"/>
+        <location filename="../src/Core/FileSystem/AtomicFile.cpp" line="181"/>
         <source>Security boundary violation: Committed file &apos;%1&apos; escaped expected base directory &apos;%2&apos;</source>
         <translation>安全边界违规：提交的文件“%1”逃逸出预期的基目录“%2”</translation>
     </message>
@@ -391,28 +396,59 @@
 <context>
     <name>BspDecompiler</name>
     <message>
-        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="44"/>
-        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="78"/>
-        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="116"/>
-        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="124"/>
-        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="174"/>
-        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="235"/>
-        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="260"/>
-        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="294"/>
-        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="364"/>
-        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="384"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="113"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="138"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="172"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="221"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="255"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="293"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="301"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="351"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="368"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="464"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="510"/>
         <source>BSP decompilation cancelled</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="50"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="227"/>
         <source>Input BSP path is empty or invalid</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="370"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="374"/>
         <source>Output VMF path is empty or invalid</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="424"/>
+        <source>Failed to open temporary VMF body file: %1</source>
+        <translation>打开临时 VMF 正文文件失败：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="431"/>
+        <source>Security boundary violation: Temporary VMF body file escaped system temp directory</source>
+        <translation>安全边界违规：临时 VMF 正文文件逃逸出系统临时目录</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="475"/>
+        <source>Failed to obtain output device for &apos;%1&apos;</source>
+        <translation>获取“%1”的输出设备失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="500"/>
+        <source>Failed to rewind temporary VMF body file: %1</source>
+        <translation>重置临时 VMF 正文文件读取位置失败：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="519"/>
+        <source>Failed to read temporary VMF body file: %1</source>
+        <translation>读取临时 VMF 正文文件失败：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="534"/>
+        <source>Failed to write VMF output &apos;%1&apos;: %2</source>
+        <translation>写入 VMF 输出“%1”失败：%2</translation>
     </message>
 </context>
 <context>
@@ -452,59 +488,65 @@
 <context>
     <name>BspFile</name>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="93"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="92"/>
         <source>Failed to open file for reading</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="101"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="100"/>
         <source>File size exceeds safety limit</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="114"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="113"/>
         <source>Failed to read file contents</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1162"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1166"/>
         <source>BSP loading cancelled</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1167"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1171"/>
         <source>BSP file path is empty or invalid</source>
         <translation type="unfinished">BSP 文件路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1172"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1176"/>
         <source>BSP file not found</source>
         <translation type="unfinished">未找到 BSP 文件</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1185"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1189"/>
         <source>Invalid or missing BSP header</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1193"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1197"/>
         <source>Loaded file is a ZIP archive, not a BSP file</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1200"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1204"/>
         <source>BSP file is shorter than minimum header size</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1223"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1227"/>
         <source>The GoldSrc BSP format is not supported</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1245"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1249"/>
         <source>Unknown BSP file signature</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1283"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1300"/>
+        <source>Invalid or truncated BSP header</source>
+        <translation>无效或已截断的 BSP 文件头</translation>
     </message>
 </context>
 <context>
@@ -764,12 +806,12 @@
 <context>
     <name>Domain::Bsp::Internal::AreaportalMapper</name>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspMappers.cpp" line="619"/>
+        <location filename="../src/Domain/Bsp/Internal/BspMappers.cpp" line="632"/>
         <source>Could not reallocate brush for portalKey %1.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspMappers.cpp" line="644"/>
+        <location filename="../src/Domain/Bsp/Internal/BspMappers.cpp" line="657"/>
         <source>Invalid areaportals, map was probably compiled with errors! Errors should be expected</source>
         <translation type="unfinished"></translation>
     </message>
@@ -815,12 +857,12 @@
 <context>
     <name>Domain::Bsp::Internal::OccluderMapper</name>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspMappers.cpp" line="811"/>
+        <location filename="../src/Domain/Bsp/Internal/BspMappers.cpp" line="822"/>
         <source>Couldn&apos;t reallocate side %1 of occluder %2.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspMappers.cpp" line="860"/>
+        <location filename="../src/Domain/Bsp/Internal/BspMappers.cpp" line="871"/>
         <source>Couldn&apos;t reallocate side %1 of occluder %2, because reallocated brush belongs to different occluder %3</source>
         <translation type="unfinished"></translation>
     </message>
@@ -828,17 +870,17 @@
 <context>
     <name>Domain::Bsp::Internal::TextureBuilder</name>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/TextureSource.cpp" line="381"/>
+        <location filename="../src/Domain/Bsp/Internal/TextureSource.cpp" line="394"/>
         <source>Invalid texinfo index: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/TextureSource.cpp" line="395"/>
+        <location filename="../src/Domain/Bsp/Internal/TextureSource.cpp" line="408"/>
         <source>Invalid texdata index: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/TextureSource.cpp" line="409"/>
+        <location filename="../src/Domain/Bsp/Internal/TextureSource.cpp" line="422"/>
         <source>Invalid texname index: %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -846,7 +888,7 @@
 <context>
     <name>Domain::Bsp::Internal::TextureSource</name>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/TextureSource.cpp" line="585"/>
+        <location filename="../src/Domain/Bsp/Internal/TextureSource.cpp" line="598"/>
         <source>Error parsing cubemap position from regex, input: %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1976,17 +2018,17 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
 <context>
     <name>KeyValuesWriter</name>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesWriter.cpp" line="68"/>
+        <location filename="../src/Core/KeyValues/KeyValuesWriter.cpp" line="106"/>
         <source>Output device is null</source>
         <translation>输出设备为空</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesWriter.cpp" line="73"/>
+        <location filename="../src/Core/KeyValues/KeyValuesWriter.cpp" line="111"/>
         <source>Output device is not open for writing</source>
         <translation>输出设备未以可写模式打开</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesWriter.cpp" line="207"/>
+        <location filename="../src/Core/KeyValues/KeyValuesWriter.cpp" line="303"/>
         <source>Failed to write KeyValues output to device</source>
         <translation>向设备写入 KeyValues 输出失败</translation>
     </message>
@@ -2654,47 +2696,57 @@ Do you want to proceed?</source>
 <context>
     <name>NmoFileParser</name>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2679"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2786"/>
         <source>NMO file path is empty or invalid</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2684"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2791"/>
         <source>NMO file not found</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2701"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2808"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2847"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2869"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2884"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2905"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2933"/>
+        <source>Unexpected end of NMO file</source>
+        <translation>NMO 文件意外结束</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2814"/>
         <source>Invalid NMO file signature</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2707"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2820"/>
         <source>Unsupported NMO file version: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2717"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2830"/>
         <source>Corrupted NMO section counts</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2734"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2853"/>
         <source>Corrupted NMO objective entity count</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2750"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2875"/>
         <source>Corrupted NMO objective children count</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2774"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2911"/>
         <source>Corrupted NMO anti-objective entity count</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2812"/>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2955"/>
         <source>NMOS output path is empty or invalid</source>
         <translation type="unfinished"></translation>
     </message>

@@ -5,7 +5,6 @@
 #include <cctype>
 #include <cstdint>
 #include <cstring>
-#include <exception>
 #include <limits>
 #include <span>
 #include <utility>
@@ -129,18 +128,24 @@ bool checkInvalidGameLumpHeaders(BinarySpanReader& in, bool vindictus) {
 
     const int glumps = in.readInt32();
     const std::size_t entrySize = vindictus ? 20U : 16U;
-    if (glumps < 0 || static_cast<std::size_t>(glumps) > in.remaining() / entrySize) {
+    if (in.hasError() || glumps < 0 || static_cast<std::size_t>(glumps) > in.remaining() / entrySize) {
+        in.clearError();
         in.setPosition(savedPos);
         return true;
     }
 
     for (int i = 0; i < glumps; ++i) {
         const std::int32_t fourCC = in.readInt32();
-        if (!isValidFourCCAscii(fourCC)) {
+        if (in.hasError() || !isValidFourCCAscii(fourCC)) {
+            in.clearError();
             in.setPosition(savedPos);
             return true;
         }
-        in.seek(static_cast<std::ptrdiff_t>(vindictus ? 16 : 12));
+        if (!in.seek(static_cast<std::ptrdiff_t>(vindictus ? 16 : 12))) {
+            in.clearError();
+            in.setPosition(savedPos);
+            return true;
+        }
     }
 
     in.setPosition(savedPos);
@@ -160,29 +165,30 @@ std::vector<T> readStructChunks(
         return result;
     }
 
-    try {
-        BinarySpanReader reader(lump.data, bigEndian);
-        if (structSize > 0) {
-            result.reserve(lump.data.size() / structSize);
+    BinarySpanReader reader(lump.data, bigEndian);
+    if (structSize > 0) {
+        result.reserve(lump.data.size() / structSize);
+    }
+    while (reader.hasRemaining()) {
+        const std::size_t startPos = reader.position();
+        T item = readOne(reader);
+        if (reader.hasError()) {
+            config.log(BspLogLevel::Warning,
+                QStringLiteral("Error reading lump %1: %2")
+                    .arg(lump.index)
+                    .arg(reader.errorMessage()));
+            result.clear();
+            break;
         }
-        while (reader.hasRemaining()) {
-            const std::size_t startPos = reader.position();
-            result.push_back(readOne(reader));
-            if (structSize > 0 && reader.position() - startPos != structSize) {
-                config.log(BspLogLevel::Warning,
-                    QStringLiteral("Struct size mismatch in lump %1: read %2, expected %3")
-                        .arg(lump.index)
-                        .arg(reader.position() - startPos)
-                        .arg(structSize));
-                break;
-            }
+        result.push_back(std::move(item));
+        if (structSize > 0 && reader.position() - startPos != structSize) {
+            config.log(BspLogLevel::Warning,
+                QStringLiteral("Struct size mismatch in lump %1: read %2, expected %3")
+                    .arg(lump.index)
+                    .arg(reader.position() - startPos)
+                    .arg(structSize));
+            break;
         }
-    } catch (const std::exception& ex) {
-        config.log(BspLogLevel::Warning,
-            QStringLiteral("Error reading lump %1: %2")
-                .arg(lump.index)
-                .arg(QString::fromUtf8(ex.what())));
-        result.clear();
     }
     return result;
 }
@@ -199,8 +205,7 @@ DBrush readDBrush(BinarySpanReader& in) {
     DBrush b;
     b.fstside = in.readInt32();
     b.numside = in.readInt32();
-    b.contentsRaw = in.readInt32();
-    b.contents = brushFlagsFromInt(b.contentsRaw);
+    b.contents = brushFlagsFromInt(in.readInt32());
     return b;
 }
 
@@ -614,8 +619,7 @@ DTexInfo readDTexInfo(BinarySpanReader& in, bool darkMessiah) {
     if (darkMessiah) {
         in.seek(24); // unknown
     }
-    t.flagsRaw = in.readInt32();
-    t.flags = surfaceFlagsFromInt(t.flagsRaw);
+    t.flags = surfaceFlagsFromInt(in.readInt32());
     t.texdata = in.readInt32();
     return t;
 }
@@ -1273,6 +1277,13 @@ Core::Result<BspFile> BspFile::open(
                 reader.readInt32(); // always 127?
             }
 
+            if (reader.hasError()) {
+                return Core::Result<BspFile>::failure(
+                    Core::Error::ErrorCode::InvalidFile,
+                    QCoreApplication::translate("BspFile", "Invalid or truncated BSP header"),
+                    reader.errorMessage());
+            }
+
             std::size_t cursor = reader.position();
             bsp.loadLumps(fileBytes, cursor, config);
             bsp.loadGameLumps(config);
@@ -1283,6 +1294,12 @@ Core::Result<BspFile> BspFile::open(
             } else {
                 reader.setPosition(cursor);
                 bsp.m_mapRev = reader.readInt32();
+                if (reader.hasError()) {
+                    return Core::Result<BspFile>::failure(
+                        Core::Error::ErrorCode::InvalidFile,
+                        QCoreApplication::translate("BspFile", "Invalid or truncated BSP header"),
+                        reader.errorMessage());
+                }
             }
 
             if (loadExternalLumpFiles) {
@@ -1324,6 +1341,11 @@ void BspFile::loadLumps(
             vers = reader.readInt32();
         }
         const int fourCC = reader.readInt32();
+        if (reader.hasError()) {
+            config.log(BspLogLevel::Warning,
+                QStringLiteral("Truncated lump header at lump %1: %2").arg(i).arg(reader.errorMessage()));
+            break;
+        }
 
         const LumpType ltype = lumpTypeForIndex(i, m_version);
 
@@ -1368,110 +1390,122 @@ void BspFile::loadLumps(
 }
 
 void BspFile::loadGameLumps(const BspDecompileConfig& config) {
-    const BspLumpBuffer* gameLump = getLump(LumpType::LUMP_GAME_LUMP);
+    const BspLumpBuffer* gameLump = lump(LumpType::LUMP_GAME_LUMP);
     if (!gameLump || gameLump->data.size() < 4) {
         return;
     }
 
-    try {
-        BinarySpanReader in(gameLump->data, m_bigEndian);
+    BinarySpanReader in(gameLump->data, m_bigEndian);
 
-        if (m_version == 20 && !m_bigEndian
-            && checkInvalidGameLumpHeaders(in, false)
-            && !checkInvalidGameLumpHeaders(in, true)) {
-            m_appId = SourceAppId::kVindictus;
+    if (m_version == 20 && !m_bigEndian
+        && checkInvalidGameLumpHeaders(in, false)
+        && !checkInvalidGameLumpHeaders(in, true)) {
+        m_appId = SourceAppId::kVindictus;
+    }
+
+    const int glumps = in.readInt32();
+    if (in.hasError()) {
+        config.log(BspLogLevel::Warning,
+            QStringLiteral("Couldn't load game lumps: %1").arg(in.errorMessage()));
+        return;
+    }
+    if (glumps < 0) {
+        return;
+    }
+
+    const std::size_t lumpLen = gameLump->data.size();
+    m_gameLumps.reserve(static_cast<std::size_t>(std::min<std::size_t>(
+        static_cast<std::size_t>(glumps),
+        in.remaining() / 16U)));
+
+    for (int i = 0; i < glumps; ++i) {
+        if (m_appId == SourceAppId::kDarkMessiah) {
+            in.readInt32(); // unknown
         }
 
-        const int glumps = in.readInt32();
-        if (glumps < 0) {
+        const int fourCC = in.readInt32();
+        int flags = 0;
+        int vers = 0;
+        if (m_appId == SourceAppId::kVindictus) {
+            flags = in.readInt32();
+            vers = in.readInt32();
+        } else {
+            flags = in.readUInt16();
+            vers = in.readUInt16();
+        }
+
+        int ofs = in.readInt32();
+        int len = in.readInt32();
+        if (in.hasError()) {
+            config.log(BspLogLevel::Warning,
+                QStringLiteral("Couldn't load game lumps: %1").arg(in.errorMessage()));
             return;
         }
 
-        const std::size_t lumpLen = gameLump->data.size();
-        m_gameLumps.reserve(static_cast<std::size_t>(glumps));
-
-        for (int i = 0; i < glumps; ++i) {
-            if (m_appId == SourceAppId::kDarkMessiah) {
-                in.readInt32(); // unknown
+        if (flags == 1) {
+            const std::size_t savedPos = in.position();
+            int nextOfs = 0;
+            const std::size_t skipToNextOfs = (m_appId == SourceAppId::kVindictus) ? 12U : 8U;
+            if (in.remaining() >= skipToNextOfs + 4U) {
+                in.seek(static_cast<std::ptrdiff_t>(skipToNextOfs));
+                nextOfs = in.readInt32();
             }
-
-            const int fourCC = in.readInt32();
-            int flags = 0;
-            int vers = 0;
-            if (m_appId == SourceAppId::kVindictus) {
-                flags = in.readInt32();
-                vers = in.readInt32();
-            } else {
-                flags = in.readUInt16();
-                vers = in.readUInt16();
-            }
-
-            int ofs = in.readInt32();
-            int len = in.readInt32();
-
-            if (flags == 1) {
-                const std::size_t savedPos = in.position();
-                int nextOfs = 0;
-                const std::size_t skipToNextOfs = (m_appId == SourceAppId::kVindictus) ? 12U : 8U;
-                if (in.remaining() >= skipToNextOfs + 4U) {
-                    in.seek(static_cast<std::ptrdiff_t>(skipToNextOfs));
-                    nextOfs = in.readInt32();
-                }
-                in.setPosition(savedPos);
-                if (nextOfs == 0) {
-                    nextOfs = gameLump->offset + static_cast<int>(lumpLen);
-                }
-                len = nextOfs - ofs;
-            }
-
-            if (ofs - gameLump->offset > 0) {
-                ofs -= gameLump->offset;
-            }
-
-            QString glName = fourCCToString(fourCC);
-            if (glName.trimmed().isEmpty() || fourCC == 0) {
-                glName = QStringLiteral("<dummy>");
-            }
-
-            if (ofs < 0) {
+            in.setPosition(savedPos);
+            if (in.hasError()) {
                 config.log(BspLogLevel::Warning,
-                    QStringLiteral("Negative game lump offset %1 in %2, assuming 0").arg(ofs).arg(glName));
-                ofs = 0;
-                len = 0;
-            } else if (static_cast<std::size_t>(ofs) > lumpLen) {
-                config.log(BspLogLevel::Warning,
-                    QStringLiteral("Invalid game lump offset %1 in %2, clamping").arg(ofs).arg(glName));
-                ofs = static_cast<int>(lumpLen);
-                len = 0;
+                    QStringLiteral("Couldn't load game lumps: %1").arg(in.errorMessage()));
+                return;
             }
-
-            if (len < 0) {
-                config.log(BspLogLevel::Warning,
-                    QStringLiteral("Negative game lump length %1 in %2, assuming 0").arg(len).arg(glName));
-                len = 0;
-            } else if (static_cast<std::size_t>(ofs) + static_cast<std::size_t>(len) > lumpLen) {
-                const int clamped = static_cast<int>(lumpLen - static_cast<std::size_t>(ofs));
-                config.log(BspLogLevel::Warning,
-                    QStringLiteral("Invalid game lump length %1 in %2, assuming %3").arg(len).arg(glName).arg(clamped));
-                len = clamped;
+            if (nextOfs == 0) {
+                nextOfs = gameLump->offset + static_cast<int>(lumpLen);
             }
-
-            BspGameLumpBuffer gl;
-            gl.fourCC = fourCC;
-            gl.name = std::move(glName);
-            gl.flags = flags;
-            gl.version = vers;
-            gl.offset = ofs;
-            gl.length = len;
-            if (len > 0) {
-                const auto beginIt = gameLump->data.begin() + static_cast<std::ptrdiff_t>(ofs);
-                gl.data.assign(beginIt, beginIt + static_cast<std::ptrdiff_t>(len));
-            }
-            m_gameLumps.push_back(std::move(gl));
+            len = nextOfs - ofs;
         }
-    } catch (const std::exception& ex) {
-        config.log(BspLogLevel::Warning,
-            QStringLiteral("Couldn't load game lumps: %1").arg(QString::fromUtf8(ex.what())));
+
+        if (ofs - gameLump->offset > 0) {
+            ofs -= gameLump->offset;
+        }
+
+        QString glName = fourCCToString(fourCC);
+        if (glName.trimmed().isEmpty() || fourCC == 0) {
+            glName = QStringLiteral("<dummy>");
+        }
+
+        if (ofs < 0) {
+            config.log(BspLogLevel::Warning,
+                QStringLiteral("Negative game lump offset %1 in %2, assuming 0").arg(ofs).arg(glName));
+            ofs = 0;
+            len = 0;
+        } else if (static_cast<std::size_t>(ofs) > lumpLen) {
+            config.log(BspLogLevel::Warning,
+                QStringLiteral("Invalid game lump offset %1 in %2, clamping").arg(ofs).arg(glName));
+            ofs = static_cast<int>(lumpLen);
+            len = 0;
+        }
+
+        if (len < 0) {
+            config.log(BspLogLevel::Warning,
+                QStringLiteral("Negative game lump length %1 in %2, assuming 0").arg(len).arg(glName));
+            len = 0;
+        } else if (static_cast<std::size_t>(ofs) + static_cast<std::size_t>(len) > lumpLen) {
+            const int clamped = static_cast<int>(lumpLen - static_cast<std::size_t>(ofs));
+            config.log(BspLogLevel::Warning,
+                QStringLiteral("Invalid game lump length %1 in %2, assuming %3").arg(len).arg(glName).arg(clamped));
+            len = clamped;
+        }
+
+        BspGameLumpBuffer gl;
+        gl.fourCC = fourCC;
+        gl.name = std::move(glName);
+        gl.flags = flags;
+        gl.version = vers;
+        gl.offset = ofs;
+        gl.length = len;
+        if (len > 0) {
+            const auto beginIt = gameLump->data.begin() + static_cast<std::ptrdiff_t>(ofs);
+            gl.data.assign(beginIt, beginIt + static_cast<std::ptrdiff_t>(len));
+        }
+        m_gameLumps.push_back(std::move(gl));
     }
 }
 
@@ -1502,45 +1536,45 @@ void BspFile::loadLumpFiles(const BspDecompileConfig& config) {
             continue;
         }
 
-        try {
-            BinarySpanReader in(lmpBytes, m_bigEndian);
-            int lumpOffset = in.readInt32();
-            const int lumpIndex = in.readInt32();
-            const int lumpVersion = in.readInt32();
-            int lumpSize = in.readInt32();
-            (void)in.readInt32(); // mapRev
-
-            if (lumpIndex < 0 || static_cast<std::size_t>(lumpIndex) >= m_lumps.size()) {
-                config.log(BspLogLevel::Warning,
-                    QStringLiteral("Invalid lump ID %1 in %2").arg(lumpIndex).arg(fileName));
-                continue;
-            }
-
-            const std::size_t limit = lmpBytes.size();
-            if (lumpOffset < 0 || static_cast<std::size_t>(lumpOffset) > limit) {
-                lumpOffset = kLumpFileHeaderSize;
-            }
-            if (lumpSize < 0 || static_cast<std::size_t>(lumpOffset) + static_cast<std::size_t>(lumpSize) > limit) {
-                lumpSize = static_cast<int>(limit - static_cast<std::size_t>(lumpOffset));
-            }
-
-            BspLumpBuffer& target = m_lumps[static_cast<std::size_t>(lumpIndex)];
-            target.offset = lumpOffset;
-            target.length = lumpSize;
-            target.version = lumpVersion;
-            target.data.clear();
-            if (lumpSize > 0) {
-                const auto beginIt = lmpBytes.begin() + static_cast<std::ptrdiff_t>(lumpOffset);
-                target.data.assign(beginIt, beginIt + static_cast<std::ptrdiff_t>(lumpSize));
-            }
-
-            if (target.type == LumpType::LUMP_GAME_LUMP) {
-                m_gameLumps.clear();
-                loadGameLumps(config);
-            }
-        } catch (const std::exception& ex) {
+        BinarySpanReader in(lmpBytes, m_bigEndian);
+        int lumpOffset = in.readInt32();
+        const int lumpIndex = in.readInt32();
+        const int lumpVersion = in.readInt32();
+        int lumpSize = in.readInt32();
+        (void)in.readInt32(); // mapRev
+        if (in.hasError()) {
             config.log(BspLogLevel::Warning,
-                QStringLiteral("Unable to parse lump file %1: %2").arg(fileName, QString::fromUtf8(ex.what())));
+                QStringLiteral("Unable to parse lump file %1: %2").arg(fileName, in.errorMessage()));
+            continue;
+        }
+
+        if (lumpIndex < 0 || static_cast<std::size_t>(lumpIndex) >= m_lumps.size()) {
+            config.log(BspLogLevel::Warning,
+                QStringLiteral("Invalid lump ID %1 in %2").arg(lumpIndex).arg(fileName));
+            continue;
+        }
+
+        const std::size_t limit = lmpBytes.size();
+        if (lumpOffset < 0 || static_cast<std::size_t>(lumpOffset) > limit) {
+            lumpOffset = kLumpFileHeaderSize;
+        }
+        if (lumpSize < 0 || static_cast<std::size_t>(lumpOffset) + static_cast<std::size_t>(lumpSize) > limit) {
+            lumpSize = static_cast<int>(limit - static_cast<std::size_t>(lumpOffset));
+        }
+
+        BspLumpBuffer& target = m_lumps[static_cast<std::size_t>(lumpIndex)];
+        target.offset = lumpOffset;
+        target.length = lumpSize;
+        target.version = lumpVersion;
+        target.data.clear();
+        if (lumpSize > 0) {
+            const auto beginIt = lmpBytes.begin() + static_cast<std::ptrdiff_t>(lumpOffset);
+            target.data.assign(beginIt, beginIt + static_cast<std::ptrdiff_t>(lumpSize));
+        }
+
+        if (target.type == LumpType::LUMP_GAME_LUMP) {
+            m_gameLumps.clear();
+            loadGameLumps(config);
         }
     }
 }
@@ -1627,7 +1661,7 @@ bool BspFile::canReadLump(LumpType type) const noexcept {
     return Domain::Bsp::Internal::canReadLump(type, m_version);
 }
 
-const BspLumpBuffer* BspFile::getLump(LumpType type) const noexcept {
+const BspLumpBuffer* BspFile::lump(LumpType type) const noexcept {
     const int idx = static_cast<int>(type);
     if (idx < 0 || static_cast<std::size_t>(idx) >= m_lumps.size()) {
         return nullptr;
@@ -1635,7 +1669,7 @@ const BspLumpBuffer* BspFile::getLump(LumpType type) const noexcept {
     return &m_lumps[static_cast<std::size_t>(idx)];
 }
 
-const BspGameLumpBuffer* BspFile::getGameLump(QStringView sid) const noexcept {
+const BspGameLumpBuffer* BspFile::gameLump(QStringView sid) const noexcept {
     for (const auto& gl : m_gameLumps) {
         if (gl.name.compare(sid, Qt::CaseInsensitive) == 0) {
             return &gl;
@@ -1722,7 +1756,7 @@ void BspFileReader::loadPlanes() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_PLANES)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_PLANES);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_PLANES);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -1737,7 +1771,7 @@ void BspFileReader::loadBrushes() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_BRUSHES)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_BRUSHES);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_BRUSHES);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -1752,7 +1786,7 @@ void BspFileReader::loadBrushSides() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_BRUSHSIDES)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_BRUSHSIDES);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_BRUSHSIDES);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -1777,7 +1811,7 @@ void BspFileReader::loadVertices() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_VERTEXES)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_VERTEXES);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_VERTEXES);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -1792,7 +1826,7 @@ void BspFileReader::loadClipPortalVertices() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_CLIPPORTALVERTS)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_CLIPPORTALVERTS);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_CLIPPORTALVERTS);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -1807,7 +1841,7 @@ void BspFileReader::loadEdges() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_EDGES)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_EDGES);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_EDGES);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -1869,14 +1903,14 @@ void BspFileReader::loadFaces() {
     m_loadedFaces = true;
 
     const bool useHdrLump = m_bspFile.canReadLump(LumpType::LUMP_FACES_HDR)
-        && m_bspFile.getLump(LumpType::LUMP_FACES_HDR) != nullptr
-        && !m_bspFile.getLump(LumpType::LUMP_FACES_HDR)->data.empty();
+        && m_bspFile.lump(LumpType::LUMP_FACES_HDR) != nullptr
+        && !m_bspFile.lump(LumpType::LUMP_FACES_HDR)->data.empty();
     const LumpType faceLumpType = useHdrLump ? LumpType::LUMP_FACES_HDR : LumpType::LUMP_FACES;
 
     if (!m_bspFile.canReadLump(faceLumpType)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(faceLumpType);
+    const auto* lump = m_bspFile.lump(faceLumpType);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -1893,13 +1927,13 @@ void BspFileReader::loadOriginalFaces() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_ORIGINALFACES)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_ORIGINALFACES);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_ORIGINALFACES);
     if (!lump || lump->data.empty()) {
         return;
     }
 
     // LUMP_ORIGINALFACES inherits lump version from LUMP_FACES
-    const auto* facesLump = m_bspFile.getLump(LumpType::LUMP_FACES);
+    const auto* facesLump = m_bspFile.lump(LumpType::LUMP_FACES);
     const int lumpVersion = facesLump ? facesLump->version : lump->version;
 
     m_bspData.origFaces = readFacesFromLump(
@@ -1914,7 +1948,7 @@ void BspFileReader::loadModels() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_MODELS)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_MODELS);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_MODELS);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -1933,7 +1967,7 @@ void BspFileReader::loadSurfaceEdges() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_SURFEDGES)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_SURFEDGES);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_SURFEDGES);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -1947,131 +1981,172 @@ void BspFileReader::loadStaticProps() {
     }
     m_loadedStaticProps = true;
 
-    const BspGameLumpBuffer* gl = m_bspFile.getGameLump(QStringLiteral("sprp"));
+    const BspGameLumpBuffer* gl = m_bspFile.gameLump(QStringLiteral("sprp"));
     if (!gl || gl->data.empty()) {
         return;
     }
 
-    try {
-        BinarySpanReader in(gl->data, m_bspFile.isBigEndian());
-        const int sprpVersion = gl->version;
-        const int app = appId();
+    BinarySpanReader in(gl->data, m_bspFile.isBigEndian());
+    const int sprpVersion = gl->version;
+    const int app = appId();
 
-        // Read static prop model dictionary
-        const int nameCount = in.readInt32();
-        if (nameCount < 0 || static_cast<std::size_t>(nameCount) > in.remaining() / 128U) {
-            return;
-        }
-        m_bspData.staticPropName.reserve(static_cast<std::size_t>(nameCount));
-        for (int i = 0; i < nameCount; ++i) {
-            m_bspData.staticPropName.push_back(in.readStringFixed(128));
-        }
-
-        // Extra model path strings in Zeno Clash
-        if (app == SourceAppId::kZenoClash) {
-            const int psextra = in.readInt32();
-            if (psextra < 0 || static_cast<std::size_t>(psextra) > in.remaining() / 128U) {
-                return;
-            }
-            in.seek(static_cast<std::ptrdiff_t>(psextra) * 128);
-        }
-
-        // Read static prop leafs
-        const int leafCount = in.readInt32();
-        const std::size_t leafElemSize = (sprpVersion >= 12) ? 4U : 2U;
-        if (leafCount < 0 || static_cast<std::size_t>(leafCount) > in.remaining() / leafElemSize) {
-            return;
-        }
-        m_bspData.staticPropLeaf.reserve(static_cast<std::size_t>(leafCount));
-        for (int i = 0; i < leafCount; ++i) {
-            const int leafVal = (sprpVersion >= 12)
-                ? static_cast<int>(in.readUInt32())
-                : static_cast<int>(in.readUInt16());
-            m_bspData.staticPropLeaf.push_back(leafVal);
-        }
-
-        // Read Vindictus scaling array
-        QHash<int, Vector3f> vinScalingMap;
-        if (app == SourceAppId::kVindictus && sprpVersion > 5) {
-            const int scalingCount = in.readInt32();
-            if (scalingCount < 0 || static_cast<std::size_t>(scalingCount) > in.remaining() / 16U) {
-                return;
-            }
-            for (int i = 0; i < scalingCount; ++i) {
-                const int propIdx = in.readInt32();
-                const Vector3f vec = in.readVector3f();
-                vinScalingMap.insert(propIdx, vec);
-            }
-        }
-
-        // Read static prop instances
-        const int propStaticCount = in.readInt32();
-        if (propStaticCount <= 0) {
-            return;
-        }
-        if (static_cast<std::size_t>(propStaticCount) > in.remaining()) {
-            m_config.log(BspLogLevel::Warning,
-                QStringLiteral("Invalid static prop count %1").arg(propStaticCount));
-            return;
-        }
-
-        const int propStaticSize = static_cast<int>(in.remaining() / static_cast<std::size_t>(propStaticCount));
-
-        const StaticPropDescriptor* matched = nullptr;
-        for (const auto& desc : kStaticPropDescriptors) {
-            if (desc.version != sprpVersion || desc.size != propStaticSize) {
-                continue;
-            }
-            if (desc.appId != SourceAppId::kDefault && desc.appId != app) {
-                continue;
-            }
-            if (!matched || desc.appId != SourceAppId::kDefault) {
-                matched = &desc;
-            }
-        }
-
-        StaticPropKind chosenKind = StaticPropKind::V4Padded;
-        if (matched != nullptr) {
-            chosenKind = matched->kind;
-            m_config.log(BspLogLevel::Info,
-                QStringLiteral("Using '%1' for sprp version %2")
-                    .arg(QLatin1StringView(matched->name))
-                    .arg(sprpVersion));
-        } else {
-            m_config.log(BspLogLevel::Warning,
-                QStringLiteral("Couldn't find static prop struct for appId %1, version %2, size %3; falling back to static prop v4")
-                    .arg(app)
-                    .arg(sprpVersion)
-                    .arg(propStaticSize));
-            if (propStaticSize < 56) {
-                return;
-            }
-        }
-
-        const bool isVinScaling = (chosenKind == StaticPropKind::V6VIN
-            || chosenKind == StaticPropKind::V7VIN
-            || chosenKind == StaticPropKind::V8VIN);
-
-        m_bspData.staticProps.reserve(static_cast<std::size_t>(propStaticCount));
-        for (int i = 0; i < propStaticCount; ++i) {
-            DStaticProp sp = readStaticPropByKind(in, chosenKind, propStaticSize);
-            if (isVinScaling) {
-                const auto it = vinScalingMap.constFind(i);
-                if (it != vinScalingMap.constEnd()) {
-                    sp.hasVinScaling = true;
-                    sp.vinScaling = it.value();
-                }
-            }
-            m_bspData.staticProps.push_back(std::move(sp));
-        }
-
-        if (in.hasRemaining()) {
-            m_config.log(BspLogLevel::Warning,
-                QStringLiteral("%1 bytes remaining after reading static props").arg(in.remaining()));
-        }
-    } catch (const std::exception& ex) {
+    // Read static prop model dictionary
+    const int nameCount = in.readInt32();
+    if (in.hasError()) {
         m_config.log(BspLogLevel::Warning,
-            QStringLiteral("Error reading static props: %1").arg(QString::fromUtf8(ex.what())));
+            QStringLiteral("Error reading static props: %1").arg(in.errorMessage()));
+        return;
+    }
+    if (nameCount < 0 || static_cast<std::size_t>(nameCount) > in.remaining() / 128U) {
+        return;
+    }
+    m_bspData.staticPropName.reserve(static_cast<std::size_t>(nameCount));
+    for (int i = 0; i < nameCount; ++i) {
+        QString propName = in.readStringFixed(128);
+        if (in.hasError()) {
+            m_config.log(BspLogLevel::Warning,
+                QStringLiteral("Error reading static props: %1").arg(in.errorMessage()));
+            return;
+        }
+        m_bspData.staticPropName.push_back(std::move(propName));
+    }
+
+    // Extra model path strings in Zeno Clash
+    if (app == SourceAppId::kZenoClash) {
+        const int psextra = in.readInt32();
+        if (in.hasError()) {
+            m_config.log(BspLogLevel::Warning,
+                QStringLiteral("Error reading static props: %1").arg(in.errorMessage()));
+            return;
+        }
+        if (psextra < 0 || static_cast<std::size_t>(psextra) > in.remaining() / 128U) {
+            return;
+        }
+        in.seek(static_cast<std::ptrdiff_t>(psextra) * 128);
+    }
+
+    // Read static prop leafs
+    const int leafCount = in.readInt32();
+    if (in.hasError()) {
+        m_config.log(BspLogLevel::Warning,
+            QStringLiteral("Error reading static props: %1").arg(in.errorMessage()));
+        return;
+    }
+    const std::size_t leafElemSize = (sprpVersion >= 12) ? 4U : 2U;
+    if (leafCount < 0 || static_cast<std::size_t>(leafCount) > in.remaining() / leafElemSize) {
+        return;
+    }
+    m_bspData.staticPropLeaf.reserve(static_cast<std::size_t>(leafCount));
+    for (int i = 0; i < leafCount; ++i) {
+        const int leafVal = (sprpVersion >= 12)
+            ? static_cast<int>(in.readUInt32())
+            : static_cast<int>(in.readUInt16());
+        if (in.hasError()) {
+            m_config.log(BspLogLevel::Warning,
+                QStringLiteral("Error reading static props: %1").arg(in.errorMessage()));
+            return;
+        }
+        m_bspData.staticPropLeaf.push_back(leafVal);
+    }
+
+    // Read Vindictus scaling array
+    QHash<int, Vector3f> vinScalingMap;
+    if (app == SourceAppId::kVindictus && sprpVersion > 5) {
+        const int scalingCount = in.readInt32();
+        if (in.hasError()) {
+            m_config.log(BspLogLevel::Warning,
+                QStringLiteral("Error reading static props: %1").arg(in.errorMessage()));
+            return;
+        }
+        if (scalingCount < 0 || static_cast<std::size_t>(scalingCount) > in.remaining() / 16U) {
+            return;
+        }
+        for (int i = 0; i < scalingCount; ++i) {
+            const int propIdx = in.readInt32();
+            const Vector3f vec = in.readVector3f();
+            if (in.hasError()) {
+                m_config.log(BspLogLevel::Warning,
+                    QStringLiteral("Error reading static props: %1").arg(in.errorMessage()));
+                return;
+            }
+            vinScalingMap.insert(propIdx, vec);
+        }
+    }
+
+    // Read static prop instances
+    const int propStaticCount = in.readInt32();
+    if (in.hasError()) {
+        m_config.log(BspLogLevel::Warning,
+            QStringLiteral("Error reading static props: %1").arg(in.errorMessage()));
+        return;
+    }
+    if (propStaticCount <= 0) {
+        return;
+    }
+    if (static_cast<std::size_t>(propStaticCount) > in.remaining()) {
+        m_config.log(BspLogLevel::Warning,
+            QStringLiteral("Invalid static prop count %1").arg(propStaticCount));
+        return;
+    }
+
+    const int propStaticSize = static_cast<int>(in.remaining() / static_cast<std::size_t>(propStaticCount));
+
+    const StaticPropDescriptor* matched = nullptr;
+    for (const auto& desc : kStaticPropDescriptors) {
+        if (desc.version != sprpVersion || desc.size != propStaticSize) {
+            continue;
+        }
+        if (desc.appId != SourceAppId::kDefault && desc.appId != app) {
+            continue;
+        }
+        if (!matched || desc.appId != SourceAppId::kDefault) {
+            matched = &desc;
+        }
+    }
+
+    StaticPropKind chosenKind = StaticPropKind::V4Padded;
+    if (matched != nullptr) {
+        chosenKind = matched->kind;
+        m_config.log(BspLogLevel::Info,
+            QStringLiteral("Using '%1' for sprp version %2")
+                .arg(QLatin1StringView(matched->name))
+                .arg(sprpVersion));
+    } else {
+        m_config.log(BspLogLevel::Warning,
+            QStringLiteral("Couldn't find static prop struct for appId %1, version %2, size %3; falling back to static prop v4")
+                .arg(app)
+                .arg(sprpVersion)
+                .arg(propStaticSize));
+        if (propStaticSize < 56) {
+            return;
+        }
+    }
+
+    const bool isVinScaling = (chosenKind == StaticPropKind::V6VIN
+        || chosenKind == StaticPropKind::V7VIN
+        || chosenKind == StaticPropKind::V8VIN);
+
+    m_bspData.staticProps.reserve(static_cast<std::size_t>(propStaticCount));
+    for (int i = 0; i < propStaticCount; ++i) {
+        DStaticProp sp = readStaticPropByKind(in, chosenKind, propStaticSize);
+        if (in.hasError()) {
+            m_config.log(BspLogLevel::Warning,
+                QStringLiteral("Error reading static props: %1").arg(in.errorMessage()));
+            return;
+        }
+        if (isVinScaling) {
+            const auto it = vinScalingMap.constFind(i);
+            if (it != vinScalingMap.constEnd()) {
+                sp.hasVinScaling = true;
+                sp.vinScaling = it.value();
+            }
+        }
+        m_bspData.staticProps.push_back(std::move(sp));
+    }
+
+    if (in.hasRemaining()) {
+        m_config.log(BspLogLevel::Warning,
+            QStringLiteral("%1 bytes remaining after reading static props").arg(in.remaining()));
     }
 }
 
@@ -2083,7 +2158,7 @@ void BspFileReader::loadCubemaps() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_CUBEMAPS)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_CUBEMAPS);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_CUBEMAPS);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2098,7 +2173,7 @@ void BspFileReader::loadDispInfos() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_DISPINFO)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_DISPINFO);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_DISPINFO);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2128,7 +2203,7 @@ void BspFileReader::loadDispVertices() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_DISP_VERTS)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_DISP_VERTS);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_DISP_VERTS);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2143,7 +2218,7 @@ void BspFileReader::loadDispTriangleTags() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_DISP_TRIS)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_DISP_TRIS);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_DISP_TRIS);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2162,7 +2237,7 @@ void BspFileReader::loadDispMultiBlend() {
     if (!m_bspFile.canReadLump(lumpType)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(lumpType);
+    const auto* lump = m_bspFile.lump(lumpType);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2177,7 +2252,7 @@ void BspFileReader::loadTexInfo() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_TEXINFO)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_TEXINFO);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_TEXINFO);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2193,7 +2268,7 @@ void BspFileReader::loadTexData() {
     }
     m_loadedTexData = true;
     if (m_bspFile.canReadLump(LumpType::LUMP_TEXDATA)) {
-        const auto* lump = m_bspFile.getLump(LumpType::LUMP_TEXDATA);
+        const auto* lump = m_bspFile.lump(LumpType::LUMP_TEXDATA);
         if (lump && !lump->data.empty()) {
             m_bspData.texdatas = readStructChunks<DTexData>(*lump, m_bspFile.isBigEndian(), 32, m_config, readDTexData);
         }
@@ -2210,8 +2285,8 @@ void BspFileReader::loadTexDataStrings() {
         || !m_bspFile.canReadLump(LumpType::LUMP_TEXDATA_STRING_DATA)) {
         return;
     }
-    const auto* tableLump = m_bspFile.getLump(LumpType::LUMP_TEXDATA_STRING_TABLE);
-    const auto* dataLump = m_bspFile.getLump(LumpType::LUMP_TEXDATA_STRING_DATA);
+    const auto* tableLump = m_bspFile.lump(LumpType::LUMP_TEXDATA_STRING_TABLE);
+    const auto* dataLump = m_bspFile.lump(LumpType::LUMP_TEXDATA_STRING_DATA);
     if (!tableLump || tableLump->data.empty() || !dataLump || dataLump->data.empty()) {
         return;
     }
@@ -2220,20 +2295,25 @@ void BspFileReader::loadTexDataStrings() {
         *tableLump, m_bspFile.isBigEndian(), 4, m_config,
         [](BinarySpanReader& in) { return in.readInt32(); });
 
-    try {
-        BinarySpanReader dataReader(dataLump->data, m_bspFile.isBigEndian());
-        m_bspData.texnames.reserve(stringOffsets.size());
-        for (int ofs : stringOffsets) {
-            if (ofs < 0 || static_cast<std::size_t>(ofs) >= dataLump->data.size()) {
-                m_bspData.texnames.emplace_back();
-                continue;
-            }
-            dataReader.setPosition(static_cast<std::size_t>(ofs));
-            m_bspData.texnames.push_back(dataReader.readStringNullTerminated(dataLump->data.size() - static_cast<std::size_t>(ofs)));
+    BinarySpanReader dataReader(dataLump->data, m_bspFile.isBigEndian());
+    m_bspData.texnames.reserve(stringOffsets.size());
+    for (int ofs : stringOffsets) {
+        if (ofs < 0 || static_cast<std::size_t>(ofs) >= dataLump->data.size()) {
+            m_bspData.texnames.emplace_back();
+            continue;
         }
-    } catch (const std::exception& ex) {
-        m_config.log(BspLogLevel::Warning,
-            QStringLiteral("Error reading texdata strings: %1").arg(QString::fromUtf8(ex.what())));
+        if (!dataReader.setPosition(static_cast<std::size_t>(ofs))) {
+            m_config.log(BspLogLevel::Warning,
+                QStringLiteral("Error reading texdata strings: %1").arg(dataReader.errorMessage()));
+            break;
+        }
+        m_bspData.texnames.push_back(
+            dataReader.readStringNullTerminated(dataLump->data.size() - static_cast<std::size_t>(ofs)));
+        if (dataReader.hasError()) {
+            m_config.log(BspLogLevel::Warning,
+                QStringLiteral("Error reading texdata strings: %1").arg(dataReader.errorMessage()));
+            break;
+        }
     }
 }
 
@@ -2245,7 +2325,7 @@ void BspFileReader::loadEntities() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_ENTITIES)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_ENTITIES);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_ENTITIES);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2372,7 +2452,7 @@ void BspFileReader::loadNodes() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_NODES)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_NODES);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_NODES);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2395,7 +2475,7 @@ void BspFileReader::loadLeaves() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_LEAFS)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_LEAFS);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_LEAFS);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2420,7 +2500,7 @@ void BspFileReader::loadLeafFaces() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_LEAFFACES)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_LEAFFACES);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_LEAFFACES);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2443,7 +2523,7 @@ void BspFileReader::loadLeafBrushes() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_LEAFBRUSHES)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_LEAFBRUSHES);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_LEAFBRUSHES);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2462,7 +2542,7 @@ void BspFileReader::loadOverlays() {
     if (!m_loadedOverlays) {
         m_loadedOverlays = true;
         if (m_bspFile.canReadLump(LumpType::LUMP_OVERLAYS)) {
-            const auto* lump = m_bspFile.getLump(LumpType::LUMP_OVERLAYS);
+            const auto* lump = m_bspFile.lump(LumpType::LUMP_OVERLAYS);
             if (lump && !lump->data.empty()) {
                 const int app = appId();
                 if (app == SourceAppId::kVindictus) {
@@ -2481,7 +2561,7 @@ void BspFileReader::loadOverlays() {
     if (!m_loadedOverlayFades) {
         m_loadedOverlayFades = true;
         if (m_bspFile.canReadLump(LumpType::LUMP_OVERLAY_FADES)) {
-            const auto* lump = m_bspFile.getLump(LumpType::LUMP_OVERLAY_FADES);
+            const auto* lump = m_bspFile.lump(LumpType::LUMP_OVERLAY_FADES);
             if (lump && !lump->data.empty()) {
                 m_bspData.overlayFades = readStructChunks<DOverlayFade>(*lump, m_bspFile.isBigEndian(), 8, m_config, readDOverlayFade);
             }
@@ -2491,7 +2571,7 @@ void BspFileReader::loadOverlays() {
     if (!m_loadedOverlaySysLevels) {
         m_loadedOverlaySysLevels = true;
         if (appId() != SourceAppId::kBlackMesa && m_bspFile.canReadLump(LumpType::LUMP_OVERLAY_SYSTEM_LEVELS)) {
-            const auto* lump = m_bspFile.getLump(LumpType::LUMP_OVERLAY_SYSTEM_LEVELS);
+            const auto* lump = m_bspFile.lump(LumpType::LUMP_OVERLAY_SYSTEM_LEVELS);
             if (lump && !lump->data.empty()) {
                 m_bspData.overlaySysLevels = readStructChunks<DOverlaySystemLevel>(
                     *lump, m_bspFile.isBigEndian(), 4, m_config, readDOverlaySystemLevel);
@@ -2508,7 +2588,7 @@ void BspFileReader::loadAreaportals() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_AREAPORTALS)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_AREAPORTALS);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_AREAPORTALS);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2531,7 +2611,7 @@ void BspFileReader::loadOccluders() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_OCCLUSION)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_OCCLUSION);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_OCCLUSION);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2539,57 +2619,83 @@ void BspFileReader::loadOccluders() {
     const int alteredVersion = (appId() == SourceAppId::kContagion) ? 1 : lump->version;
     const bool hasArea = (alteredVersion != 0);
 
-    try {
-        BinarySpanReader in(lump->data, m_bspFile.isBigEndian());
+    BinarySpanReader in(lump->data, m_bspFile.isBigEndian());
 
-        const int occluderCount = in.readInt32();
-        const std::size_t occluderElemSize = hasArea ? 40U : 36U;
-        if (occluderCount < 0 || static_cast<std::size_t>(occluderCount) > in.remaining() / occluderElemSize) {
-            return;
-        }
-        m_bspData.occluderDatas.reserve(static_cast<std::size_t>(occluderCount));
-        for (int i = 0; i < occluderCount; ++i) {
-            DOccluderData occ;
-            occ.flags = in.readInt32();
-            occ.firstpoly = in.readInt32();
-            occ.polycount = in.readInt32();
-            occ.mins = in.readVector3f();
-            occ.maxs = in.readVector3f();
-            if (hasArea) {
-                occ.area = in.readInt32();
-            }
-            m_bspData.occluderDatas.push_back(occ);
-        }
-
-        const int polyCount = in.readInt32();
-        if (polyCount < 0 || static_cast<std::size_t>(polyCount) > in.remaining() / 12U) {
-            return;
-        }
-        m_bspData.occluderPolyDatas.reserve(static_cast<std::size_t>(polyCount));
-        for (int i = 0; i < polyCount; ++i) {
-            DOccluderPolyData poly;
-            poly.firstvertexindex = in.readInt32();
-            poly.vertexcount = in.readInt32();
-            poly.planenum = in.readInt32();
-            m_bspData.occluderPolyDatas.push_back(poly);
-        }
-
-        const int vertexCount = in.readInt32();
-        if (vertexCount < 0 || static_cast<std::size_t>(vertexCount) > in.remaining() / 4U) {
-            return;
-        }
-        m_bspData.occluderVerts.reserve(static_cast<std::size_t>(vertexCount));
-        for (int i = 0; i < vertexCount; ++i) {
-            m_bspData.occluderVerts.push_back(in.readInt32());
-        }
-
-        if (in.hasRemaining()) {
-            m_config.log(BspLogLevel::Warning,
-                QStringLiteral("%1 bytes remaining after reading occluders").arg(in.remaining()));
-        }
-    } catch (const std::exception& ex) {
+    const int occluderCount = in.readInt32();
+    if (in.hasError()) {
         m_config.log(BspLogLevel::Warning,
-            QStringLiteral("Error reading occluders: %1").arg(QString::fromUtf8(ex.what())));
+            QStringLiteral("Error reading occluders: %1").arg(in.errorMessage()));
+        return;
+    }
+    const std::size_t occluderElemSize = hasArea ? 40U : 36U;
+    if (occluderCount < 0 || static_cast<std::size_t>(occluderCount) > in.remaining() / occluderElemSize) {
+        return;
+    }
+    m_bspData.occluderDatas.reserve(static_cast<std::size_t>(occluderCount));
+    for (int i = 0; i < occluderCount; ++i) {
+        DOccluderData occ;
+        occ.flags = in.readInt32();
+        occ.firstpoly = in.readInt32();
+        occ.polycount = in.readInt32();
+        occ.mins = in.readVector3f();
+        occ.maxs = in.readVector3f();
+        if (hasArea) {
+            occ.area = in.readInt32();
+        }
+        if (in.hasError()) {
+            m_config.log(BspLogLevel::Warning,
+                QStringLiteral("Error reading occluders: %1").arg(in.errorMessage()));
+            return;
+        }
+        m_bspData.occluderDatas.push_back(occ);
+    }
+
+    const int polyCount = in.readInt32();
+    if (in.hasError()) {
+        m_config.log(BspLogLevel::Warning,
+            QStringLiteral("Error reading occluders: %1").arg(in.errorMessage()));
+        return;
+    }
+    if (polyCount < 0 || static_cast<std::size_t>(polyCount) > in.remaining() / 12U) {
+        return;
+    }
+    m_bspData.occluderPolyDatas.reserve(static_cast<std::size_t>(polyCount));
+    for (int i = 0; i < polyCount; ++i) {
+        DOccluderPolyData poly;
+        poly.firstvertexindex = in.readInt32();
+        poly.vertexcount = in.readInt32();
+        poly.planenum = in.readInt32();
+        if (in.hasError()) {
+            m_config.log(BspLogLevel::Warning,
+                QStringLiteral("Error reading occluders: %1").arg(in.errorMessage()));
+            return;
+        }
+        m_bspData.occluderPolyDatas.push_back(poly);
+    }
+
+    const int vertexCount = in.readInt32();
+    if (in.hasError()) {
+        m_config.log(BspLogLevel::Warning,
+            QStringLiteral("Error reading occluders: %1").arg(in.errorMessage()));
+        return;
+    }
+    if (vertexCount < 0 || static_cast<std::size_t>(vertexCount) > in.remaining() / 4U) {
+        return;
+    }
+    m_bspData.occluderVerts.reserve(static_cast<std::size_t>(vertexCount));
+    for (int i = 0; i < vertexCount; ++i) {
+        const int v = in.readInt32();
+        if (in.hasError()) {
+            m_config.log(BspLogLevel::Warning,
+                QStringLiteral("Error reading occluders: %1").arg(in.errorMessage()));
+            return;
+        }
+        m_bspData.occluderVerts.push_back(v);
+    }
+
+    if (in.hasRemaining()) {
+        m_config.log(BspLogLevel::Warning,
+            QStringLiteral("%1 bytes remaining after reading occluders").arg(in.remaining()));
     }
 }
 
@@ -2601,18 +2707,19 @@ void BspFileReader::loadFlags() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_MAP_FLAGS)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_MAP_FLAGS);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_MAP_FLAGS);
     if (!lump || lump->data.size() < 4) {
         return;
     }
 
-    try {
-        BinarySpanReader in(lump->data, m_bspFile.isBigEndian());
-        m_bspData.mapFlags = levelFlagsFromInt(in.readInt32());
-    } catch (const std::exception& ex) {
+    BinarySpanReader in(lump->data, m_bspFile.isBigEndian());
+    const std::int32_t rawFlags = in.readInt32();
+    if (in.hasError()) {
         m_config.log(BspLogLevel::Warning,
-            QStringLiteral("Error reading map flags: %1").arg(QString::fromUtf8(ex.what())));
+            QStringLiteral("Error reading map flags: %1").arg(in.errorMessage()));
+        return;
     }
+    m_bspData.mapFlags = levelFlagsFromInt(rawFlags);
 }
 
 void BspFileReader::loadPrimitives() {
@@ -2623,7 +2730,7 @@ void BspFileReader::loadPrimitives() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_PRIMITIVES)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_PRIMITIVES);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_PRIMITIVES);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2643,7 +2750,7 @@ void BspFileReader::loadPrimIndices() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_PRIMINDICES)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_PRIMINDICES);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_PRIMINDICES);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2665,7 +2772,7 @@ void BspFileReader::loadPrimVerts() {
     if (!m_bspFile.canReadLump(LumpType::LUMP_PRIMVERTS)) {
         return;
     }
-    const auto* lump = m_bspFile.getLump(LumpType::LUMP_PRIMVERTS);
+    const auto* lump = m_bspFile.lump(LumpType::LUMP_PRIMVERTS);
     if (!lump || lump->data.empty()) {
         return;
     }
@@ -2695,6 +2802,12 @@ Core::Result<NmoData> NmoFileParser::load(const Core::Path::FilesystemPath& nmoP
             BinarySpanReader in(bytesRes.value(), false);
             const std::uint8_t signature = in.readUInt8();
             const std::int32_t version = in.readInt32();
+            if (in.hasError()) {
+                return Core::Result<NmoData>::failure(
+                    Core::Error::ErrorCode::CorruptedData,
+                    QCoreApplication::translate("NmoFileParser", "Unexpected end of NMO file"),
+                    in.errorMessage());
+            }
             if (signature != static_cast<std::uint8_t>(kNmoSignature)) {
                 return Core::Result<NmoData>::failure(
                     Core::Error::ErrorCode::InvalidFile,
@@ -2711,11 +2824,11 @@ Core::Result<NmoData> NmoFileParser::load(const Core::Path::FilesystemPath& nmoP
             const int nodeCount = in.readInt32();
             const int antiNodeCount = in.readInt32();
             const int extractionCount = in.readInt32();
-            if (nodeCount < 0 || antiNodeCount < 0 || extractionCount < 0) {
+            if (in.hasError() || nodeCount < 0 || antiNodeCount < 0 || extractionCount < 0) {
                 return Core::Result<NmoData>::failure(
                     Core::Error::ErrorCode::CorruptedData,
                     QCoreApplication::translate("NmoFileParser", "Corrupted NMO section counts"),
-                    nmoPath.toString());
+                    in.hasError() ? in.errorMessage() : nmoPath.toString());
             }
 
             NmoData nmo;
@@ -2728,6 +2841,12 @@ Core::Result<NmoData> NmoFileParser::load(const Core::Path::FilesystemPath& nmoP
                 obj.entityName = in.readStringNullTerminated();
 
                 const int entityCount = in.readInt32();
+                if (in.hasError()) {
+                    return Core::Result<NmoData>::failure(
+                        Core::Error::ErrorCode::CorruptedData,
+                        QCoreApplication::translate("NmoFileParser", "Unexpected end of NMO file"),
+                        in.errorMessage());
+                }
                 if (entityCount < 0 || static_cast<std::size_t>(entityCount) > in.remaining()) {
                     return Core::Result<NmoData>::failure(
                         Core::Error::ErrorCode::CorruptedData,
@@ -2744,6 +2863,12 @@ Core::Result<NmoData> NmoFileParser::load(const Core::Path::FilesystemPath& nmoP
                 }
 
                 const int childrenCount = in.readInt32();
+                if (in.hasError()) {
+                    return Core::Result<NmoData>::failure(
+                        Core::Error::ErrorCode::CorruptedData,
+                        QCoreApplication::translate("NmoFileParser", "Unexpected end of NMO file"),
+                        in.errorMessage());
+                }
                 if (childrenCount < 0 || static_cast<std::size_t>(childrenCount) > in.remaining() / 4U) {
                     return Core::Result<NmoData>::failure(
                         Core::Error::ErrorCode::CorruptedData,
@@ -2753,6 +2878,12 @@ Core::Result<NmoData> NmoFileParser::load(const Core::Path::FilesystemPath& nmoP
                 QSet<int> seenChildren;
                 for (int c = 0; c < childrenCount; ++c) {
                     const int childId = in.readInt32();
+                    if (in.hasError()) {
+                        return Core::Result<NmoData>::failure(
+                            Core::Error::ErrorCode::CorruptedData,
+                            QCoreApplication::translate("NmoFileParser", "Unexpected end of NMO file"),
+                            in.errorMessage());
+                    }
                     if (!seenChildren.contains(childId)) {
                         seenChildren.insert(childId);
                         obj.children.push_back(childId);
@@ -2768,6 +2899,12 @@ Core::Result<NmoData> NmoFileParser::load(const Core::Path::FilesystemPath& nmoP
                 anti.name = in.readStringNullTerminated();
 
                 const int entityCount = in.readInt32();
+                if (in.hasError()) {
+                    return Core::Result<NmoData>::failure(
+                        Core::Error::ErrorCode::CorruptedData,
+                        QCoreApplication::translate("NmoFileParser", "Unexpected end of NMO file"),
+                        in.errorMessage());
+                }
                 if (entityCount < 0 || static_cast<std::size_t>(entityCount) > in.remaining()) {
                     return Core::Result<NmoData>::failure(
                         Core::Error::ErrorCode::CorruptedData,
@@ -2790,6 +2927,12 @@ Core::Result<NmoData> NmoFileParser::load(const Core::Path::FilesystemPath& nmoP
                 NmoExtraction ext;
                 ext.id = in.readInt32();
                 ext.name = in.readStringNullTerminated();
+                if (in.hasError()) {
+                    return Core::Result<NmoData>::failure(
+                        Core::Error::ErrorCode::CorruptedData,
+                        QCoreApplication::translate("NmoFileParser", "Unexpected end of NMO file"),
+                        in.errorMessage());
+                }
                 nmo.extractions.push_back(std::move(ext));
             }
 

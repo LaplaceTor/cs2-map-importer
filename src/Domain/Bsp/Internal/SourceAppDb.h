@@ -56,7 +56,7 @@ public:
     int find(const QString& bspName, int bspVersion, const QSet<QString>& entityClasses) const;
 
     /// Returns human-readable game name for appId, or std::nullopt if unknown.
-    std::optional<QString> getName(int appId) const;
+    std::optional<QString> appName(int appId) const;
 
 private:
     SourceAppDb() = default;

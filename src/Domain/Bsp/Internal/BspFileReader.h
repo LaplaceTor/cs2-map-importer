@@ -55,8 +55,8 @@ public:
     bool isBigEndian() const noexcept { return m_bigEndian; }
 
     bool canReadLump(LumpType type) const noexcept;
-    const BspLumpBuffer* getLump(LumpType type) const noexcept;
-    const BspGameLumpBuffer* getGameLump(QStringView sid) const noexcept;
+    const BspLumpBuffer* lump(LumpType type) const noexcept;
+    const BspGameLumpBuffer* gameLump(QStringView sid) const noexcept;
 
     void uncompress(const BspDecompileConfig& config);
 
@@ -113,10 +113,10 @@ public:
     void loadPrimIndices();
     void loadPrimVerts();
 
-    BspFile& getBspFile() noexcept { return m_bspFile; }
-    const BspFile& getBspFile() const noexcept { return m_bspFile; }
-    BspData& getData() noexcept { return m_bspData; }
-    const BspData& getData() const noexcept { return m_bspData; }
+    BspFile& bspFile() noexcept { return m_bspFile; }
+    const BspFile& bspFile() const noexcept { return m_bspFile; }
+    BspData& data() noexcept { return m_bspData; }
+    const BspData& data() const noexcept { return m_bspData; }
 
 private:
     int appId() const noexcept { return m_bspFile.appId(); }

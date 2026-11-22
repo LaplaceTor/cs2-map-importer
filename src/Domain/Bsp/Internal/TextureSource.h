@@ -113,8 +113,10 @@ inline const QString kClimb = QStringLiteral("tools/climb");
  */
 struct ToolTextureDefinition {
     std::optional<QString> surfaceProperty;
-    QHash<BrushFlag, bool> brushFlagRequirements;
-    QHash<SurfaceFlag, bool> surfaceFlagRequirements;
+    BrushFlags requiredBrushFlags;
+    BrushFlags forbiddenBrushFlags;
+    SurfaceFlags requiredSurfaceFlags;
+    SurfaceFlags forbiddenSurfaceFlags;
 };
 
 /**
@@ -128,13 +130,13 @@ public:
 
     std::optional<QString> fixToolTexture(
         const QString& originalTextureName,
-        const QSet<BrushFlag>& brushFlags,
-        const QSet<SurfaceFlag>& surfaceFlags) const;
+        BrushFlags brushFlags,
+        SurfaceFlags surfaceFlags) const;
 
     std::optional<QString> fixToolTextureOptional(
         const QString& originalTextureName,
-        const QSet<BrushFlag>& brushFlags,
-        const QSet<SurfaceFlag>* surfaceFlags) const;
+        BrushFlags brushFlags,
+        std::optional<SurfaceFlags> surfaceFlags) const;
 
 private:
     ToolTextureMatcher(
@@ -202,8 +204,8 @@ public:
         const QString& originalTextureName,
         bool isOccluderBrush,
         bool isOccluderBrushSide,
-        const QSet<BrushFlag>& brushFlags,
-        const QSet<SurfaceFlag>* surfaceFlags,
+        BrushFlags brushFlags,
+        std::optional<SurfaceFlags> surfaceFlags,
         const ToolTextureMatcher& matcher);
 };
 
@@ -216,15 +218,15 @@ class TextureSource {
 public:
     TextureSource(BspFileReader& reader, const BspDecompileConfig& config);
 
-    const ToolTextureMatcher& getToolTextureMatcher() const noexcept { return m_toolTextureMatcher; }
+    const ToolTextureMatcher& toolTextureMatcher() const noexcept { return m_toolTextureMatcher; }
 
     void addBrushSideID(int itexname, int side);
-    std::vector<int> getBrushSidesForCubemap(int icubemap) const;
+    std::vector<int> brushSidesForCubemap(int icubemap) const;
 
     static QString canonizeTextureName(QString textureNew);
-    const std::vector<QString>& getFixedTextureNames() const noexcept { return m_texnamesFixed; }
+    const std::vector<QString>& fixedTextureNames() const noexcept { return m_texnamesFixed; }
 
-    static std::optional<QString> getTextureName(
+    static std::optional<QString> textureName(
         int itexinfo,
         const std::vector<DTexInfo>& texinfos,
         const std::vector<DTexData>& texdatas,

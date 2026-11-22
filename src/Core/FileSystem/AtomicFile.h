@@ -2,6 +2,7 @@
 
 #include <QString>
 #include <QByteArray>
+#include <QIODevice>
 #include <QSaveFile>
 #include <memory>
 
@@ -31,7 +32,19 @@ public:
     QString tempFilePath() const;
 
     void open();
+
+    /**
+     * @brief Returns the underlying open QIODevice for streaming writes.
+     *
+     * Callers must call open() before device() (so Tier 1 path containment and Tier 2
+     * verifyFileWithinBase() checks have completed) and call commit() after writing.
+     *
+     * @return Open QIODevice pointer, or nullptr if not currently open.
+     */
+    QIODevice* device();
+
     void write(const QByteArray& data);
+    void write(const char* data, qint64 size);
     void commit();
     void rollback();
     bool isCommitted() const { return m_committed; }

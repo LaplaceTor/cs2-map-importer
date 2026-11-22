@@ -46,7 +46,7 @@ bool BspProtection::check() {
     m_obfuscatedEnt = false;
     m_modifiedTexinfo = false;
     m_protBrushIndices.clear();
-    m_protEntities.clear();
+    m_protEntityIndices.clear();
 
     checkBrushes();
     checkBrushSides();
@@ -70,7 +70,7 @@ bool BspProtection::isProtected() const noexcept {
         || m_modifiedTexinfo;
 }
 
-QStringList BspProtection::getProtectionMethods() const {
+QStringList BspProtection::protectionMethods() const {
     QStringList methods;
 
     if (hasEntityFlag()) {
@@ -112,15 +112,14 @@ bool BspProtection::isProtectedBrushIndex(int brushIndex) const noexcept {
         != m_protBrushIndices.end();
 }
 
-bool BspProtection::isProtectedEntity(const BspEntity& entity) const noexcept {
-    return std::find(m_protEntities.begin(), m_protEntities.end(), &entity)
-        != m_protEntities.end();
+bool BspProtection::isProtectedEntityIndex(int entityIndex) const noexcept {
+    return m_protEntityIndices.contains(entityIndex);
 }
 
 void BspProtection::checkBrushes() {
     m_config.log(BspLogLevel::Debug, QStringLiteral("Checking for protector prefab"));
 
-    const BspData& bsp = m_reader.getData();
+    const BspData& bsp = m_reader.data();
     int b1 = -1;
     int b2 = -1;
     int b3 = -1;
@@ -131,15 +130,15 @@ void BspProtection::checkBrushes() {
             continue;
         }
 
-        const Vector3d bsize = m_brushBounds.getBounds(bsp, b).getSize();
+        const Vector3d bsize = m_brushBounds.bounds(bsp, static_cast<int>(i)).size();
 
-        if (kPb1.sub(bsize).length() < kEpsSize) {
+        if ((kPb1 - bsize).length() < kEpsSize) {
             b1 = static_cast<int>(i);
         }
-        if (kPb2.sub(bsize).length() < kEpsSize) {
+        if ((kPb2 - bsize).length() < kEpsSize) {
             b2 = static_cast<int>(i);
         }
-        if (kPb3.sub(bsize).length() < kEpsSize) {
+        if ((kPb3 - bsize).length() < kEpsSize) {
             b3 = static_cast<int>(i);
         }
 
@@ -163,7 +162,7 @@ void BspProtection::checkBrushSides() {
         BspLogLevel::Debug,
         QStringLiteral("Checking for nodraw brush sides (ratio limit: %1)").arg(kNodrawRatioLimit));
 
-    const BspData& bsp = m_reader.getData();
+    const BspData& bsp = m_reader.data();
     if (bsp.brushSides.empty()) {
         m_modifiedTexinfo = false;
         return;
@@ -188,11 +187,12 @@ void BspProtection::checkEntities() {
         BspLogLevel::Debug,
         QStringLiteral("Checking for entity lock key \"%1\" and obfuscated targetnames").arg(kVmexLockedEnt));
 
-    const BspData& bsp = m_reader.getData();
+    const BspData& bsp = m_reader.data();
     int targetnames = 0;
     int targetnamesObfs = 0;
 
-    for (const BspEntity& ent : bsp.entities) {
+    for (std::size_t i = 0; i < bsp.entities.size(); ++i) {
+        const BspEntity& ent = bsp.entities[i];
         if (const std::optional<QString> targetName = ent.targetName(); targetName.has_value()) {
             ++targetnames;
             if (!targetName->isEmpty()
@@ -206,7 +206,7 @@ void BspProtection::checkEntities() {
         for (const EntityKeyValue& kv : ent.keyValues()) {
             if (kv.key == kVmexLockedEnt) {
                 m_config.log(BspLogLevel::Debug, QStringLiteral("Found lock key!"));
-                m_protEntities.push_back(&ent);
+                m_protEntityIndices.insert(static_cast<int>(i));
                 m_flaggedEnt = true;
             }
         }
@@ -223,7 +223,7 @@ void BspProtection::checkTextures() {
         BspLogLevel::Debug,
         QStringLiteral("Checking for lock texture \"%1\"").arg(kVmexLockedTex));
 
-    const BspData& bsp = m_reader.getData();
+    const BspData& bsp = m_reader.data();
     for (const QString& texname : bsp.texnames) {
         if (texname.compare(kVmexLockedTex, Qt::CaseInsensitive) == 0) {
             m_config.log(BspLogLevel::Debug, QStringLiteral("Found lock texture!"));
@@ -239,13 +239,13 @@ void BspProtection::checkPakfile() {
         QStringLiteral("Checking for encrypted entities inside pakfile (file: \"%1\")").arg(kBspProtectFile));
 
     // BSPProtect currently works with Source 2007/2009 aka Orange Box only
-    if (m_reader.getBspFile().version() != 20) {
+    if (m_reader.bspFile().version() != 20) {
         m_encryptedEnt = false;
         return;
     }
 
     auto zipResult = Domain::Package::Internal::BspPakZipReader::open(
-        m_reader.getBspFile().file(),
+        m_reader.bspFile().file(),
         m_config.token);
     if (zipResult.isSuccess()) {
         if (zipResult.value().hasEntry(QStringLiteral("entities.dat"))) {
@@ -272,7 +272,7 @@ bool BspProtection::isAlignedBrush(const DBrush& brush) const {
         return false;
     }
 
-    const BspData& bsp = m_reader.getData();
+    const BspData& bsp = m_reader.data();
     if (static_cast<std::size_t>(brush.fstside) + 6 > bsp.brushSides.size()) {
         return false;
     }
@@ -298,17 +298,17 @@ bool BspProtection::isSameTexBrush(const DBrush& brush) const {
         return false;
     }
 
-    const BspData& bsp = m_reader.getData();
+    const BspData& bsp = m_reader.data();
     if (static_cast<std::size_t>(brush.fstside) + static_cast<std::size_t>(brush.numside) > bsp.brushSides.size()) {
         return false;
     }
 
     const std::vector<QString>& texnames =
-        m_isFixTextureNames ? m_texsrc.getFixedTextureNames() : bsp.texnames;
+        m_isFixTextureNames ? m_texsrc.fixedTextureNames() : bsp.texnames;
 
     const DBrushSide& firstSide = bsp.brushSides[static_cast<std::size_t>(brush.fstside)];
     const std::optional<QString> texname =
-        TextureSource::getTextureName(firstSide.texinfo, bsp.texinfos, bsp.texdatas, texnames);
+        TextureSource::textureName(firstSide.texinfo, bsp.texinfos, bsp.texdatas, texnames);
 
     if (!texname.has_value()) {
         return false;
@@ -317,7 +317,7 @@ bool BspProtection::isSameTexBrush(const DBrush& brush) const {
     for (int i = 1; i < brush.numside; ++i) {
         const DBrushSide& bs = bsp.brushSides[static_cast<std::size_t>(brush.fstside + i)];
         const std::optional<QString> nextTexname =
-            TextureSource::getTextureName(bs.texinfo, bsp.texinfos, bsp.texdatas, texnames);
+            TextureSource::textureName(bs.texinfo, bsp.texinfos, bsp.texdatas, texnames);
 
         if (!nextTexname.has_value() || texname->compare(*nextTexname, Qt::CaseInsensitive) != 0) {
             return false;

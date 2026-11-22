@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include <QSet>
 #include <QString>
 #include <QStringList>
 
@@ -41,10 +42,10 @@ public:
     bool hasObfuscatedEntities() const noexcept { return m_obfuscatedEnt; }
     bool hasModifiedTexinfo() const noexcept { return m_modifiedTexinfo; }
 
-    QStringList getProtectionMethods() const;
-    const std::vector<int>& getProtectedBrushIndices() const noexcept { return m_protBrushIndices; }
+    QStringList protectionMethods() const;
+    const std::vector<int>& protectedBrushIndices() const noexcept { return m_protBrushIndices; }
     bool isProtectedBrushIndex(int brushIndex) const noexcept;
-    bool isProtectedEntity(const BspEntity& entity) const noexcept;
+    bool isProtectedEntityIndex(int entityIndex) const noexcept;
 
 private:
     void checkBrushes();
@@ -70,7 +71,7 @@ private:
     bool m_modifiedTexinfo = false;
 
     std::vector<int> m_protBrushIndices;
-    std::vector<const BspEntity*> m_protEntities;
+    QSet<int> m_protEntityIndices;
 };
 
 } // namespace Domain::Bsp::Internal

@@ -22,6 +22,44 @@ bool needsQuotingForPreserveOrAuto(QStringView token) noexcept {
     return false;
 }
 
+bool needsQuotingForPreserveOrAutoUtf8(QByteArrayView token) {
+    if (token.isEmpty()) {
+        return true;
+    }
+    for (const char ch : token) {
+        const unsigned char uc = static_cast<unsigned char>(ch);
+        if (uc >= 0x80u) {
+            return needsQuotingForPreserveOrAuto(QString::fromUtf8(token.data(), token.size()));
+        }
+        if (uc == ' ' || uc == '\t' || uc == '\n' || uc == '\r' || uc == '\v' || uc == '\f'
+            || uc == '{' || uc == '}' || uc == '"' || uc == '/') {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool equalsUtf8(QStringView utf16, QByteArrayView utf8) {
+    if (utf16.size() == utf8.size()) {
+        for (qsizetype i = 0; i < utf8.size(); ++i) {
+            const unsigned char b = static_cast<unsigned char>(utf8[i]);
+            if (b >= 0x80u) {
+                return utf16 == QString::fromUtf8(utf8.data(), utf8.size());
+            }
+            if (utf16[i].unicode() != b) {
+                return false;
+            }
+        }
+        return true;
+    }
+    for (const char ch : utf8) {
+        if (static_cast<unsigned char>(ch) >= 0x80u) {
+            return utf16 == QString::fromUtf8(utf8.data(), utf8.size());
+        }
+    }
+    return false;
+}
+
 void appendCodePointUtf8(QByteArray& out, char32_t cp) {
     if (cp <= 0x7Fu) {
         out.append(static_cast<char>(cp));
@@ -165,6 +203,40 @@ void KeyValuesWriter::appendUtf8Escaped(QStringView text) {
     }
 }
 
+void KeyValuesWriter::appendUtf8BytesEscaped(QByteArrayView bytes) {
+    if (bytes.isEmpty()) {
+        return;
+    }
+    if (!m_options.escapeBackslashes && !m_options.escapeQuotes) {
+        m_buffer.append(bytes.data(), bytes.size());
+        return;
+    }
+
+    m_buffer.reserve(m_buffer.size() + bytes.size());
+    const char* const data = bytes.data();
+    const qsizetype len = bytes.size();
+    qsizetype spanStart = 0;
+    for (qsizetype i = 0; i < len; ++i) {
+        const char ch = data[i];
+        if (ch == '\\' && m_options.escapeBackslashes) {
+            if (i > spanStart) {
+                m_buffer.append(data + spanStart, i - spanStart);
+            }
+            m_buffer.append("\\\\", 2);
+            spanStart = i + 1;
+        } else if (ch == '"' && m_options.escapeQuotes) {
+            if (i > spanStart) {
+                m_buffer.append(data + spanStart, i - spanStart);
+            }
+            m_buffer.append("\\\"", 2);
+            spanStart = i + 1;
+        }
+    }
+    if (len > spanStart) {
+        m_buffer.append(data + spanStart, len - spanStart);
+    }
+}
+
 void KeyValuesWriter::appendToken(QStringView token, QuoteStyle style) {
     switch (style) {
     case QuoteStyle::NeverQuote:
@@ -182,6 +254,30 @@ void KeyValuesWriter::appendToken(QStringView token, QuoteStyle style) {
 
     m_buffer.append('"');
     appendUtf8Escaped(token);
+    m_buffer.append('"');
+}
+
+void KeyValuesWriter::appendTokenUtf8(QByteArrayView token, QuoteStyle style) {
+    switch (style) {
+    case QuoteStyle::NeverQuote:
+        if (!token.isEmpty()) {
+            m_buffer.append(token.data(), token.size());
+        }
+        return;
+    case QuoteStyle::PreserveOrAuto:
+        if (!needsQuotingForPreserveOrAutoUtf8(token)) {
+            if (!token.isEmpty()) {
+                m_buffer.append(token.data(), token.size());
+            }
+            return;
+        }
+        break;
+    case QuoteStyle::AlwaysQuote:
+        break;
+    }
+
+    m_buffer.append('"');
+    appendUtf8BytesEscaped(token);
     m_buffer.append('"');
 }
 
@@ -258,6 +354,53 @@ void KeyValuesWriter::writeProperty(QStringView key, QStringView value) {
     }
     appendIndent();
     appendToken(key, m_options.propertyQuoteStyle);
+    m_buffer.append(m_options.propertySeparator);
+    appendToken(value, m_options.propertyQuoteStyle);
+    m_buffer.append(m_options.newline);
+    maybeAutoFlush();
+}
+
+void KeyValuesWriter::startSectionUtf8(QByteArrayView name) {
+    if (canEmitBytes()) {
+        appendIndent();
+        appendTokenUtf8(name, m_options.sectionQuoteStyle);
+        m_buffer.append(m_options.newline);
+        appendIndent();
+        m_buffer.append('{');
+        m_buffer.append(m_options.newline);
+        maybeAutoFlush();
+    }
+    m_sectionStack.push_back(name.isEmpty() ? QString() : QString::fromUtf8(name.data(), name.size()));
+}
+
+bool KeyValuesWriter::endSectionUtf8(QByteArrayView expectedName) {
+    if (m_sectionStack.empty()) {
+        return false;
+    }
+    if (!expectedName.isEmpty() && !equalsUtf8(m_sectionStack.back(), expectedName)) {
+        return false;
+    }
+    return endSection();
+}
+
+void KeyValuesWriter::writePropertyUtf8(QByteArrayView key, QByteArrayView value) {
+    if (!canEmitBytes()) {
+        return;
+    }
+    appendIndent();
+    appendTokenUtf8(key, m_options.propertyQuoteStyle);
+    m_buffer.append(m_options.propertySeparator);
+    appendTokenUtf8(value, m_options.propertyQuoteStyle);
+    m_buffer.append(m_options.newline);
+    maybeAutoFlush();
+}
+
+void KeyValuesWriter::writePropertyUtf8(QByteArrayView key, QStringView value) {
+    if (!canEmitBytes()) {
+        return;
+    }
+    appendIndent();
+    appendTokenUtf8(key, m_options.propertyQuoteStyle);
     m_buffer.append(m_options.propertySeparator);
     appendToken(value, m_options.propertyQuoteStyle);
     m_buffer.append(m_options.newline);

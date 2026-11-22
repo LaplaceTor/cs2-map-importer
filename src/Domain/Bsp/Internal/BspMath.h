@@ -8,7 +8,6 @@
 #include <cstring>
 #include <limits>
 #include <span>
-#include <stdexcept>
 
 #include <QString>
 #include <QStringView>
@@ -28,12 +27,8 @@ struct Vector2f {
     constexpr Vector2f() noexcept = default;
     constexpr Vector2f(float xVal, float yVal) noexcept : x(xVal), y(yVal) {}
 
-    constexpr float get(int index) const noexcept {
-        return index == 0 ? x : (index == 1 ? y : 0.0f);
-    }
-
     constexpr float operator[](int index) const noexcept {
-        return get(index);
+        return index == 0 ? x : (index == 1 ? y : 0.0f);
     }
 
     constexpr Vector2f with(int index, float val) const noexcept {
@@ -43,12 +38,51 @@ struct Vector2f {
     constexpr Vector2f withX(float val) const noexcept { return Vector2f{val, y}; }
     constexpr Vector2f withY(float val) const noexcept { return Vector2f{x, val}; }
 
-    constexpr Vector2f add(float v) const noexcept { return Vector2f{x + v, y + v}; }
-    constexpr Vector2f add(const Vector2f& that) const noexcept { return Vector2f{x + that.x, y + that.y}; }
-    constexpr Vector2f sub(float v) const noexcept { return Vector2f{x - v, y - v}; }
-    constexpr Vector2f sub(const Vector2f& that) const noexcept { return Vector2f{x - that.x, y - that.y}; }
-    constexpr Vector2f scalar(float s) const noexcept { return Vector2f{x * s, y * s}; }
-    constexpr Vector2f scalar(const Vector2f& that) const noexcept { return Vector2f{x * that.x, y * that.y}; }
+    constexpr Vector2f operator-() const noexcept { return Vector2f{-x, -y}; }
+
+    constexpr Vector2f& operator+=(float v) noexcept {
+        x += v;
+        y += v;
+        return *this;
+    }
+
+    constexpr Vector2f& operator+=(const Vector2f& that) noexcept {
+        x += that.x;
+        y += that.y;
+        return *this;
+    }
+
+    constexpr Vector2f& operator-=(float v) noexcept {
+        x -= v;
+        y -= v;
+        return *this;
+    }
+
+    constexpr Vector2f& operator-=(const Vector2f& that) noexcept {
+        x -= that.x;
+        y -= that.y;
+        return *this;
+    }
+
+    constexpr Vector2f& operator*=(float s) noexcept {
+        x *= s;
+        y *= s;
+        return *this;
+    }
+
+    constexpr Vector2f& operator*=(const Vector2f& that) noexcept {
+        x *= that.x;
+        y *= that.y;
+        return *this;
+    }
+
+    friend constexpr Vector2f operator+(Vector2f lhs, float v) noexcept { return lhs += v; }
+    friend constexpr Vector2f operator+(Vector2f lhs, const Vector2f& rhs) noexcept { return lhs += rhs; }
+    friend constexpr Vector2f operator-(Vector2f lhs, float v) noexcept { return lhs -= v; }
+    friend constexpr Vector2f operator-(Vector2f lhs, const Vector2f& rhs) noexcept { return lhs -= rhs; }
+    friend constexpr Vector2f operator*(Vector2f lhs, float s) noexcept { return lhs *= s; }
+    friend constexpr Vector2f operator*(float s, const Vector2f& rhs) noexcept { return rhs * s; }
+    friend constexpr Vector2f operator*(Vector2f lhs, const Vector2f& rhs) noexcept { return lhs *= rhs; }
 
     constexpr float dot(const Vector2f& that) const noexcept { return x * that.x + y * that.y; }
     constexpr float cross(const Vector2f& that) const noexcept { return x * that.y - that.x * y; }
@@ -121,12 +155,8 @@ struct Vector3d {
     constexpr Vector3d() noexcept = default;
     constexpr Vector3d(double xVal, double yVal, double zVal) noexcept : x(xVal), y(yVal), z(zVal) {}
 
-    constexpr double get(int index) const noexcept {
-        return index == 0 ? x : (index == 1 ? y : (index == 2 ? z : 0.0));
-    }
-
     constexpr double operator[](int index) const noexcept {
-        return get(index);
+        return index == 0 ? x : (index == 1 ? y : (index == 2 ? z : 0.0));
     }
 
     constexpr Vector3d with(int index, double val) const noexcept {
@@ -167,12 +197,57 @@ struct Vector3d {
         return Vector3d{x / len, y / len, z / len};
     }
 
-    constexpr Vector3d add(double v) const noexcept { return Vector3d{x + v, y + v, z + v}; }
-    constexpr Vector3d add(const Vector3d& that) const noexcept { return Vector3d{x + that.x, y + that.y, z + that.z}; }
-    constexpr Vector3d sub(double v) const noexcept { return Vector3d{x - v, y - v, z - v}; }
-    constexpr Vector3d sub(const Vector3d& that) const noexcept { return Vector3d{x - that.x, y - that.y, z - that.z}; }
-    constexpr Vector3d scalar(double s) const noexcept { return Vector3d{x * s, y * s, z * s}; }
-    constexpr Vector3d scalar(const Vector3d& that) const noexcept { return Vector3d{x * that.x, y * that.y, z * that.z}; }
+    constexpr Vector3d operator-() const noexcept { return Vector3d{-x, -y, -z}; }
+
+    constexpr Vector3d& operator+=(double v) noexcept {
+        x += v;
+        y += v;
+        z += v;
+        return *this;
+    }
+
+    constexpr Vector3d& operator+=(const Vector3d& that) noexcept {
+        x += that.x;
+        y += that.y;
+        z += that.z;
+        return *this;
+    }
+
+    constexpr Vector3d& operator-=(double v) noexcept {
+        x -= v;
+        y -= v;
+        z -= v;
+        return *this;
+    }
+
+    constexpr Vector3d& operator-=(const Vector3d& that) noexcept {
+        x -= that.x;
+        y -= that.y;
+        z -= that.z;
+        return *this;
+    }
+
+    constexpr Vector3d& operator*=(double s) noexcept {
+        x *= s;
+        y *= s;
+        z *= s;
+        return *this;
+    }
+
+    constexpr Vector3d& operator*=(const Vector3d& that) noexcept {
+        x *= that.x;
+        y *= that.y;
+        z *= that.z;
+        return *this;
+    }
+
+    friend constexpr Vector3d operator+(Vector3d lhs, double v) noexcept { return lhs += v; }
+    friend constexpr Vector3d operator+(Vector3d lhs, const Vector3d& rhs) noexcept { return lhs += rhs; }
+    friend constexpr Vector3d operator-(Vector3d lhs, double v) noexcept { return lhs -= v; }
+    friend constexpr Vector3d operator-(Vector3d lhs, const Vector3d& rhs) noexcept { return lhs -= rhs; }
+    friend constexpr Vector3d operator*(Vector3d lhs, double s) noexcept { return lhs *= s; }
+    friend constexpr Vector3d operator*(double s, const Vector3d& rhs) noexcept { return rhs * s; }
+    friend constexpr Vector3d operator*(Vector3d lhs, const Vector3d& rhs) noexcept { return lhs *= rhs; }
 
     Vector3d min(double v) const noexcept { return Vector3d{std::min(x, v), std::min(y, v), std::min(z, v)}; }
     Vector3d min(const Vector3d& that) const noexcept {
@@ -265,12 +340,8 @@ struct Vector3f {
         return Vector3f{static_cast<float>(v.x), static_cast<float>(v.y), static_cast<float>(v.z)};
     }
 
-    constexpr float get(int index) const noexcept {
-        return index == 0 ? x : (index == 1 ? y : (index == 2 ? z : 0.0f));
-    }
-
     constexpr float operator[](int index) const noexcept {
-        return get(index);
+        return index == 0 ? x : (index == 1 ? y : (index == 2 ? z : 0.0f));
     }
 
     constexpr Vector3f with(int index, float val) const noexcept {
@@ -312,12 +383,57 @@ struct Vector3f {
         return Vector3f{x / len, y / len, z / len};
     }
 
-    constexpr Vector3f add(float v) const noexcept { return Vector3f{x + v, y + v, z + v}; }
-    constexpr Vector3f add(const Vector3f& that) const noexcept { return Vector3f{x + that.x, y + that.y, z + that.z}; }
-    constexpr Vector3f sub(float v) const noexcept { return Vector3f{x - v, y - v, z - v}; }
-    constexpr Vector3f sub(const Vector3f& that) const noexcept { return Vector3f{x - that.x, y - that.y, z - that.z}; }
-    constexpr Vector3f scalar(float s) const noexcept { return Vector3f{x * s, y * s, z * s}; }
-    constexpr Vector3f scalar(const Vector3f& that) const noexcept { return Vector3f{x * that.x, y * that.y, z * that.z}; }
+    constexpr Vector3f operator-() const noexcept { return Vector3f{-x, -y, -z}; }
+
+    constexpr Vector3f& operator+=(float v) noexcept {
+        x += v;
+        y += v;
+        z += v;
+        return *this;
+    }
+
+    constexpr Vector3f& operator+=(const Vector3f& that) noexcept {
+        x += that.x;
+        y += that.y;
+        z += that.z;
+        return *this;
+    }
+
+    constexpr Vector3f& operator-=(float v) noexcept {
+        x -= v;
+        y -= v;
+        z -= v;
+        return *this;
+    }
+
+    constexpr Vector3f& operator-=(const Vector3f& that) noexcept {
+        x -= that.x;
+        y -= that.y;
+        z -= that.z;
+        return *this;
+    }
+
+    constexpr Vector3f& operator*=(float s) noexcept {
+        x *= s;
+        y *= s;
+        z *= s;
+        return *this;
+    }
+
+    constexpr Vector3f& operator*=(const Vector3f& that) noexcept {
+        x *= that.x;
+        y *= that.y;
+        z *= that.z;
+        return *this;
+    }
+
+    friend constexpr Vector3f operator+(Vector3f lhs, float v) noexcept { return lhs += v; }
+    friend constexpr Vector3f operator+(Vector3f lhs, const Vector3f& rhs) noexcept { return lhs += rhs; }
+    friend constexpr Vector3f operator-(Vector3f lhs, float v) noexcept { return lhs -= v; }
+    friend constexpr Vector3f operator-(Vector3f lhs, const Vector3f& rhs) noexcept { return lhs -= rhs; }
+    friend constexpr Vector3f operator*(Vector3f lhs, float s) noexcept { return lhs *= s; }
+    friend constexpr Vector3f operator*(float s, const Vector3f& rhs) noexcept { return rhs * s; }
+    friend constexpr Vector3f operator*(Vector3f lhs, const Vector3f& rhs) noexcept { return lhs *= rhs; }
 
     Vector3f min(float v) const noexcept { return Vector3f{std::min(x, v), std::min(y, v), std::min(z, v)}; }
     Vector3f min(const Vector3f& that) const noexcept {
@@ -363,7 +479,7 @@ struct Vector3f {
     }
 
     constexpr Vector2f projectOnPlane(const Vector3f& origin, const Vector3f& axis1, const Vector3f& axis2) const noexcept {
-        const Vector3f delta = sub(origin);
+        const Vector3f delta = *this - origin;
         return Vector2f{axis1.dot(delta), axis2.dot(delta)};
     }
 
@@ -404,7 +520,7 @@ struct Vector4f {
     constexpr Vector4f(float xVal, float yVal, float zVal, float wVal) noexcept
         : x(xVal), y(yVal), z(zVal), w(wVal) {}
 
-    constexpr float get(int index) const noexcept {
+    constexpr float operator[](int index) const noexcept {
         switch (index) {
         case 0: return x;
         case 1: return y;
@@ -412,10 +528,6 @@ struct Vector4f {
         case 3: return w;
         default: return 0.0f;
         }
-    }
-
-    constexpr float operator[](int index) const noexcept {
-        return get(index);
     }
 
     constexpr Vector4f withX(float val) const noexcept { return Vector4f{val, y, z, w}; }
@@ -454,9 +566,7 @@ struct AABB {
     constexpr AABB() noexcept = default;
     constexpr AABB(const Vector3d& mins, const Vector3d& maxs) noexcept : min(mins), max(maxs) {}
 
-    constexpr Vector3d getMin() const noexcept { return min; }
-    constexpr Vector3d getMax() const noexcept { return max; }
-    constexpr Vector3d getSize() const noexcept { return max.sub(min); }
+    constexpr Vector3d size() const noexcept { return max - min; }
 
     AABB include(const AABB& that) const noexcept {
         return AABB{min.min(that.min), max.max(that.max)};
@@ -467,7 +577,7 @@ struct AABB {
     }
 
     constexpr AABB expand(const Vector3d& v) const noexcept {
-        return AABB{min.sub(v), max.add(v)};
+        return AABB{min - v, max + v};
     }
 
     constexpr bool intersectsWith(const AABB& that) const noexcept {
@@ -569,42 +679,75 @@ public:
 
     std::size_t position() const noexcept { return m_pos; }
 
-    void setPosition(std::size_t pos) {
+    bool setPosition(std::size_t pos) noexcept {
+        if (m_hasError) {
+            return false;
+        }
         if (pos > m_data.size()) {
-            throw std::out_of_range("BinarySpanReader::setPosition out of bounds");
+            fail(QStringLiteral("BinarySpanReader::setPosition out of bounds"));
+            m_pos = m_data.size();
+            return false;
         }
         m_pos = pos;
+        return true;
     }
 
-    void seek(std::ptrdiff_t offset) {
-        const std::ptrdiff_t next = static_cast<std::ptrdiff_t>(m_pos) + offset;
-        if (next < 0 || static_cast<std::size_t>(next) > m_data.size()) {
-            throw std::out_of_range("BinarySpanReader::seek out of bounds");
+    bool seek(std::ptrdiff_t offset) noexcept {
+        if (m_hasError) {
+            return false;
         }
-        m_pos = static_cast<std::size_t>(next);
+        if (offset < 0) {
+            const auto absOffset = static_cast<std::size_t>(-(offset + 1)) + 1U;
+            if (absOffset > m_pos) {
+                fail(QStringLiteral("BinarySpanReader::seek out of bounds"));
+                m_pos = m_data.size();
+                return false;
+            }
+            m_pos -= absOffset;
+            return true;
+        }
+        const auto posOffset = static_cast<std::size_t>(offset);
+        if (posOffset > remaining()) {
+            fail(QStringLiteral("BinarySpanReader::seek out of bounds"));
+            m_pos = m_data.size();
+            return false;
+        }
+        m_pos += posOffset;
+        return true;
     }
 
     std::size_t remaining() const noexcept { return m_data.size() - m_pos; }
-    bool hasRemaining() const noexcept { return m_pos < m_data.size(); }
+    bool hasRemaining() const noexcept { return !m_hasError && m_pos < m_data.size(); }
     std::size_t size() const noexcept { return m_data.size(); }
     bool isBigEndian() const noexcept { return m_bigEndian; }
     void setBigEndian(bool bigEndian) noexcept { m_bigEndian = bigEndian; }
 
-    std::int8_t readInt8() {
+    bool hasError() const noexcept { return m_hasError; }
+    const QString& errorMessage() const noexcept { return m_errorMessage; }
+    void clearError() noexcept {
+        m_hasError = false;
+        m_errorMessage.clear();
+    }
+
+    std::int8_t readInt8() noexcept {
         return static_cast<std::int8_t>(readUInt8());
     }
 
-    std::uint8_t readUInt8() {
-        ensureAvailable(1);
+    std::uint8_t readUInt8() noexcept {
+        if (!ensureAvailable(1)) {
+            return 0;
+        }
         return std::to_integer<std::uint8_t>(m_data[m_pos++]);
     }
 
-    std::int16_t readInt16() {
+    std::int16_t readInt16() noexcept {
         return static_cast<std::int16_t>(readUInt16());
     }
 
-    std::uint16_t readUInt16() {
-        ensureAvailable(2);
+    std::uint16_t readUInt16() noexcept {
+        if (!ensureAvailable(2)) {
+            return 0;
+        }
         const std::uint16_t b0 = std::to_integer<std::uint16_t>(m_data[m_pos]);
         const std::uint16_t b1 = std::to_integer<std::uint16_t>(m_data[m_pos + 1]);
         m_pos += 2;
@@ -614,12 +757,14 @@ public:
         return static_cast<std::uint16_t>(b0 | (b1 << 8));
     }
 
-    std::int32_t readInt32() {
+    std::int32_t readInt32() noexcept {
         return static_cast<std::int32_t>(readUInt32());
     }
 
-    std::uint32_t readUInt32() {
-        ensureAvailable(4);
+    std::uint32_t readUInt32() noexcept {
+        if (!ensureAvailable(4)) {
+            return 0;
+        }
         const std::uint32_t b0 = std::to_integer<std::uint32_t>(m_data[m_pos]);
         const std::uint32_t b1 = std::to_integer<std::uint32_t>(m_data[m_pos + 1]);
         const std::uint32_t b2 = std::to_integer<std::uint32_t>(m_data[m_pos + 2]);
@@ -631,12 +776,14 @@ public:
         return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
     }
 
-    std::int64_t readInt64() {
+    std::int64_t readInt64() noexcept {
         return static_cast<std::int64_t>(readUInt64());
     }
 
-    std::uint64_t readUInt64() {
-        ensureAvailable(8);
+    std::uint64_t readUInt64() noexcept {
+        if (!ensureAvailable(8)) {
+            return 0;
+        }
         std::uint64_t val = 0;
         if (m_bigEndian) {
             for (std::size_t i = 0; i < 8; ++i) {
@@ -651,12 +798,17 @@ public:
         return val;
     }
 
-    float readFloat() {
+    float readFloat() noexcept {
+        if (!ensureAvailable(4)) {
+            return 0.0f;
+        }
         return std::bit_cast<float>(readUInt32());
     }
 
-    std::span<const std::byte> readBytes(std::size_t count) {
-        ensureAvailable(count);
+    std::span<const std::byte> readBytes(std::size_t count) noexcept {
+        if (!ensureAvailable(count)) {
+            return {};
+        }
         auto slice = m_data.subspan(m_pos, count);
         m_pos += count;
         return slice;
@@ -664,6 +816,9 @@ public:
 
     QString readStringFixed(std::size_t length) {
         auto bytes = readBytes(length);
+        if (bytes.empty()) {
+            return {};
+        }
         std::size_t len = 0;
         while (len < bytes.size() && bytes[len] != std::byte{0}) {
             ++len;
@@ -672,6 +827,9 @@ public:
     }
 
     QString readStringNullTerminated(std::size_t maxLen = 4096) {
+        if (m_hasError) {
+            return {};
+        }
         const std::size_t avail = remaining();
         const std::size_t limit = std::min(avail, maxLen);
         std::size_t len = 0;
@@ -688,21 +846,30 @@ public:
         return result;
     }
 
-    Vector3f readVector3f() {
+    Vector3f readVector3f() noexcept {
+        if (!ensureAvailable(12)) {
+            return {};
+        }
         const float x = readFloat();
         const float y = readFloat();
         const float z = readFloat();
         return Vector3f{x, y, z};
     }
 
-    Vector3f readVector3iAsFloat() {
+    Vector3f readVector3iAsFloat() noexcept {
+        if (!ensureAvailable(12)) {
+            return {};
+        }
         const std::int32_t x = readInt32();
         const std::int32_t y = readInt32();
         const std::int32_t z = readInt32();
         return Vector3f{static_cast<float>(x), static_cast<float>(y), static_cast<float>(z)};
     }
 
-    Vector4f readVector4f() {
+    Vector4f readVector4f() noexcept {
+        if (!ensureAvailable(16)) {
+            return {};
+        }
         const float x = readFloat();
         const float y = readFloat();
         const float z = readFloat();
@@ -711,15 +878,30 @@ public:
     }
 
 private:
-    void ensureAvailable(std::size_t count) const {
-        if (count > remaining()) {
-            throw std::out_of_range("BinarySpanReader: unexpected end of buffer");
+    void fail(const QString& message) noexcept {
+        if (!m_hasError) {
+            m_hasError = true;
+            m_errorMessage = message;
         }
+    }
+
+    bool ensureAvailable(std::size_t count) noexcept {
+        if (m_hasError) {
+            return false;
+        }
+        if (count > remaining()) {
+            fail(QStringLiteral("BinarySpanReader: unexpected end of buffer"));
+            m_pos = m_data.size();
+            return false;
+        }
+        return true;
     }
 
     std::span<const std::byte> m_data;
     std::size_t m_pos = 0;
     bool m_bigEndian = false;
+    bool m_hasError = false;
+    QString m_errorMessage;
 };
 
 } // namespace Domain::Bsp::Internal
