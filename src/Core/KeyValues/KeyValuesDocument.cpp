@@ -1,7 +1,5 @@
 #include <QCoreApplication>
 #include "Core/KeyValues/KeyValuesDocument.h"
-#include "Core/KeyValues/KeyValuesParser.h"
-#include "Core/KeyValues/KeyValuesWriter.h"
 #include "Core/FileSystem/FileSystem.h"
 #include "Core/FileSystem/AtomicFile.h"
 #include "Core/Error/Exception.h"
@@ -18,9 +16,9 @@ KeyValuesDocument::KeyValuesDocument(KeyValuesNode rootNode)
     : m_root(std::move(rootNode)) {
 }
 
-KeyValuesDocument KeyValuesDocument::fromFile(const Path::FilesystemPath& path) {
+KeyValuesDocument KeyValuesDocument::fromFile(const Path::FilesystemPath& path, KeyValuesReadOptions options) {
     KeyValuesDocument doc;
-    auto res = doc.loadFromFile(path);
+    auto res = doc.loadFromFile(path, options);
     if (!res.isSuccess()) {
         throw Error::Exception(
             res.error().code(),
@@ -31,9 +29,9 @@ KeyValuesDocument KeyValuesDocument::fromFile(const Path::FilesystemPath& path) 
     return doc;
 }
 
-KeyValuesDocument KeyValuesDocument::fromString(const QString& content) {
+KeyValuesDocument KeyValuesDocument::fromString(const QString& content, KeyValuesReadOptions options) {
     KeyValuesDocument doc;
-    auto res = doc.loadFromString(content);
+    auto res = doc.loadFromString(content, options);
     if (!res.isSuccess()) {
         throw Error::Exception(
             res.error().code(),
@@ -43,11 +41,19 @@ KeyValuesDocument KeyValuesDocument::fromString(const QString& content) {
     return doc;
 }
 
-KeyValuesDocument KeyValuesDocument::fromData(const QByteArray& data) {
-    return fromString(QString::fromUtf8(data));
+KeyValuesDocument KeyValuesDocument::fromData(const QByteArray& data, KeyValuesReadOptions options) {
+    KeyValuesDocument doc;
+    auto res = doc.loadFromData(data, options);
+    if (!res.isSuccess()) {
+        throw Error::Exception(
+            res.error().code(),
+            QCoreApplication::translate("KeyValuesDocument", "Failed to parse KeyValues data: %1").arg(res.message()),
+            res.details());
+    }
+    return doc;
 }
 
-Core::Result<void> KeyValuesDocument::loadFromFile(const Path::FilesystemPath& path) {
+Core::Result<void> KeyValuesDocument::loadFromFile(const Path::FilesystemPath& path, KeyValuesReadOptions options) {
     if (!path.isValid() || path.isEmpty()) {
         return Core::Result<void>::failure(
             Core::Error::ErrorCode::InvalidPath,
@@ -63,7 +69,7 @@ Core::Result<void> KeyValuesDocument::loadFromFile(const Path::FilesystemPath& p
 
     try {
         const QByteArray data = FileSystem::FileSystem::readAll(path.toString());
-        return loadFromData(data);
+        return loadFromData(data, options);
     } catch (const Error::Exception& e) {
         return Core::Result<void>::failure(e.error());
     } catch (const std::exception& e) {
@@ -73,20 +79,21 @@ Core::Result<void> KeyValuesDocument::loadFromFile(const Path::FilesystemPath& p
     }
 }
 
-Core::Result<void> KeyValuesDocument::loadFromString(const QString& content) {
-    KeyValuesParser parser;
-    return parser.parse(content, m_root);
+Core::Result<void> KeyValuesDocument::loadFromString(const QString& content, KeyValuesReadOptions options) {
+    KeyValuesReader reader(content, options);
+    return reader.readDocument(m_root);
 }
 
-Core::Result<void> KeyValuesDocument::loadFromData(const QByteArray& data) {
-    return loadFromString(QString::fromUtf8(data));
+Core::Result<void> KeyValuesDocument::loadFromData(const QByteArray& data, KeyValuesReadOptions options) {
+    KeyValuesReader reader(data, options);
+    return reader.readDocument(m_root);
 }
 
 Core::Result<void> KeyValuesDocument::saveToFile(
     const Path::FilesystemPath& path,
-    const Path::FilesystemPath& expectedBaseDir) const {
-    const QString text = saveToString();
-    const QByteArray data = text.toUtf8();
+    const Path::FilesystemPath& expectedBaseDir,
+    const KeyValuesWriter::Options& options) const {
+    const QByteArray data = saveToData(options);
     try {
         FileSystem::AtomicFile::writeAtomic(path.toString(), data, expectedBaseDir);
         return Core::Result<void>::success();
@@ -99,12 +106,12 @@ Core::Result<void> KeyValuesDocument::saveToFile(
     }
 }
 
-QString KeyValuesDocument::saveToString() const {
-    return KeyValuesWriter::toString(m_root);
+QString KeyValuesDocument::saveToString(const KeyValuesWriter::Options& options) const {
+    return KeyValuesWriter::toString(m_root, options);
 }
 
-QByteArray KeyValuesDocument::saveToData() const {
-    return saveToString().toUtf8();
+QByteArray KeyValuesDocument::saveToData(const KeyValuesWriter::Options& options) const {
+    return KeyValuesWriter::toUtf8(m_root, options);
 }
 
 const KeyValuesNode* KeyValuesDocument::findChild(const QString& name, Qt::CaseSensitivity cs) const {

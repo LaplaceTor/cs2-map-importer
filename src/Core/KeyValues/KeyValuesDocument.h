@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Core/KeyValues/KeyValuesNode.h"
+#include "Core/KeyValues/KeyValuesReader.h"
+#include "Core/KeyValues/KeyValuesWriter.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
 #include <QString>
@@ -21,21 +23,22 @@ public:
     explicit KeyValuesDocument(KeyValuesNode rootNode);
 
     // Factory methods
-    static KeyValuesDocument fromFile(const Path::FilesystemPath& path);
-    static KeyValuesDocument fromString(const QString& content);
-    static KeyValuesDocument fromData(const QByteArray& data);
+    static KeyValuesDocument fromFile(const Path::FilesystemPath& path, KeyValuesReadOptions options = {});
+    static KeyValuesDocument fromString(const QString& content, KeyValuesReadOptions options = {});
+    static KeyValuesDocument fromData(const QByteArray& data, KeyValuesReadOptions options = {});
 
     // Load methods returning Result<void>
-    Core::Result<void> loadFromFile(const Path::FilesystemPath& path);
-    Core::Result<void> loadFromString(const QString& content);
-    Core::Result<void> loadFromData(const QByteArray& data);
+    Core::Result<void> loadFromFile(const Path::FilesystemPath& path, KeyValuesReadOptions options = {});
+    Core::Result<void> loadFromString(const QString& content, KeyValuesReadOptions options = {});
+    Core::Result<void> loadFromData(const QByteArray& data, KeyValuesReadOptions options = {});
 
     // Save methods returning Result<void>
     Core::Result<void> saveToFile(
         const Path::FilesystemPath& path,
-        const Path::FilesystemPath& expectedBaseDir = {}) const;
-    QString saveToString() const;
-    QByteArray saveToData() const;
+        const Path::FilesystemPath& expectedBaseDir = {},
+        const KeyValuesWriter::Options& options = {}) const;
+    QString saveToString(const KeyValuesWriter::Options& options = {}) const;
+    QByteArray saveToData(const KeyValuesWriter::Options& options = {}) const;
 
     // Root node access
     KeyValuesNode& root() noexcept { return m_root; }

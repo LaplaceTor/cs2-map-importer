@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "Core/KeyValues/KeyValuesWriter.h"
 #include "Domain/Bsp/BspDecompileConfig.h"
 #include "Domain/Bsp/Internal/BspMath.h"
 #include "Domain/Bsp/Internal/BspStructs.h"
@@ -70,8 +71,6 @@ public:
 
 private:
     void putBool(QStringView key, bool value);
-    void appendIndent();
-    void appendUtf8(QStringView text);
     void logWarning(const QString& message) const;
 
     QString formatVector3d(const Vector3d& v, int p) const;
@@ -81,11 +80,9 @@ private:
     int m_doubleScale = 8;
     int m_doubleScaleTextureAxes = 4;
     int m_doubleScaleTextureScale = 4;
-    bool m_nullOutput = false;
     const BspDecompileConfig* m_config = nullptr;
 
-    QByteArray m_buffer;
-    std::vector<QString> m_section;
+    Core::KeyValues::KeyValuesWriter m_kvWriter;
 };
 
 /**

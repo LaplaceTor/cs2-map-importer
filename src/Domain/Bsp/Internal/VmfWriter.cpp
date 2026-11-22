@@ -44,27 +44,9 @@ VmfWriter::VmfWriter(
     : m_doubleScale(doubleScale)
     , m_doubleScaleTextureAxes(doubleScaleTextureAxes)
     , m_doubleScaleTextureScale(doubleScaleTextureScale)
-    , m_nullOutput(nullOutput)
     , m_config(config)
+    , m_kvWriter(Core::KeyValues::KeyValuesWriter::Options::vmf(nullOutput))
 {
-}
-
-void VmfWriter::appendIndent()
-{
-    if (m_nullOutput) {
-        return;
-    }
-    for (std::size_t i = 0; i < m_section.size(); ++i) {
-        m_buffer.append('\t');
-    }
-}
-
-void VmfWriter::appendUtf8(QStringView text)
-{
-    if (m_nullOutput || text.isEmpty()) {
-        return;
-    }
-    m_buffer.append(text.toUtf8());
 }
 
 void VmfWriter::logWarning(const QString& message) const
@@ -76,48 +58,26 @@ void VmfWriter::logWarning(const QString& message) const
 
 void VmfWriter::start(QStringView name)
 {
-    if (!m_nullOutput) {
-        appendIndent();
-        appendUtf8(name);
-        m_buffer.append("\r\n");
-        appendIndent();
-        m_buffer.append("{\r\n");
-    }
-    m_section.push_back(name.toString());
+    m_kvWriter.startSection(name);
 }
 
 void VmfWriter::end(QStringView name)
 {
-    if (m_section.empty()) {
+    const auto& open = m_kvWriter.openSections();
+    if (open.empty()) {
         logWarning(QStringLiteral("VmfWriter::end('%1'): no open sections left").arg(name.toString()));
         return;
     }
 
-    const QString& top = m_section.back();
-    if (top != name) {
+    if ((name.isEmpty() && !open.back().isEmpty()) || !m_kvWriter.endSection(name)) {
         logWarning(QStringLiteral("VMF section end name mismatch. Expected: '%1', got '%2'")
-                       .arg(name.toString(), top));
-        return;
-    }
-
-    m_section.pop_back();
-    if (!m_nullOutput) {
-        appendIndent();
-        m_buffer.append("}\r\n");
+                       .arg(name.toString(), open.back()));
     }
 }
 
 void VmfWriter::put(QStringView key, QStringView value)
 {
-    if (m_nullOutput) {
-        return;
-    }
-    appendIndent();
-    m_buffer.append('"');
-    appendUtf8(key);
-    m_buffer.append("\" \"");
-    appendUtf8(value);
-    m_buffer.append("\"\r\n");
+    m_kvWriter.writeProperty(key, value);
 }
 
 void VmfWriter::put(QStringView key, QLatin1StringView value)
@@ -207,20 +167,19 @@ void VmfWriter::put(const EntityKeyValue& kv)
 
 QByteArray VmfWriter::finish()
 {
-    if (!m_section.empty()) {
+    const auto& open = m_kvWriter.openSections();
+    if (!open.empty()) {
         QString stackState;
-        for (std::size_t i = 0; i < m_section.size(); ++i) {
+        for (std::size_t i = 0; i < open.size(); ++i) {
             if (i > 0) {
                 stackState += QStringLiteral(" -> ");
             }
-            stackState += m_section[i];
+            stackState += open[i];
         }
         logWarning(QStringLiteral("Unclosed VMF chunk: %1").arg(stackState));
     }
 
-    QByteArray out = std::move(m_buffer);
-    m_buffer.clear();
-    return out;
+    return m_kvWriter.finish();
 }
 
 QString VmfWriter::formatVector3d(const Vector3d& v, int p) const

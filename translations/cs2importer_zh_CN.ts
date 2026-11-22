@@ -399,8 +399,8 @@
         <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="235"/>
         <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="260"/>
         <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="294"/>
-        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="354"/>
-        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="374"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="364"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="384"/>
         <source>BSP decompilation cancelled</source>
         <translation type="unfinished"></translation>
     </message>
@@ -410,7 +410,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="360"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="370"/>
         <source>Output VMF path is empty or invalid</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1859,22 +1859,27 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
 <context>
     <name>KeyValuesDocument</name>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="27"/>
+        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="25"/>
         <source>Failed to load KeyValues document from %1: %2</source>
         <translation>从 %1 加载 KeyValues 文档失败：%2</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="40"/>
+        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="38"/>
         <source>Failed to parse KeyValues string: %1</source>
         <translation>解析 KeyValues 字符串失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="54"/>
+        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="50"/>
+        <source>Failed to parse KeyValues data: %1</source>
+        <translation>解析 KeyValues 数据失败：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="60"/>
         <source>Path is empty or invalid</source>
         <translation>路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="60"/>
+        <location filename="../src/Core/KeyValues/KeyValuesDocument.cpp" line="66"/>
         <source>File does not exist</source>
         <translation>文件不存在</translation>
     </message>
@@ -1882,39 +1887,108 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
 <context>
     <name>KeyValuesParser</name>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesParser.cpp" line="26"/>
         <source>Unexpected &apos;}&apos; at top level</source>
-        <translation>顶层出现意外的 &apos;}&apos;</translation>
+        <translation type="vanished">顶层出现意外的 &apos;}&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesParser.cpp" line="33"/>
         <source>Unexpected &apos;{&apos; without a preceding key</source>
-        <translation>出现意外的 &apos;{&apos;（缺少前置键名）</translation>
+        <translation type="vanished">出现意外的 &apos;{&apos;（缺少前置键名）</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesParser.cpp" line="52"/>
         <source>KeyValues parsing failed: %1</source>
-        <translation>KeyValues 解析失败：%1</translation>
+        <translation type="vanished">KeyValues 解析失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesParser.cpp" line="63"/>
         <source>Expected string token for key</source>
-        <translation>键名应为字符串标记</translation>
+        <translation type="vanished">键名应为字符串标记</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesParser.cpp" line="100"/>
         <source>Unexpected &apos;{&apos; inside section</source>
-        <translation>节内部出现意外的 &apos;{&apos;</translation>
+        <translation type="vanished">节内部出现意外的 &apos;{&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesParser.cpp" line="116"/>
+        <source>Unclosed &apos;{&apos; block (reached EOF)</source>
+        <translation type="vanished">未闭合的 &apos;{&apos; 块（已到文件末尾）</translation>
+    </message>
+    <message>
+        <source>Unexpected token</source>
+        <translation type="vanished">意外的标记</translation>
+    </message>
+</context>
+<context>
+    <name>KeyValuesReader</name>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="39"/>
+        <source>Failed to read KeyValues input stream</source>
+        <translation>读取 KeyValues 输入流失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="59"/>
         <source>Unclosed &apos;{&apos; block (reached EOF)</source>
         <translation>未闭合的 &apos;{&apos; 块（已到文件末尾）</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesParser.cpp" line="145"/>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="79"/>
+        <source>Unexpected &apos;}&apos; at top level</source>
+        <translation>顶层出现意外的 &apos;}&apos;</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="96"/>
+        <source>Unexpected &apos;{&apos; without a preceding key</source>
+        <translation>出现意外的 &apos;{&apos;（缺少前置键名）</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="101"/>
+        <source>Unexpected &apos;{&apos; inside section</source>
+        <translation>节内部出现意外的 &apos;{&apos;</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="113"/>
+        <source>Expected string token for key</source>
+        <translation>键名应为字符串标记</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="182"/>
         <source>Unexpected token</source>
         <translation>意外的标记</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="190"/>
+        <source>readSubtree() requires currentEvent() to be BeginSection</source>
+        <translation>readSubtree() 要求 currentEvent() 为 BeginSection</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="221"/>
+        <source>Unexpected end of document while reading subtree</source>
+        <translation>读取子树时意外到达文档末尾</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="230"/>
+        <source>skipCurrentSection() requires currentEvent() to be BeginSection</source>
+        <translation>skipCurrentSection() 要求 currentEvent() 为 BeginSection</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="273"/>
+        <source>Unexpected event at document root</source>
+        <translation>文档根层级出现意外事件</translation>
+    </message>
+</context>
+<context>
+    <name>KeyValuesWriter</name>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesWriter.cpp" line="68"/>
+        <source>Output device is null</source>
+        <translation>输出设备为空</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesWriter.cpp" line="73"/>
+        <source>Output device is not open for writing</source>
+        <translation>输出设备未以可写模式打开</translation>
+    </message>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesWriter.cpp" line="207"/>
+        <source>Failed to write KeyValues output to device</source>
+        <translation>向设备写入 KeyValues 输出失败</translation>
     </message>
 </context>
 <context>
@@ -3605,12 +3679,12 @@ Do you want to proceed?</source>
 <context>
     <name>SoundscapeParser</name>
     <message>
-        <location filename="../src/Domain/Audio/SoundscapeParser.cpp" line="29"/>
+        <location filename="../src/Domain/Audio/SoundscapeParser.cpp" line="28"/>
         <source>Failed to parse Soundscape VDF content</source>
         <translation>解析 Soundscape VDF 内容失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Audio/SoundscapeParser.cpp" line="39"/>
+        <location filename="../src/Domain/Audio/SoundscapeParser.cpp" line="38"/>
         <source>Failed to load Soundscape file</source>
         <translation>加载 Soundscape 文件失败</translation>
     </message>

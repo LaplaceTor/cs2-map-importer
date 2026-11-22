@@ -20,8 +20,8 @@ qt_add_library(cs2importer_core STATIC
     KeyValues/KeyValuesNode.cpp
     KeyValues/KeyValuesLexer.h
     KeyValues/KeyValuesLexer.cpp
-    KeyValues/KeyValuesParser.h
-    KeyValues/KeyValuesParser.cpp
+    KeyValues/KeyValuesReader.h
+    KeyValues/KeyValuesReader.cpp
     KeyValues/KeyValuesWriter.h
     KeyValues/KeyValuesWriter.cpp
     KeyValues/KeyValuesDocument.h
