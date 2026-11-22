@@ -361,6 +361,61 @@
     </message>
 </context>
 <context>
+    <name>BspDecompileWorkflow</name>
+    <message>
+        <location filename="../src/Workflow/Common/BspDecompileWorkflow.cpp" line="48"/>
+        <source>Decompiling BSP &apos;%1&apos; to &apos;%2&apos;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Common/BspDecompileWorkflow.cpp" line="62"/>
+        <source>Decompiled protected BSP &apos;%1&apos; (v%2, %3, methods: %4) to &apos;%5&apos;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Common/BspDecompileWorkflow.cpp" line="71"/>
+        <source>Decompiled BSP &apos;%1&apos; (v%2, %3) to &apos;%4&apos;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Common/BspDecompileWorkflow.cpp" line="79"/>
+        <source>BSP decompilation cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Common/BspDecompileWorkflow.cpp" line="81"/>
+        <source>Failed to decompile BSP &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>BspDecompiler</name>
+    <message>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="44"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="78"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="116"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="124"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="174"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="235"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="260"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="294"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="354"/>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="374"/>
+        <source>BSP decompilation cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="50"/>
+        <source>Input BSP path is empty or invalid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/BspDecompiler.cpp" line="360"/>
+        <source>Output VMF path is empty or invalid</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>BspEmbeddedExtractor</name>
     <message>
         <source>BSP file path is empty or invalid</source>
@@ -395,6 +450,64 @@
     </message>
 </context>
 <context>
+    <name>BspFile</name>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="93"/>
+        <source>Failed to open file for reading</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="101"/>
+        <source>File size exceeds safety limit</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="114"/>
+        <source>Failed to read file contents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1162"/>
+        <source>BSP loading cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1167"/>
+        <source>BSP file path is empty or invalid</source>
+        <translation type="unfinished">BSP 文件路径为空或无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1172"/>
+        <source>BSP file not found</source>
+        <translation type="unfinished">未找到 BSP 文件</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1185"/>
+        <source>Invalid or missing BSP header</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1193"/>
+        <source>Loaded file is a ZIP archive, not a BSP file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1200"/>
+        <source>BSP file is shorter than minimum header size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1223"/>
+        <source>The GoldSrc BSP format is not supported</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="1245"/>
+        <source>Unknown BSP file signature</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>BspPackExtractor</name>
     <message>
         <source>BSP file path is empty or invalid</source>
@@ -405,14 +518,14 @@
         <translation type="vanished">未找到 BSP 文件</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="31"/>
+        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="60"/>
         <source>destination directory is empty or invalid</source>
         <translation>目标目录为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="26"/>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="54"/>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="161"/>
+        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="55"/>
+        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="83"/>
+        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="204"/>
         <source>BSP embedded file extraction cancelled</source>
         <translation>BSP 内嵌文件提取已取消</translation>
     </message>
@@ -421,7 +534,7 @@
         <translation type="vanished">BSP 文件加载失败或签名无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="49"/>
+        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="78"/>
         <source>BSP contains no embedded files</source>
         <translation>BSP 不包含任何内嵌文件</translation>
     </message>
@@ -646,6 +759,96 @@
         <location filename="../src/Core/FileSystem/DirectorySnapshot.cpp" line="56"/>
         <source>Cannot compare DirectorySnapshots from different root directories: &apos;%1&apos; vs &apos;%2&apos;</source>
         <translation>无法比较来自不同根目录的目录快照：&apos;%1&apos; 与 &apos;%2&apos;</translation>
+    </message>
+</context>
+<context>
+    <name>Domain::Bsp::Internal::AreaportalMapper</name>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspMappers.cpp" line="619"/>
+        <source>Could not reallocate brush for portalKey %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspMappers.cpp" line="644"/>
+        <source>Invalid areaportals, map was probably compiled with errors! Errors should be expected</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Domain::Bsp::Internal::BspProtection</name>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspProtection.cpp" line="77"/>
+        <source>VMEX entity flag (no_decomp)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspProtection.cpp" line="82"/>
+        <source>VMEX texture flag (tools/locked)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspProtection.cpp" line="87"/>
+        <source>VMEX protector brush flag</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspProtection.cpp" line="92"/>
+        <source>BSPProtect entity encryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspProtection.cpp" line="97"/>
+        <source>IID entity obfuscation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspProtection.cpp" line="102"/>
+        <source>IID nodraw texture hack</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspProtection.cpp" line="261"/>
+        <source>Couldn&apos;t read pakfile: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Domain::Bsp::Internal::OccluderMapper</name>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspMappers.cpp" line="811"/>
+        <source>Couldn&apos;t reallocate side %1 of occluder %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspMappers.cpp" line="860"/>
+        <source>Couldn&apos;t reallocate side %1 of occluder %2, because reallocated brush belongs to different occluder %3</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Domain::Bsp::Internal::TextureBuilder</name>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/TextureSource.cpp" line="381"/>
+        <source>Invalid texinfo index: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/TextureSource.cpp" line="395"/>
+        <source>Invalid texdata index: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/TextureSource.cpp" line="409"/>
+        <source>Invalid texname index: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>Domain::Bsp::Internal::TextureSource</name>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/TextureSource.cpp" line="585"/>
+        <source>Error parsing cubemap position from regex, input: %1</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2370,6 +2573,54 @@ Do you want to proceed?</source>
     </message>
 </context>
 <context>
+    <name>NmoFileParser</name>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2679"/>
+        <source>NMO file path is empty or invalid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2684"/>
+        <source>NMO file not found</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2701"/>
+        <source>Invalid NMO file signature</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2707"/>
+        <source>Unsupported NMO file version: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2717"/>
+        <source>Corrupted NMO section counts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2734"/>
+        <source>Corrupted NMO objective entity count</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2750"/>
+        <source>Corrupted NMO objective children count</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2774"/>
+        <source>Corrupted NMO anti-objective entity count</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Bsp/Internal/BspFileReader.cpp" line="2812"/>
+        <source>NMOS output path is empty or invalid</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>NormalGenerator</name>
     <message>
         <location filename="../src/Domain/Material/TextureProcess/NormalGenerator.cpp" line="42"/>
@@ -2442,7 +2693,7 @@ Do you want to proceed?</source>
         <location filename="../src/Domain/Package/PackArchive.cpp" line="583"/>
         <location filename="../src/Domain/Package/PackArchive.cpp" line="618"/>
         <location filename="../src/Domain/Package/PackArchive.cpp" line="660"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="764"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="758"/>
         <source>pack archive is not open</source>
         <translation>打包归档未打开</translation>
     </message>
@@ -2471,17 +2722,17 @@ Do you want to proceed?</source>
         <translation>在打包归档中未找到该条目</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="201"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="195"/>
         <source>failed to open pack archive volume</source>
         <translation>打开打包归档分卷失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="211"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="205"/>
         <source>pack entry range exceeds archive bounds</source>
         <translation>打包条目范围超出归档边界</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="218"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="212"/>
         <source>failed to seek pack archive entry</source>
         <translation>定位打包归档条目失败</translation>
     </message>
@@ -2494,8 +2745,8 @@ Do you want to proceed?</source>
         <location filename="../src/Domain/Package/PackArchive.cpp" line="655"/>
         <location filename="../src/Domain/Package/PackArchive.cpp" line="686"/>
         <location filename="../src/Domain/Package/PackArchive.cpp" line="728"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="759"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="780"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="753"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="774"/>
         <source>pack extraction cancelled</source>
         <translation>提取打包归档已取消</translation>
     </message>
@@ -2525,12 +2776,12 @@ Do you want to proceed?</source>
         <translation>提取条目到目标文件失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="769"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="763"/>
         <source>destination directory path is empty or invalid</source>
         <translation>目标目录路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="786"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="780"/>
         <source>archive entry traverses outside destination directory</source>
         <translation>归档条目越界逃逸出目标目录</translation>
     </message>
@@ -4054,147 +4305,150 @@ or click Add</source>
 <context>
     <name>VtfCodec</name>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="478"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="520"/>
         <source>VTF file is too small to contain a valid header</source>
         <translation>VTF 文件过小，无法包含有效头部</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="487"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="529"/>
         <source>Failed to read VTF header</source>
         <translation>读取 VTF 头部失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="496"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="538"/>
         <source>Invalid VTF file signature</source>
         <translation>无效的 VTF 文件签名</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="505"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="547"/>
         <source>Unsupported VTF version</source>
         <translation>不支持的 VTF 版本</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="514"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="556"/>
         <source>Invalid VTF header size</source>
         <translation>无效的 VTF 头部大小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="534"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="576"/>
         <source>VTF image dimensions or mip count are zero</source>
         <translation>VTF 图像尺寸或 Mip 层数为零</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="572"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="614"/>
         <source>Unsupported VTF pixel format</source>
         <translation>不支持的 VTF 像素格式</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="586"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="628"/>
         <source>VTF image data offset exceeds file size</source>
         <translation>VTF 图像数据偏移超出文件大小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="595"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="637"/>
         <source>VTF resource directory exceeds header size</source>
         <translation>VTF 资源目录超出头部大小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="606"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="648"/>
         <source>Failed to read VTF resource directory</source>
         <translation>读取 VTF 资源目录失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="624"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="666"/>
         <source>VTF resource offset exceeds file size</source>
         <translation>VTF 资源偏移超出文件大小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="658"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="700"/>
         <source>VTF file contains no image data resource</source>
         <translation>VTF 文件不包含图像数据资源</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="691"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="741"/>
         <source>VTF mip 0 dimensions exceed safe decoding limits</source>
         <translation>VTF Mip 0 尺寸超出安全解码限制</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="700"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="750"/>
         <source>VTF AXC resource table is unexpectedly large</source>
         <translation>VTF AXC 资源表异常过大</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="710"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="760"/>
         <source>Failed to read VTF AXC compression table</source>
         <translation>读取 VTF AXC 压缩表失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="725"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="775"/>
         <source>Zstd-compressed VTF textures are not supported</source>
         <translation>不支持 Zstd 压缩的 VTF 纹理</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="731"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="781"/>
         <source>Unsupported VTF auxiliary compression method</source>
         <translation>不支持的 VTF 辅助压缩方式</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="741"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="791"/>
         <source>VTF AXC compression table is truncated</source>
         <translation>VTF AXC 压缩表已截断</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="760"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="810"/>
         <source>VTF AXC compressed image block is out of bounds</source>
         <translation>VTF AXC 压缩图像块越界</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="768"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="818"/>
         <source>VTF mip 0 volume exceeds safe decoding limits</source>
         <translation>VTF Mip 0 体积超出安全解码限制</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="777"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="827"/>
         <source>Failed to read compressed VTF image data</source>
         <translation>读取压缩 VTF 图像数据失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="791"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="841"/>
         <source>Failed to initialize zlib decoder for VTF</source>
         <translation>初始化 VTF zlib 解码器失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="800"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="850"/>
         <source>Failed to decompress VTF AXC image data</source>
         <translation>解压 VTF AXC 图像数据失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="824"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="864"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="879"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="888"/>
         <source>VTF image data is truncated or corrupted</source>
         <translation>VTF 图像数据已截断或损坏</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="834"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="898"/>
         <source>Failed to read VTF mip 0 image data</source>
         <translation>读取 VTF Mip 0 图像数据失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1208"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1274"/>
         <source>VTF file path is empty or invalid</source>
         <translation>VTF 文件路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1213"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1279"/>
         <source>VTF file not found</source>
         <translation>未找到 VTF 文件</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1221"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1287"/>
         <source>Failed to open VTF file</source>
         <translation>打开 VTF 文件失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1237"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="715"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1303"/>
         <source>VTF image dimensions exceed safe decoding limits</source>
         <translation>VTF 图像尺寸超出安全解码限制</translation>
     </message>
@@ -4203,7 +4457,7 @@ or click Add</source>
         <translation type="vanished">VTF 文件解析失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1313"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1379"/>
         <source>VTF image data is missing or has unexpected size</source>
         <translation>VTF 图像数据缺失或尺寸异常</translation>
     </message>

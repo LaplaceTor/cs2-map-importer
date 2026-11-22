@@ -7,6 +7,27 @@ qt_add_library(cs2importer_domain STATIC
     Asset/AssetLocation.h
     Asset/AssetLocateStrategy.h
     Asset/AssetLocateStrategy.cpp
+    Bsp/BspDecompileConfig.h
+    Bsp/BspDecompiler.h
+    Bsp/BspDecompiler.cpp
+    Bsp/Internal/BspMath.h
+    Bsp/Internal/SourceAppDb.h
+    Bsp/Internal/SourceAppDb.cpp
+    Bsp/Internal/BspStructs.h
+    Bsp/Internal/BspFileReader.h
+    Bsp/Internal/BspFileReader.cpp
+    Bsp/Internal/Winding.h
+    Bsp/Internal/Winding.cpp
+    Bsp/Internal/BspMappers.h
+    Bsp/Internal/BspMappers.cpp
+    Bsp/Internal/TextureSource.h
+    Bsp/Internal/TextureSource.cpp
+    Bsp/Internal/BspProtection.h
+    Bsp/Internal/BspProtection.cpp
+    Bsp/Internal/VmfWriter.h
+    Bsp/Internal/VmfWriter.cpp
+    Bsp/Internal/BspDecompilerModules.h
+    Bsp/Internal/BspDecompilerModules.cpp
     Game/GameType.h
     Game/GameErrors.h
     Game/GameDefinition.h

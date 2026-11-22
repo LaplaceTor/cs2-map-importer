@@ -4,6 +4,8 @@ qt_add_library(cs2importer_workflow STATIC
     Common/AssetLocator.cpp
     Common/AssetExtractor.h
     Common/AssetExtractor.cpp
+    Common/BspDecompileWorkflow.h
+    Common/BspDecompileWorkflow.cpp
     Common/BspEmbeddedExtractor.h
     Common/BspEmbeddedExtractor.cpp
     Common/VtfExtractor.h

@@ -15,7 +15,7 @@ description: >-
 | 既有 / 遗留组件 | 目标分层 | 目标路径 | 核心职责与落地状态 |
 | :--- | :--- | :--- | :--- |
 | `Miscellaneous::RunCommandSync`, `PROGRAM_*` | `Domain::Tool` | `src/Domain/Tool/` | 基于 `Core::Process` 的官方 CLI 强类型封装（`ResourceCompilerTool` [自适应 `-filelist`]、`Source1ImportTool`、`*LogParser`、`ToolErrors`）；通过 `taskCtx->createToolSubTask` 派生隐藏工具子任务，不依赖 `LogManager::instance()`。[已落地] |
-| `VmfBspProcess` | `Domain::Vmf` / `Domain::Bsp` | `src/Domain/Vmf/`, `src/Domain/Bsp/` | VMF 处理与 BSP 反编译行为。[规划中] |
+| `VmfBspProcess` | `Domain::Bsp` + `Workflow::Common` / `Domain::Vmf` | `src/Domain/Bsp/`, `src/Workflow/Common/`, `src/Domain/Vmf/` | 原生 C++20 进程内 BSP 反编译（`BspDecompiler`、`BspDecompileConfig`，复用 `Lzma1Decoder` 与 `BspPackExtractor`）及 `BspDecompileWorkflow`（对接 `ImportContext`）[已落地]；`Domain::Vmf` VMF 后处理 [规划中]。 |
 | `MaterialFix`, `3dskyboxfix` | `Domain::Material` | `src/Domain/Material/` | VMT/VMAT 材质转换；VTF 解码（`VtfCodec` / `VtfConverter` [经 `Core::Error::ExecutionGuard`]）；`TextureIO` + `TextureProcess` PBR 管线；`SkyboxCubeBuilder` 3D 天空盒立体十字构建器。[已落地] |
 | `SoundscapeImport` | `Domain::Audio` + `Workflow::Soundscape` + `Application::Soundscape` | 对应目录 | `Domain::Audio` 负责解析与 KV3 写入；`Workflow::Soundscape::SoundscapeConvertWorkflow` 承接多文件扫描与转换流水线；`Application::Soundscape::SoundscapeConvertService` 为纯静态门面并返回 `TaskHandle`。[已落地] |
 | `FileExtractFromVPK` 与跨包盲猜解包 | `Domain::Package` + `Workflow::Common` + `Application::Package` | 对应目录 | 原生 C++20 进程内解包（`PackArchive` Pimpl 隔离 + 单次 `readEntry` + `verifyFileWithinBase`、`BspPackExtractor` 基于 `Internal::BspPakZipReader` + `Lzma1Decoder` + `Qt6::ZlibPrivate` 接受 `CancellationToken` + 局部 `QThreadPool`、`PackArchivePool` 细粒度并发同步）；`VpkIndex` / `VpkIndexBuilder` / `VpkIndexService`（前置声明隔离 + 委托 `GameInstallationResolver` 解析目标）；`AssetExtractor`（共享 `PackArchivePool`、`VpkIndex` $O(1)$ 点查、CS2 原生去重、单点 `expectedBaseDir` 透传）。[已落地] |
@@ -36,8 +36,8 @@ description: >-
 ## 2. 重构演进路线图
 
 1. **Stage 1 — Core 基础设施**（已完成）：`Core::Error::ExecutionGuard`、路径安全 Tier 1/Tier 2、`AtomicFile`、`FileSystem`、`Sha256`、`TempFile`、`KeyValues`、`TaskLoggingContext::createToolSubTask`、`CancellationToken`。
-2. **Stage 2 — Domain 领域迁移与深模块收紧**（已完成）：`Domain::Game`（含 `SteamGameLocator` VDF/ACF 解析与 `GameInstallationResolver` VPK 目标解析）、`Domain::Asset`（`AssetLocateStrategy` 无虚接口直查）、`Domain::Package`（`PackArchive`、`BspPackExtractor`、`PackArchivePool`、`VpkIndex`）、`Domain::Material`（`VtfCodec`/`VtfConverter`/`TextureIO`/`TextureProcess`/`SkyboxCubeBuilder`）、`Domain::Audio`、`Domain::Tool`（去 `LogManager` 单例）。
-3. **Stage 3 — Workflow 流水线归位与扩展**（进行中）：`Workflow::Common`（`ImportContext`、`AssetLocator`、`AssetExtractor` 共享池、`BspEmbeddedExtractor`、`VtfExtractor`）、`Workflow::Particle`、`Workflow::Soundscape`（`SoundscapeConvertWorkflow`）已落地；待推进：`Workflow::Model`、`Domain::Vmf` + `Domain::Bsp`。
+2. **Stage 2 — Domain 领域迁移与深模块收紧**（已完成）：`Domain::Game`（含 `SteamGameLocator` VDF/ACF 解析与 `GameInstallationResolver` VPK 目标解析）、`Domain::Asset`（`AssetLocateStrategy` 无虚接口直查）、`Domain::Bsp`（`BspDecompiler`、`BspDecompileConfig` 原生进程内反编译）、`Domain::Package`（`PackArchive`、`BspPackExtractor`、`PackArchivePool`、`VpkIndex`）、`Domain::Material`（`VtfCodec`/`VtfConverter`/`TextureIO`/`TextureProcess`/`SkyboxCubeBuilder`）、`Domain::Audio`、`Domain::Tool`（去 `LogManager` 单例）。
+3. **Stage 3 — Workflow 流水线归位与扩展**（进行中）：`Workflow::Common`（`ImportContext`、`AssetLocator`、`AssetExtractor` 共享池、`BspDecompileWorkflow`、`BspEmbeddedExtractor`、`VtfExtractor`）、`Workflow::Particle`、`Workflow::Soundscape`（`SoundscapeConvertWorkflow`）已落地；待推进：`Workflow::Model`、`Domain::Vmf`。
 4. **Stage 4 — Application 服务与物理隔离**（进行中）：CMake `PRIVATE` 隔离、`AsyncTaskRunner`、`TaskLogService`、`VpkIndexService`、`ImportPrerequisiteService`（共享租约）、`ParticleImportService`、`SoundscapeConvertService`、`GameEnvironmentService`；待补齐：`ConfigService`、`UpdateService`。
 5. **Stage 5 — MapImporter 重构与 UI 瘦身**（进行中）：`SourceFileListBox` 与并排 Tab 布局、`GameViewModel` 共享指针化、`MainController` 去业务判断已落地；待推进：`Workflow::Map`。
 

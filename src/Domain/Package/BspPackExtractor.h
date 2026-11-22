@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <functional>
 
+#include <QStringView>
+
 #include "Core/Async/CancellationToken.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
@@ -12,10 +14,15 @@ namespace Domain::Package {
 struct BspExtractOptions {
     Core::Async::CancellationToken token;
     std::function<void(std::size_t current, std::size_t total)> onProgress;
+    bool smartUnpack = false;
 };
 
 class BspPackExtractor {
 public:
+    /// Returns true if the embedded archive entry is a VBSP-generated file
+    /// (cubemaps, vertex lighting .vhv, cubemapdefault.vtf) or a patched
+    /// material (cubemap/wvt/water depth patches under maps/<mapname>/).
+    static bool isVbspGeneratedOrPatchedFile(QStringView entryPath);
     /**
      * @brief High-performance in-memory multi-threaded extraction of all files
      *        embedded in a BSP's PAKFILE lump.

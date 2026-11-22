@@ -11,7 +11,7 @@ flowchart TD
     UI["Presentation / UI<br/>(cs2importer_ui)<br/>QML, ViewModels, Controllers"]
     APP["Application<br/>(cs2importer_application)<br/>Services, AsyncTaskRunner, DTOs, Leases, TaskLogService"]
     WF["Workflow<br/>(cs2importer_workflow)<br/>Import/Convert Pipelines, ImportContext, AssetExtractor"]
-    DOM["Domain<br/>(cs2importer_domain)<br/>Valve Rules, VDF/ACF/GameInfo, Package, Material, Audio, Tool"]
+    DOM["Domain<br/>(cs2importer_domain)<br/>Valve Rules, VDF/ACF/GameInfo, Bsp, Package, Material, Audio, Tool"]
     CORE["Core<br/>(cs2importer_core)<br/>Path, FileSystem, KeyValues, Logging, Process, Error, Result, Temp"]
 
     UI -->|PUBLIC/link| APP
@@ -28,7 +28,7 @@ flowchart TD
 | CMake 目标 | 项目层链接 | 可见性约束与隔离效果 |
 | :--- | :--- | :--- |
 | `cs2importer_core` | 无 | 通用基础设施，零 Valve / UI / Application 依赖，可独立复用。 |
-| `cs2importer_domain` | `PUBLIC cs2importer_core` | 独占 Valve/Source 1 & 2 领域规则（含原生 C++20 VPK/BSP/VTF/LZMA1 解析）；底层辅助依赖（如 `Qt6::ZlibPrivate`）由消费层 `PRIVATE` 链接，公共头文件不暴露内部实现类型。 |
+| `cs2importer_domain` | `PUBLIC cs2importer_core` | 独占 Valve/Source 1 & 2 领域规则（含原生 C++20 VPK/BSP 解包与反编译/VTF/LZMA1 解析）；底层辅助依赖（如 `Qt6::ZlibPrivate`）由消费层 `PRIVATE` 链接，公共头文件不暴露内部实现类型。 |
 | `cs2importer_workflow` | `PUBLIC cs2importer_domain` | 编排多步骤导入/转换流水线，不感知 Application 或 UI。 |
 | `cs2importer_application` | `PRIVATE cs2importer_workflow`<br/>`PRIVATE cs2importer_domain`<br/>`PUBLIC cs2importer_core` | **`Workflow` 与 `Domain` 均为 `PRIVATE` 链接**，编译期物理阻断 `UI` 传递包含或调用 `Domain`/`Workflow` 头文件。Application 面向 UI 的头文件通过前置声明（如 `VpkIndex`、`ImportContext`）隔离底层类型。 |
 | `cs2importer_ui` | `cs2importer_application` + Qt/QML | 仅消费 Application 门面与 DTO，不直接链接 `Domain`/`Workflow`/`Core`（也不 include `Core/Logging/*`）。 |
@@ -40,8 +40,8 @@ flowchart TD
 
 * **Presentation / UI (`src/UI/`, `src/qml/`)**：暴露 `Q_PROPERTY` 与槽函数；将用户输入转发至 Application 请求 DTO；订阅 Application 信号并渲染结果与错误。
 * **Application (`src/Application/`)**：面向 UI 的门面与 DTO 转换；通过 `AsyncTaskRunner` 调度异步任务；管理共享所有权服务（PassKey + `create()` 工厂 + `weak_from_this().lock()` + RAII 状态回滚 + 主线程亲和性信号分发）；宿主环境探测（Windows 注册表 / Steam 根目录）、文件租约（`VpkSignatureLeaseService`）、VPK 索引缓存（`VpkIndexService`）与日志投递门面（`TaskLogService`）。
-* **Workflow (`src/Workflow/`)**：具体导入/转换用例的多步骤流水线（`ParticleImportWorkflow`、`SoundscapeConvertWorkflow`、`AssetExtractor`、`AssetLocator`、`BspEmbeddedExtractor`、`VtfExtractor`）；经 `ImportContext` 协调取消、日志与步骤进度（步骤成功后延后推进）；管理暂存隔离与失败/取消时的半成品清理。
-* **Domain (`src/Domain/`)**：确定性 Valve/Source 业务规则与格式解析——`Game`（`SteamGameLocator` 负责 VDF/ACF 解析、`GameInstallationResolver`、`GameInfoParser`、`SearchPathResolver`、`GameValidator`）、`Asset`（`AssetLocateStrategy` 直接返回 `Core::Result<AssetLocateOutcome>`）、`Package`（`PackArchive`、`PackArchivePool`、`VpkIndex`、`BspPackExtractor`）、`Material`（`VtfCodec`/`VtfConverter`/`TextureIO`/`TextureProcess`/`SkyboxCubeBuilder`）、`Audio`（Soundscape 解析与 KV3 写入）、`Tool`（官方 CLI 工具强类型封装与日志解析器）。
+* **Workflow (`src/Workflow/`)**：具体导入/转换用例的多步骤流水线（`ParticleImportWorkflow`、`SoundscapeConvertWorkflow`、`AssetExtractor`、`AssetLocator`、`BspDecompileWorkflow`、`BspEmbeddedExtractor`、`VtfExtractor`）；经 `ImportContext` 协调取消、日志与步骤进度（步骤成功后延后推进）；管理暂存隔离与失败/取消时的半成品清理。
+* **Domain (`src/Domain/`)**：确定性 Valve/Source 业务规则与格式解析——`Game`（`SteamGameLocator` 负责 VDF/ACF 解析、`GameInstallationResolver`、`GameInfoParser`、`SearchPathResolver`、`GameValidator`）、`Asset`（`AssetLocateStrategy` 直接返回 `Core::Result<AssetLocateOutcome>`）、`Bsp`（`BspDecompiler`、`BspDecompileConfig` 提供进程内原生 C++20 Source 1 BSP 反编译至 VMF）、`Package`（`PackArchive`、`PackArchivePool`、`VpkIndex`、`BspPackExtractor`）、`Material`（`VtfCodec`/`VtfConverter`/`TextureIO`/`TextureProcess`/`SkyboxCubeBuilder`）、`Audio`（Soundscape 解析与 KV3 写入）、`Tool`（官方 CLI 工具强类型封装与日志解析器）。
 * **Core (`src/Core/`)**：通用基础设施——`Path`（Tier 1/Tier 2 路径安全）、`FileSystem`（`FileSystem`、`AtomicFile`、`FileLease`）、`KeyValues`（通用 VDF AST）、`Process`（`ProcessRunner`）、`Logging`（`LogManager`、`TaskLoggingContext`）、`Async`（`CancellationToken`）、`Error`（`ExecutionGuard`、`Error`、`Exception`）、`Result<T>`、`Hash`（`Sha256`）、`Temp`（`TempFile`、`TempDirectory`）。
 
 ---

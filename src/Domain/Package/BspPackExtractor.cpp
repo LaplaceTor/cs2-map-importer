@@ -5,9 +5,11 @@
 #include <atomic>
 #include <cstddef>
 #include <unordered_set>
+#include <vector>
 
 #include <QDir>
 #include <QFile>
+#include <QRegularExpression>
 #include <QString>
 #include <QThread>
 #include <QThreadPool>
@@ -16,6 +18,33 @@
 #include "Domain/Package/Internal/BspPakZipReader.h"
 
 namespace Domain::Package {
+
+bool BspPackExtractor::isVbspGeneratedOrPatchedFile(QStringView entryPath) {
+    QString normalized = entryPath.toString().toLower();
+    normalized.replace(u'\\', u'/');
+
+    if (normalized.endsWith(QLatin1StringView("cubemapdefault.vtf"))
+        || normalized.endsWith(QLatin1StringView("cubemapdefault.hdr.vtf"))) {
+        return true;
+    }
+
+    static const QRegularExpression vhvPattern(
+        QStringLiteral("sp(_hdr)?_\\d+\\.vhv"));
+    static const QRegularExpression cubemapVtfPattern(
+        QStringLiteral("c(-?\\d+)_(-?\\d+)_(-?\\d+)(\\.hdr)?\\.vtf"));
+    static const QRegularExpression originPattern(
+        QStringLiteral("maps/[^/]*/(.+)_(-?\\d+)_(-?\\d+)_(-?\\d+)"));
+    static const QRegularExpression wvtPatchPattern(
+        QStringLiteral("maps/[^/]*/(.+)_wvt_patch"));
+    static const QRegularExpression waterPatchPattern(
+        QStringLiteral("maps/[^/]*/(.+)_depth_-?\\d+"));
+
+    return vhvPattern.match(normalized).hasMatch()
+        || cubemapVtfPattern.match(normalized).hasMatch()
+        || originPattern.match(normalized).hasMatch()
+        || wvtPatchPattern.match(normalized).hasMatch()
+        || waterPatchPattern.match(normalized).hasMatch();
+}
 
 Core::Result<std::size_t> BspPackExtractor::extractAll(
     const Core::Path::FilesystemPath& bspPath,
@@ -54,9 +83,22 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
             QCoreApplication::translate("BspPackExtractor", "BSP embedded file extraction cancelled"), 0);
     }
 
+    std::vector<std::size_t> targetIndices;
+    targetIndices.reserve(entries.size());
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        if (options.smartUnpack && isVbspGeneratedOrPatchedFile(entries[i].rawPath)) {
+            continue;
+        }
+        targetIndices.push_back(i);
+    }
+    if (targetIndices.empty()) {
+        return Core::Result<std::size_t>::success(0);
+    }
+
     // Phase 1: Pre-create unique directories single-threaded
     std::unordered_set<QString> uniqueDirs;
-    for (const auto& entry : entries) {
+    for (const std::size_t idx : targetIndices) {
+        const auto& entry = entries[idx];
         const qsizetype lastSlash = entry.rawPath.lastIndexOf(u'/');
         if (lastSlash > 0) {
             uniqueDirs.insert(entry.rawPath.left(lastSlash));
@@ -79,7 +121,7 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
     const int idealThreads = std::max(1, QThread::idealThreadCount());
     const int maxWorkers = std::clamp(idealThreads, 2, 8);
     const int numWorkers = std::min<int>(
-        maxWorkers, static_cast<int>(entries.size()));
+        maxWorkers, static_cast<int>(targetIndices.size()));
 
     std::atomic<std::size_t> nextIndex{0};
     std::atomic<std::size_t> successCount{0};
@@ -95,11 +137,12 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
                 break;
             }
 
-            const std::size_t idx = nextIndex.fetch_add(1, std::memory_order_relaxed);
-            if (idx >= entries.size()) {
+            const std::size_t pos = nextIndex.fetch_add(1, std::memory_order_relaxed);
+            if (pos >= targetIndices.size()) {
                 break;
             }
 
+            const std::size_t idx = targetIndices[pos];
             const auto& entry = entries[idx];
             auto targetPathOpt = destDir.resolveBelow(entry.rawPath);
             if (!targetPathOpt.has_value()) {
@@ -139,7 +182,7 @@ Core::Result<std::size_t> BspPackExtractor::extractAll(
 
             const std::size_t currentSuccess = successCount.fetch_add(1, std::memory_order_relaxed) + 1;
             if (options.onProgress) {
-                options.onProgress(currentSuccess, entries.size());
+                options.onProgress(currentSuccess, targetIndices.size());
             }
         }
     };

@@ -54,8 +54,8 @@ Presentation / UI  ──▶  Application  ──▶  Workflow  ──▶  Domai
 3. **Three-Plane Task（三平面任务）**：
    * 阻塞操作一律由 Application 调度至 Worker 线程执行，面向 UI 的信号通过主线程亲和性调度（`QMetaObject::invokeMethod(..., Qt::QueuedConnection)`）发射。
    * 用户可见导入流程走 `AsyncTaskRunner::runWorkflowTask` / `runTask`（进 UI 任务树）；环境检测、校验、索引预热等非导入后台任务走 `runSystemTask`（`SystemTaskLog`，`taskId=0`）；业务结果一律返回单层 `Core::Result<T>`。
-   * 外部 CLI 工具（`resourcecompiler`、`source1import`、`bspsrc`）统一封装在 `Domain::Tool` 并经 `Core::Process::ProcessRunner` 流式执行，通过 `taskCtx->createToolSubTask(...)` 派生隐藏工具子任务；多文件调用使用 `Core::Temp::TempFile` 生成 `-filelist`。
-   * 归档解包、VPK 索引点查与 VTF/纹理读写全部使用进程内原生 C++20 实现（`PackArchive`、`BspPackExtractor`、`VtfCodec`、`VtfConverter`、`TextureIO`、`VpkIndex`）与 `Qt6::ZlibPrivate`（Deflate 解压）。
+   * 外部 CLI 工具（`resourcecompiler`、`source1import`）统一封装在 `Domain::Tool` 并经 `Core::Process::ProcessRunner` 流式执行，通过 `taskCtx->createToolSubTask(...)` 派生隐藏工具子任务；多文件调用使用 `Core::Temp::TempFile` 生成 `-filelist`。
+   * 归档解包、VPK 索引点查、BSP 反编译与 VTF/纹理读写全部使用进程内原生 C++20 实现（`PackArchive`、`BspPackExtractor`、`BspDecompiler`、`BspDecompileConfig`、`VtfCodec`、`VtfConverter`、`TextureIO`、`VpkIndex`）与 `Qt6::ZlibPrivate`（Deflate 解压）。
 
 ---
 

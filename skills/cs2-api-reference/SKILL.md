@@ -100,6 +100,9 @@ description: >-
   * `AssetLocateStrategy`：纯领域资产定位策略，直接接收 `(relativeAssetPath, targets, PackArchivePool&, const VpkIndex* s1Index, const VpkIndex* cs2Index, CancellationToken)`，按 `CS2 Native → Loose File → VpkIndex O(1) → Fallback Target VPK` 顺序定位，直接返回 `Core::Result<AssetLocateOutcome>`（无冗余虚接口或观察者适配器）。
   * `AssetMatchKind`（`NotFound`, `LooseFile`, `PackEntry`, `NativeCs2`）与 `AssetLocateOutcome{kind, location}`。
   * `AssetLocation`（`target`, `relativePath`, `fromPack`, `sourceTargetPath`）、`AssetPath`（Valve 相对路径）、`AssetTypeDetector`。
+* **`Domain::Bsp`**：
+  * `BspDecompiler`：原生 C++20 进程内 Source 1 `.bsp → .vmf` 反编译器（替代外部 `bspsrc` CLI）；提供 `decompile(bspPath, outputVmfPath, config, expectedBaseDir)`（经 `Core::FileSystem::AtomicFile` 执行 Tier 1 + Tier 2 `expectedBaseDir` 单点落盘保护）与 `decompileToBuffer(bspPath, config, outMetadata)`；内部复用 `Domain::Package::Internal::Lzma1Decoder` 解压 Valve `'LZMA'` Lump/GameLump，并复用 `Domain::Package::BspPackExtractor`（`smartUnpack`）解包内嵌资产。
+  * `BspDecompileConfig` & `BspDecompileResult`：完整反编译配置项（`BrushMode`、`SourceFormat`、`BspLogLevel`、`CancellationToken`、`BspLogCallback` 及实体/刷子/贴图/保护/解包开关）与输出元数据（`outputVmfPath`、`bspVersion`、`detectedAppId`、`detectedGameName`、`isProtected`、`protectionMethods`、`extractedEmbeddedFiles`）。
 * **`Domain::Package`**：
   * `PackArchive`：原生 C++20 进程内 VPK v1/v2（含分卷 `_dir.vpk` / `_%03u.vpk` 与 `preloadBytes`）及 BSP 嵌入包抽象（Pimpl 隔离，`.bsp` 委托 `Internal::BspPakZipReader`）；`extractEntryToFile(entryPath, destFile, token, expectedBaseDir)` 直接调用 `readEntry`（缺省即返回 `ErrorCode::EntryNotFound`，无冗余 `hasEntry` 查找），并在打开文件后执行 `verifyFileWithinBase`；`readEntry` 与 `hasEntry` 支持 `CancellationToken` 且只读线程安全。
   * `BspPackExtractor`：Source 1 BSP Pakfile 提取器，基于 `Internal::BspPakZipReader`（Lump 40 `VBSP` / L4D2 自适应解析 + Valve `LZMA` + 内存 ZIP Store/Deflate[`Qt6::ZlibPrivate`]/Method 14 LZMA[`Internal::Lzma1Decoder`]）；`BspExtractOptions` 接收 `Core::Async::CancellationToken token`；通过受控局部 `QThreadPool` 无锁并发提取（不裸建 `std::thread`）；目录与文件路径经 `destDir.resolveBelow()`（Tier 1）与 `verifyFileWithinBase(outFile, destDir)`（Tier 2）双层校验。
@@ -133,6 +136,7 @@ description: >-
   * `ImportContext`：组合 `Core::Logging::TaskLoggingContext*` 与 `Core::Async::CancellationToken`，提供 `checkCancelled()` 与 `runStep`（步骤成功后延后推进进度）。
   * `AssetLocator`：直接委托 `Domain::Asset::AssetLocateStrategy::locate` 并记录日志；`locate()` 返回 `Core::Result<std::optional<AssetLocation>>`，`exists()` 返回 `Core::Result<bool>`（CS2 原生存在返回 `true`，真实失败/取消原样上报）。
   * `AssetExtractor` / `AssetExtractOptions`：资产定位与提取中枢。未传入外部 `archivePool` 时在栈帧创建单一局部 `PackArchivePool` 供定位与提取共享，避免重复开包；遵循 `CS2 Native → Loose File → VpkIndex O(1) → Fallback VPK`；向 `PackArchive::extractEntryToFile` 与 `FileSystem::copy` 透传 `expectedBaseDir` 执行单点内核句柄边界校验；`extractCompanions` 穿透取消令牌。
+  * `BspDecompileWorkflow`：薄工作流编排，将 `ImportContext` 的 `CancellationToken` 与 `TaskLoggingContext*`（`debug`/`info`/`warning`/`error`）桥接至 `Domain::Bsp::BspDecompileConfig`，记录起止摘要并直接委托 `Domain::Bsp::BspDecompiler::decompile`。
   * `BspEmbeddedExtractor`：薄工作流编排，直接将 `CancellationToken` 透传给 `Domain::Package::BspPackExtractor::extractAll` 并记录 `taskCtx` 摘要日志。
   * `VtfExtractor`：组合 `AssetExtractor` 与 `VtfConverter`，定位 VTF 并固定导出为 PNG（中间解包文件放 RAII 临时目录）。
 * **`Workflow::Particle`**：
