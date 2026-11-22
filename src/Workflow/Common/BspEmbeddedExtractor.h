@@ -14,8 +14,8 @@ namespace Workflow::Common {
  *        destination directory, preserving the pack-relative structure.
  *
  * Replaces the legacy vpkeditcli `--file-tree` ASCII parsing: the BSP's
- * embedded pack is enumerated directly via bsppp/vpkpp. Individual entry
- * failures are logged as warnings and do not abort the extraction.
+ * embedded pack is enumerated directly in-memory via Domain::Package::BspPackExtractor.
+ * Individual entry failures are logged as warnings and do not abort the extraction.
  *
  * Result semantics: Success = extraction finished (payload = extracted file
  * count); Skipped = the BSP contains no embedded files; Failure = the BSP

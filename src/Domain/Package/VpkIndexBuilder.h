@@ -10,7 +10,7 @@
 namespace Domain::Package {
 
 /**
- * @brief Builder for scanning VPK archives using sourcepp and producing a VpkIndex.
+ * @brief Builder for scanning VPK archives via PackArchive and producing a VpkIndex.
  */
 class VpkIndexBuilder {
 public:

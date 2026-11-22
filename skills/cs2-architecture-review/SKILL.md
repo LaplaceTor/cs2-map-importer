@@ -18,7 +18,7 @@ description: >-
 | `VmfBspProcess` | `Domain::Vmf` / `Domain::Bsp` | `src/Domain/Vmf/`, `src/Domain/Bsp/` | VMF 处理与 BSP 反编译行为。[规划中] |
 | `MaterialFix`, `3dskyboxfix` | `Domain::Material` | `src/Domain/Material/` | VMT/VMAT 材质转换；VTF 解码（`VtfCodec` / `VtfConverter` [经 `Core::Error::ExecutionGuard`]）；`TextureIO` + `TextureProcess` PBR 管线；`SkyboxCubeBuilder` 3D 天空盒立体十字构建器。[已落地] |
 | `SoundscapeImport` | `Domain::Audio` + `Workflow::Soundscape` + `Application::Soundscape` | 对应目录 | `Domain::Audio` 负责解析与 KV3 写入；`Workflow::Soundscape::SoundscapeConvertWorkflow` 承接多文件扫描与转换流水线；`Application::Soundscape::SoundscapeConvertService` 为纯静态门面并返回 `TaskHandle`。[已落地] |
-| `FileExtractFromVPK` 与跨包盲猜解包 | `Domain::Package` + `Workflow::Common` + `Application::Package` | 对应目录 | 内嵌 `sourcepp` 解包（`PackArchive` 单次 `readEntry` + `verifyFileWithinBase`、`BspPackExtractor` 接受 `CancellationToken` + 局部 `QThreadPool`、`PackArchivePool` 细粒度并发同步）；`VpkIndex` / `VpkIndexBuilder` / `VpkIndexService`（前置声明隔离 + 委托 `GameInstallationResolver` 解析目标）；`AssetExtractor`（共享 `PackArchivePool`、`VpkIndex` $O(1)$ 点查、CS2 原生去重、单点 `expectedBaseDir` 透传）。[已落地] |
+| `FileExtractFromVPK` 与跨包盲猜解包 | `Domain::Package` + `Workflow::Common` + `Application::Package` | 对应目录 | 原生 C++20 进程内解包（`PackArchive` Pimpl 隔离 + 单次 `readEntry` + `verifyFileWithinBase`、`BspPackExtractor` 基于 `Internal::BspPakZipReader` + `Lzma1Decoder` + `Qt6::ZlibPrivate` 接受 `CancellationToken` + 局部 `QThreadPool`、`PackArchivePool` 细粒度并发同步）；`VpkIndex` / `VpkIndexBuilder` / `VpkIndexService`（前置声明隔离 + 委托 `GameInstallationResolver` 解析目标）；`AssetExtractor`（共享 `PackArchivePool`、`VpkIndex` $O(1)$ 点查、CS2 原生去重、单点 `expectedBaseDir` 透传）。[已落地] |
 | 资产定位与来源探测 | `Domain::Asset` + `Workflow::Common` | `src/Domain/Asset/`, `src/Workflow/Common/` | 精简深模块：`Domain::Asset::AssetLocateStrategy` 直接返回 `Core::Result<AssetLocateOutcome>`；`Workflow::Common::AssetLocator` 提供高保真 `locate()` 与 `exists()`。[已落地] |
 | 异常转译与路径安全 | `Core::Error` + `Core::Path` + `Core::FileSystem` | 对应目录 | `Core::Error::ExecutionGuard` 通用单点异常屏障；`FilesystemPath` Tier 1 `resolveBelow` + Tier 2 `verifyFileWithinBase` 在 `AtomicFile` / `FileSystem::copy/move` 单点收口。[已落地] |
 | `Miscellaneous::ParseGameInfo`, `Steam` VDF/ACF 解析 | `Domain::Game` | `src/Domain/Game/` | `GameInfoParser` / `SearchPathResolver` / `GameValidator` / `GameInstallationResolver`（含 `resolveCs2VpkTargets`、`resolveSource1VpkTargets`、`listSource2Addons` 严格探测 `content/csgo_addons`）与 `SteamGameLocator`（独占 VDF/ACF 解析）。[已落地] |
@@ -65,7 +65,7 @@ description: >-
 * [ ] UI 不含业务路径清洗（如 `file://` URL 解析）或游戏类型分支判断，均由 Application 处理。
 
 ### 4.2 Single-Point Defense（单点契约防御）
-* [ ] **异常屏障**：`Core::Error::ExecutionGuard::guard` 仅出现在 `AsyncTaskRunner`、对外同步入口及会抛异常的底层/第三方库（`sourcepp`/`vtfpp`/`Core::FileSystem`/STL）调用点；内部 `Core::Result<T>` 函数之间无嵌套 `ExecutionGuard` 或自定义 `runGuarded`。
+* [ ] **异常屏障**：`Core::Error::ExecutionGuard::guard` 仅出现在 `AsyncTaskRunner`、对外同步入口及会抛异常的底层/第三方库（`Core::FileSystem`/抛异常 STL 调用）调用点；内部 `Core::Result<T>` 函数之间无嵌套 `ExecutionGuard` 或自定义 `runGuarded`。
 * [ ] **路径安全**：调用方经 `baseDir.resolveBelow(relPath)` 组合相对路径并透传 `expectedBaseDir` 给底层 I/O 原语（`AtomicFile`、`FileSystem::copy/move`、`PackArchive::extractEntryToFile`、`BspPackExtractor`）；中间层无重复 `isSubpathOf` 检查。
 * [ ] **前置校验**：`isEmpty()` / `isValid()` / `exists()` / `isCancelled()` 仅由实际消费层单点校验，上层直接透传 `Core::Result<T>`。
 

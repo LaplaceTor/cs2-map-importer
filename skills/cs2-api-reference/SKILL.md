@@ -101,13 +101,13 @@ description: >-
   * `AssetMatchKind`（`NotFound`, `LooseFile`, `PackEntry`, `NativeCs2`）与 `AssetLocateOutcome{kind, location}`。
   * `AssetLocation`（`target`, `relativePath`, `fromPack`, `sourceTargetPath`）、`AssetPath`（Valve 相对路径）、`AssetTypeDetector`。
 * **`Domain::Package`**：
-  * `PackArchive`：基于 `sourcepp` (vpkpp/bsppp) 的进程内 VPK / BSP 嵌入包抽象；`extractEntryToFile(entryPath, destFile, token, expectedBaseDir)` 直接调用 `readEntry`（缺省即返回 `ErrorCode::EntryNotFound`，无冗余 `hasEntry` 查找），并在打开文件后执行 `verifyFileWithinBase`；`readEntry` 与 `hasEntry` 支持 `CancellationToken`。
-  * `BspPackExtractor`：Source 1 BSP Pakfile 提取器；`BspExtractOptions` 接收 `Core::Async::CancellationToken token`；通过受控局部 `QThreadPool` 并发提取（不裸建 `std::thread`）；目录与文件路径经 `destDir.resolveBelow()`（Tier 1）与 `verifyFileWithinBase(outFile, destDir)`（Tier 2）双层校验。
+  * `PackArchive`：原生 C++20 进程内 VPK v1/v2（含分卷 `_dir.vpk` / `_%03u.vpk` 与 `preloadBytes`）及 BSP 嵌入包抽象（Pimpl 隔离，`.bsp` 委托 `Internal::BspPakZipReader`）；`extractEntryToFile(entryPath, destFile, token, expectedBaseDir)` 直接调用 `readEntry`（缺省即返回 `ErrorCode::EntryNotFound`，无冗余 `hasEntry` 查找），并在打开文件后执行 `verifyFileWithinBase`；`readEntry` 与 `hasEntry` 支持 `CancellationToken` 且只读线程安全。
+  * `BspPackExtractor`：Source 1 BSP Pakfile 提取器，基于 `Internal::BspPakZipReader`（Lump 40 `VBSP` / L4D2 自适应解析 + Valve `LZMA` + 内存 ZIP Store/Deflate[`Qt6::ZlibPrivate`]/Method 14 LZMA[`Internal::Lzma1Decoder`]）；`BspExtractOptions` 接收 `Core::Async::CancellationToken token`；通过受控局部 `QThreadPool` 无锁并发提取（不裸建 `std::thread`）；目录与文件路径经 `destDir.resolveBelow()`（Tier 1）与 `verifyFileWithinBase(outFile, destDir)`（Tier 2）双层校验。
   * `PackArchivePool`：归档 LRU 池化缓存，键粒度 `OpeningEntry` 条件变量并发同步，防止同一归档并发重复打开并响应取消。
-  * `VpkIndex` / `VpkIndexBuilder`：基于 `sourcepp::vpkpp::runForAllEntries` 构建的全量 VPK 只读索引与二进制持久化载体（`.idx`，含文件大小/修改时间与 `_dir.vpk` SHA-256 校验），提供 $O(1)$ 绝对路径路由与 `isCs2()` / `cs2Stems` 跨引擎去重集合。
+  * `VpkIndex` / `VpkIndexBuilder`：基于 `PackArchive::open` 与 `listEntries()` 构建的全量 VPK 只读索引与二进制持久化载体（`.idx`，含文件大小/修改时间与 `_dir.vpk` SHA-256 校验），提供 $O(1)$ 绝对路径路由与 `isCs2()` / `cs2Stems` 跨引擎去重集合。
 * **`Domain::Material`**：
-  * `VtfConverter`：基于 `vtfpp` 的 VTF 解码与多格式导出（PNG/TGA/JPG/BMP/HDR），经 `Core::Error::ExecutionGuard::guard` 保护 `vtfpp`/`FileSystem` 调用，路径边界由底层 `AtomicFile` 单点校验。
-  * `VtfCodec` / `TgaCodec` / `TextureIO` / `TextureImage`：宽读取（PNG/JPG/BMP/TGA/VTF）、窄写入（仅 PNG）的统一纹理 IO 与线性浮点工作缓冲；`TextureIO` 提供 `loadTexture`/`writeTexture` 与 `readImage`/`writeImage`。
+  * `VtfConverter`：复用 `VtfCodec::read` 解码 VTF 并通过 `QImageWriter`（PNG/JPG/BMP）、32-bit BGRA TGA 与 Radiance RGBE HDR 导出，经 `Core::Error::ExecutionGuard::guard` 保护 `FileSystem` 落盘调用，路径边界由底层 `AtomicFile` 单点校验。
+  * `VtfCodec` / `TgaCodec` / `TextureIO` / `TextureImage`：原生 PC VTF v7.0–7.6 Mip 0 解码（BC1–BC5、未压缩整数、HDR 及 v7.6 `AXC` Deflate via `Qt6::ZlibPrivate`）与宽读取（PNG/JPG/BMP/TGA/VTF）、窄写入（仅 PNG）的统一纹理 IO 与线性浮点工作缓冲；`TextureIO` 提供 `loadTexture`/`writeTexture` 与 `readImage`/`writeImage`。
   * `SkyboxTypes` / `SkyboxCubeBuilder`：Source 1 → Source 2 3D 天空盒 4x3 立体十字纯进程内构建器（Inside-Out 拓扑、两阶段边缘对齐与 12 物理接缝容错仲裁、`loadFacesFromDirectory`、`composeCubeImage`、`generateVmat`）。
   * **`Domain::Material::TextureProcess`**：PBR 纹理 CPU 生成管线（`HeightGenerator`、`NormalGenerator`、`AoGenerator`、`MetallicGenerator`、`SmoothnessGenerator`、`DiffuseEditor`、`ChannelPacker`、`TextureBlur`、`TexturePresets`；`ColorMath` 为内部实现），统一签名 `Core::Result<TextureImage>` + `CancellationToken` + 进度回调。
 * **`Domain::Audio`**：

@@ -3,9 +3,9 @@
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QFileInfo>
-#include <vpkpp/PackFile.h>
 
 #include "Core/Hash/Sha256.h"
+#include "Domain/Package/PackArchive.h"
 
 namespace Domain::Package {
 
@@ -70,11 +70,14 @@ Core::Result<VpkIndex> VpkIndexBuilder::build(
         meta.sha256 = shaRes.value();
         vpkMetas.push_back(meta);
 
-        // 2. Open via sourcepp
-        auto packFile = vpkpp::PackFile::open(vpkPath.toString().toStdString());
-        if (!packFile) {
+        // 2. Open via PackArchive
+        auto archiveRes = PackArchive::open(vpkPath, token);
+        if (archiveRes.isCancelled()) {
+            return Core::Result<VpkIndex>::cancelled(archiveRes.message());
+        }
+        if (archiveRes.isFailure()) {
             if (taskCtx) {
-                taskCtx->warning(QCoreApplication::translate("VpkIndexBuilder", "Failed to parse VPK with sourcepp: %1")
+                taskCtx->warning(QCoreApplication::translate("VpkIndexBuilder", "Failed to parse VPK archive: %1")
                                      .arg(vpkPath.toString()));
             }
             ++currentId;
@@ -82,11 +85,20 @@ Core::Result<VpkIndex> VpkIndexBuilder::build(
         }
 
         // 3. Collect entries
-        packFile->runForAllEntries([&](const std::string& path, const vpkpp::Entry&) {
-            const QString rawPath = QString::fromStdString(path);
+        auto entriesRes = archiveRes.value().listEntries();
+        if (entriesRes.isFailure()) {
+            if (taskCtx) {
+                taskCtx->warning(QCoreApplication::translate("VpkIndexBuilder", "Failed to parse VPK archive: %1")
+                                     .arg(vpkPath.toString()));
+            }
+            ++currentId;
+            continue;
+        }
+
+        for (const QString& rawPath : entriesRes.value()) {
             const QString normalized = VpkIndex::normalizePath(rawPath);
             if (normalized.isEmpty()) {
-                return;
+                continue;
             }
 
             // First occurrence wins (vpkPaths is ordered from highest to lowest priority)
@@ -100,7 +112,7 @@ Core::Result<VpkIndex> VpkIndexBuilder::build(
                     cs2NativeStems.insert(stem);
                 }
             }
-        });
+        }
 
         ++currentId;
     }

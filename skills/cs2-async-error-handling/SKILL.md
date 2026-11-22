@@ -123,7 +123,7 @@ UI 消费日志的**唯一通道**是 `Application::Logging::TaskLogService`（�
 遵循 **Single-Point Defense**，异常捕获与转译统一使用 **`Core::Error::ExecutionGuard`**，且**仅驻守两类权威边界**：
 
 1. **任务调度顶层与外部同步入口**：`AsyncTaskRunner`（已内置）及直接向外部暴露的同步顶层接口；
-2. **会抛异常的底层 / 第三方库调用点**：`Core::FileSystem` 调用点、`sourcepp`（`vpkpp`/`bsppp`）、`vtfpp` 与会抛异常的 STL 原语封装内部。
+2. **会抛异常的底层 / 第三方库调用点**：`Core::FileSystem` 调用点与会抛异常的 STL / 外部解析原语封装内部。
 
 **严禁层层嵌套**：项目内部返回 `Core::Result<T>` 的 `Workflow` / `Domain` / `Application` 纯函数之间直接透传 `Core::Result<T>`，**不在中间层重复包裹 `ExecutionGuard::guard`**，也不编写自定义 `runGuarded` 模板。
 
@@ -137,7 +137,7 @@ Core::Error::ExecutionContext ctx{
 };
 
 return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<void> {
-    // 仅包裹可能抛异常的 vtfpp / Core::FileSystem 调用
+    // 仅包裹可能抛异常的 Core::FileSystem / STL 调用
     return decodeAndWrite();
 }, ctx, QCoreApplication::translate("VtfConverter", "Failed to convert VTF image"));
 ```

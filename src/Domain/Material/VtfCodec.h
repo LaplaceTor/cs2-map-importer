@@ -11,12 +11,12 @@ class QImage;
 namespace Domain::Material {
 
 /**
- * @brief Read-only VTF (Valve Texture Format) decoder backed by the vendored
- *        sourcepp vtfpp library.
+ * @brief Native C++20 read-only VTF (Valve Texture Format v7.0-v7.6) decoder.
  *
- * Decodes mip 0 (highest resolution), first frame and first face of the
- * container; compressed storage formats (DXT/BCn) are decoded to RGBA8888 by
- * vtfpp. VTF output is intentionally out of scope: image export is PNG-only.
+ * Decodes mip 0 (highest resolution), first frame, first face, and first depth
+ * slice of the container; compressed storage formats (DXT/BC1-BC5) and HDR
+ * formats are decoded to RGBA8888 natively. VTF output is intentionally out
+ * of scope: image export is PNG-only.
  */
 class VtfCodec {
 public:

@@ -28,7 +28,7 @@ flowchart TD
 | CMake 目标 | 项目层链接 | 可见性约束与隔离效果 |
 | :--- | :--- | :--- |
 | `cs2importer_core` | 无 | 通用基础设施，零 Valve / UI / Application 依赖，可独立复用。 |
-| `cs2importer_domain` | `PUBLIC cs2importer_core` | 独占 Valve/Source 1 & 2 领域规则；第三方库（`sourcepp`、`vtfpp`）由消费层 `PRIVATE` 链接，公共头文件不暴露第三方类型。 |
+| `cs2importer_domain` | `PUBLIC cs2importer_core` | 独占 Valve/Source 1 & 2 领域规则（含原生 C++20 VPK/BSP/VTF/LZMA1 解析）；底层辅助依赖（如 `Qt6::ZlibPrivate`）由消费层 `PRIVATE` 链接，公共头文件不暴露内部实现类型。 |
 | `cs2importer_workflow` | `PUBLIC cs2importer_domain` | 编排多步骤导入/转换流水线，不感知 Application 或 UI。 |
 | `cs2importer_application` | `PRIVATE cs2importer_workflow`<br/>`PRIVATE cs2importer_domain`<br/>`PUBLIC cs2importer_core` | **`Workflow` 与 `Domain` 均为 `PRIVATE` 链接**，编译期物理阻断 `UI` 传递包含或调用 `Domain`/`Workflow` 头文件。Application 面向 UI 的头文件通过前置声明（如 `VpkIndex`、`ImportContext`）隔离底层类型。 |
 | `cs2importer_ui` | `cs2importer_application` + Qt/QML | 仅消费 Application 门面与 DTO，不直接链接 `Domain`/`Workflow`/`Core`（也不 include `Core/Logging/*`）。 |
@@ -73,7 +73,7 @@ flowchart TD
 
 | 防御维度 | 权威责任边界（唯一防御点） | 机制与契约 | 上游 / 中间层职责 |
 | :--- | :--- | :--- | :--- |
-| **异常屏障**<br/>(`Core::Error::ExecutionGuard`) | 1. 异步任务调度顶层：`AsyncTaskRunner`<br/>2. 对外暴露的同步顶层入口<br/>3. 会抛异常的底层/第三方库调用点：`Core::FileSystem`、`sourcepp`（`vpkpp`/`bsppp`）、`vtfpp`、抛异常 STL 调用 | 将 `Core::Error::Exception`、`std::exception` 与未知异常统一转译为单层 `Core::Result<T>::failure`，并附加 `ExecutionContext`；Core 层零领域关键词猜词。 | 项目内部 `Result<T>` 纯函数之间直接返回与透传 `Result<T>`，**不层层嵌套 `ExecutionGuard::guard`**，也不编写自定义 `runGuarded` 模板。 |
+| **异常屏障**<br/>(`Core::Error::ExecutionGuard`) | 1. 异步任务调度顶层：`AsyncTaskRunner`<br/>2. 对外暴露的同步顶层入口<br/>3. 会抛异常的底层/第三方库调用点：`Core::FileSystem`、抛异常 STL / 外部解析调用 | 将 `Core::Error::Exception`、`std::exception` 与未知异常统一转译为单层 `Core::Result<T>::failure`，并附加 `ExecutionContext`；Core 层零领域关键词猜词。 | 项目内部 `Result<T>` 纯函数之间直接返回与透传 `Result<T>`，**不层层嵌套 `ExecutionGuard::guard`**，也不编写自定义 `runGuarded` 模板。 |
 | **路径安全**<br/>(Tier 1 + Tier 2) | **Tier 1 逻辑边界**：调用方使用 `baseDir.resolveBelow(relPath)` 组合相对路径（`weakly_canonical`，拦截 `..`、盘符冒号与 NTFS ADS 流）。<br/>**Tier 2 物理内核句柄边界**：底层写入/提取原语（`AtomicFile::writeAtomic`、`FileSystem::copy/move`、`PackArchive::extractEntryToFile`、`BspPackExtractor`）接收 `expectedBaseDir`，打开文件句柄后执行 `verifyFileWithinBase`（Win32 `GetFinalPathNameByHandleW`）根除 TOCTOU 与 Junction 逃逸。 | 越界时底层原语立即安全清除残存文件并返回/抛出 `ErrorCode::InvalidPath`。 | 中间层（`Workflow` / `Application` / `VtfConverter`）透传 `expectedBaseDir` 给底层原语，**不在调用前重复手写 `isSubpathOf`**。 |
 | **前置校验**<br/>(`isEmpty` / `isValid` / `exists` / `isCancelled`) | 实际消费该参数的最低层（通常是 `Domain` 函数或持有该资源的 `Workflow` 步骤）。 | 返回携带结构化 `ErrorCode` 与诊断信息的 `Core::Result<T>`。 | 上层直接透传下层返回的 `Core::Result<T>`，**不复制粘贴相同的 `if` 前置校验块**。 |
 

@@ -12,7 +12,7 @@ namespace Domain::Material {
  * @brief Loads and writes texture files as TextureImage working buffers.
  *
  * Loading (wide): PNG/JPG/BMP decoding uses Qt's built-in image plugins; TGA
- * uses the self-contained TgaCodec; VTF uses the vtfpp-backed VtfCodec.
+ * uses the self-contained TgaCodec; VTF uses the native C++20 VtfCodec.
  * Writing (narrow): PNG is the only supported export format.
  * Color-space handling is explicit at the call site: color inputs are loaded
  * sRGB-decoded into linear floats (matching GPU sampling behavior), while data

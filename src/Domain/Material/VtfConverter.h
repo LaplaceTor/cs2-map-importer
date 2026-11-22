@@ -24,9 +24,10 @@ enum class ImageFileFormat {
 /**
  * @brief Decodes Valve Texture Format (VTF) files into standard image data.
  *
- * Wraps vtfpp for VTF parsing and image encoding. The highest resolution mip
- * (mip 0) of the first frame/face is converted to the requested image format
- * (e.g. PNG, TGA, JPG, BMP, HDR). All results follow the Core::Result contract.
+ * Decodes VTF containers natively via VtfCodec and encodes images via
+ * Qt/TGA/Radiance writers. The highest resolution mip (mip 0) of the first
+ * frame/face is converted to the requested image format (e.g. PNG, TGA, JPG,
+ * BMP, HDR). All results follow the Core::Result contract.
  */
 class VtfConverter {
 public:

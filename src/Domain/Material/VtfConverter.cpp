@@ -1,57 +1,139 @@
-#include <QCoreApplication>
 #include "Domain/Material/VtfConverter.h"
 
-#include <filesystem>
-
+#include <QBuffer>
 #include <QByteArray>
+#include <QCoreApplication>
+#include <QImage>
+#include <QImageWriter>
 
-#include <vtfpp/VTF.h>
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <vector>
 
 #include "Core/Error/ExecutionGuard.h"
 #include "Core/FileSystem/FileSystem.h"
+#include "Domain/Material/VtfCodec.h"
+
+namespace Domain::Material {
+
+namespace Detail {
+Core::Result<std::vector<float>> readVtfMip0RgbaFloat(
+    const Core::Path::FilesystemPath& path,
+    int& outWidth,
+    int& outHeight);
+} // namespace Detail
 
 namespace {
 
-std::filesystem::path toNativePath(const Core::Path::FilesystemPath& path) {
-    return std::filesystem::path{path.toString().toStdWString()};
-}
-
-Core::Result<std::vector<std::byte>> validateVtfPath(const Core::Path::FilesystemPath& vtfPath) {
-    if (vtfPath.isEmpty() || !vtfPath.isValid()) {
+Core::Result<std::vector<std::byte>> encodeWithQImageWriter(
+    const QImage& image,
+    const char* qtFormat,
+    int quality,
+    const Core::Path::FilesystemPath& vtfPath)
+{
+    QByteArray encoded;
+    QBuffer buffer(&encoded);
+    if (!buffer.open(QIODevice::WriteOnly)) {
         return Core::Result<std::vector<std::byte>>::failure(
-            Core::Error::ErrorCode::InvalidPath,
-            QCoreApplication::translate("VtfConverter", "VTF file path is empty or invalid"));
-    }
-    if (!vtfPath.exists() || !vtfPath.isFile()) {
-        return Core::Result<std::vector<std::byte>>::failure(
-            Core::Error::ErrorCode::FileNotFound,
-            QCoreApplication::translate("VtfConverter", "VTF file not found"),
+            Core::Error::ErrorCode::OperationFailed,
+            QCoreApplication::translate("VtfConverter", "Failed to open memory buffer for image encoding"),
             vtfPath.toString());
     }
-    return Core::Result<std::vector<std::byte>>::success({});
+
+    QImageWriter writer(&buffer, qtFormat);
+    if (quality >= 0) {
+        writer.setQuality(quality);
+    }
+    if (!writer.write(image)) {
+        return Core::Result<std::vector<std::byte>>::failure(
+            Core::Error::ErrorCode::OperationFailed,
+            QCoreApplication::translate("VtfConverter", "Failed to encode VTF image to target format"),
+            vtfPath.toString() + QStringLiteral(" | ") + writer.errorString());
+    }
+
+    std::vector<std::byte> out(static_cast<std::size_t>(encoded.size()));
+    if (!out.empty()) {
+        std::memcpy(out.data(), encoded.constData(), out.size());
+    }
+    return Core::Result<std::vector<std::byte>>::success(std::move(out));
 }
 
-vtfpp::ImageConversion::FileFormat toVtfppFormat(Domain::Material::ImageFileFormat format) {
-    switch (format) {
-        case Domain::Material::ImageFileFormat::Png:
-            return vtfpp::ImageConversion::FileFormat::PNG;
-        case Domain::Material::ImageFileFormat::Tga:
-            return vtfpp::ImageConversion::FileFormat::TGA;
-        case Domain::Material::ImageFileFormat::Jpg:
-            return vtfpp::ImageConversion::FileFormat::JPG;
-        case Domain::Material::ImageFileFormat::Bmp:
-            return vtfpp::ImageConversion::FileFormat::BMP;
-        case Domain::Material::ImageFileFormat::Hdr:
-            return vtfpp::ImageConversion::FileFormat::HDR;
+std::vector<std::byte> encodeTga32(const QImage& rgbaImage)
+{
+    const int width = rgbaImage.width();
+    const int height = rgbaImage.height();
+    constexpr std::size_t kTgaHeaderSize = 18;
+    std::vector<std::byte> out(
+        kTgaHeaderSize + static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4u,
+        std::byte{0});
+
+    out[2] = std::byte{2}; // Uncompressed true-color
+    out[12] = static_cast<std::byte>(width & 0xFF);
+    out[13] = static_cast<std::byte>((width >> 8) & 0xFF);
+    out[14] = static_cast<std::byte>(height & 0xFF);
+    out[15] = static_cast<std::byte>((height >> 8) & 0xFF);
+    out[16] = std::byte{32};   // 32 bits per pixel (BGRA)
+    out[17] = std::byte{0x28}; // Top-down origin (0x20) + 8-bit alpha (0x08)
+
+    std::byte* dst = out.data() + kTgaHeaderSize;
+    for (int y = 0; y < height; ++y) {
+        const std::uint8_t* row = rgbaImage.constScanLine(y);
+        for (int x = 0; x < width; ++x) {
+            const std::uint8_t* px = row + x * 4;
+            dst[0] = static_cast<std::byte>(px[2]); // B
+            dst[1] = static_cast<std::byte>(px[1]); // G
+            dst[2] = static_cast<std::byte>(px[0]); // R
+            dst[3] = static_cast<std::byte>(px[3]); // A
+            dst += 4;
+        }
     }
-    return vtfpp::ImageConversion::FileFormat::PNG;
+    return out;
+}
+
+std::vector<std::byte> encodeRadianceHdr(const std::vector<float>& rgbaFloat, int width, int height)
+{
+    const QByteArray header = QByteArrayLiteral("#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y ")
+        + QByteArray::number(height)
+        + QByteArrayLiteral(" +X ")
+        + QByteArray::number(width)
+        + QByteArrayLiteral("\n");
+
+    const std::size_t pixelCount = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    std::vector<std::byte> out(static_cast<std::size_t>(header.size()) + pixelCount * 4u);
+    std::memcpy(out.data(), header.constData(), static_cast<std::size_t>(header.size()));
+
+    std::byte* dst = out.data() + header.size();
+    for (std::size_t i = 0; i < pixelCount; ++i) {
+        const float r = std::max(0.0f, rgbaFloat[i * 4u + 0]);
+        const float g = std::max(0.0f, rgbaFloat[i * 4u + 1]);
+        const float b = std::max(0.0f, rgbaFloat[i * 4u + 2]);
+        const float maxComp = std::max({r, g, b});
+
+        if (!std::isfinite(maxComp) || maxComp < 1e-32f) {
+            dst[0] = std::byte{0};
+            dst[1] = std::byte{0};
+            dst[2] = std::byte{0};
+            dst[3] = std::byte{0};
+        } else {
+            int exponent = 0;
+            const float normalize = std::frexp(maxComp, &exponent) * 256.0f / maxComp;
+            dst[0] = static_cast<std::byte>(std::clamp(r * normalize, 0.0f, 255.0f));
+            dst[1] = static_cast<std::byte>(std::clamp(g * normalize, 0.0f, 255.0f));
+            dst[2] = static_cast<std::byte>(std::clamp(b * normalize, 0.0f, 255.0f));
+            dst[3] = static_cast<std::byte>(std::clamp(exponent + 128, 0, 255));
+        }
+        dst += 4;
+    }
+    return out;
 }
 
 } // namespace
 
-namespace Domain::Material {
-
-QString VtfConverter::formatExtension(ImageFileFormat format) {
+QString VtfConverter::formatExtension(ImageFileFormat format)
+{
     switch (format) {
         case ImageFileFormat::Png:
             return QStringLiteral("png");
@@ -69,37 +151,50 @@ QString VtfConverter::formatExtension(ImageFileFormat format) {
 
 Core::Result<std::vector<std::byte>> VtfConverter::convertToImageBuffer(
     const Core::Path::FilesystemPath& vtfPath,
-    ImageFileFormat format) {
-    if (auto validated = validateVtfPath(vtfPath); validated.isFailure()) {
-        return validated;
+    ImageFileFormat format)
+{
+    if (format == ImageFileFormat::Hdr) {
+        int width = 0;
+        int height = 0;
+        auto floatRes = Detail::readVtfMip0RgbaFloat(vtfPath, width, height);
+        if (floatRes.isFailure()) {
+            return Core::Result<std::vector<std::byte>>::failure(floatRes.error());
+        }
+        return Core::Result<std::vector<std::byte>>::success(
+            encodeRadianceHdr(floatRes.value(), width, height));
     }
 
-    Core::Error::ExecutionContext ctx{
-        .stage = QStringLiteral("Converting VTF to image buffer"),
-        .targetPath = vtfPath.toString()
-    };
+    auto readRes = VtfCodec::read(vtfPath);
+    if (readRes.isFailure()) {
+        return Core::Result<std::vector<std::byte>>::failure(readRes.error());
+    }
 
-    return Core::Error::ExecutionGuard::guard([&]() -> Core::Result<std::vector<std::byte>> {
-        // May throw on malformed VTF data; guarded above.
-        vtfpp::VTF vtf{toNativePath(vtfPath)};
+    const QImage& image = readRes.value();
+    switch (format) {
+        case ImageFileFormat::Png:
+            return encodeWithQImageWriter(image, "png", -1, vtfPath);
+        case ImageFileFormat::Jpg:
+            return encodeWithQImageWriter(image.convertToFormat(QImage::Format_RGB888), "jpg", 100, vtfPath);
+        case ImageFileFormat::Bmp:
+            return encodeWithQImageWriter(image.convertToFormat(QImage::Format_ARGB32), "bmp", -1, vtfPath);
+        case ImageFileFormat::Tga:
+            return Core::Result<std::vector<std::byte>>::success(encodeTga32(image));
+        case ImageFileFormat::Hdr:
+            break;
+    }
 
-        // Mip 0 is the highest resolution mip; first frame and first face.
-        auto fileBytes = vtf.saveImageToFile(0, 0, 0, 0, toVtfppFormat(format));
-        if (fileBytes.empty()) {
-            return Core::Result<std::vector<std::byte>>::failure(
-                Core::Error::ErrorCode::OperationFailed,
-                QCoreApplication::translate("VtfConverter", "failed to decode VTF image or encode to target format"),
-                vtfPath.toString());
-        }
-        return Core::Result<std::vector<std::byte>>::success(std::move(fileBytes));
-    }, ctx);
+    return Core::Result<std::vector<std::byte>>::failure(
+        Core::Error::ErrorCode::NotSupported,
+        QCoreApplication::translate("VtfConverter", "Unsupported target image format"),
+        vtfPath.toString());
 }
 
 Core::Result<void> VtfConverter::convertToImageFile(
     const Core::Path::FilesystemPath& vtfPath,
     const Core::Path::FilesystemPath& destImagePath,
     ImageFileFormat format,
-    const Core::Path::FilesystemPath& expectedBaseDir) {
+    const Core::Path::FilesystemPath& expectedBaseDir)
+{
     if (destImagePath.isEmpty() || !destImagePath.isValid()) {
         return Core::Result<void>::failure(
             Core::Error::ErrorCode::InvalidPath,

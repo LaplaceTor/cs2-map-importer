@@ -397,40 +397,191 @@
 <context>
     <name>BspPackExtractor</name>
     <message>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="36"/>
         <source>BSP file path is empty or invalid</source>
-        <translation>BSP 文件路径为空或无效</translation>
+        <translation type="vanished">BSP 文件路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="41"/>
         <source>BSP file not found</source>
-        <translation>未找到 BSP 文件</translation>
+        <translation type="vanished">未找到 BSP 文件</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="47"/>
+        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="31"/>
         <source>destination directory is empty or invalid</source>
         <translation>目标目录为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="52"/>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="141"/>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="266"/>
+        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="26"/>
+        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="54"/>
+        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="161"/>
         <source>BSP embedded file extraction cancelled</source>
         <translation>BSP 内嵌文件提取已取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="59"/>
         <source>BSP file failed to load or has an invalid signature</source>
-        <translation>BSP 文件加载失败或签名无效</translation>
+        <translation type="vanished">BSP 文件加载失败或签名无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="65"/>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="71"/>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="82"/>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="91"/>
-        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="136"/>
+        <location filename="../src/Domain/Package/BspPackExtractor.cpp" line="49"/>
         <source>BSP contains no embedded files</source>
         <translation>BSP 不包含任何内嵌文件</translation>
+    </message>
+</context>
+<context>
+    <name>BspPakZipReader</name>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="130"/>
+        <source>Deflate stream exceeds maximum supported size</source>
+        <translation>Deflate 流超出最大支持大小</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="157"/>
+        <source>Failed to initialize deflate stream</source>
+        <translation>初始化 Deflate 解压流失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="166"/>
+        <source>Deflate decompression failed or truncated entry</source>
+        <translation>Deflate 解压失败或条目已截断</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="183"/>
+        <source>BSP PAKFILE lump is smaller than minimum ZIP EOCD size</source>
+        <translation>BSP PAKFILE 数据块小于最小 ZIP EOCD 大小</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="238"/>
+        <source>ZIP End of Central Directory not found in BSP PAKFILE</source>
+        <translation>BSP PAKFILE 中未找到 ZIP 中央目录结束标记</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="248"/>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="349"/>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="371"/>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="400"/>
+        <source>BSP pack open cancelled</source>
+        <translation>打开 BSP 内嵌包已取消</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="253"/>
+        <source>BSP file path is empty or invalid</source>
+        <translation>BSP 文件路径为空或无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="258"/>
+        <source>BSP file not found</source>
+        <translation>未找到 BSP 文件</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="266"/>
+        <source>Failed to open BSP file</source>
+        <translation>打开 BSP 文件失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="274"/>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="292"/>
+        <source>BSP file header is truncated</source>
+        <translation>BSP 文件头已截断</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="282"/>
+        <source>Invalid VBSP signature</source>
+        <translation>无效的 VBSP 签名</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="301"/>
+        <source>BSP lump directory is truncated</source>
+        <translation>BSP 数据块目录已截断</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="335"/>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="384"/>
+        <source>BSP contains no embedded files</source>
+        <translation>BSP 不包含任何内嵌文件</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="343"/>
+        <source>BSP PAKFILE lump exceeds file size</source>
+        <translation>BSP PAKFILE 数据块超出文件大小</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="355"/>
+        <source>Failed to seek to BSP PAKFILE lump</source>
+        <translation>定位至 BSP PAKFILE 数据块失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="364"/>
+        <source>Failed to read BSP PAKFILE lump</source>
+        <translation>读取 BSP PAKFILE 数据块失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="405"/>
+        <source>Corrupted ZIP Central Directory record in BSP PAKFILE</source>
+        <translation>BSP PAKFILE 中的 ZIP 中央目录记录已损坏</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="422"/>
+        <source>Truncated ZIP Central Directory entry in BSP PAKFILE</source>
+        <translation>BSP PAKFILE 中的 ZIP 中央目录条目已截断</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="503"/>
+        <source>Entry path is empty</source>
+        <translation>条目路径为空</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="510"/>
+        <source>Entry path traverses outside archive</source>
+        <translation>条目路径越界逃逸出归档</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="518"/>
+        <source>Entry not found in BSP pack</source>
+        <translation>BSP 内嵌包中未找到该条目</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="529"/>
+        <source>BSP pack entry index out of range</source>
+        <translation>BSP 内嵌包条目索引超出范围</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="538"/>
+        <source>ZIP local file header out of bounds</source>
+        <translation>ZIP 本地文件头越界</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="546"/>
+        <source>Invalid ZIP local file header signature</source>
+        <translation>无效的 ZIP 本地文件头签名</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="557"/>
+        <source>ZIP entry payload exceeds BSP PAKFILE bounds</source>
+        <translation>ZIP 条目数据超出 BSP PAKFILE 范围</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="564"/>
+        <source>ZIP entry uncompressed size exceeds safety limit</source>
+        <translation>ZIP 条目解压后大小超出安全限制</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="577"/>
+        <source>Stored ZIP entry size mismatch</source>
+        <translation>未压缩 ZIP 条目大小不匹配</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="589"/>
+        <source>Truncated ZIP LZMA entry header</source>
+        <translation>ZIP LZMA 条目头已截断</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="596"/>
+        <source>Unsupported ZIP LZMA property size</source>
+        <translation>不支持的 ZIP LZMA 属性大小</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/BspPakZipReader.cpp" line="609"/>
+        <source>Unsupported ZIP compression method: %1</source>
+        <translation>不支持的 ZIP 压缩方式：%1</translation>
     </message>
 </context>
 <context>
@@ -1653,6 +1804,135 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
     </message>
 </context>
 <context>
+    <name>Lzma1Decoder</name>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="329"/>
+        <source>Invalid LZMA1 properties header</source>
+        <translation>无效的 LZMA1 属性头</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="335"/>
+        <source>LZMA uncompressed size exceeds safety limit</source>
+        <translation>LZMA 解压后大小超出安全限制</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="348"/>
+        <source>LZMA1 compressed stream is truncated</source>
+        <translation>LZMA1 压缩流已截断</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="373"/>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="422"/>
+        <source>Unexpected end of LZMA1 stream</source>
+        <translation>LZMA1 压缩流意外结束</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="389"/>
+        <source>Unexpected end of LZMA1 literal stream</source>
+        <translation>LZMA1 字面量流意外结束</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="396"/>
+        <source>Invalid LZMA1 match distance in literal state</source>
+        <translation>字面量状态下的 LZMA1 匹配距离无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="406"/>
+        <source>Unexpected end of LZMA1 matched literal stream</source>
+        <translation>LZMA1 匹配字面量流意外结束</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="434"/>
+        <source>Unexpected end of LZMA1 match length</source>
+        <translation>LZMA1 匹配长度解码意外结束</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="443"/>
+        <source>Unexpected end of LZMA1 position slot</source>
+        <translation>LZMA1 位置槽位解码意外结束</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="456"/>
+        <source>Unexpected end of LZMA1 distance bits</source>
+        <translation>LZMA1 距离比特解码意外结束</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="466"/>
+        <source>Unexpected end of LZMA1 direct distance bits</source>
+        <translation>LZMA1 直接距离比特解码意外结束</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="473"/>
+        <source>Unexpected end of LZMA1 align bits</source>
+        <translation>LZMA1 对齐比特解码意外结束</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="484"/>
+        <source>LZMA1 match distance exceeds decoded output</source>
+        <translation>LZMA1 匹配距离超出已解码输出</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="492"/>
+        <source>Unexpected end of LZMA1 repG0 flag</source>
+        <translation>LZMA1 repG0 标志解码意外结束</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="499"/>
+        <source>Unexpected end of LZMA1 rep0Long flag</source>
+        <translation>LZMA1 rep0Long 标志解码意外结束</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="505"/>
+        <source>Invalid LZMA1 short-rep distance</source>
+        <translation>无效的 LZMA1 短重复距离</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="515"/>
+        <source>Unexpected end of LZMA1 repG1 flag</source>
+        <translation>LZMA1 repG1 标志解码意外结束</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="524"/>
+        <source>Unexpected end of LZMA1 repG2 flag</source>
+        <translation>LZMA1 repG2 标志解码意外结束</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="540"/>
+        <source>Unexpected end of LZMA1 rep length</source>
+        <translation>LZMA1 重复长度解码意外结束</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="548"/>
+        <source>LZMA1 back-reference distance exceeds decoded output</source>
+        <translation>LZMA1 回溯距离超出已解码输出</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="552"/>
+        <source>LZMA1 match length exceeds expected uncompressed size</source>
+        <translation>LZMA1 匹配长度超出预期解压大小</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="562"/>
+        <source>LZMA1 stream ended before reaching expected uncompressed size</source>
+        <translation>LZMA1 流在达到预期解压大小前结束</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="574"/>
+        <source>Valve LZMA data is shorter than the 17-byte header</source>
+        <translation>Valve LZMA 数据短于 17 字节头部</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="580"/>
+        <source>Invalid Valve LZMA magic signature</source>
+        <translation>无效的 Valve LZMA 魔数签名</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/Internal/Lzma1Decoder.cpp" line="590"/>
+        <source>Valve LZMA uncompressed size exceeds safety limit</source>
+        <translation>Valve LZMA 解压后大小超出安全限制</translation>
+    </message>
+</context>
+<context>
     <name>Main</name>
     <message>
         <location filename="../src/qml/cs2importer/Main.qml" line="17"/>
@@ -2117,19 +2397,20 @@ Do you want to proceed?</source>
 <context>
     <name>PackArchive</name>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="44"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="60"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="74"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="247"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="348"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="478"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="494"/>
         <source>pack archive open cancelled</source>
         <translation>打开打包归档已取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="49"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="483"/>
         <source>pack archive path is empty or invalid</source>
         <translation>打包归档路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="54"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="488"/>
         <source>pack archive file not found</source>
         <translation>未找到打包归档文件</translation>
     </message>
@@ -2138,87 +2419,120 @@ Do you want to proceed?</source>
         <translation type="vanished">文件不是受支持的打包归档，或解析失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="79"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="254"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="262"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="270"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="277"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="287"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="294"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="302"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="311"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="319"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="355"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="369"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="383"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="393"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="404"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="411"/>
         <source>failed to open pack archive</source>
         <translation>打开打包归档失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="102"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="121"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="148"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="194"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="299"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="555"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="583"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="618"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="660"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="764"/>
         <source>pack archive is not open</source>
         <translation>打包归档未打开</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="116"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="578"/>
         <source>check pack entry cancelled</source>
-        <translation type="unfinished"></translation>
+        <translation>检查打包条目已取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="126"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="153"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="204"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="588"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="623"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="670"/>
         <source>entry path is empty</source>
-        <translation type="unfinished"></translation>
+        <translation>条目路径为空</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="132"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="160"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="211"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="595"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="630"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="677"/>
         <source>entry path is invalid or traverses outside directory</source>
-        <translation type="unfinished"></translation>
+        <translation>条目路径无效或越界逃逸出目录</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="168"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="223"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="167"/>
         <source>entry not found in pack archive</source>
         <translation>在打包归档中未找到该条目</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="189"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="201"/>
+        <source>failed to open pack archive volume</source>
+        <translation>打开打包归档分卷失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="211"/>
+        <source>pack entry range exceeds archive bounds</source>
+        <translation>打包条目范围超出归档边界</translation>
+    </message>
+    <message>
         <location filename="../src/Domain/Package/PackArchive.cpp" line="218"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="263"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="294"/>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="315"/>
+        <source>failed to seek pack archive entry</source>
+        <translation>定位打包归档条目失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="228"/>
+        <source>failed to read pack archive entry</source>
+        <translation>读取打包归档条目失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="655"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="686"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="728"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="759"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="780"/>
         <source>pack extraction cancelled</source>
         <translation>提取打包归档已取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="199"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="665"/>
         <source>destination file path is empty or invalid</source>
         <translation>目标文件路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="232"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="697"/>
         <source>failed to create destination directory</source>
         <translation>创建目标目录失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="240"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="705"/>
         <source>failed to open destination file for writing</source>
         <translation>无法打开目标文件进行写入</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="249"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="714"/>
         <source>destination file escapes base directory via reparse point</source>
-        <translation type="unfinished"></translation>
+        <translation>目标文件通过重解析点逃逸出基目录</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="273"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="738"/>
         <source>failed to extract entry to destination file</source>
         <translation>提取条目到目标文件失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="304"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="769"/>
         <source>destination directory path is empty or invalid</source>
         <translation>目标目录路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/PackArchive.cpp" line="321"/>
+        <location filename="../src/Domain/Package/PackArchive.cpp" line="786"/>
         <source>archive entry traverses outside destination directory</source>
-        <translation type="unfinished"></translation>
+        <translation>归档条目越界逃逸出目标目录</translation>
     </message>
     <message>
         <source>failed to extract one or more entries</source>
@@ -3644,12 +3958,13 @@ or click Add</source>
         <translation>计算 VPK 的 SHA-256 失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="77"/>
-        <source>Failed to parse VPK with sourcepp: %1</source>
-        <translation>使用 sourcepp 解析 VPK 失败：%1</translation>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="80"/>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="91"/>
+        <source>Failed to parse VPK archive: %1</source>
+        <translation>解析 VPK 归档失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="113"/>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="125"/>
         <source>VPK index built successfully: %1 archives, %2 total entries</source>
         <translation>VPK 索引构建成功：%1 个归档，共 %2 个条目</translation>
     </message>
@@ -3739,22 +4054,156 @@ or click Add</source>
 <context>
     <name>VtfCodec</name>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="54"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="478"/>
+        <source>VTF file is too small to contain a valid header</source>
+        <translation>VTF 文件过小，无法包含有效头部</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="487"/>
+        <source>Failed to read VTF header</source>
+        <translation>读取 VTF 头部失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="496"/>
+        <source>Invalid VTF file signature</source>
+        <translation>无效的 VTF 文件签名</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="505"/>
+        <source>Unsupported VTF version</source>
+        <translation>不支持的 VTF 版本</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="514"/>
+        <source>Invalid VTF header size</source>
+        <translation>无效的 VTF 头部大小</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="534"/>
+        <source>VTF image dimensions or mip count are zero</source>
+        <translation>VTF 图像尺寸或 Mip 层数为零</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="572"/>
+        <source>Unsupported VTF pixel format</source>
+        <translation>不支持的 VTF 像素格式</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="586"/>
+        <source>VTF image data offset exceeds file size</source>
+        <translation>VTF 图像数据偏移超出文件大小</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="595"/>
+        <source>VTF resource directory exceeds header size</source>
+        <translation>VTF 资源目录超出头部大小</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="606"/>
+        <source>Failed to read VTF resource directory</source>
+        <translation>读取 VTF 资源目录失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="624"/>
+        <source>VTF resource offset exceeds file size</source>
+        <translation>VTF 资源偏移超出文件大小</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="658"/>
+        <source>VTF file contains no image data resource</source>
+        <translation>VTF 文件不包含图像数据资源</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="691"/>
+        <source>VTF mip 0 dimensions exceed safe decoding limits</source>
+        <translation>VTF Mip 0 尺寸超出安全解码限制</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="700"/>
+        <source>VTF AXC resource table is unexpectedly large</source>
+        <translation>VTF AXC 资源表异常过大</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="710"/>
+        <source>Failed to read VTF AXC compression table</source>
+        <translation>读取 VTF AXC 压缩表失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="725"/>
+        <source>Zstd-compressed VTF textures are not supported</source>
+        <translation>不支持 Zstd 压缩的 VTF 纹理</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="731"/>
+        <source>Unsupported VTF auxiliary compression method</source>
+        <translation>不支持的 VTF 辅助压缩方式</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="741"/>
+        <source>VTF AXC compression table is truncated</source>
+        <translation>VTF AXC 压缩表已截断</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="760"/>
+        <source>VTF AXC compressed image block is out of bounds</source>
+        <translation>VTF AXC 压缩图像块越界</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="768"/>
+        <source>VTF mip 0 volume exceeds safe decoding limits</source>
+        <translation>VTF Mip 0 体积超出安全解码限制</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="777"/>
+        <source>Failed to read compressed VTF image data</source>
+        <translation>读取压缩 VTF 图像数据失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="791"/>
+        <source>Failed to initialize zlib decoder for VTF</source>
+        <translation>初始化 VTF zlib 解码器失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="800"/>
+        <source>Failed to decompress VTF AXC image data</source>
+        <translation>解压 VTF AXC 图像数据失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="824"/>
+        <source>VTF image data is truncated or corrupted</source>
+        <translation>VTF 图像数据已截断或损坏</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="834"/>
+        <source>Failed to read VTF mip 0 image data</source>
+        <translation>读取 VTF Mip 0 图像数据失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1208"/>
         <source>VTF file path is empty or invalid</source>
         <translation>VTF 文件路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="59"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1213"/>
         <source>VTF file not found</source>
         <translation>未找到 VTF 文件</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="69"/>
-        <source>failed to parse VTF file</source>
-        <translation>VTF 文件解析失败</translation>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1221"/>
+        <source>Failed to open VTF file</source>
+        <translation>打开 VTF 文件失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="83"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1237"/>
+        <source>VTF image dimensions exceed safe decoding limits</source>
+        <translation>VTF 图像尺寸超出安全解码限制</translation>
+    </message>
+    <message>
+        <source>failed to parse VTF file</source>
+        <translation type="vanished">VTF 文件解析失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1313"/>
         <source>VTF image data is missing or has unexpected size</source>
         <translation>VTF 图像数据缺失或尺寸异常</translation>
     </message>
@@ -3762,22 +4211,34 @@ or click Add</source>
 <context>
     <name>VtfConverter</name>
     <message>
-        <location filename="../src/Domain/Material/VtfConverter.cpp" line="23"/>
         <source>VTF file path is empty or invalid</source>
-        <translation>VTF 文件路径为空或无效</translation>
+        <translation type="vanished">VTF 文件路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfConverter.cpp" line="28"/>
         <source>VTF file not found</source>
-        <translation>未找到 VTF 文件</translation>
+        <translation type="vanished">未找到 VTF 文件</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfConverter.cpp" line="91"/>
         <source>failed to decode VTF image or encode to target format</source>
-        <translation>解码 VTF 图像或编码为目标格式失败</translation>
+        <translation type="vanished">解码 VTF 图像或编码为目标格式失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfConverter.cpp" line="106"/>
+        <location filename="../src/Domain/Material/VtfConverter.cpp" line="42"/>
+        <source>Failed to open memory buffer for image encoding</source>
+        <translation>打开用于图像编码的内存缓冲区失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfConverter.cpp" line="53"/>
+        <source>Failed to encode VTF image to target format</source>
+        <translation>将 VTF 图像编码为目标格式失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfConverter.cpp" line="188"/>
+        <source>Unsupported target image format</source>
+        <translation>不支持的目标图像格式</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfConverter.cpp" line="201"/>
         <source>destination image path is empty or invalid</source>
         <translation>目标图像路径为空或无效</translation>
     </message>

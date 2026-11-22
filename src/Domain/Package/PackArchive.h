@@ -10,18 +10,13 @@
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
 
-namespace vpkpp {
-class PackFile;
-}
-
 namespace Domain::Package {
 
 /**
  * @brief Unified read access to game pack archives.
  *
- * Wraps vpkpp::PackFile for VPK archives and, through the bsppp::PakLump
- * registration, BSP embedded packs. The format is detected from the file
- * extension when opening.
+ * Supports native VPK (v1/v2) archives and BSP embedded packs. The format is
+ * detected from the file extension when opening.
  *
  * Entry paths are pack-relative with '/' separators and no leading slash;
  * lookups are case-insensitive. All results follow the Core::Result contract.
@@ -85,7 +80,8 @@ public:
 private:
     PackArchive() = default;
 
-    std::unique_ptr<vpkpp::PackFile> m_packFile;
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
 };
 
 } // namespace Domain::Package
