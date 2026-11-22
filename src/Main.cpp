@@ -60,6 +60,8 @@ int main(int argc, char *argv[])
     // Register file sink for workflow tasks
     auto taskFileSink = std::make_shared<Core::Logging::TaskFileSink>();
     Core::Logging::LogManager::instance().addSink(taskFileSink);
+    Core::Logging::LogManager::instance().setDefaultBlockSizeThreshold(8 * 1024);
+    Core::Logging::LogManager::instance().setDefaultAutoFlushIntervalMs(50);
 
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
 

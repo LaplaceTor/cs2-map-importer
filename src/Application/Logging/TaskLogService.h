@@ -1,9 +1,10 @@
 #pragma once
 
+#include <QElapsedTimer>
 #include <QObject>
 #include <QString>
+#include <QTimer>
 #include <QVector>
-#include <atomic>
 #include <memory>
 
 #include "Application/Logging/TaskLogDTOs.h"
@@ -17,10 +18,10 @@ namespace Application::Logging {
 /**
  * @brief Application-layer facade exposing the Core task logging system to the UI layer.
  *
- * Owns the Core::Logging::ILogSink bridge that converts sealed Core log blocks into
- * Application-owned DTOs (TaskLogMessage) and delivers them via queued signals.
+ * Owns the Core::Logging::ILogSink bridge that buffers task lifecycle, progress, and sealed
+ * log blocks per task and delivers coalesced frame updates (TaskLogUpdate) on the UI thread.
  * UI code must consume logging exclusively through this facade and its DTOs,
- * never through Core/Logging headers, to keep the Presentation → Application
+ * never through Core/Logging headers, to keep the Presentation -> Application
  * dependency contract intact.
  */
 class TaskLogService : public QObject {
@@ -36,9 +37,9 @@ public:
     TaskLogService& operator=(TaskLogService&&) = delete;
 
     /**
-     * @brief Starts delivering log batches to the (single) active subscriber.
-     * @return Subscription id that tags subsequent logBatchReceived deliveries.
-     * A newer subscribe() supersedes older subscriptions: batches only carry the
+     * @brief Starts delivering log updates to the (single) active subscriber.
+     * @return Subscription id that tags subsequent taskUpdatesReceived deliveries.
+     * A newer subscribe() supersedes older subscriptions: updates only carry the
      * most recent id, so superseded receivers drop deliveries by id comparison.
      */
     quint64 subscribe();
@@ -49,10 +50,26 @@ public:
     void unsubscribe(quint64 subscriptionId);
 
     /**
-     * @brief Snapshot of a task's presentation metadata.
+     * @brief Single-lock snapshot of a task's presentation metadata.
      * Returns an invalid TaskInfo (isValid == false) for unknown task ids.
      */
     TaskInfo taskInfo(quint64 taskId) const;
+
+    /**
+     * @brief Sets the frame coalescing interval in milliseconds (clamped to >= 0).
+     * Default is 33 ms (~30 Hz). Setting 0 disables coalescing delay.
+     */
+    void setCoalesceIntervalMs(int intervalMs);
+
+    /**
+     * @brief Current frame coalescing interval in milliseconds.
+     */
+    int coalesceIntervalMs() const noexcept;
+
+    /**
+     * @brief Immediately drains and emits any pending buffered updates on the UI thread.
+     */
+    void flushPendingDeliveries();
 
     /**
      * @brief Path of the current application log file (empty when logging is not initialized).
@@ -82,22 +99,24 @@ public:
 
 signals:
     /**
-     * @brief Emitted (possibly from worker threads) for each published Core log block.
+     * @brief Emitted on the UI thread with coalesced per-task updates.
      * @param subscriptionId Subscription that produced this batch; receivers drop stale ids.
-     * @param taskId Task the block belongs to (0 for unattached UI-side messages).
-     * @param taskName Display name of the task (may be empty).
-     * @param messages Converted log messages in submission order.
+     * @param updates Coalesced per-task updates ordered by first dirty arrival.
      */
-    void logBatchReceived(quint64 subscriptionId, quint64 taskId, const QString& taskName,
-                          const QVector<Application::Logging::TaskLogMessage>& messages);
+    void taskUpdatesReceived(quint64 subscriptionId,
+                             const QVector<Application::Logging::TaskLogUpdate>& updates);
+
+private slots:
+    void scheduleCoalescedFlush();
+    void drainPendingUpdates();
 
 private:
     class SinkBridge;
 
-    void publishBatch(quint64 subscriptionId, quint64 taskId, const QString& taskName,
-                      QVector<TaskLogMessage> messages);
-
     std::shared_ptr<SinkBridge> m_sinkBridge;
+    QTimer m_coalesceTimer;
+    QElapsedTimer m_lastDrainTimer;
+    int m_coalesceIntervalMs = 33;
 };
 
 } // namespace Application::Logging

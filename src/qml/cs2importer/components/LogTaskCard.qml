@@ -17,7 +17,6 @@ Rectangle {
     property int subTasksCount: (typeof model !== "undefined" && model && model.subTasksCount !== undefined) ? model.subTasksCount : 0
     property bool hasSubTasks: (typeof model !== "undefined" && model && model.hasSubTasks !== undefined ? model.hasSubTasks : false)
     property var messagesModel: (typeof model !== "undefined" && model && model.messagesModel !== undefined) ? model.messagesModel : null
-    property var subTasksModel: (typeof model !== "undefined" && model && model.subTasksModel !== undefined) ? model.subTasksModel : null
     property bool autoScroll: true
     property bool userScrolledUp: false
     property var taskView: null
@@ -43,7 +42,8 @@ Rectangle {
         if (messageCount === 0) {
             return 40;
         }
-        return 40 + 6 + Math.min(260, Math.max(30, messageListView.contentHeight + 12));
+        var bannerH = truncationBanner.visible ? (truncationBanner.implicitHeight + 4) : 0;
+        return 40 + 6 + Math.min(260, Math.max(30, messageListView.contentHeight + bannerH + 12));
     }
     height: implicitHeight
 
@@ -318,45 +318,73 @@ Rectangle {
             }
         }
 
-        ListView {
-            id: messageListView
+        ColumnLayout {
             anchors.fill: parent
             anchors.margins: 6
-            clip: true
-            spacing: 3
-            model: rootCard.messagesModel
-            boundsBehavior: Flickable.StopAtBounds
+            spacing: 4
 
-            ScrollBar.vertical: ScrollBar {
-                id: msgScrollBar
-                active: messageListView.contentHeight > messageListView.height
-                onPressedChanged: {
-                    if (!pressed && messageListView.atYEnd) {
-                        rootCard.userScrolledUp = false;
-                    }
+            Rectangle {
+                id: truncationBanner
+                Layout.fillWidth: true
+                implicitHeight: truncationText.implicitHeight + 8
+                visible: rootCard.messagesModel && rootCard.messagesModel.truncatedCount > 0
+                color: "#263238"
+                border.color: "#455A64"
+                border.width: 1
+                radius: 2
+
+                Text {
+                    id: truncationText
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    wrapMode: Text.Wrap
+                    text: qsTr("Earlier %1 log line(s) omitted from view. Open the log file for full history.")
+                        .arg(rootCard.messagesModel ? rootCard.messagesModel.truncatedCount : 0)
+                    color: "#B0BEC5"
+                    font.pixelSize: 11
                 }
-                onPositionChanged: {
-                    if (pressed) {
-                        if (messageListView.atYEnd) {
+            }
+
+            ListView {
+                id: messageListView
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                spacing: 3
+                reuseItems: true
+                model: rootCard.expanded ? rootCard.messagesModel : null
+                boundsBehavior: Flickable.StopAtBounds
+
+                ScrollBar.vertical: ScrollBar {
+                    id: msgScrollBar
+                    active: messageListView.contentHeight > messageListView.height
+                    onPressedChanged: {
+                        if (!pressed && messageListView.atYEnd) {
                             rootCard.userScrolledUp = false;
-                        } else {
-                            rootCard.userScrolledUp = true;
+                        }
+                    }
+                    onPositionChanged: {
+                        if (pressed) {
+                            if (messageListView.atYEnd) {
+                                rootCard.userScrolledUp = false;
+                            } else {
+                                rootCard.userScrolledUp = true;
+                            }
                         }
                     }
                 }
-            }
 
-            onCountChanged: {
-                if (rootCard.expanded && rootCard.autoScroll && !rootCard.userScrolledUp) {
-                    Qt.callLater(messageListView.positionViewAtEnd)
+                onCountChanged: {
+                    if (rootCard.expanded && rootCard.autoScroll && !rootCard.userScrolledUp) {
+                        Qt.callLater(messageListView.positionViewAtEnd)
+                    }
                 }
-            }
 
-            Component.onCompleted: {
-                if (rootCard.expanded && rootCard.autoScroll) {
-                    Qt.callLater(messageListView.positionViewAtEnd)
+                Component.onCompleted: {
+                    if (rootCard.expanded && rootCard.autoScroll) {
+                        Qt.callLater(messageListView.positionViewAtEnd)
+                    }
                 }
-            }
 
                 delegate: RowLayout {
                     id: msgRow
@@ -364,9 +392,11 @@ Rectangle {
                     spacing: 6
 
                     required property string timestampString
-                    required property string levelString
+                    required property int level
                     required property string message
                     required property var toolTaskId
+
+                    ListView.onReused: msgTextEdit.deselect()
 
                     Text {
                         text: "[" + (msgRow.timestampString || "00:00:00") + "]"
@@ -383,10 +413,9 @@ Rectangle {
                         Layout.alignment: Qt.AlignTop
 
                         color: {
-                            var lvl = (msgRow.levelString || "").toUpperCase()
-                            if (lvl === "ERROR" || lvl === "CRITICAL") return "#C62828"
-                            if (lvl === "WARNING") return "#EF6C00"
-                            if (lvl === "DEBUG") return "#424242"
+                            if (msgRow.level === 3 || msgRow.level === 4) return "#C62828"
+                            if (msgRow.level === 2) return "#EF6C00"
+                            if (msgRow.level === 0) return "#424242"
                             return "#2E7D32"
                         }
 
@@ -394,10 +423,11 @@ Rectangle {
                             id: lvlText
                             anchors.centerIn: parent
                             text: {
-                                var str = (msgRow.levelString || "INFO").toUpperCase()
-                                if (str === "WARNING") return "WARN"
-                                if (str === "CRITICAL") return "CRIT"
-                                return str
+                                if (msgRow.level === 0) return "DEBUG"
+                                if (msgRow.level === 2) return "WARN"
+                                if (msgRow.level === 3) return "ERROR"
+                                if (msgRow.level === 4) return "CRIT"
+                                return "INFO"
                             }
                             color: "#FFFFFF"
                             font.bold: true
@@ -449,6 +479,7 @@ Rectangle {
                     }
 
                     TextEdit {
+                        id: msgTextEdit
                         Layout.fillWidth: true
                         readOnly: true
                         selectByMouse: true
@@ -457,14 +488,14 @@ Rectangle {
                         font.family: "Consolas, 'Courier New', monospace"
                         font.pixelSize: 12
                         color: {
-                            var lvl = (msgRow.levelString || "").toUpperCase()
-                            if (lvl === "ERROR" || lvl === "CRITICAL") return "#FF5252"
-                            if (lvl === "WARNING") return "#FFD740"
-                            if (lvl === "DEBUG") return "#9E9E9E"
+                            if (msgRow.level === 3 || msgRow.level === 4) return "#FF5252"
+                            if (msgRow.level === 2) return "#FFD740"
+                            if (msgRow.level === 0) return "#9E9E9E"
                             return "#ECEFF1"
                         }
                     }
                 }
             }
+        }
         }
     }

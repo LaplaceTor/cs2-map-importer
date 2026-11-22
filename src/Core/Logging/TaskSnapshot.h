@@ -18,10 +18,14 @@ struct TaskSnapshot {
     quint64 taskId = 0;
     quint64 parentTaskId = 0;
     quint64 creationSequence = 0;
+    qint64 startTimestamp = 0;
     QString taskName;
     TaskState state = TaskState::Pending;
     double progress = 0.0;
     QString currentMessage;
+    bool isToolTask = false;
+    QString logFilePath;
+    QString workflowDirectory;
     quint64 logCount = 0;
     qsizetype sealedBlockCount = 0;
 };

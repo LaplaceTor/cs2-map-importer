@@ -1778,12 +1778,12 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
         <translation>操作已取消</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/ImportContext.h" line="111"/>
+        <location filename="../src/Workflow/Common/ImportContext.h" line="112"/>
         <source>Cancelled before step: %1</source>
         <translation>步骤 %1 开始前已取消</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Common/ImportContext.h" line="121"/>
+        <location filename="../src/Workflow/Common/ImportContext.h" line="124"/>
         <source>Cancelled during step: %1</source>
         <translation>步骤 %1 执行期间已取消</translation>
     </message>
@@ -2034,7 +2034,12 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
         <translation>%1 条日志</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="431"/>
+        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="341"/>
+        <source>Earlier %1 log line(s) omitted from view. Open the log file for full history.</source>
+        <translation>已从视图中省略较早的 %1 行日志，请打开日志文件查看完整记录。</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/components/LogTaskCard.qml" line="461"/>
         <source>Detailed Log</source>
         <translation>详细日志</translation>
     </message>
@@ -2042,7 +2047,7 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
 <context>
     <name>LogViewModel</name>
     <message>
-        <location filename="../src/UI/ViewModels/LogViewModel.cpp" line="821"/>
+        <location filename="../src/UI/ViewModels/LogViewModel.cpp" line="804"/>
         <source>General</source>
         <translation>通用</translation>
     </message>
@@ -2050,32 +2055,32 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
 <context>
     <name>LogWindow</name>
     <message>
-        <location filename="../src/qml/cs2importer/LogWindow.qml" line="66"/>
+        <location filename="../src/qml/cs2importer/LogWindow.qml" line="81"/>
         <source>CS2 IMPORTER - Logs</source>
         <translation>CS2 IMPORTER - 日志</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/LogWindow.qml" line="82"/>
+        <location filename="../src/qml/cs2importer/LogWindow.qml" line="97"/>
         <source>Open log folder</source>
         <translation>打开日志文件夹</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/LogWindow.qml" line="91"/>
+        <location filename="../src/qml/cs2importer/LogWindow.qml" line="106"/>
         <source>Expand All</source>
         <translation>全部展开</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/LogWindow.qml" line="100"/>
+        <location filename="../src/qml/cs2importer/LogWindow.qml" line="115"/>
         <source>Collapse All</source>
         <translation>全部折叠</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/LogWindow.qml" line="109"/>
+        <location filename="../src/qml/cs2importer/LogWindow.qml" line="124"/>
         <source>Auto-scroll</source>
         <translation>自动滚动</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/LogWindow.qml" line="123"/>
+        <location filename="../src/qml/cs2importer/LogWindow.qml" line="138"/>
         <source>Tasks: %1 | Messages: %2</source>
         <translation>任务：%1 | 消息：%2</translation>
     </message>
@@ -2217,17 +2222,17 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
         <translation>CS2 IMPORTER</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="80"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="81"/>
         <source>Alert</source>
         <translation>提示</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="86"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="87"/>
         <source>Counter-Strike 2 is Running</source>
         <translation>Counter-Strike 2 正在运行</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="87"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="88"/>
         <source>vpk.signatures is currently in use by Counter-Strike 2 or another application.
 
 Please close Counter-Strike 2 before using CS2 Importer.</source>
@@ -2236,12 +2241,12 @@ Please close Counter-Strike 2 before using CS2 Importer.</source>
 请在使用 CS2 Importer 前关闭 Counter-Strike 2。</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="106"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="107"/>
         <source>Confirm Game Validation</source>
         <translation>确认游戏校验</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="107"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="108"/>
         <source>Validating game files through Steam is only needed if you are certain there are corrupted or missing game files.
 
 Do you want to proceed?</source>
@@ -2250,32 +2255,32 @@ Do you want to proceed?</source>
 是否继续？</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="140"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="141"/>
         <source>Select Source 1 Game Folder</source>
         <translation>选择 Source 1 游戏目录</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="150"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="151"/>
         <source>Select gameinfo.txt</source>
         <translation>选择 gameinfo.txt</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="161"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="162"/>
         <source>Select Source 2 Game Folder</source>
         <translation>选择 Source 2 游戏目录</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="181"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="182"/>
         <source>Select VMF or BSP Map Files</source>
         <translation>选择 VMF 或 BSP 地图文件</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="195"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="196"/>
         <source>Select Source 1 MDL Model Files</source>
         <translation>选择 Source 1 MDL 模型文件</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="209"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="210"/>
         <source>Select Source 1 PCF Particle Files</source>
         <translation>选择 Source 1 PCF 粒子文件</translation>
     </message>
@@ -2292,48 +2297,48 @@ Do you want to proceed?</source>
         <translation type="vanished">选择 Source 1 PCF 粒子文件</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="248"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="249"/>
         <source>Map</source>
         <translation>地图</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="255"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="256"/>
         <source>Model</source>
         <translation>模型</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="262"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="263"/>
         <source>Particle</source>
         <translation>粒子</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="347"/>
-        <location filename="../src/qml/cs2importer/Main.qml" line="350"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="348"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="351"/>
         <source>Theme:System</source>
         <translation>主题：跟随系统</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="348"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="349"/>
         <source>Theme:Light</source>
         <translation>主题：浅色</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="349"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="350"/>
         <source>Theme:Dark</source>
         <translation>主题：深色</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="364"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="365"/>
         <source>Check Update</source>
         <translation>检查更新</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="382"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="383"/>
         <source>v%1</source>
         <translation>v%1</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="396"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="397"/>
         <source>LOG</source>
         <translation>日志</translation>
     </message>
@@ -3214,91 +3219,91 @@ Do you want to proceed?</source>
 <context>
     <name>ResourceCompilerTool</name>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="279"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="261"/>
         <source>Resource compiler path is invalid</source>
         <translation>资源编译器路径无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="284"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="266"/>
         <source>Resource compiler does not exist</source>
         <translation>资源编译器不存在</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="289"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="271"/>
         <source>CS2 game directory cannot be empty</source>
         <translation>CS2 游戏目录不能为空</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="294"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="276"/>
         <source>Resource list to compile cannot be empty</source>
         <translation>待编译资源列表不能为空</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="132"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="114"/>
         <source>resourcecompiler cancelled</source>
         <translation>resourcecompiler 已取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="135"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="117"/>
         <source>resourcecompiler was cancelled</source>
         <translation>resourcecompiler 已被取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="63"/>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="138"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="62"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="120"/>
         <source>Resource compiler was cancelled</source>
         <translation>资源编译器已取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="28"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="27"/>
         <source>Failed to open temporary filelist: %1</source>
         <translation>打开临时文件列表失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="34"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="33"/>
         <source>Security boundary violation: Temporary filelist escaped system temp directory</source>
         <translation>安全边界违规：临时文件清单逃逸出系统临时目录</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="147"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="129"/>
         <source>resourcecompiler crashed: %1</source>
         <translation>resourcecompiler 崩溃：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="150"/>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="163"/>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="176"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="132"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="145"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="158"/>
         <source>resourcecompiler.exe</source>
         <translation>resourcecompiler.exe</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="151"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="133"/>
         <source>Resource compiler crashed</source>
         <translation>资源编译器崩溃</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="156"/>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="157"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="138"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="139"/>
         <source>Timed out</source>
         <translation>已超时</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="160"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="142"/>
         <source>resourcecompiler timed out after %1 ms</source>
         <translation>resourcecompiler 在 %1 毫秒后超时</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="164"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="146"/>
         <source>Resource compiler timed out</source>
         <translation>资源编译器执行超时</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="173"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="155"/>
         <source>resourcecompiler failed to start: %1</source>
         <translation>resourcecompiler 启动失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="177"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="159"/>
         <source>Failed to start resource compiler</source>
         <translation>资源编译器启动失败</translation>
     </message>
@@ -3307,32 +3312,32 @@ Do you want to proceed?</source>
         <translation type="vanished">已编译 VPCF_C：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="212"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="194"/>
         <source>resourcecompiler returned failure with exit code %1</source>
         <translation>resourcecompiler 返回失败，退出码 %1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="213"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="195"/>
         <source>; </source>
         <translation>; </translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="219"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="201"/>
         <source>resourcecompiler failed: %1</source>
         <translation>resourcecompiler 失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="223"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="205"/>
         <source>Resource compilation failed</source>
         <translation>资源编译失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="228"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="210"/>
         <source>Compiled %1 asset(s)</source>
         <translation>已编译 %1 个资源</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="238"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="220"/>
         <source>Successfully compiled %1 resource(s)</source>
         <translation>成功编译 %1 个资源</translation>
     </message>
@@ -3692,111 +3697,111 @@ Do you want to proceed?</source>
 <context>
     <name>Source1ImportTool</name>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="44"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="43"/>
         <source>Source 1 import tool path is invalid</source>
         <translation>Source 1 导入工具路径无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="49"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="48"/>
         <source>Source 1 import tool does not exist</source>
         <translation>Source 1 导入工具不存在</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="110"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="92"/>
         <source>source1import cancelled</source>
         <translation>source1import 已取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="113"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="95"/>
         <source>source1import was cancelled</source>
         <translation>source1import 已被取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="115"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="97"/>
         <source>Source 1 import tool was cancelled</source>
         <translation>Source 1 导入工具已取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="124"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="106"/>
         <source>source1import crashed: %1</source>
         <translation>source1import 崩溃：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="127"/>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="140"/>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="153"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="109"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="122"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="135"/>
         <source>source1import.exe</source>
         <translation>source1import.exe</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="128"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="110"/>
         <source>Source 1 import tool crashed</source>
         <translation>Source 1 导入工具崩溃</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="133"/>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="134"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="115"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="116"/>
         <source>Timed out</source>
         <translation>已超时</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="137"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="119"/>
         <source>source1import timed out after %1 ms</source>
         <translation>source1import 在 %1 毫秒后超时</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="141"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="123"/>
         <source>Source 1 import tool timed out</source>
         <translation>Source 1 导入工具执行超时</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="150"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="132"/>
         <source>source1import failed to start: %1</source>
         <translation>source1import 启动失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="154"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="136"/>
         <source>Failed to start Source 1 import tool</source>
         <translation>Source 1 导入工具启动失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="188"/>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="189"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="170"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="171"/>
         <source>No matching files found</source>
         <translation>未找到匹配的文件</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="193"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="175"/>
         <source>No files found matching the specification</source>
         <translation>未找到与规格匹配的文件</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="199"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="181"/>
         <source>source1import returned failure with exit code %1</source>
         <translation>source1import 返回失败，退出码 %1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="200"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="182"/>
         <source>; </source>
         <translation>; </translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="206"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="188"/>
         <source>source1import failed: %1</source>
         <translation>source1import 失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="210"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="192"/>
         <source>Resource import failed: %1</source>
         <translation>资源导入失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="215"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="197"/>
         <source>Converted %1 asset(s)</source>
         <translation>已转换 %1 个资产</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="225"/>
+        <location filename="../src/Domain/Tool/Source1ImportTool.cpp" line="207"/>
         <source>Successfully imported %1 asset(s)</source>
         <translation>成功导入 %1 个资产</translation>
     </message>
@@ -4135,34 +4140,74 @@ or click Add</source>
 <context>
     <name>ToolLogWindow</name>
     <message>
-        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="46"/>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="50"/>
         <source>External Tool Log - %1</source>
         <translation>外部工具日志 - %1</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="65"/>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="70"/>
         <source>Open log file</source>
         <translation>打开日志文件</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="75"/>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="80"/>
         <source>Copy all</source>
         <translation>全部复制</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="87"/>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="89"/>
         <source>Auto-scroll</source>
         <translation>自动滚动</translation>
     </message>
     <message>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="126"/>
+        <source>PENDING</source>
+        <translation>等待中</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="127"/>
+        <source>RUNNING</source>
+        <translation>运行中</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="128"/>
+        <source>COMPLETED</source>
+        <translation>已完成</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="129"/>
+        <source>FAILED</source>
+        <translation>失败</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="130"/>
+        <source>CANCELLED</source>
+        <translation>已取消</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="131"/>
+        <source>SKIPPED</source>
+        <translation>已跳过</translation>
+    </message>
+    <message>
         <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="132"/>
+        <source>UNKNOWN</source>
+        <translation>未知</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="140"/>
         <source>Lines: %1</source>
         <translation>行数：%1</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="154"/>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="162"/>
         <source>CMD:</source>
         <translation>命令：</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="214"/>
+        <source>Earlier %1 log line(s) omitted from view. Open the log file for full history.</source>
+        <translation>已从视图中省略较早的 %1 行日志，请打开日志文件查看完整记录。</translation>
     </message>
 </context>
 <context>

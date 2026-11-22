@@ -11,25 +11,25 @@ namespace Application::Logging {
  * Value order intentionally mirrors Core::Logging::TaskState; UI code must use
  * this enum (never the Core type) when rendering task state.
  */
-enum class TaskState {
+enum class TaskState : int {
     Pending,
     Running,
     Completed,
     Failed,
     Cancelled,
-    Skipped
+    Skipped,
 };
 
 /**
  * @brief UI-facing log levels.
  * Value order intentionally mirrors Core::Logging::LogLevel.
  */
-enum class LogLevel {
+enum class LogLevel : int {
     Debug,
     Info,
     Warning,
     Error,
-    Critical
+    Critical,
 };
 
 inline QString taskStateToString(TaskState state)
@@ -96,7 +96,20 @@ struct TaskInfo {
     bool isValid = false; // false when the taskId does not exist in the logging system
 };
 
+/**
+ * @brief Coalesced per-task UI update delivered in a single frame batch.
+ */
+struct TaskLogUpdate {
+    quint64 taskId = 0;
+    TaskInfo taskInfo;
+    QVector<TaskLogMessage> messages;
+    bool created = false;
+    bool terminated = false;
+};
+
 } // namespace Application::Logging
 
 Q_DECLARE_METATYPE(Application::Logging::TaskLogMessage)
 Q_DECLARE_METATYPE(QVector<Application::Logging::TaskLogMessage>)
+Q_DECLARE_METATYPE(Application::Logging::TaskLogUpdate)
+Q_DECLARE_METATYPE(QVector<Application::Logging::TaskLogUpdate>)

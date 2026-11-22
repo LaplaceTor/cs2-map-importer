@@ -64,6 +64,11 @@ public:
     bool flush() override;
 
     /**
+     * @brief Flushes only the open log file for the specified task.
+     */
+    bool flushTask(quint64 taskId) override;
+
+    /**
      * @brief Flushes and closes the log file for a specific task.
      */
     void closeTask(quint64 taskId);

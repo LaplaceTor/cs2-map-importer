@@ -7,7 +7,6 @@
 #include "Core/Process/ProcessOptions.h"
 #include "Core/Process/ProcessResult.h"
 #include "Core/Temp/TempFile.h"
-#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -90,29 +89,12 @@ Core::Result<ResourceCompilerToolResult> compileInternal(
         procOptions.workingDirectory = options.gameDir.toString();
     }
 
-    qint64 lastFlushTime = QDateTime::currentMSecsSinceEpoch();
-    int pendingLinesCount = 0;
-
     if (childTask) {
-        procOptions.onStdOutLine = [childTask, &lastFlushTime, &pendingLinesCount](const QString& line) {
+        procOptions.onStdOutLine = [childTask](const QString& line) {
             childTask->logExternalToolOutput(line, Core::Logging::LogLevel::Info);
-            pendingLinesCount++;
-            qint64 now = QDateTime::currentMSecsSinceEpoch();
-            if (now - lastFlushTime >= 50 || pendingLinesCount >= 20) {
-                childTask->flush();
-                lastFlushTime = now;
-                pendingLinesCount = 0;
-            }
         };
-        procOptions.onStdErrLine = [childTask, &lastFlushTime, &pendingLinesCount](const QString& line) {
+        procOptions.onStdErrLine = [childTask](const QString& line) {
             childTask->logExternalToolOutput(line, Core::Logging::LogLevel::Warning);
-            pendingLinesCount++;
-            qint64 now = QDateTime::currentMSecsSinceEpoch();
-            if (now - lastFlushTime >= 50 || pendingLinesCount >= 20) {
-                childTask->flush();
-                lastFlushTime = now;
-                pendingLinesCount = 0;
-            }
         };
     }
 

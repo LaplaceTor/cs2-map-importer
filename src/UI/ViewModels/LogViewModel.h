@@ -1,17 +1,14 @@
 #pragma once
 
+#include <QAbstractListModel>
 #include <QHash>
 #include <QObject>
 #include <QString>
-#include <QStringList>
 #include <QVector>
-#include <atomic>
-#include <functional>
 #include <memory>
 
 #include "Application/Logging/TaskLogDTOs.h"
 #include "UI/ViewModels/LogMessageListModel.h"
-#include "UI/ViewModels/LogTaskModel.h"
 
 namespace Application::Logging {
 class TaskLogService;
@@ -30,33 +27,41 @@ struct TaskTreeNode {
     bool expanded = false;
     bool isToolTask = false;
     std::shared_ptr<LogMessageListModel> messagesModel;
-    std::shared_ptr<LogTaskModel> subTasksModel;
     QVector<std::shared_ptr<TaskTreeNode>> children;
     std::weak_ptr<TaskTreeNode> parent;
-};
-
-struct TaskRegistryEntry {
-    quint64 taskId = 0;
-    quint64 parentTaskId = 0;
-    int depth = 0;
-    std::shared_ptr<TaskTreeNode> node;
-    std::shared_ptr<LogMessageListModel> messagesModel;
-    std::shared_ptr<LogTaskModel> subTasksModel;
 };
 
 /**
  * @brief Top-level ViewModel for logs, presenting a dynamic flattened tree projection
  * to QML ListView while maintaining the canonical task hierarchy in C++.
  * Consumes the Application::Logging::TaskLogService facade exclusively; model mutations
- * execute strictly on the owning UI thread (guaranteed by TaskLogService queued delivery).
+ * execute strictly on the owning UI thread (guaranteed by TaskLogService coalesced delivery).
  */
-class LogViewModel : public LogTaskModel {
+class LogViewModel : public QAbstractListModel {
     Q_OBJECT
 
+    Q_PROPERTY(int taskCount READ taskCount NOTIFY taskCountChanged)
     Q_PROPERTY(int totalMessageCount READ totalMessageCount NOTIFY totalMessageCountChanged)
     Q_PROPERTY(bool autoScroll READ autoScroll WRITE setAutoScroll NOTIFY autoScrollChanged)
 
 public:
+    enum LogTaskRoles : int {
+        TaskIdRole = Qt::UserRole + 1,
+        ParentTaskIdRole,
+        DepthRole,
+        TaskNameRole,
+        StateRole,
+        StateStringRole,
+        ProgressRole,
+        CurrentMessageRole,
+        ExpandedRole,
+        MessageCountRole,
+        SubTasksCountRole,
+        HasSubTasksRole,
+        MessagesModelRole,
+    };
+    Q_ENUM(LogTaskRoles)
+
     explicit LogViewModel(Application::Logging::TaskLogService* logService = nullptr, QObject* parent = nullptr);
     ~LogViewModel() override;
 
@@ -69,24 +74,19 @@ public:
     bool setData(const QModelIndex& index, const QVariant& value, int role = Qt::EditRole) override;
     QHash<int, QByteArray> roleNames() const override;
 
-    // LogTaskModel overrides
-    int taskCount() const override;
-    void clear() override;
-    void expandAll() override;
-    void collapseAll() override;
-    void toggleTaskExpanded(int visibleRow) override;
-    void setTaskExpanded(int visibleRow, bool expanded) override;
-    std::shared_ptr<LogMessageListModel> taskMessagesModelShared(int visibleRow) const override;
-    std::shared_ptr<LogTaskModel> taskSubTasksModelShared(int visibleRow) const override;
-    Q_INVOKABLE int findRowByTaskId(quint64 taskId) const override;
-    UI::ViewModels::LogMessageListModel* taskMessagesModel(int row) const override;
-    UI::ViewModels::LogTaskModel* taskSubTasksModel(int row) const override;
-    QString exportToPlainText(int indentLevel = 0) const override;
-
-    // Property getters
+    int taskCount() const;
     int totalMessageCount() const;
     bool autoScroll() const noexcept { return m_autoScroll; }
     void setAutoScroll(bool enabled);
+
+    Q_INVOKABLE void clear();
+    Q_INVOKABLE void expandAll();
+    Q_INVOKABLE void collapseAll();
+    Q_INVOKABLE void toggleTaskExpanded(int visibleRow);
+    Q_INVOKABLE void setTaskExpanded(int visibleRow, bool expanded);
+    Q_INVOKABLE int findRowByTaskId(quint64 taskId) const;
+    Q_INVOKABLE UI::ViewModels::LogMessageListModel* taskMessagesModel(int row) const;
+    QString exportToPlainText(int indentLevel = 0) const;
 
 public slots:
     Q_INVOKABLE void resetView();
@@ -99,6 +99,7 @@ public slots:
     Q_INVOKABLE QString toolTaskLogFilePath(quint64 toolTaskId);
     Q_INVOKABLE bool openToolLogFile(quint64 toolTaskId);
     Q_INVOKABLE QString toolFullLogText(quint64 toolTaskId);
+    Q_INVOKABLE bool copyToolLogToClipboard(quint64 toolTaskId);
     QString fullLogText() const;
     QString activeTaskLogFilePath() const;
     QString lastTaskLogFilePath() const;
@@ -108,16 +109,22 @@ public slots:
                               const QVector<Application::Logging::TaskLogMessage>& messages);
 
 signals:
+    void taskCountChanged();
     void totalMessageCountChanged();
     void autoScrollChanged();
+    void toolTaskUpdated(quint64 toolTaskId);
 
 private slots:
-    void onLogBatchReceived(quint64 subscriptionId, quint64 taskId, const QString& taskName,
-                            const QVector<Application::Logging::TaskLogMessage>& messages);
+    void onTaskUpdatesReceived(quint64 subscriptionId,
+                               const QVector<Application::Logging::TaskLogUpdate>& updates);
 
 private:
-    std::shared_ptr<TaskTreeNode> ensureTaskNode(quint64 taskId, const QString& taskName);
-    void collectVisibleDescendants(const std::shared_ptr<TaskTreeNode>& node, QVector<std::shared_ptr<TaskTreeNode>>& out) const;
+    std::shared_ptr<TaskTreeNode> ensureTaskNode(quint64 taskId, const QString& taskName,
+                                                 const Application::Logging::TaskInfo* providedInfo = nullptr);
+    std::shared_ptr<TaskTreeNode> findOrResolveToolNode(quint64 toolTaskId);
+    int applyTaskUpdate(quint64 taskId, const QString& fallbackTaskName,
+                        const Application::Logging::TaskInfo* providedInfo,
+                        const QVector<Application::Logging::TaskLogMessage>& messages);
 
     QVector<std::shared_ptr<TaskTreeNode>> m_rootTasks;
     QHash<quint64, std::shared_ptr<TaskTreeNode>> m_nodesById;
@@ -126,6 +133,7 @@ private:
     quint64 m_activeTaskId = 0;
     quint64 m_lastTaskId = 0;
     int m_totalMessages = 0;
+    bool m_autoScroll = true;
     Application::Logging::TaskLogService* m_logService = nullptr;
     quint64 m_subscriptionId = 0;
 };

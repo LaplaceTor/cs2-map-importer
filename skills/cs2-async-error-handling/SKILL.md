@@ -19,7 +19,7 @@ description: >-
 │ 1. 任务执行生命周期平面 (Task Execution Lifecycle Plane: TaskState)        │
 │    由 LogManager / TaskLoggingContext 管理 (工作流/阶段/工具任务)          │
 │    状态流转: Pending → Running → Completed | Failed | Cancelled | Skipped    │
-│    在 UI 日志模型中跟踪展示 (LogViewModel / LogTaskModel)                   │
+│    在 UI 日志模型中跟踪展示 (LogViewModel)                                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │ 2. 系统任务平面 (System Task Plane: SystemTaskLog)                          │
 │    由 AsyncTaskRunner::runSystemTask 创建, taskId 恒为 0                    │
@@ -70,8 +70,8 @@ Workflow Task (Root: createWorkflowTask) -> logs/<workflow>_<timestamp>/workflow
 ### 1.3 日志投递门面 (`Application::Logging::TaskLogService`)
 
 UI 消费日志的**唯一通道**是 `Application::Logging::TaskLogService`（完整 API 见 [`skills/cs2-api-reference/SKILL.md`](../cs2-api-reference/SKILL.md)）：
-* 私有 `SinkBridge` 实现双阶段 `detach()` 协议（原子标志 `std::atomic<bool> m_detached` 快速跳过 + 互斥锁指针置空），防止门面析构与日志器锁外分发并发 UAF。
-* 订阅制投递 `logBatchReceived(subscriptionId, taskId, taskName, messages)`，按 `subscriptionId` 抑制陈旧批次；`src/UI/` 严禁 include `Core/Logging/*`。
+* 私有 `SinkBridge` 接入 `onTaskCreated` / `writeBlock` / `onTaskProgressUpdated` / `onTaskTerminated` 四类事件并按 `taskId` 合批，同时实现双阶段 `detach()` 协议（原子标志 `std::atomic<bool> m_detached` 快速跳过 + 互斥锁指针置空），防止门面析构与日志器锁外分发并发 UAF。
+* 默认 33ms 帧合批投递 `taskUpdatesReceived(subscriptionId, QVector<TaskLogUpdate>)`（首帧/创建/终态直通），按 `subscriptionId` 抑制陈旧批次；`src/UI/` 严禁 include `Core/Logging/*`。
 
 ---
 
@@ -230,13 +230,11 @@ options.timeout = 180000;
 options.onStdOutLine = [childTask](const QString& line) {
     if (childTask) {
         childTask->logExternalToolOutput(line, Core::Logging::LogLevel::Info);
-        childTask->flush();
     }
 };
 options.onStdErrLine = [childTask](const QString& line) {
     if (childTask) {
         childTask->logExternalToolOutput(line, Core::Logging::LogLevel::Warning);
-        childTask->flush();
     }
 };
 

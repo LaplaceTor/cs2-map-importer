@@ -16,30 +16,56 @@ QString resolveLogPathForNewTask(
     const std::shared_ptr<TaskLoggingContext>& parentCtx,
     const QString& taskName,
     qint64 startTimestamp,
-    quint64 taskId)
+    quint64 taskId,
+    bool isToolTask,
+    const QString& assetBaseName)
 {
     if (parentCtx && !parentCtx->workflowDirectory().isEmpty()) {
         const QString parentDir = !parentCtx->taskDirectory().isEmpty()
             ? parentCtx->taskDirectory()
             : parentCtx->workflowDirectory();
-        const QString assetBaseName = parentCtx->assetBaseName();
-        // Tool command lines may quote the executable path (paths with spaces),
-        // so parse the executable token quote-aware.
-        QString toolToken;
-        if (taskName.startsWith(QLatin1Char('"'))) {
-            const qsizetype endIdx = taskName.indexOf(QLatin1Char('"'), 1);
-            toolToken = (endIdx > 0) ? taskName.mid(1, endIdx - 1) : taskName.mid(1);
-        } else {
-            toolToken = taskName.section(QLatin1Char(' '), 0, 0);
+        if (isToolTask) {
+            // Tool command lines may quote the executable path (paths with spaces),
+            // so parse the executable token quote-aware.
+            QString toolToken;
+            if (taskName.startsWith(QLatin1Char('"'))) {
+                const qsizetype endIdx = taskName.indexOf(QLatin1Char('"'), 1);
+                toolToken = (endIdx > 0) ? taskName.mid(1, endIdx - 1) : taskName.mid(1);
+            } else {
+                toolToken = taskName.section(QLatin1Char(' '), 0, 0);
+            }
+            toolToken = toolToken.trimmed();
+            QString toolName = QFileInfo(toolToken).completeBaseName();
+            if (toolName.isEmpty()) {
+                toolName = QStringLiteral("tool");
+            }
+            return LogFileManager::generateToolLogFilePath(parentDir, assetBaseName, toolName, startTimestamp);
         }
-        toolToken = toolToken.trimmed();
-        QString toolName = QFileInfo(toolToken).completeBaseName();
-        if (toolName.isEmpty()) {
-            toolName = QStringLiteral("tool");
-        }
-        return LogFileManager::generateToolLogFilePath(parentDir, assetBaseName, toolName, startTimestamp);
+        return QDir(parentDir).filePath(
+            LogFileManager::generateTaskLogFileName(taskName, startTimestamp, taskId));
     }
     return LogFileManager::generateTaskLogFilePath(taskName, startTimestamp, taskId);
+}
+
+void notifySinksTaskCreated(
+    const std::shared_ptr<TaskLoggingContext>& context,
+    const QVector<std::shared_ptr<ILogSink>>& sinks,
+    quint64 taskId,
+    const QString& taskName,
+    const QString& logPath)
+{
+    bool logFileReady = false;
+    for (const auto& sink : sinks) {
+        if (sink) {
+            sink->onTaskCreated(taskId, taskName, context->startTimestamp(), logPath);
+            if (auto fileSink = std::dynamic_pointer_cast<TaskFileSink>(sink)) {
+                if (fileSink->hasTaskLogFile(taskId)) {
+                    logFileReady = true;
+                }
+            }
+        }
+    }
+    context->setLogFileReady(logFileReady);
 }
 
 } // namespace
@@ -103,7 +129,8 @@ std::shared_ptr<TaskLoggingContext> LogManager::createWorkflowTask(const QString
         }
         id = m_nextTaskId++;
         context = std::make_shared<TaskLoggingContext>(
-            id, workflowName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++, 0);
+            id, workflowName, m_defaultBlockSizeThreshold, m_faultBarrier,
+            m_nextCreationSequence++, 0, m_defaultAutoFlushIntervalMs);
         workflowDir = LogFileManager::generateWorkflowDirectoryPath(workflowName, context->startTimestamp());
         logPath = LogFileManager::generateWorkflowLogFilePath(workflowDir);
         context->setWorkflowDirectory(workflowDir);
@@ -115,94 +142,34 @@ std::shared_ptr<TaskLoggingContext> LogManager::createWorkflowTask(const QString
         sinks = m_sinks;
     }
 
-    bool logFileReady = false;
-    for (const auto& sink : sinks) {
-        if (sink) {
-            sink->onTaskCreated(id, workflowName, context->startTimestamp(), logPath);
-            if (auto fileSink = std::dynamic_pointer_cast<TaskFileSink>(sink)) {
-                if (fileSink->hasTaskLogFile(id)) {
-                    logFileReady = true;
-                }
-            }
-        }
-    }
-    context->setLogFileReady(logFileReady);
+    notifySinksTaskCreated(context, sinks, id, workflowName, logPath);
     context->setFlushCallback([](quint64 tId) {
         LogManager::instance().flushTask(tId);
+    });
+    context->setProgressCallback([](quint64 tId, double p, const QString& msg) {
+        LogManager::instance().notifyTaskProgress(tId, p, msg);
     });
     return context;
 }
 
-std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskName, quint64 parentTaskId)
+std::shared_ptr<TaskLoggingContext> LogManager::createTaskInternal(
+    std::optional<quint64> explicitTaskId,
+    const QString& taskName,
+    quint64 parentTaskId,
+    bool isToolTask,
+    const QString& explicitAssetBaseName)
 {
-    std::shared_ptr<TaskLoggingContext> context;
-    QVector<std::shared_ptr<ILogSink>> sinks;
-    QString logPath;
-    quint64 id = 0;
-    {
-        QMutexLocker locker(&m_mutex);
-        std::shared_ptr<TaskLoggingContext> parentCtx;
-        if (parentTaskId != 0) {
-            if (!m_tasks.contains(parentTaskId)) {
-                return nullptr;
-            }
-            parentCtx = m_tasks.value(parentTaskId);
-        }
-
-        while (m_tasks.contains(m_nextTaskId) || m_nextTaskId == 0) {
-            m_nextTaskId++;
-        }
-        id = m_nextTaskId++;
-        context = std::make_shared<TaskLoggingContext>(
-            id, taskName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++, parentTaskId);
-        if (parentCtx && !parentCtx->workflowDirectory().isEmpty()) {
-            context->setWorkflowDirectory(parentCtx->workflowDirectory());
-            context->setAssetBaseName(parentCtx->assetBaseName());
-            const QString parentDir = !parentCtx->taskDirectory().isEmpty()
-                ? parentCtx->taskDirectory()
-                : parentCtx->workflowDirectory();
-            const QString sanitizedTaskName = LogFileManager::sanitizeFileName(taskName);
-            context->setTaskDirectory(QDir(parentDir).filePath(sanitizedTaskName));
-        }
-        logPath = resolveLogPathForNewTask(parentCtx, taskName, context->startTimestamp(), id);
-        context->setLogFilePath(logPath);
-        m_tasks.insert(id, context);
-        if (parentTaskId != 0) {
-            m_childTaskIds.insert(parentTaskId, id);
-        }
-        sinks = m_sinks;
-    }
-
-    bool logFileReady = false;
-    for (const auto& sink : sinks) {
-        if (sink) {
-            sink->onTaskCreated(id, taskName, context->startTimestamp(), logPath);
-            if (auto fileSink = std::dynamic_pointer_cast<TaskFileSink>(sink)) {
-                if (fileSink->hasTaskLogFile(id)) {
-                    logFileReady = true;
-                }
-            }
-        }
-    }
-    context->setLogFileReady(logFileReady);
-    context->setFlushCallback([](quint64 tId) {
-        LogManager::instance().flushTask(tId);
-    });
-    return context;
-}
-
-std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const QString& taskName, quint64 parentTaskId)
-{
-    if (taskId == 0 || taskId == parentTaskId) {
+    if (explicitTaskId.has_value() && (*explicitTaskId == 0 || *explicitTaskId == parentTaskId)) {
         return nullptr;
     }
 
     std::shared_ptr<TaskLoggingContext> context;
     QVector<std::shared_ptr<ILogSink>> sinks;
     QString logPath;
+    quint64 id = 0;
     {
         QMutexLocker locker(&m_mutex);
-        if (m_tasks.contains(taskId)) {
+        if (explicitTaskId.has_value() && m_tasks.contains(*explicitTaskId)) {
             return nullptr;
         }
         std::shared_ptr<TaskLoggingContext> parentCtx;
@@ -213,47 +180,69 @@ std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const
             parentCtx = m_tasks.value(parentTaskId);
         }
 
-        context = std::make_shared<TaskLoggingContext>(
-            taskId, taskName, m_defaultBlockSizeThreshold, m_faultBarrier, m_nextCreationSequence++, parentTaskId);
-        if (parentCtx && !parentCtx->workflowDirectory().isEmpty()) {
-            context->setWorkflowDirectory(parentCtx->workflowDirectory());
-            context->setAssetBaseName(parentCtx->assetBaseName());
-            const QString parentDir = !parentCtx->taskDirectory().isEmpty()
-                ? parentCtx->taskDirectory()
-                : parentCtx->workflowDirectory();
-            const QString sanitizedTaskName = LogFileManager::sanitizeFileName(taskName);
-            context->setTaskDirectory(QDir(parentDir).filePath(sanitizedTaskName));
-        }
-        logPath = resolveLogPathForNewTask(parentCtx, taskName, context->startTimestamp(), taskId);
-        context->setLogFilePath(logPath);
-        m_tasks.insert(taskId, context);
-        if (parentTaskId != 0) {
-            m_childTaskIds.insert(parentTaskId, taskId);
+        if (explicitTaskId.has_value()) {
+            id = *explicitTaskId;
+            if (id >= m_nextTaskId && id != (std::numeric_limits<quint64>::max)()) {
+                m_nextTaskId = id + 1;
+            }
+        } else {
+            while (m_tasks.contains(m_nextTaskId) || m_nextTaskId == 0) {
+                m_nextTaskId++;
+            }
+            id = m_nextTaskId++;
         }
 
-        if (taskId >= m_nextTaskId && taskId != (std::numeric_limits<quint64>::max)()) {
-            m_nextTaskId = taskId + 1;
+        context = std::make_shared<TaskLoggingContext>(
+            id, taskName, m_defaultBlockSizeThreshold, m_faultBarrier,
+            m_nextCreationSequence++, parentTaskId, m_defaultAutoFlushIntervalMs);
+        context->setIsToolTask(isToolTask);
+
+        const QString effectiveAssetBaseName = !explicitAssetBaseName.isEmpty()
+            ? explicitAssetBaseName
+            : (parentCtx ? parentCtx->assetBaseName() : QString());
+        if (!effectiveAssetBaseName.isEmpty()) {
+            context->setAssetBaseName(effectiveAssetBaseName);
+        }
+
+        if (parentCtx && !parentCtx->workflowDirectory().isEmpty()) {
+            context->setWorkflowDirectory(parentCtx->workflowDirectory());
+            if (!isToolTask) {
+                const QString parentDir = !parentCtx->taskDirectory().isEmpty()
+                    ? parentCtx->taskDirectory()
+                    : parentCtx->workflowDirectory();
+                const QString sanitizedTaskName = LogFileManager::sanitizeFileName(taskName);
+                context->setTaskDirectory(QDir(parentDir).filePath(sanitizedTaskName));
+            }
+        }
+
+        logPath = resolveLogPathForNewTask(
+            parentCtx, taskName, context->startTimestamp(), id, isToolTask, effectiveAssetBaseName);
+        context->setLogFilePath(logPath);
+        m_tasks.insert(id, context);
+        if (parentTaskId != 0) {
+            m_childTaskIds.insert(parentTaskId, id);
         }
         sinks = m_sinks;
     }
 
-    bool logFileReady = false;
-    for (const auto& sink : sinks) {
-        if (sink) {
-            sink->onTaskCreated(taskId, taskName, context->startTimestamp(), logPath);
-            if (auto fileSink = std::dynamic_pointer_cast<TaskFileSink>(sink)) {
-                if (fileSink->hasTaskLogFile(taskId)) {
-                    logFileReady = true;
-                }
-            }
-        }
-    }
-    context->setLogFileReady(logFileReady);
+    notifySinksTaskCreated(context, sinks, id, taskName, logPath);
     context->setFlushCallback([](quint64 tId) {
         LogManager::instance().flushTask(tId);
     });
-
+    context->setProgressCallback([](quint64 tId, double p, const QString& msg) {
+        LogManager::instance().notifyTaskProgress(tId, p, msg);
+    });
     return context;
+}
+
+std::shared_ptr<TaskLoggingContext> LogManager::createTask(const QString& taskName, quint64 parentTaskId)
+{
+    return createTaskInternal(std::nullopt, taskName, parentTaskId, false, QString());
+}
+
+std::shared_ptr<TaskLoggingContext> LogManager::createTask(quint64 taskId, const QString& taskName, quint64 parentTaskId)
+{
+    return createTaskInternal(taskId, taskName, parentTaskId, false, QString());
 }
 
 std::shared_ptr<TaskLoggingContext> LogManager::createChildTask(quint64 parentTaskId, const QString& taskName)
@@ -271,14 +260,9 @@ std::shared_ptr<TaskLoggingContext> LogManager::createToolTask(
         return nullptr;
     }
 
-    auto toolTask = createTask(commandLine, parentTaskId);
+    auto toolTask = createTaskInternal(std::nullopt, commandLine, parentTaskId, true, assetBaseName);
     if (!toolTask) {
         return nullptr;
-    }
-
-    toolTask->setIsToolTask(true);
-    if (!assetBaseName.isEmpty()) {
-        toolTask->setAssetBaseName(assetBaseName);
     }
 
     // Automatically log command execution in parent task
@@ -597,6 +581,18 @@ void LogManager::setDefaultBlockSizeThreshold(qsizetype bytes)
     m_defaultBlockSizeThreshold = std::max<qsizetype>(0, bytes);
 }
 
+qint64 LogManager::defaultAutoFlushIntervalMs() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_defaultAutoFlushIntervalMs;
+}
+
+void LogManager::setDefaultAutoFlushIntervalMs(qint64 ms)
+{
+    QMutexLocker locker(&m_mutex);
+    m_defaultAutoFlushIntervalMs = std::max<qint64>(0, ms);
+}
+
 QVector<LogBlock> LogManager::getSealedBlocks(quint64 taskId) const
 {
     std::shared_ptr<TaskLoggingContext> task = findTask(taskId);
@@ -729,7 +725,7 @@ bool LogManager::flushTask(quint64 taskId)
 
         bool flushOk = true;
         if (successCount > 0) {
-            if (!work.sink->flush()) {
+            if (!work.sink->flushTask(taskId)) {
                 flushOk = false;
             }
         }
@@ -887,6 +883,20 @@ void LogManager::clear()
         // task ids from the previous session, and reusing them would misroute their
         // late reports onto newly created tasks.
         m_nextCreationSequence = 1;
+    }
+}
+
+void LogManager::notifyTaskProgress(quint64 taskId, double progress, const QString& currentMessage)
+{
+    QVector<std::shared_ptr<ILogSink>> sinks;
+    {
+        QMutexLocker locker(&m_mutex);
+        sinks = m_sinks;
+    }
+    for (const auto& sink : sinks) {
+        if (sink) {
+            sink->onTaskProgressUpdated(taskId, progress, currentMessage);
+        }
     }
 }
 

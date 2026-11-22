@@ -59,6 +59,21 @@ ApplicationWindow {
         }
     }
 
+    function closeAllToolWindows() {
+        var keys = Object.keys(toolWindows);
+        for (var i = 0; i < keys.length; ++i) {
+            var win = toolWindows[keys[i]];
+            if (win) {
+                try {
+                    win.close();
+                    win.destroy();
+                } catch (e) {
+                }
+            }
+        }
+        toolWindows = ({});
+    }
+
     width: 880
     height: 580
     minimumWidth: 540
@@ -203,7 +218,6 @@ ApplicationWindow {
                     hasSubTasks: (model && model.hasSubTasks !== undefined) ? model.hasSubTasks : false
                     subTasksCount: (model && model.subTasksCount !== undefined) ? model.subTasksCount : 0
                     messagesModel: (model && model.messagesModel !== undefined) ? model.messagesModel : null
-                    subTasksModel: (model && model.subTasksModel !== undefined) ? model.subTasksModel : null
                     owningModel: root.logViewModel
                     autoScroll: root.logViewModel ? root.logViewModel.autoScroll : true
                     taskView: taskListView

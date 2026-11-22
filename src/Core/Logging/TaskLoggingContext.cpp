@@ -8,7 +8,7 @@ namespace Core::Logging {
 
 TaskLoggingContext::TaskLoggingContext(quint64 taskId, QString taskName, qsizetype blockSizeThreshold,
                                        std::shared_ptr<FaultBarrier> faultBarrier, quint64 creationSequence,
-                                       quint64 parentTaskId)
+                                       quint64 parentTaskId, qint64 autoFlushIntervalMs)
     : m_taskId(taskId)
     , m_parentTaskId(parentTaskId)
     , m_creationSequence(creationSequence)
@@ -17,6 +17,7 @@ TaskLoggingContext::TaskLoggingContext(quint64 taskId, QString taskName, qsizety
     , m_taskName(std::move(taskName))
     , m_activeBlock(taskId, 0)
     , m_blockSizeThreshold(std::max<qsizetype>(0, blockSizeThreshold))
+    , m_autoFlushIntervalMs(std::max<qint64>(0, autoFlushIntervalMs))
 {
 }
 
@@ -43,10 +44,14 @@ TaskSnapshot TaskLoggingContext::snapshot() const
     result.taskId = m_taskId;
     result.parentTaskId = m_parentTaskId;
     result.creationSequence = m_creationSequence;
+    result.startTimestamp = m_startTimestamp;
     result.taskName = m_taskName;
     result.state = m_state;
     result.progress = m_progress;
     result.currentMessage = m_currentMessage;
+    result.isToolTask = m_isToolTask;
+    result.logFilePath = m_logFilePath;
+    result.workflowDirectory = m_workflowDirectory;
     result.logCount = m_logCount;
     result.sealedBlockCount = m_sealedBlocks.size();
     return result;
@@ -162,10 +167,23 @@ double TaskLoggingContext::progress() const noexcept
 
 void TaskLoggingContext::updateProgress(double progress, const QString& message)
 {
-    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
-    m_progress = std::clamp(progress, 0.0, 1.0);
-    if (!message.isEmpty()) {
-        m_currentMessage = message;
+    ProgressCallback cb;
+    quint64 id = 0;
+    double clampedProgress = 0.0;
+    QString currentMsg;
+    {
+        QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+        m_progress = std::clamp(progress, 0.0, 1.0);
+        if (!message.isEmpty()) {
+            m_currentMessage = message;
+        }
+        cb = m_progressCallback;
+        id = m_taskId;
+        clampedProgress = m_progress;
+        currentMsg = m_currentMessage;
+    }
+    if (cb) {
+        cb(id, clampedProgress, currentMsg);
     }
 }
 
@@ -177,8 +195,21 @@ QString TaskLoggingContext::currentMessage() const
 
 void TaskLoggingContext::updateCurrentMessage(const QString& message)
 {
-    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
-    m_currentMessage = message;
+    ProgressCallback cb;
+    quint64 id = 0;
+    double currentProgress = 0.0;
+    QString currentMsg;
+    {
+        QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+        m_currentMessage = message;
+        cb = m_progressCallback;
+        id = m_taskId;
+        currentProgress = m_progress;
+        currentMsg = m_currentMessage;
+    }
+    if (cb) {
+        cb(id, currentProgress, currentMsg);
+    }
 }
 
 qsizetype TaskLoggingContext::blockSizeThreshold() const
@@ -189,9 +220,33 @@ qsizetype TaskLoggingContext::blockSizeThreshold() const
 
 void TaskLoggingContext::setBlockSizeThreshold(qsizetype bytes)
 {
+    FlushCallback cb;
+    quint64 id = 0;
+    {
+        QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+        m_blockSizeThreshold = std::max<qsizetype>(0, bytes);
+        if (m_blockSizeThreshold > 0 && m_activeBlock.size() >= m_blockSizeThreshold) {
+            flushActiveBlockLocked();
+            m_lastFlushTimestamp = QDateTime::currentMSecsSinceEpoch();
+            cb = m_flushCallback;
+            id = m_taskId;
+        }
+    }
+    if (cb) {
+        cb(id);
+    }
+}
+
+qint64 TaskLoggingContext::autoFlushIntervalMs() const
+{
     QMutexLocker<QRecursiveMutex> locker(&m_mutex);
-    m_blockSizeThreshold = std::max<qsizetype>(0, bytes);
-    checkAndFlushActiveBlockLocked();
+    return m_autoFlushIntervalMs;
+}
+
+void TaskLoggingContext::setAutoFlushIntervalMs(qint64 ms)
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    m_autoFlushIntervalMs = std::max<qint64>(0, ms);
 }
 
 void TaskLoggingContext::setFlushCallback(FlushCallback callback)
@@ -200,12 +255,19 @@ void TaskLoggingContext::setFlushCallback(FlushCallback callback)
     m_flushCallback = std::move(callback);
 }
 
+void TaskLoggingContext::setProgressCallback(ProgressCallback callback)
+{
+    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+    m_progressCallback = std::move(callback);
+}
+
 void TaskLoggingContext::flush()
 {
     FlushCallback cb;
     quint64 id = 0;
     {
         QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+        m_lastFlushTimestamp = QDateTime::currentMSecsSinceEpoch();
         cb = m_flushCallback;
         id = m_taskId;
     }
@@ -343,34 +405,55 @@ bool TaskLoggingContext::command(const QString& commandLine, quint64 toolTaskId)
 
 bool TaskLoggingContext::log(LogLevel level, const QString& message, LogSource source, quint64 toolTaskId)
 {
-    QMutexLocker<QRecursiveMutex> locker(&m_mutex);
-    if (!m_sessionValid || isTerminalState(m_state)) {
-        return false;
+    FlushCallback flushCb;
+    quint64 id = 0;
+    {
+        QMutexLocker<QRecursiveMutex> locker(&m_mutex);
+        if (!m_sessionValid || isTerminalState(m_state)) {
+            return false;
+        }
+
+        const LogSubmissionResult submission = submitNormalLocked();
+        if (!submission.accepted()) {
+            return false;
+        }
+
+        const qint64 entryTimestamp = QDateTime::currentMSecsSinceEpoch();
+        LogEntry entry;
+        entry.taskId = m_taskId;
+        entry.submissionSequence = submission.submissionSequence;
+        entry.sequence = m_nextSequence++;
+        entry.timestamp = entryTimestamp;
+        entry.level = level;
+        entry.source = source;
+        entry.message = message;
+        entry.toolTaskId = toolTaskId;
+
+        if (!m_activeBlock.append(std::move(entry))) {
+            return false;
+        }
+        ++m_logCount;
+        if (level == LogLevel::Error || level == LogLevel::Critical) {
+            ++m_errorCount;
+        }
+
+        const bool shouldAutoFlush =
+            (level == LogLevel::Error || level == LogLevel::Critical)
+            || (m_blockSizeThreshold > 0 && m_activeBlock.size() >= m_blockSizeThreshold)
+            || (m_autoFlushIntervalMs > 0
+                && (m_lastFlushTimestamp == 0 || entryTimestamp - m_lastFlushTimestamp >= m_autoFlushIntervalMs));
+
+        if (shouldAutoFlush) {
+            flushActiveBlockLocked();
+            m_lastFlushTimestamp = entryTimestamp;
+            flushCb = m_flushCallback;
+            id = m_taskId;
+        }
     }
 
-    const LogSubmissionResult submission = submitNormalLocked();
-    if (!submission.accepted()) {
-        return false;
+    if (flushCb) {
+        flushCb(id);
     }
-
-    LogEntry entry;
-    entry.taskId = m_taskId;
-    entry.submissionSequence = submission.submissionSequence;
-    entry.sequence = m_nextSequence++;
-    entry.timestamp = QDateTime::currentMSecsSinceEpoch();
-    entry.level = level;
-    entry.source = source;
-    entry.message = message;
-    entry.toolTaskId = toolTaskId;
-
-    if (!m_activeBlock.append(std::move(entry))) {
-        return false;
-    }
-    ++m_logCount;
-    if (level == LogLevel::Error || level == LogLevel::Critical) {
-        ++m_errorCount;
-    }
-    checkAndFlushActiveBlockLocked();
     return true;
 }
 
@@ -602,13 +685,6 @@ bool TaskLoggingContext::appendLifecycleEntryLocked(LogLevel level, const QStrin
     }
     ++m_logCount;
     return true;
-}
-
-void TaskLoggingContext::checkAndFlushActiveBlockLocked()
-{
-    if (m_blockSizeThreshold > 0 && m_activeBlock.size() >= m_blockSizeThreshold) {
-        flushActiveBlockLocked();
-    }
 }
 
 void TaskLoggingContext::flushActiveBlockLocked()

@@ -100,14 +100,14 @@ UI Q_PROPERTY / 信号展示
 ### 4.2 日志数据流 (`TaskLogService`)
 
 ```text
-Core::Logging::LogManager (TaskLoggingContext / 落盘 Sink)
-   ↓  私有 SinkBridge (双阶段 detach() 协议防并发析构 UAF)
-Application::Logging::TaskLogService (订阅制过滤 + DTO 转换)
-   ↓  logBatchReceived(subscriptionId, taskId, taskName, QVector<TaskLogMessage>)
-UI::ViewModels::LogViewModel (平铺任务树投影 / ToolLogWindow 按需查询)
+Core::Logging::LogManager (TaskLoggingContext 8KB/50ms/Error 自动刷盘 + TaskFileSink::flushTask 单文件刷盘)
+   ↓  私有 SinkBridge (接入创建/日志块/进度/终态 4 类事件，按 taskId 合批 + 双阶段 detach() 防 UAF)
+Application::Logging::TaskLogService (UI 线程 33ms 帧合批，首帧/创建/终态直通 + 单锁 taskInfo 快照)
+   ↓  taskUpdatesReceived(subscriptionId, QVector<TaskLogUpdate>)
+UI::ViewModels::LogViewModel (直继承 QAbstractListModel，驱动 LogMessageListModel[deque/5000行上限] 与 toolTaskUpdated 事件推送)
 ```
 
-UI 仅通过 `TaskLogService` 与 `TaskLogDTOs` 消费日志，无任何 `Core/Logging/*` 头文件依赖。
+UI 仅通过 `TaskLogService` 与 `TaskLogDTOs` 消费日志，无任何 `Core/Logging/*` 头文件依赖；`ToolLogWindow` 通过 `LogViewModel::toolTaskUpdated` 事件驱动刷新（零轮询）。
 
 ### 4.3 外部工具子任务流 (`TaskLoggingContext::createToolSubTask`)
 

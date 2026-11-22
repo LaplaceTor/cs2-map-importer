@@ -21,7 +21,8 @@ public:
     explicit TaskLoggingContext(quint64 taskId, QString taskName = QString(), qsizetype blockSizeThreshold = 0,
                                 std::shared_ptr<FaultBarrier> faultBarrier = nullptr,
                                 quint64 creationSequence = 0,
-                                quint64 parentTaskId = 0);
+                                quint64 parentTaskId = 0,
+                                qint64 autoFlushIntervalMs = 0);
     ~TaskLoggingContext() = default;
 
     TaskLoggingContext(const TaskLoggingContext&) = delete;
@@ -83,8 +84,15 @@ public:
      */
     void setBlockSizeThreshold(qsizetype bytes);
 
+    qint64 autoFlushIntervalMs() const;
+    void setAutoFlushIntervalMs(qint64 ms);
+
     using FlushCallback = std::function<void(quint64 taskId)>;
     void setFlushCallback(FlushCallback callback);
+
+    using ProgressCallback = std::function<void(quint64 taskId, double progress, const QString& currentMessage)>;
+    void setProgressCallback(ProgressCallback callback);
+
     void flush();
     void flushActiveBlock();
 
@@ -190,7 +198,6 @@ public:
     }
 
 private:
-    void checkAndFlushActiveBlockLocked();
     void flushActiveBlockLocked();
     LogSubmissionResult submitNormalLocked();
     bool appendLifecycleEntryLocked(LogLevel level, const QString& message);
@@ -218,10 +225,13 @@ private:
     LogBlock m_activeBlock;
     quint64 m_nextBlockIndex = 1; // Monotonic block identity, independent of retained blocks
     qsizetype m_blockSizeThreshold = 0; // 0 means unlimited
+    qint64 m_autoFlushIntervalMs = 0; // 0 means manual/terminal flush only
+    qint64 m_lastFlushTimestamp = 0;
     quint64 m_nextSequence = 1; // Task-local log entry sequence number
     quint64 m_logCount = 0;
     quint64 m_errorCount = 0;
     FlushCallback m_flushCallback;
+    ProgressCallback m_progressCallback;
 };
 
 } // namespace Core::Logging

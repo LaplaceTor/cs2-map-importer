@@ -7,6 +7,7 @@
 #include <QVector>
 #include <functional>
 #include <memory>
+#include <optional>
 
 #include "ILogSink.h"
 #include "LogBlock.h"
@@ -98,6 +99,9 @@ public:
      */
     void setDefaultBlockSizeThreshold(qsizetype bytes);
 
+    qint64 defaultAutoFlushIntervalMs() const;
+    void setDefaultAutoFlushIntervalMs(qint64 ms);
+
     /**
      * @brief Retrieves already sealed blocks for a task.
      */
@@ -160,6 +164,13 @@ public:
     void clear();
 
 private:
+    std::shared_ptr<TaskLoggingContext> createTaskInternal(
+        std::optional<quint64> explicitTaskId,
+        const QString& taskName,
+        quint64 parentTaskId,
+        bool isToolTask,
+        const QString& explicitAssetBaseName);
+    void notifyTaskProgress(quint64 taskId, double progress, const QString& currentMessage);
     void dropTaskCursorsLocked(quint64 taskId);
     void collectDescendantsLocked(quint64 taskId, QVector<quint64>& out) const;
 
@@ -175,6 +186,7 @@ private:
     std::shared_ptr<FaultBarrier> m_faultBarrier = std::make_shared<FaultBarrier>();
     quint64 m_nextTaskId = 1;
     qsizetype m_defaultBlockSizeThreshold = 0;
+    qint64 m_defaultAutoFlushIntervalMs = 0;
     quint64 m_nextCreationSequence = 1;
 };
 

@@ -62,34 +62,35 @@ public:
     void info(const QString& message) const {
         if (m_loggingCtx) {
             m_loggingCtx->info(message);
-            m_loggingCtx->flush();
         }
     }
 
     void warning(const QString& message) const {
         if (m_loggingCtx) {
             m_loggingCtx->warning(message);
-            m_loggingCtx->flush();
         }
     }
 
     void error(const QString& message) const {
         if (m_loggingCtx) {
             m_loggingCtx->error(message);
-            m_loggingCtx->flush();
         }
     }
 
     void updateProgress(double progress, const QString& message = QString()) const {
         if (m_loggingCtx) {
             m_loggingCtx->updateProgress(progress, message);
-            m_loggingCtx->flush();
         }
     }
 
     void updateCurrentMessage(const QString& message) const {
         if (m_loggingCtx) {
             m_loggingCtx->updateCurrentMessage(message);
+        }
+    }
+
+    void flush() const {
+        if (m_loggingCtx) {
             m_loggingCtx->flush();
         }
     }
@@ -114,6 +115,8 @@ public:
         if (!stepName.isEmpty()) {
             updateCurrentMessage(stepName);
         }
+
+        flush();
 
         auto result = fn();
 

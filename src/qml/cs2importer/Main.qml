@@ -18,6 +18,7 @@ ApplicationWindow {
 
     onClosing: function(closeEvent) {
         if (logWindow) {
+            logWindow.closeAllToolWindows()
             logWindow.close()
         }
         Qt.quit()

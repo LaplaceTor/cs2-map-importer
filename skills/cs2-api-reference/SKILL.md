@@ -40,16 +40,16 @@ description: >-
   ```
 
 ### 1.2 核心类与设施
-* `LogManager`：集中管理全局任务注册表、层级树、Sink 分发与 Flush。任务创建入口为 `createTask`（含显式 id 重载）、`createWorkflowTask`、`createChildTask`、`createToolTask`。`cancelTask` 级联取消子孙任务（BFS，环防护）；`forceTaskState` 幂等；`clear()` 不重置任务 id 计数；故障路径 `reportFault` / `beginFaultDraining` / `terminateAfterFault`；块级只读检视 `getSealedBlocks` / `getAllBlocks` / `taskSnapshots`。
-* `TaskLoggingContext`：单任务上下文句柄，提供 `info` / `warning` / `error` / `command`、进度汇报、`logExternalToolOutput`（外部工具原始流式行直通，不加人工等级前缀，保留天然换行）、`forceTerminalState`（仲裁覆盖入口；进入 `Completed` 终态时强制刷新进度为 100%），以及**工具子任务派生与终态封装**（内部委托 `LogManager`，使 `Domain::Tool` 无需 include `LogManager.h`）：
+* `LogManager`：集中管理全局任务注册表、层级树、Sink 分发与 Flush。任务创建入口为 `createTask`（含显式 id 重载）、`createWorkflowTask`、`createChildTask`、`createToolTask`（统一经 `createTaskInternal` 保证 `isToolTask` / `assetBaseName` 在 `onTaskCreated` 前落位）；支持 `setDefaultBlockSizeThreshold` / `setDefaultAutoFlushIntervalMs`；`cancelTask` 级联取消子孙任务（BFS，环防护）；`forceTaskState` 幂等；`clear()` 不重置任务 id 计数；故障路径 `reportFault` / `beginFaultDraining` / `terminateAfterFault`；块级只读检视 `getSealedBlocks` / `getAllBlocks` / `taskSnapshots`；`flushTask(taskId)` 按目标任务派发 `ILogSink::flushTask(taskId)`。
+* `TaskLoggingContext`：单任务上下文句柄，内置统一自动刷盘（字节阈值 / `autoFlushIntervalMs` 时间窗 / `Error`/`Critical` 即时，锁外触发回调），提供 `info` / `warning` / `error` / `command`、进度汇报（`updateProgress`/`updateCurrentMessage` 锁外派发 `ProgressCallback` → `ILogSink::onTaskProgressUpdated`）、`logExternalToolOutput`（外部工具原始流式行直通，不加人工等级前缀，保留天然换行）、`forceTerminalState`（仲裁覆盖入口；进入 `Completed` 终态时强制刷新进度为 100%），以及**工具子任务派生与终态封装**（内部委托 `LogManager`，使 `Domain::Tool` 无需 include `LogManager.h`）：
   * `std::shared_ptr<TaskLoggingContext> createToolSubTask(const QString& commandLine, const QString& assetBaseName = QString())`
   * `bool finishToolSubTask(const QString& message = QString())`
   * `bool failToolSubTask(const QString& message = QString())`
   * `bool cancelToolSubTask(const QString& message = QString())`
 * `LogFileManager`：任务日志路径生成、文件名清洗与 Workflow/Tool 独立日志路径推导；同名冲突自动追加 `_2`、`_3`。
-* `TaskFileSink`：实现 `ILogSink`，即时创建与增量写入任务日志；常规行格式 `[LEVEL] %2`，首行写入元数据头（`=== Task: %1 (ID: %2) | Started: %3 ===\n\n`）；外部工具日志保持原始行输出。
+* `TaskFileSink`：实现 `ILogSink`，即时创建与增量写入任务日志，覆写 `flushTask(taskId)` 仅刷新单个任务文件；常规行格式 `[LEVEL] %2`，首行写入元数据头（`=== Task: %1 (ID: %2) | Started: %3 ===\n\n`）；外部工具日志保持原始行输出。
 * `ApplicationLogger`：应用级日志静态入口（`debug`/`info`/`warning`/`error`），落盘 `application_<yyyyMMdd_HHmmss_zzz>.log`；配套 `ApplicationLogSink` / `FileSink` / `Logger`。
-* `FaultBarrier` / `TaskRunContext` / `TaskSnapshot`：致命故障屏障、任务运行上下文与只读快照。
+* `FaultBarrier` / `TaskRunContext` / `TaskSnapshot`：致命故障屏障、任务运行上下文与单锁全量只读快照（含 `startTimestamp`、`isToolTask`、`logFilePath`、`workflowDirectory` 等）。
 
 ### 1.3 日志级别契约
 * `error()`：记录错误日志并累加任务错误计数（**不直接改变任务状态**；`Failed` 终态由 `fail()` 或 `AsyncTaskRunner` 仲裁落地）。
@@ -169,7 +169,7 @@ description: >-
   * `GameEnvironmentService`：持有共享的 `std::shared_ptr<VpkSignatureLeaseService>`；公开 `static QString cleanPath(const QString& pathOrUrl)`（统一处理 `file://` URL 与路径规范化）；`validateSource1/2Folder*` 直接调用 `Domain::Game::GameInstallationResolver`；异步探测/校验/插件列举走 `runSystemTask`。
   * `VpkSignatureLeaseService`：CS2 `vpk.signatures` 排他租约策略服务（由 `Main.cpp` 创建共享实例注入各服务）。
 * **日志投递门面 (`Application::Logging`)**：
-  * `TaskLogService` / `TaskLogDTOs`：**UI 消费日志唯一通道**。私有 `SinkBridge` 实现双阶段 `detach()` 协议（原子标记 + 互斥锁指针置空）防并发析构 UAF；订阅制投递 `logBatchReceived(subscriptionId, taskId, taskName, QVector<TaskLogMessage>)`；提供 `subscribe()` / `unsubscribe()` / `taskInfo()` / `applicationLogFilePath()` / `logsDirectory()` 等。
+  * `TaskLogService` / `TaskLogDTOs`：**UI 消费日志唯一通道**。私有 `SinkBridge` 接入 `onTaskCreated`/`writeBlock`/`onTaskProgressUpdated`/`onTaskTerminated` 并按 `taskId` 合批（含原子标记 + 互斥锁双阶段 `detach()` 协议防并发析构 UAF，单次事件队列唤醒抑制）；UI 线程默认 33ms 帧合批（首帧/创建/终态直通）并发射 `taskUpdatesReceived(subscriptionId, QVector<TaskLogUpdate>)`；提供 `subscribe()` / `unsubscribe()` / `taskInfo()`（单锁 `TaskSnapshot` 映射）/ `setCoalesceIntervalMs()` / `coalesceIntervalMs()` / `flushPendingDeliveries()` / `applicationLogFilePath()` / `logsDirectory()` 等。
 * **专项业务门面**：
   * `ParticleImportService` (`Application::Particle`)：PassKey + `create()` 强制 `std::shared_ptr`、`weak_from_this().lock()`、`ImportScopeGuard` RAII 回滚；`toWorkflowOptions` 将 `base.vpkIndex` / `base.cs2Index` 透传至 `ParticleImportOptions`，按 `request.gameId` 自动推导 `isCsgo`，经 `GameEnvironmentService::cleanPath` 清洗 `sourcePcfPaths`；经 `runWorkflowTask` 执行。
   * `SoundscapeConvertService` (`Application::Soundscape`)：纯无状态静态门面，将实际转换委托至 `Workflow::Soundscape::SoundscapeConvertWorkflow`，`convertMapSoundscapesAsync` 返回有效 `Async::TaskHandle` 并经 `runWorkflowTask` 执行。
@@ -181,9 +181,9 @@ description: >-
 消费 Application 门面与 DTO，不直接链接或包含 `Domain` / `Workflow` / `Core::Logging`。
 
 * **`UI::ViewModels`**：
-  * `LogViewModel` / `LogTaskModel` / `LogMessageListModel`：经 `Application::Logging::TaskLogService` 订阅日志并驱动平铺任务树与 `ToolLogWindow`；`roleNames()` 使用局部静态常量 `QHash`，纯属性访问器无 `get` 前缀，`entries()` 返回 `const QVector<LogMessageItem>&`。
+  * `LogViewModel` / `LogMessageListModel`：`LogViewModel` 直接继承 `QAbstractListModel`，订阅 `TaskLogService::taskUpdatesReceived` 驱动平铺任务树，发射 `toolTaskUpdated(toolTaskId)` 驱动 `ToolLogWindow` 并提供 `copyToolLogToClipboard(toolTaskId)`；`LogMessageListModel` 采用 `std::deque<Entry>`、默认 `kDefaultMaxEntries = 5000` 前端 O(1) 裁剪（暴露 `truncatedCount`）与秒级时间戳预格式化缓存；`roleNames()` 使用局部静态常量 `QHash`，纯属性访问器无 `get` 前缀。
   * `GameViewModel`：持有 `std::shared_ptr<Application::Package::VpkIndexService>`，在 `applyS1Installation` / `applyS2Installation` 时触发后台索引预热；`refreshS2Addons()` 异步列举插件；`updateVpkLease` / `retryVpkLease` 为有意同步的 UI 线程轻量 Win32 租约检查。
 * **`UI::Controllers`**：
   * `MainController`：主窗口交互编排，聚合 Application 服务、`LogViewModel` 与 `VpkIndexService`；提供 `startImport` / `startParticleImport` / `stopImport` / `cancelAllOperations()` / `setActiveTab(int)`；URL 清洗与 CSGO 判定交由 Application 层处理，异步回调直接落地无需二次嵌套 `invokeMethod`。
 * **QML 组件 (`src/qml/cs2importer/`)**：
-  * `LogWindow.qml`、`ToolLogWindow.qml`、`components/LogTaskCard.qml`、`components/SourceFileListBox.qml`。
+  * `LogWindow.qml`（含 `closeAllToolWindows()`）、`ToolLogWindow.qml`（事件驱动 `toolTaskUpdated`，无轮询、退出自动销毁）、`components/LogTaskCard.qml`（折叠解绑、`reuseItems: true`、整型 `level` 绑定与截断提示条）、`components/SourceFileListBox.qml`。

@@ -40,6 +40,16 @@ public:
     }
 
     /**
+     * @brief Lifecycle callback invoked when a task updates its progress or status message.
+     */
+    virtual void onTaskProgressUpdated(quint64 taskId, double progress, const QString& currentMessage)
+    {
+        Q_UNUSED(taskId);
+        Q_UNUSED(progress);
+        Q_UNUSED(currentMessage);
+    }
+
+    /**
      * @brief Lifecycle callback invoked when a task reaches a terminal state (Completed, Failed, Cancelled, Skipped).
      */
     virtual void onTaskTerminated(quint64 taskId, TaskState state)
@@ -61,6 +71,16 @@ public:
      * @return true if flushed successfully, false on I/O error.
      */
     virtual bool flush() = 0;
+
+    /**
+     * @brief Flushes buffered output for a specific task.
+     * @return true if flushed successfully, false on I/O error.
+     */
+    virtual bool flushTask(quint64 taskId)
+    {
+        Q_UNUSED(taskId);
+        return flush();
+    }
 
 private:
     static quint64 generateNextSinkId() noexcept

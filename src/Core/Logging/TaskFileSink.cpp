@@ -187,6 +187,16 @@ bool TaskFileSink::flush()
     return allSuccess;
 }
 
+bool TaskFileSink::flushTask(quint64 taskId)
+{
+    QMutexLocker locker(&m_mutex);
+    const auto handle = m_taskFiles.value(taskId);
+    if (!handle || !handle->file || !handle->file->isOpen()) {
+        return true;
+    }
+    return handle->file->flush() && handle->file->error() == QFile::NoError;
+}
+
 void TaskFileSink::closeTask(quint64 taskId)
 {
     QMutexLocker locker(&m_mutex);

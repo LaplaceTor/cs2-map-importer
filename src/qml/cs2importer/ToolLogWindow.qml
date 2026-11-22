@@ -12,28 +12,32 @@ ApplicationWindow {
     property bool autoScroll: true
     property bool userScrolledUp: false
 
-    // The tool task node may be projected into the view model slightly after the
-    // window opens (created when the tool's first log block arrives), and the state
-    // badge must track a running task. refreshTimer re-fetches until the model
-    // appears and the task reaches a terminal state.
-    property var messagesModel: logViewModel ? logViewModel.toolMessagesModel(toolTaskId) : null
-    property string stateString: logViewModel ? logViewModel.toolTaskState(toolTaskId) : ""
-    property string logFilePath: logViewModel ? logViewModel.toolTaskLogFilePath(toolTaskId) : ""
+    property var messagesModel: null
+    property string stateString: "UNKNOWN"
+    property string logFilePath: ""
 
-    Timer {
-        id: refreshTimer
-        interval: 250
-        repeat: true
-        running: root.visible && root.logViewModel !== null
-            && (root.messagesModel === null
-                || ["PENDING", "RUNNING"].indexOf((root.stateString || "").toUpperCase()) !== -1)
-        onTriggered: {
-            if (!root.logViewModel) {
-                return
+    function syncToolTask() {
+        if (!root.logViewModel || !root.toolTaskId) {
+            root.messagesModel = null
+            root.stateString = "UNKNOWN"
+            root.logFilePath = ""
+            return
+        }
+        root.messagesModel = root.logViewModel.toolMessagesModel(root.toolTaskId)
+        root.stateString = root.logViewModel.toolTaskState(root.toolTaskId)
+        root.logFilePath = root.logViewModel.toolTaskLogFilePath(root.toolTaskId)
+    }
+
+    Component.onCompleted: syncToolTask()
+    onToolTaskIdChanged: syncToolTask()
+    onLogViewModelChanged: syncToolTask()
+
+    Connections {
+        target: root.logViewModel
+        function onToolTaskUpdated(updatedId) {
+            if (updatedId === root.toolTaskId) {
+                root.syncToolTask()
             }
-            root.messagesModel = root.logViewModel.toolMessagesModel(root.toolTaskId)
-            root.stateString = root.logViewModel.toolTaskState(root.toolTaskId)
-            root.logFilePath = root.logViewModel.toolTaskLogFilePath(root.toolTaskId)
         }
     }
 
@@ -49,6 +53,7 @@ ApplicationWindow {
 
     onClosing: {
         root.windowClosed(root.toolTaskId)
+        Qt.callLater(root.destroy)
     }
 
     ColumnLayout {
@@ -75,10 +80,7 @@ ApplicationWindow {
                 text: qsTr("Copy all")
                 onClicked: {
                     if (root.logViewModel) {
-                        var text = root.logViewModel.toolFullLogText(root.toolTaskId)
-                        clipboardHelper.text = text
-                        clipboardHelper.selectAll()
-                        clipboardHelper.copy()
+                        root.logViewModel.copyToolLogToClipboard(root.toolTaskId)
                     }
                 }
             }
@@ -121,7 +123,13 @@ ApplicationWindow {
                 Text {
                     id: stateText
                     anchors.centerIn: parent
-                    text: root.stateString || "UNKNOWN"
+                    text: (root.stateString === "PENDING") ? qsTr("PENDING")
+                        : (root.stateString === "RUNNING") ? qsTr("RUNNING")
+                        : (root.stateString === "COMPLETED") ? qsTr("COMPLETED")
+                        : (root.stateString === "FAILED") ? qsTr("FAILED")
+                        : (root.stateString === "CANCELLED") ? qsTr("CANCELLED")
+                        : (root.stateString === "SKIPPED") ? qsTr("SKIPPED")
+                        : qsTr("UNKNOWN")
                     color: "#FFFFFF"
                     font.pixelSize: 10
                     font.bold: true
@@ -183,131 +191,158 @@ ApplicationWindow {
             radius: 4
             clip: true
 
-            ListView {
-                id: messageListView
+            ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: 6
-                clip: true
-                spacing: 3
-                model: root.messagesModel
-                boundsBehavior: Flickable.StopAtBounds
+                spacing: 4
 
-                WheelHandler {
-                    id: toolWheelHandler
-                    target: null
-                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                    onWheel: (event) => {
-                        var delta = event.angleDelta.y !== 0 ? event.angleDelta.y : event.pixelDelta.y;
-                        if (delta > 0) {
-                            root.userScrolledUp = true;
-                        } else if (delta < 0) {
-                            if (messageListView.atYEnd) {
-                                root.userScrolledUp = false;
-                            }
-                        }
-                        event.accepted = false; // Allow native list scrolling
-                    }
-                }
-
-                ScrollBar.vertical: ScrollBar {
-                    id: toolScrollBar
-                    active: messageListView.contentHeight > messageListView.height
-                    onPressedChanged: {
-                        if (!pressed && messageListView.atYEnd) {
-                            root.userScrolledUp = false;
-                        }
-                    }
-                    onPositionChanged: {
-                        if (pressed) {
-                            if (messageListView.atYEnd) {
-                                root.userScrolledUp = false;
-                            } else {
-                                root.userScrolledUp = true;
-                            }
-                        }
-                    }
-                }
-
-                onCountChanged: {
-                    if (root.autoScroll && !root.userScrolledUp) {
-                        Qt.callLater(messageListView.positionViewAtEnd)
-                    }
-                }
-
-                Component.onCompleted: {
-                    if (root.autoScroll) {
-                        Qt.callLater(messageListView.positionViewAtEnd)
-                    }
-                }
-
-                delegate: RowLayout {
-                    width: messageListView.width - 12
-                    spacing: 6
-
-                    required property string timestampString
-                    required property string levelString
-                    required property string message
+                Rectangle {
+                    id: truncationBanner
+                    Layout.fillWidth: true
+                    implicitHeight: truncationText.implicitHeight + 8
+                    visible: root.messagesModel && root.messagesModel.truncatedCount > 0
+                    color: "#263238"
+                    border.color: "#455A64"
+                    border.width: 1
+                    radius: 2
 
                     Text {
-                        text: "[" + (timestampString || "00:00:00") + "]"
-                        color: "#757575"
-                        font.family: "Consolas, 'Courier New', monospace"
+                        id: truncationText
+                        anchors.fill: parent
+                        anchors.margins: 4
+                        wrapMode: Text.Wrap
+                        text: qsTr("Earlier %1 log line(s) omitted from view. Open the log file for full history.")
+                            .arg(root.messagesModel ? root.messagesModel.truncatedCount : 0)
+                        color: "#B0BEC5"
                         font.pixelSize: 11
-                        Layout.alignment: Qt.AlignTop
+                    }
+                }
+
+                ListView {
+                    id: messageListView
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    spacing: 3
+                    reuseItems: true
+                    model: root.messagesModel
+                    boundsBehavior: Flickable.StopAtBounds
+
+                    WheelHandler {
+                        id: toolWheelHandler
+                        target: null
+                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                        onWheel: (event) => {
+                            var delta = event.angleDelta.y !== 0 ? event.angleDelta.y : event.pixelDelta.y;
+                            if (delta > 0) {
+                                root.userScrolledUp = true;
+                            } else if (delta < 0) {
+                                if (messageListView.atYEnd) {
+                                    root.userScrolledUp = false;
+                                }
+                            }
+                            event.accepted = false; // Allow native list scrolling
+                        }
                     }
 
-                    Rectangle {
-                        implicitWidth: lvlText.implicitWidth + 6
-                        implicitHeight: 16
-                        radius: 2
-                        Layout.alignment: Qt.AlignTop
-
-                        color: {
-                            var lvl = (levelString || "").toUpperCase()
-                            if (lvl === "ERROR" || lvl === "CRITICAL") return "#C62828"
-                            if (lvl === "WARNING") return "#EF6C00"
-                            if (lvl === "DEBUG") return "#424242"
-                            return "#2E7D32"
+                    ScrollBar.vertical: ScrollBar {
+                        id: toolScrollBar
+                        active: messageListView.contentHeight > messageListView.height
+                        onPressedChanged: {
+                            if (!pressed && messageListView.atYEnd) {
+                                root.userScrolledUp = false;
+                            }
                         }
+                        onPositionChanged: {
+                            if (pressed) {
+                                if (messageListView.atYEnd) {
+                                    root.userScrolledUp = false;
+                                } else {
+                                    root.userScrolledUp = true;
+                                }
+                            }
+                        }
+                    }
+
+                    onCountChanged: {
+                        if (root.autoScroll && !root.userScrolledUp) {
+                            Qt.callLater(messageListView.positionViewAtEnd)
+                        }
+                    }
+
+                    Component.onCompleted: {
+                        if (root.autoScroll) {
+                            Qt.callLater(messageListView.positionViewAtEnd)
+                        }
+                    }
+
+                    delegate: RowLayout {
+                        id: msgRow
+                        width: messageListView.width - 12
+                        spacing: 6
+
+                        required property string timestampString
+                        required property int level
+                        required property string message
+
+                        ListView.onReused: msgTextEdit.deselect()
 
                         Text {
-                            id: lvlText
-                            anchors.centerIn: parent
-                            text: {
-                                var str = (levelString || "INFO").toUpperCase()
-                                if (str === "WARNING") return "WARN"
-                                if (str === "CRITICAL") return "CRIT"
-                                return str
-                            }
-                            color: "#FFFFFF"
-                            font.bold: true
-                            font.pixelSize: 9
+                            text: "[" + (msgRow.timestampString || "00:00:00") + "]"
+                            color: "#757575"
+                            font.family: "Consolas, 'Courier New', monospace"
+                            font.pixelSize: 11
+                            Layout.alignment: Qt.AlignTop
                         }
-                    }
 
-                    TextEdit {
-                        Layout.fillWidth: true
-                        readOnly: true
-                        selectByMouse: true
-                        wrapMode: TextEdit.Wrap
-                        text: message || ""
-                        font.family: "Consolas, 'Courier New', monospace"
-                        font.pixelSize: 12
-                        color: {
-                            var lvl = (levelString || "").toUpperCase()
-                            if (lvl === "ERROR" || lvl === "CRITICAL") return "#FF5252"
-                            if (lvl === "WARNING") return "#FFD740"
-                            if (lvl === "DEBUG") return "#9E9E9E"
-                            return "#ECEFF1"
+                        Rectangle {
+                            implicitWidth: lvlText.implicitWidth + 6
+                            implicitHeight: 16
+                            radius: 2
+                            Layout.alignment: Qt.AlignTop
+
+                            color: {
+                                if (msgRow.level === 3 || msgRow.level === 4) return "#C62828"
+                                if (msgRow.level === 2) return "#EF6C00"
+                                if (msgRow.level === 0) return "#424242"
+                                return "#2E7D32"
+                            }
+
+                            Text {
+                                id: lvlText
+                                anchors.centerIn: parent
+                                text: {
+                                    if (msgRow.level === 0) return "DEBUG"
+                                    if (msgRow.level === 2) return "WARN"
+                                    if (msgRow.level === 3) return "ERROR"
+                                    if (msgRow.level === 4) return "CRIT"
+                                    return "INFO"
+                                }
+                                color: "#FFFFFF"
+                                font.bold: true
+                                font.pixelSize: 9
+                            }
+                        }
+
+                        TextEdit {
+                            id: msgTextEdit
+                            Layout.fillWidth: true
+                            readOnly: true
+                            selectByMouse: true
+                            wrapMode: TextEdit.Wrap
+                            text: msgRow.message || ""
+                            font.family: "Consolas, 'Courier New', monospace"
+                            font.pixelSize: 12
+                            color: {
+                                if (msgRow.level === 3 || msgRow.level === 4) return "#FF5252"
+                                if (msgRow.level === 2) return "#FFD740"
+                                if (msgRow.level === 0) return "#9E9E9E"
+                                return "#ECEFF1"
+                            }
                         }
                     }
                 }
             }
         }
-    }
-
-    TextEdit {
-        id: clipboardHelper
-        visible: false
     }
 }
