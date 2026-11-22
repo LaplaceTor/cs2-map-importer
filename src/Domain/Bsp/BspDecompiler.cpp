@@ -322,15 +322,25 @@ Core::Result<QByteArray> decompileInternal(
             }
         }
 
-        if (config.writeVisgroups) {
-            vmfmeta.writeVisgroups();
-        }
-
         if (config.writeCameras) {
             vmfmeta.writeCameras();
         }
+        vmfmeta.writeCordon();
 
-        QByteArray buffer = writer.finish();
+        Internal::VmfWriter headerWriter(
+            config.vmfDoubleScale,
+            config.vmfDoubleScaleTextureAxes,
+            config.vmfDoubleScaleTextureScale,
+            config.nullOutput,
+            &config);
+        vmfmeta.writeVersionInfo(headerWriter);
+        if (config.writeVisgroups) {
+            vmfmeta.writeVisgroups(headerWriter);
+        }
+        vmfmeta.writeViewSettings(headerWriter);
+
+        QByteArray buffer = headerWriter.finish();
+        buffer.append(writer.finish());
 
         if (outMetadata != nullptr) {
             *outMetadata = std::move(metadata);

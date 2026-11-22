@@ -456,6 +456,10 @@ VmfMeta::VmfMeta(BspFileReader& reader, VmfWriter& writer, const BspDecompileCon
     if (const auto comment = worldspawnEntity().value(u"comment"); comment.has_value()) {
         m_config.log(BspLogLevel::Info, QStringLiteral("Map comment: %1").arg(*comment));
     }
+
+    if (!worldspawnEntity().hasKey(u"mapversion")) {
+        worldspawnEntity().setValue(QStringLiteral("mapversion"), m_reader.getBspFile().revision());
+    }
 }
 
 BspEntity& VmfMeta::worldspawnEntity() noexcept
@@ -563,29 +567,50 @@ void VmfMeta::writeWorldFooter()
     m_writer.end(u"world");
 }
 
-void VmfMeta::writeVisgroups()
+QString VmfMeta::mapVersion() const
 {
-    if (m_rootVisgroup->m_children.empty()) {
-        return;
+    const auto version = worldspawnEntity().value(u"mapversion");
+    if (!version.has_value() || version->isEmpty()) {
+        return QStringLiteral("2");
     }
-
-    m_writer.start(u"visgroups");
-    for (const auto& [childName, childPtr] : m_rootVisgroup->m_children) {
-        writeVisgroup(*childPtr);
-    }
-    m_writer.end(u"visgroups");
+    return *version;
 }
 
-void VmfMeta::writeVisgroup(const Visgroup& visgroup)
+void VmfMeta::writeVersionInfo(VmfWriter& targetWriter) const
+{
+    targetWriter.start(u"versioninfo");
+    targetWriter.put(u"editorversion", 400);
+    targetWriter.put(u"editorbuild", 9999);
+    targetWriter.put(u"mapversion", mapVersion());
+    targetWriter.put(u"formatversion", 100);
+    targetWriter.put(u"prefab", 0);
+    targetWriter.end(u"versioninfo");
+}
+
+void VmfMeta::writeVisgroups()
+{
+    writeVisgroups(m_writer);
+}
+
+void VmfMeta::writeVisgroups(VmfWriter& targetWriter) const
+{
+    targetWriter.start(u"visgroups");
+    for (const auto& [childName, childPtr] : m_rootVisgroup->m_children) {
+        writeVisgroup(targetWriter, *childPtr);
+    }
+    targetWriter.end(u"visgroups");
+}
+
+void VmfMeta::writeVisgroup(VmfWriter& targetWriter, const Visgroup& visgroup) const
 {
     if (!visgroup.isTreeUsed()) {
         return;
     }
 
-    m_writer.start(u"visgroup");
-    m_writer.put(u"name", visgroup.name());
-    m_writer.put(u"visgroupid", visgroup.id());
-    m_writer.put(
+    targetWriter.start(u"visgroup");
+    targetWriter.put(u"name", visgroup.name());
+    targetWriter.put(u"visgroupid", visgroup.id());
+    targetWriter.put(
         u"color",
         QStringLiteral("%1 %2 %3")
             .arg(visgroup.color().red())
@@ -593,10 +618,21 @@ void VmfMeta::writeVisgroup(const Visgroup& visgroup)
             .arg(visgroup.color().green()));
 
     for (const auto& [childName, childPtr] : visgroup.m_children) {
-        writeVisgroup(*childPtr);
+        writeVisgroup(targetWriter, *childPtr);
     }
 
-    m_writer.end(u"visgroup");
+    targetWriter.end(u"visgroup");
+}
+
+void VmfMeta::writeViewSettings(VmfWriter& targetWriter) const
+{
+    targetWriter.start(u"viewsettings");
+    targetWriter.put(u"bSnapToGrid", 1);
+    targetWriter.put(u"bShowGrid", 1);
+    targetWriter.put(u"bShowLogicalGrid", 0);
+    targetWriter.put(u"nGridSpacing", 64);
+    targetWriter.put(u"bShow3DGrid", 0);
+    targetWriter.end(u"viewsettings");
 }
 
 void VmfMeta::writeMetaVisgroup(const QString& visgroupName)
@@ -715,6 +751,15 @@ void VmfMeta::writeCameras()
     }
 
     m_writer.end(u"cameras");
+}
+
+void VmfMeta::writeCordon()
+{
+    m_writer.start(u"cordon");
+    m_writer.put(u"mins", u"(-1024 -1024 -1024)");
+    m_writer.put(u"maxs", u"(1024 1024 1024)");
+    m_writer.put(u"active", 0);
+    m_writer.end(u"cordon");
 }
 
 } // namespace Domain::Bsp::Internal

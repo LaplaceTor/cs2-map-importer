@@ -143,7 +143,12 @@ public:
     void writeWorldHeader();
     void writeWorldFooter();
 
+    QString mapVersion() const;
+
+    void writeVersionInfo(VmfWriter& targetWriter) const;
     void writeVisgroups();
+    void writeVisgroups(VmfWriter& targetWriter) const;
+    void writeViewSettings(VmfWriter& targetWriter) const;
     void writeMetaVisgroup(const QString& visgroupName);
     void writeMetaVisgroups(const std::vector<Visgroup*>& visgroups);
 
@@ -152,12 +157,13 @@ public:
     bool reserveVisgroupId(int visgroupId, const std::vector<QString>& visgroupPath);
 
     void writeCameras();
+    void writeCordon();
     std::vector<Camera>& getCameras() noexcept { return m_cameras; }
     const std::vector<Camera>& getCameras() const noexcept { return m_cameras; }
 
 private:
     int getNewVisgroupId(const Visgroup& vg);
-    void writeVisgroup(const Visgroup& visgroup);
+    void writeVisgroup(VmfWriter& targetWriter, const Visgroup& visgroup) const;
     BspEntity& worldspawnEntity() noexcept;
     const BspEntity& worldspawnEntity() const noexcept;
 

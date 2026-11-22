@@ -1178,6 +1178,32 @@ void FaceSource::writeDisplacement(int idispinfo)
     m_writer.put(distanceMap);
     m_writer.end(u"distances");
 
+    const int rowVerts = psize + 1;
+    QString offsetRowStr;
+    offsetRowStr.reserve(rowVerts * 6);
+    QString offsetNormalRowStr;
+    offsetNormalRowStr.reserve(rowVerts * 6);
+    for (int col = 0; col < rowVerts; ++col) {
+        if (col > 0) {
+            offsetRowStr += QLatin1Char(' ');
+            offsetNormalRowStr += QLatin1Char(' ');
+        }
+        offsetRowStr += QStringLiteral("0 0 0");
+        offsetNormalRowStr += QStringLiteral("0 0 1");
+    }
+
+    m_writer.start(u"offsets");
+    for (int row = 0; row < rowVerts; ++row) {
+        m_writer.put(QStringLiteral("row%1").arg(row), offsetRowStr);
+    }
+    m_writer.end(u"offsets");
+
+    m_writer.start(u"offset_normals");
+    for (int row = 0; row < rowVerts; ++row) {
+        m_writer.put(QStringLiteral("row%1").arg(row), offsetNormalRowStr);
+    }
+    m_writer.end(u"offset_normals");
+
     m_writer.start(u"alphas");
     m_writer.put(alphaMap);
     m_writer.end(u"alphas");
