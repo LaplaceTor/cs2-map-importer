@@ -33,8 +33,12 @@ struct AssetLocateOutcome {
  * Evaluates candidates according to Valve Source precedence rules:
  * 1. Native CS2 asset deduplication
  * 2. Loose files across directory targets
- * 3. Fast lookup via VPK index (probes winning VPK)
- * 4. Fallback scan across all targets (ignoring already probed winner VPK)
+ * 3. Unified priority-preserving VPK lookup:
+ *    - Pre-queries VpkIndex once in O(1) without opening any VPK
+ *    - Walks targets in Valve priority order; covered VPKs resolve or skip
+ *      entirely from VpkIndex (zero VPK opens)
+ *    - Uncovered VPK targets fall back to PackArchivePool probing
+ *    - Falls back to the indexed winner when targets omit the indexed VPK
  */
 class AssetLocateStrategy {
 public:

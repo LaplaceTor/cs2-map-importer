@@ -383,6 +383,82 @@ QStringList GameInstallationResolver::listSource2Addons(const Core::Path::Filesy
     return addons;
 }
 
+namespace {
+
+QString slugifyCategorySegment(const QString& raw)
+{
+    QString result;
+    result.reserve(raw.size());
+    bool lastWasUnderscore = false;
+
+    for (const QChar c : raw.trimmed().toLower()) {
+        const ushort u = c.unicode();
+        const bool isSeparatorOrIllegal =
+            u < 32
+            || c.isSpace()
+            || c == QLatin1Char('<') || c == QLatin1Char('>')
+            || c == QLatin1Char(':') || c == QLatin1Char('"')
+            || c == QLatin1Char('/') || c == QLatin1Char('\\')
+            || c == QLatin1Char('|') || c == QLatin1Char('?')
+            || c == QLatin1Char('*');
+
+        if (isSeparatorOrIllegal || c == QLatin1Char('_')) {
+            if (!lastWasUnderscore && !result.isEmpty()) {
+                result.append(QLatin1Char('_'));
+                lastWasUnderscore = true;
+            }
+        } else {
+            result.append(c);
+            lastWasUnderscore = false;
+        }
+    }
+
+    while (!result.isEmpty()
+           && (result.startsWith(QLatin1Char('.')) || result.startsWith(QLatin1Char('_')))) {
+        result.remove(0, 1);
+    }
+    while (!result.isEmpty()
+           && (result.endsWith(QLatin1Char('.')) || result.endsWith(QLatin1Char('_')))) {
+        result.chop(1);
+    }
+
+    if (result.isEmpty() || result == QStringLiteral(".") || result == QStringLiteral("..")) {
+        return {};
+    }
+    return result;
+}
+
+} // namespace
+
+QString GameInstallationResolver::resolveIndexCategory(
+    const QString& gameId,
+    const GameInfo* gameInfo)
+{
+    const QString trimmedId = gameId.trimmed();
+    if (const auto* def = GameRegistry::findById(trimmedId)) {
+        if (def->type != GameType::Custom && def->type != GameType::Unknown) {
+            return def->id;
+        }
+    }
+
+    if (gameInfo) {
+        QString rawName = gameInfo->game().trimmed();
+        if (rawName.isEmpty()) {
+            rawName = gameInfo->modDirectory().fileName().trimmed();
+        }
+        const QString slug = slugifyCategorySegment(rawName);
+        if (!slug.isEmpty()) {
+            if (slug.startsWith(QStringLiteral("custom_"))) {
+                return slug;
+            }
+            return QStringLiteral("custom_") + slug;
+        }
+    }
+
+    const QString fallbackSlug = slugifyCategorySegment(trimmedId);
+    return fallbackSlug.isEmpty() ? QStringLiteral("custom") : fallbackSlug;
+}
+
 Core::Result<std::vector<Core::Path::FilesystemPath>> GameInstallationResolver::resolveCs2VpkTargets(
     const Core::Path::FilesystemPath& cs2BasePath)
 {
@@ -449,7 +525,8 @@ Core::Result<std::vector<Core::Path::FilesystemPath>> GameInstallationResolver::
 
 Core::Result<std::vector<Core::Path::FilesystemPath>> GameInstallationResolver::resolveSource1VpkTargets(
     const QString& gameId,
-    const Core::Path::FilesystemPath& gameInfoPathOrDir)
+    const Core::Path::FilesystemPath& gameInfoPathOrDir,
+    QString* outCacheCategory)
 {
     if (gameInfoPathOrDir.isEmpty() || !gameInfoPathOrDir.isValid()) {
         return Core::Result<std::vector<Core::Path::FilesystemPath>>::failure(
@@ -499,6 +576,10 @@ Core::Result<std::vector<Core::Path::FilesystemPath>> GameInstallationResolver::
                 vpkPaths.push_back(vpkCandidate);
             }
         }
+    }
+
+    if (outCacheCategory) {
+        *outCacheCategory = resolveIndexCategory(gameId, &parseRes.value());
     }
 
     return Core::Result<std::vector<Core::Path::FilesystemPath>>::success(std::move(vpkPaths));

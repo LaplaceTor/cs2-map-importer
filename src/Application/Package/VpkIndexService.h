@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QString>
 #include <QHash>
+#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -14,6 +15,7 @@
 #include "Core/Result/Result.h"
 
 namespace Domain::Package {
+class VpkArchiveIndex;
 class VpkIndex;
 }
 
@@ -22,14 +24,17 @@ namespace Application::Package {
 /**
  * @brief Result payload representing the outcome of ensuring a VPK index.
  *
- * Encapsulates the resolved in-memory index alongside its disk persistence status.
+ * Encapsulates the resolved in-memory index alongside its disk persistence status
+ * and per-archive cache reuse diagnostics.
  * Under best-effort persistence semantics, index construction may succeed even if
- * saving the serialized .idx cache to disk fails (partial success).
+ * saving a serialized .vpkidx cache to disk fails (partial success).
  */
 struct VpkIndexResult {
     std::shared_ptr<const Domain::Package::VpkIndex> index;
     bool persisted = true;
     Core::Error::Error persistenceError;
+    std::size_t reusedArchiveCount = 0;
+    std::size_t rebuiltArchiveCount = 0;
 
     [[nodiscard]] bool isPersisted() const noexcept {
         return persisted;
@@ -41,10 +46,12 @@ struct VpkIndexResult {
 };
 
 /**
- * @brief Application service managing persistent VPK indices and background indexing tasks.
+ * @brief Application service managing per-VPK SHA-256 index caches and background indexing tasks.
  *
- * Stores index binary files in '<AppDir>/data/indices/<game_id>.idx'.
- * Automatically verifies VPK file sizes, modification times, and SHA-256 hashes.
+ * Stores content-addressed per-VPK archive index files categorized by game in
+ * '<AppDir>/data/indices/<game_id>/<sha256>.vpkidx' (or under an optional isolated cache root directory).
+ * Computes strict SHA-256 digests per VPK, reuses matching in-memory or disk snapshots without
+ * opening VPKs, and deduplicates concurrent archive loads via single-flight coordination.
  * Dispatches background indexing using AsyncTaskRunner::runSystemTask.
  *
  * Index construction follows best-effort disk persistence semantics:
@@ -61,23 +68,29 @@ class VpkIndexService : public QObject, public std::enable_shared_from_this<VpkI
     };
 
 public:
-    static std::shared_ptr<VpkIndexService> create();
+    static std::shared_ptr<VpkIndexService> create(Core::Path::FilesystemPath cacheRootDir = {});
 
-    explicit VpkIndexService(PassKey, QObject* parent = nullptr);
-    ~VpkIndexService() override = default;
+    explicit VpkIndexService(PassKey, Core::Path::FilesystemPath cacheRootDir = {}, QObject* parent = nullptr);
+    ~VpkIndexService() override;
 
     VpkIndexService(const VpkIndexService&) = delete;
     VpkIndexService& operator=(const VpkIndexService&) = delete;
 
     /**
-     * @brief Gets root directory for storing index binary files: <AppDir>/data/indices.
+     * @brief Gets root directory for storing index files: <AppDir>/data/indices.
      */
     static Core::Path::FilesystemPath indexDirectory();
 
     /**
-     * @brief Gets the path to a specific game's index file: <AppDir>/data/indices/<game_id>.idx.
+     * @brief Gets directory for a game's per-VPK archive indices: <AppDir>/data/indices/<game_id>.
      */
-    static Core::Path::FilesystemPath indexPath(const QString& gameId);
+    static Core::Path::FilesystemPath archiveIndexDirectory(const QString& gameId);
+
+    /**
+     * @brief Gets the path to a specific VPK archive's cached index file:
+     *        <AppDir>/data/indices/<game_id>/<sha256>.vpkidx, or empty path if sha256 is invalid.
+     */
+    static Core::Path::FilesystemPath archiveIndexPath(const QString& gameId, const QString& sha256);
 
     /**
      * @brief Retrieves the in-memory cached index for a game, if loaded.
@@ -114,8 +127,9 @@ public:
     /**
      * @brief Synchronously ensures that the index for the given game is loaded and up to date.
      *
-     * Best-effort persistence: Rebuilds the in-memory index if the cache file is missing,
-     * corrupt, or modified, and attempts to persist it to disk (<AppDir>/data/indices/<game_id>.idx).
+     * Computes strict SHA-256 digests per VPK, reuses matching in-memory or per-VPK disk
+     * caches (<sha256>.vpkidx) without opening VPKs, and only parses/persists newly added or
+     * modified archives.
      * In-memory index construction may succeed even if persistence fails (partial success).
      * The returned VpkIndexResult contains the valid index alongside the persistence outcome.
      */
@@ -201,12 +215,33 @@ signals:
     void indexPersistenceFailed(const QString& key, const QString& errorMsg);
 
 private:
+    struct InFlightArchiveLoad;
+
+    Core::Path::FilesystemPath effectiveArchiveDirectory(const QString& cacheCategory) const;
+    Core::Result<VpkIndexResult> ensureIndexSyncInternal(
+        const QString& logicalKey,
+        const QString& cacheCategory,
+        const std::vector<Core::Path::FilesystemPath>& vpkPaths,
+        bool isCs2,
+        const Core::Async::CancellationToken& token);
+    Core::Result<std::shared_ptr<const Domain::Package::VpkArchiveIndex>> resolveArchiveSnapshot(
+        const Core::Path::FilesystemPath& vpkPath,
+        const QString& sha256,
+        const Core::Path::FilesystemPath& archiveDir,
+        const Core::Async::CancellationToken& token,
+        bool& outReused,
+        bool& outPersisted,
+        Core::Error::Error& outPersistenceError);
+
     void dispatchIndexReady(const QString& gameId);
     void dispatchIndexUpdated(const QString& gameId);
     void dispatchIndexPersistenceFailed(const QString& key, const QString& errorMsg);
 
     mutable std::mutex m_mutex;
+    Core::Path::FilesystemPath m_cacheRootDir;
     QHash<QString, std::shared_ptr<const Domain::Package::VpkIndex>> m_indices;
+    QHash<QString, std::shared_ptr<const Domain::Package::VpkArchiveIndex>> m_archiveCache;
+    QHash<QString, std::shared_ptr<InFlightArchiveLoad>> m_inFlightArchives;
     QHash<QString, Core::Error::Error> m_persistenceErrors;
     std::shared_ptr<const Domain::Package::VpkIndex> m_cs2Index;
     std::shared_ptr<const Domain::Package::VpkIndex> m_activeSource1Index;

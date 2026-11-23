@@ -103,19 +103,18 @@
 <context>
     <name>AssetLocateStrategy</name>
     <message>
-        <location filename="../src/Domain/Asset/AssetLocateStrategy.cpp" line="21"/>
-        <location filename="../src/Domain/Asset/AssetLocateStrategy.cpp" line="59"/>
-        <location filename="../src/Domain/Asset/AssetLocateStrategy.cpp" line="85"/>
-        <location filename="../src/Domain/Asset/AssetLocateStrategy.cpp" line="111"/>
-        <location filename="../src/Domain/Asset/AssetLocateStrategy.cpp" line="137"/>
+        <location filename="../src/Domain/Asset/AssetLocateStrategy.cpp" line="32"/>
+        <location filename="../src/Domain/Asset/AssetLocateStrategy.cpp" line="70"/>
+        <location filename="../src/Domain/Asset/AssetLocateStrategy.cpp" line="96"/>
+        <location filename="../src/Domain/Asset/AssetLocateStrategy.cpp" line="130"/>
         <source>Asset location cancelled</source>
-        <translation type="unfinished"></translation>
+        <translation>资源定位已取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Asset/AssetLocateStrategy.cpp" line="65"/>
-        <location filename="../src/Domain/Asset/AssetLocateStrategy.cpp" line="72"/>
+        <location filename="../src/Domain/Asset/AssetLocateStrategy.cpp" line="76"/>
+        <location filename="../src/Domain/Asset/AssetLocateStrategy.cpp" line="83"/>
         <source>Relative asset path is empty</source>
-        <translation type="unfinished"></translation>
+        <translation>资源相对路径为空</translation>
     </message>
 </context>
 <context>
@@ -4255,130 +4254,256 @@ or click Add</source>
     </message>
 </context>
 <context>
-    <name>VpkIndex</name>
+    <name>VpkArchiveIndex</name>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="109"/>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="218"/>
-        <source>Index file path is empty or invalid</source>
-        <translation>索引文件路径为空或无效</translation>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="48"/>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="211"/>
+        <source>Archive index file path is empty or invalid</source>
+        <translation>归档索引文件路径为空或无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="55"/>
+        <source>Archive index file does not exist</source>
+        <translation>归档索引文件不存在</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="62"/>
+        <source>Failed to open archive index file for reading: %1</source>
+        <translation>无法打开归档索引文件进行读取：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="71"/>
+        <source>Archive index file is smaller than minimum header size</source>
+        <translation>归档索引文件小于最小头大小</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="84"/>
+        <source>Failed to read archive index magic header</source>
+        <translation>读取归档索引魔数头失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="90"/>
+        <source>Archive index file has invalid magic header</source>
+        <translation>归档索引文件具有无效的魔数头</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="99"/>
+        <source>Failed to read archive index version</source>
+        <translation>读取归档索引版本号失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="105"/>
+        <source>Archive index file version mismatch (expected %1, got %2)</source>
+        <translation>归档索引文件版本不匹配（预期 %1，实际为 %2）</translation>
     </message>
     <message>
         <location filename="../src/Domain/Package/VpkIndex.cpp" line="115"/>
-        <source>Security boundary violation: Index file &apos;%1&apos; is not within expected base directory &apos;%2&apos;</source>
-        <translation>安全边界违规：索引文件“%1”不在预期的基目录“%2”内</translation>
+        <source>Failed to read archive index SHA-256 header</source>
+        <translation>读取归档索引 SHA-256 头失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="125"/>
-        <source>Failed to create directory for index file: %1</source>
-        <translation>为索引文件创建目录失败：%1</translation>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="123"/>
+        <source>Archive index header contains an invalid SHA-256 digest</source>
+        <translation>归档索引头包含无效的 SHA-256 摘要</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="134"/>
-        <source>VPK archive count exceeds maximum supported format limit (65535)</source>
-        <translation>VPK 归档数量超出支持的格式上限 (65535)</translation>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="130"/>
+        <source>Archive index SHA-256 header does not match expected digest</source>
+        <translation>归档索引 SHA-256 头与预期摘要不匹配</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="140"/>
-        <source>Entry count exceeds maximum supported format limit</source>
-        <translation>条目数量超出支持的格式上限</translation>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="139"/>
+        <source>Failed to read archive index entry count</source>
+        <translation>读取归档索引条目数量失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="146"/>
-        <source>Native stem count exceeds maximum supported format limit</source>
-        <translation>原生主干名数量超出支持的格式上限</translation>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="147"/>
+        <source>Archive index entry count exceeds maximum possible records for file size</source>
+        <translation>归档索引条目数量超出文件大小对应的最大可能记录数</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="154"/>
-        <source>Failed to open index file for writing: %1</source>
-        <translation>无法打开索引文件进行写入：%1</translation>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="158"/>
+        <source>Archive index data stream is truncated</source>
+        <translation>归档索引数据流被截断</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="163"/>
-        <source>Security boundary violation: Index file &apos;%1&apos; escaped expected base directory &apos;%2&apos; via reparse point or symlink</source>
-        <translation>安全边界违规：索引文件“%1”经由重解析点或符号链接逃逸出预期的基目录“%2”</translation>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="167"/>
+        <source>Failed to read archive index entry length</source>
+        <translation>读取归档索引条目长度失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="207"/>
-        <source>Stream write failed while writing index data</source>
-        <translation>写入索引数据时数据流写入失败</translation>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="175"/>
+        <source>Archive index entry length is invalid or exceeds remaining file size</source>
+        <translation>归档索引条目长度无效或超出剩余文件大小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="225"/>
-        <source>Index file does not exist</source>
-        <translation>索引文件不存在</translation>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="185"/>
+        <source>Failed to read archive index entry payload</source>
+        <translation>读取归档索引条目内容失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="232"/>
-        <source>Failed to open index file for reading: %1</source>
-        <translation>无法打开索引文件进行读取：%1</translation>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="197"/>
+        <source>Archive index data stream is corrupted or contains trailing data</source>
+        <translation>归档索引数据流已损坏或包含多余尾部数据</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="217"/>
+        <source>Archive index does not contain a valid SHA-256 digest</source>
+        <translation>归档索引不包含有效的 SHA-256 摘要</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="224"/>
+        <source>Archive index entry count exceeds maximum supported format limit</source>
+        <translation>归档索引条目数量超出支持的格式上限</translation>
     </message>
     <message>
         <location filename="../src/Domain/Package/VpkIndex.cpp" line="243"/>
+        <source>Failed to access atomic output device for archive index</source>
+        <translation>无法访问归档索引的原子写入输出设备</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="258"/>
+        <source>Failed to write SHA-256 header to archive index</source>
+        <translation>向归档索引写入 SHA-256 头失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="270"/>
+        <source>Archive index entry exceeds maximum supported UTF-8 byte length</source>
+        <translation>归档索引条目超出支持的最大 UTF-8 字节长度</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="280"/>
+        <source>Failed to write entry data to archive index</source>
+        <translation>向归档索引写入条目数据失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndex.cpp" line="288"/>
+        <source>Stream write failed while writing archive index</source>
+        <translation>写入归档索引时数据流写入失败</translation>
+    </message>
+</context>
+<context>
+    <name>VpkIndex</name>
+    <message>
+        <source>Index file path is empty or invalid</source>
+        <translation type="vanished">索引文件路径为空或无效</translation>
+    </message>
+    <message>
+        <source>Security boundary violation: Index file &apos;%1&apos; is not within expected base directory &apos;%2&apos;</source>
+        <translation type="vanished">安全边界违规：索引文件“%1”不在预期的基目录“%2”内</translation>
+    </message>
+    <message>
+        <source>Failed to create directory for index file: %1</source>
+        <translation type="vanished">为索引文件创建目录失败：%1</translation>
+    </message>
+    <message>
+        <source>VPK archive count exceeds maximum supported format limit (65535)</source>
+        <translation type="vanished">VPK 归档数量超出支持的格式上限 (65535)</translation>
+    </message>
+    <message>
+        <source>Entry count exceeds maximum supported format limit</source>
+        <translation type="vanished">条目数量超出支持的格式上限</translation>
+    </message>
+    <message>
+        <source>Native stem count exceeds maximum supported format limit</source>
+        <translation type="vanished">原生主干名数量超出支持的格式上限</translation>
+    </message>
+    <message>
+        <source>Failed to open index file for writing: %1</source>
+        <translation type="vanished">无法打开索引文件进行写入：%1</translation>
+    </message>
+    <message>
+        <source>Security boundary violation: Index file &apos;%1&apos; escaped expected base directory &apos;%2&apos; via reparse point or symlink</source>
+        <translation type="vanished">安全边界违规：索引文件“%1”经由重解析点或符号链接逃逸出预期的基目录“%2”</translation>
+    </message>
+    <message>
+        <source>Stream write failed while writing index data</source>
+        <translation type="vanished">写入索引数据时数据流写入失败</translation>
+    </message>
+    <message>
+        <source>Index file does not exist</source>
+        <translation type="vanished">索引文件不存在</translation>
+    </message>
+    <message>
+        <source>Failed to open index file for reading: %1</source>
+        <translation type="vanished">无法打开索引文件进行读取：%1</translation>
+    </message>
+    <message>
         <source>Index file is smaller than minimum header size</source>
-        <translation>索引文件小于最小头大小</translation>
+        <translation type="vanished">索引文件小于最小头大小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="257"/>
         <source>Index file has invalid magic header</source>
-        <translation>索引文件具有无效的魔数头</translation>
+        <translation type="vanished">索引文件具有无效的魔数头</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="266"/>
         <source>Index file version mismatch (expected %1, got %2)</source>
-        <translation>索引文件版本不匹配（预期 %1，实际为 %2）</translation>
+        <translation type="vanished">索引文件版本不匹配（预期 %1，实际为 %2）</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="286"/>
         <source>VPK archive count exceeds maximum possible records for file size</source>
-        <translation>VPK 归档数量超出文件大小对应的最大可能记录数</translation>
+        <translation type="vanished">VPK 归档数量超出文件大小对应的最大可能记录数</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="309"/>
         <source>Entry count exceeds maximum possible entries for file size</source>
-        <translation>条目数量超出文件大小对应的最大可能条目数</translation>
+        <translation type="vanished">条目数量超出文件大小对应的最大可能条目数</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="328"/>
         <source>Native stem count exceeds maximum possible stems for file size</source>
-        <translation>原生主干名数量超出文件大小对应的最大可能主干数</translation>
+        <translation type="vanished">原生主干名数量超出文件大小对应的最大可能主干数</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndex.cpp" line="341"/>
         <source>Failed to deserialize index: data stream is corrupted or truncated</source>
-        <translation>反序列化索引失败：数据流损坏或被截断</translation>
+        <translation type="vanished">反序列化索引失败：数据流损坏或被截断</translation>
     </message>
 </context>
 <context>
     <name>VpkIndexBuilder</name>
     <message>
-        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="19"/>
-        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="37"/>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="107"/>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="118"/>
         <source>VPK index building cancelled</source>
         <translation>VPK 索引构建已取消</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="42"/>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="129"/>
         <source>Skipping missing VPK: %1</source>
         <translation>跳过缺失的 VPK：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="49"/>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="50"/>
         <source>Indexing VPK: %1</source>
         <translation>正在索引 VPK：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="61"/>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="23"/>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="93"/>
+        <source>VPK archive indexing cancelled</source>
+        <translation>VPK 归档索引构建已取消</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="35"/>
         <source>Failed to compute SHA-256 for VPK: %1</source>
         <translation>计算 VPK 的 SHA-256 失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="80"/>
-        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="91"/>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="43"/>
+        <source>Invalid precomputed SHA-256 hash</source>
+        <translation>预计算的 SHA-256 哈希无效</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="61"/>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="141"/>
         <source>Failed to parse VPK archive: %1</source>
         <translation>解析 VPK 归档失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="125"/>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="72"/>
+        <source>Failed to list entries in VPK archive: %1</source>
+        <translation>列举 VPK 归档条目失败：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Package/VpkIndexBuilder.cpp" line="160"/>
         <source>VPK index built successfully: %1 archives, %2 total entries</source>
         <translation>VPK 索引构建成功：%1 个归档，共 %2 个条目</translation>
     </message>
@@ -4386,21 +4511,36 @@ or click Add</source>
 <context>
     <name>VpkIndexService</name>
     <message>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="111"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="83"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="189"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="263"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="270"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="323"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="337"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="431"/>
         <source>Index build cancelled</source>
         <translation>索引构建已取消</translation>
     </message>
     <message>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="119"/>
-        <source>Failed to build VPK index for %1</source>
-        <translation>为 %1 构建 VPK 索引失败</translation>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="121"/>
+        <source>Failed to resolve archive index cache path</source>
+        <translation>解析归档索引缓存路径失败</translation>
     </message>
     <message>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="175"/>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="212"/>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="251"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="357"/>
+        <source>Failed to compute SHA-256 for VPK: %1</source>
+        <translation>计算 VPK 的 SHA-256 失败：%1</translation>
+    </message>
+    <message>
+        <source>Failed to build VPK index for %1</source>
+        <translation type="vanished">为 %1 构建 VPK 索引失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="520"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="564"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="609"/>
         <source>VpkIndexService instance must be managed by std::shared_ptr to start async operations</source>
-        <translation type="unfinished"></translation>
+        <translation>VpkIndexService 实例必须由 std::shared_ptr 管理才能启动异步操作</translation>
     </message>
     <message>
         <source>CS2 base path is invalid or empty</source>

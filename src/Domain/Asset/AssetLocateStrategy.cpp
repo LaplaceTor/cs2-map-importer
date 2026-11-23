@@ -11,6 +11,17 @@ namespace Domain::Asset {
 
 namespace {
 
+Core::Result<AssetLocateOutcome> makePackEntryOutcome(
+    Core::Path::FilesystemPath sourceTargetPath,
+    QString entryPath) {
+    AssetLocation location;
+    location.sourceTargetPath = std::move(sourceTargetPath);
+    location.relativePath = std::move(entryPath);
+    location.isInsidePack = true;
+    return Core::Result<AssetLocateOutcome>::success(
+        AssetLocateOutcome{AssetMatchKind::PackEntry, std::move(location)});
+}
+
 Core::Result<bool> probePackEntry(
     Domain::Package::PackArchivePool& pool,
     const Core::Path::FilesystemPath& packPath,
@@ -101,36 +112,18 @@ Core::Result<AssetLocateOutcome> AssetLocateStrategy::locate(
         }
     }
 
-    // 3. Fast-lookup via VpkIndex (priority probe if indexed)
-    Core::Path::FilesystemPath probedWinnerVpk;
+    // 3. Pre-query VpkIndex once in O(1) (zero VPK opens)
+    std::optional<Core::Path::FilesystemPath> indexedWinner;
+    QString indexedWinnerKey;
     if (vpkIndex) {
-        auto winningVpkOpt = vpkIndex->findVpkForEntry(entryPath);
-        if (winningVpkOpt.has_value()) {
-            if (token.isCancelled()) {
-                return Core::Result<AssetLocateOutcome>::cancelled(
-                    QCoreApplication::translate("AssetLocateStrategy", "Asset location cancelled"));
-            }
-
-            probedWinnerVpk = *winningVpkOpt;
-            auto packRes = probePackEntry(pool, probedWinnerVpk, entryPath, token);
-            if (packRes.isCancelled()) {
-                return Core::Result<AssetLocateOutcome>::cancelled(packRes.message());
-            }
-            if (packRes.isFailure()) {
-                return Core::Result<AssetLocateOutcome>::failure(packRes.error(), packRes.message());
-            }
-            if (packRes.value()) {
-                AssetLocation location;
-                location.sourceTargetPath = probedWinnerVpk;
-                location.relativePath = entryPath;
-                location.isInsidePack = true;
-                return Core::Result<AssetLocateOutcome>::success(
-                    AssetLocateOutcome{AssetMatchKind::PackEntry, std::move(location)});
-            }
+        indexedWinner = vpkIndex->findVpkForEntry(entryPath);
+        if (indexedWinner.has_value()) {
+            indexedWinnerKey = Domain::Package::VpkIndex::normalizeArchivePathKey(*indexedWinner);
         }
     }
 
-    // 4. Fallback search across search targets
+    // 4. Walk search targets in strict Valve priority order
+    bool indexedWinnerMatchedTarget = false;
     for (const auto& target : targets) {
         if (token.isCancelled()) {
             return Core::Result<AssetLocateOutcome>::cancelled(
@@ -141,11 +134,17 @@ Core::Result<AssetLocateOutcome> AssetLocateStrategy::locate(
             ? target.path()
             : target.path() / QStringLiteral("pak01_dir.vpk");
 
-        if (!probedWinnerVpk.isEmpty()
-            && packPath.toString().compare(probedWinnerVpk.toString(), Qt::CaseInsensitive) == 0) {
+        if (vpkIndex && vpkIndex->coversVpk(packPath)) {
+            if (!indexedWinnerKey.isEmpty()
+                && Domain::Package::VpkIndex::normalizeArchivePathKey(packPath) == indexedWinnerKey) {
+                indexedWinnerMatchedTarget = true;
+                return makePackEntryOutcome(packPath, entryPath);
+            }
+            // Covered by verified VpkIndex and not the winning archive -> skip without opening VPK.
             continue;
         }
 
+        // Unindexed VPK target -> fallback probe via PackArchivePool
         auto packRes = probePackEntry(pool, packPath, entryPath, token);
         if (packRes.isCancelled()) {
             return Core::Result<AssetLocateOutcome>::cancelled(packRes.message());
@@ -154,13 +153,13 @@ Core::Result<AssetLocateOutcome> AssetLocateStrategy::locate(
             return Core::Result<AssetLocateOutcome>::failure(packRes.error(), packRes.message());
         }
         if (packRes.value()) {
-            AssetLocation location;
-            location.sourceTargetPath = packPath;
-            location.relativePath = entryPath;
-            location.isInsidePack = true;
-            return Core::Result<AssetLocateOutcome>::success(
-                AssetLocateOutcome{AssetMatchKind::PackEntry, std::move(location)});
+            return makePackEntryOutcome(packPath, entryPath);
         }
+    }
+
+    // Preserve vpkIndex-only lookups (e.g. caller passed empty targets or omitted an indexed VPK)
+    if (indexedWinner.has_value() && !indexedWinnerMatchedTarget) {
+        return makePackEntryOutcome(*indexedWinner, entryPath);
     }
 
     return Core::Result<AssetLocateOutcome>::success(

@@ -59,14 +59,23 @@ public:
     // Lists all addons in a Source 2 installation directory
     static QStringList listSource2Addons(const Core::Path::FilesystemPath& s2BasePath);
 
+    // Resolves the canonical VPK index cache folder category:
+    // - Known built-in games normalize to GameDefinition::id (e.g. "cs2", "csgo", "css").
+    // - Custom / unknown games append the slugified gameinfo "game" name (or mod directory name), e.g. "custom_synergy".
+    static QString resolveIndexCategory(
+        const QString& gameId,
+        const GameInfo* gameInfo = nullptr);
+
     // Resolves CS2 native VPK targets from game/csgo/gameinfo.gi (SearchPaths -> Game) with csgo/core fallback
     static Core::Result<std::vector<Core::Path::FilesystemPath>> resolveCs2VpkTargets(
         const Core::Path::FilesystemPath& cs2BasePath);
 
-    // Resolves Source 1 VPK targets from a gameinfo.txt file or game/mod directory
+    // Resolves Source 1 VPK targets from a gameinfo.txt file or game/mod directory.
+    // If outCacheCategory is non-null, populates it with resolveIndexCategory(gameId, &parsedGameInfo).
     static Core::Result<std::vector<Core::Path::FilesystemPath>> resolveSource1VpkTargets(
         const QString& gameId,
-        const Core::Path::FilesystemPath& gameInfoPathOrDir);
+        const Core::Path::FilesystemPath& gameInfoPathOrDir,
+        QString* outCacheCategory = nullptr);
 };
 
 } // namespace Domain::Game

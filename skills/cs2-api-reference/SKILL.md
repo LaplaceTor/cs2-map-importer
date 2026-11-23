@@ -100,7 +100,7 @@ description: >-
 封装 Valve / Source 业务规则与确定性资产解析，仅依赖 `Core`。
 
 * **`Domain::Asset`**：
-  * `AssetLocateStrategy`：纯领域资产定位策略，直接接收 `(relativeAssetPath, targets, PackArchivePool&, const VpkIndex* s1Index, const VpkIndex* cs2Index, CancellationToken)`，按 `CS2 Native → Loose File → VpkIndex O(1) → Fallback Target VPK` 顺序定位，直接返回 `Core::Result<AssetLocateOutcome>`（无冗余虚接口或观察者适配器）。
+  * `AssetLocateStrategy`：纯领域资产定位策略，直接接收 `(relativeAssetPath, targets, PackArchivePool&, const VpkIndex* vpkIndex, const VpkIndex* cs2Index, CancellationToken)`，按 `CS2 Native → Loose File → 优先级感知 VPK 查找` 顺序定位（先 O(1) 预查 `VpkIndex::findVpkForEntry`，按目标优先级遍历时对 `VpkIndex::coversVpk()` 覆盖的 VPK 全程零开包直接命中或跳过，仅对未入索引的额外 VPK 回退 `PackArchivePool` 探测；`targets` 未包含已索引胜出包时保留 `indexedWinner` 回退），直接返回 `Core::Result<AssetLocateOutcome>`（无冗余虚接口或观察者适配器）。
   * `AssetMatchKind`（`NotFound`, `LooseFile`, `PackEntry`, `NativeCs2`）与 `AssetLocateOutcome{kind, location}`。
   * `AssetLocation`（`target`, `relativePath`, `fromPack`, `sourceTargetPath`）、`AssetPath`（Valve 相对路径）、`AssetTypeDetector`。
 * **`Domain::Bsp`**：
@@ -110,7 +110,9 @@ description: >-
   * `PackArchive`：原生 C++20 进程内 VPK v1/v2（含分卷 `_dir.vpk` / `_%03u.vpk` 与 `preloadBytes`）及 BSP 嵌入包抽象（Pimpl 隔离，`.bsp` 委托 `Internal::BspPakZipReader`）；`extractEntryToFile(entryPath, destFile, token, expectedBaseDir)` 直接调用 `readEntry`（缺省即返回 `ErrorCode::EntryNotFound`，无冗余 `hasEntry` 查找），并在打开文件后执行 `verifyFileWithinBase`；`readEntry` 与 `hasEntry` 支持 `CancellationToken` 且只读线程安全。
   * `BspPackExtractor`：Source 1 BSP Pakfile 提取器，基于 `Internal::BspPakZipReader`（Lump 40 `VBSP` / L4D2 自适应解析 + Valve `LZMA` + 内存 ZIP Store/Deflate[`Qt6::ZlibPrivate`]/Method 14 LZMA[`Internal::Lzma1Decoder`]）；`BspExtractOptions` 接收 `Core::Async::CancellationToken token`；通过受控局部 `QThreadPool` 无锁并发提取（不裸建 `std::thread`）；目录与文件路径经 `destDir.resolveBelow()`（Tier 1）与 `verifyFileWithinBase(outFile, destDir)`（Tier 2）双层校验。
   * `PackArchivePool`：归档 LRU 池化缓存，键粒度 `OpeningEntry` 条件变量并发同步，防止同一归档并发重复打开并响应取消。
-  * `VpkIndex` / `VpkIndexBuilder`：基于 `PackArchive::open` 与 `listEntries()` 构建的全量 VPK 只读索引与二进制持久化载体（`.idx`，含文件大小/修改时间与 `_dir.vpk` SHA-256 校验），提供 $O(1)$ 绝对路径路由与 `isCs2()` / `cs2Stems` 跨引擎去重集合。
+  * `VpkArchiveIndex`：不可变单 VPK 条目快照与内容寻址 `.vpkidx` 编解码器（`CS2VPKA1` v1，定长 64 字节小写 SHA-256 头 + UTF-8 条目），提供 `isValidSha256Hex(QStringView)`、`loadFromFile(filePath, expectedSha256 = {})`、`saveToFile(filePath, expectedBaseDir = {})`（经 `ExecutionGuard::guard` + `AtomicFile` 单点边界原子写入）及 `sha256()` / `entries()` / `entryCount()`。
+  * `VpkIndex` / `VpkArchiveSource`：由 `VpkIndex::compose(std::vector<VpkArchiveSource>, bool isCs2)` 按优先级合并的不可变只读索引，提供 `normalizeArchivePathKey(path)`、`coversVpk(vpkPath)`、$O(1)$ `findVpkForEntry(entryPath)`、`hasEntry(entryPath)`、`hasCs2NativeAsset(relativeAssetPath)` 跨引擎去重集合及 `vpks()` / `setVpks()`。
+  * `VpkIndexBuilder`：提供单包构建 `buildArchive(vpkPath, precomputedSha256 = {}, token = {}, taskCtx = nullptr)` 与组合构建 `build(vpkPaths, isCs2 = false, token = {}, taskCtx = nullptr)`（按 `normalizeArchivePathKey` 去重、跳过解析失败归档并调用 `VpkIndex::compose`）。
 * **`Domain::Material`**：
   * `VtfConverter`：复用 `VtfCodec::read` 解码 VTF 并通过 `QImageWriter`（PNG/JPG/BMP）、32-bit BGRA TGA 与 Radiance RGBE HDR 导出，经 `Core::Error::ExecutionGuard::guard` 保护 `FileSystem` 落盘调用，路径边界由底层 `AtomicFile` 单点校验。
   * `VtfCodec` / `TgaCodec` / `TextureIO` / `TextureImage`：原生 PC VTF v7.0–7.6 Mip 0 解码（BC1–BC5、未压缩整数、HDR 及 v7.6 `AXC` Deflate via `Qt6::ZlibPrivate`）与宽读取（PNG/JPG/BMP/TGA/VTF）、窄写入（仅 PNG）的统一纹理 IO 与线性浮点工作缓冲；`TextureIO` 提供 `loadTexture`/`writeTexture` 与 `readImage`/`writeImage`。
@@ -125,9 +127,10 @@ description: >-
 * **`Domain::Game`**：
   * `GameType` / `EngineType` / `GameDefinition` / `GameRegistry` / `GameInfo` / `GameInfoParser` / `SearchTarget` / `SearchPathResolver` / `GameValidator` / `GameErrors`。
   * `SteamGameLocator`：独占 Valve Steam VDF/ACF 解析领域逻辑（`SteamLibrary`、`parseLibraryFolders(libraryfolders.vdf)`、`discoverLibraries(steamRootPath)`、`readAppInstallDir`、`readAppName`、`resolveGamesInLibrary`、`resolveGameInLibrary`），直接在 Domain 层读取 `appmanifest_*.acf`（无回调函数参数）。
-  * `GameInstallationResolver`：游戏安装解析、`inspectGameInfo`、`listSource2Addons`（严格探测 `content/csgo_addons`），以及面向 VPK 索引的领域目标解析：
+  * `GameInstallationResolver`：游戏安装解析、`inspectGameInfo`、`listSource2Addons`（严格探测 `content/csgo_addons`），以及面向 VPK 索引的领域目标与分类目录解析：
+    * `static QString resolveIndexCategory(const QString& gameId, const GameInfo* gameInfo = nullptr)`（内置游戏归一回 `GameDefinition::id`，Custom/未知游戏拼接清洗后的 `gameinfo` `game` 名称或 `modDirectory` 名，如 `custom_<slug>`）
     * `static Core::Result<std::vector<Core::Path::FilesystemPath>> resolveCs2VpkTargets(const Core::Path::FilesystemPath& cs2BasePath)`
-    * `static Core::Result<std::vector<Core::Path::FilesystemPath>> resolveSource1VpkTargets(const QString& gameId, const Core::Path::FilesystemPath& gameInfoPathOrDir)`
+    * `static Core::Result<std::vector<Core::Path::FilesystemPath>> resolveSource1VpkTargets(const QString& gameId, const Core::Path::FilesystemPath& gameInfoPathOrDir, QString* outCacheCategory = nullptr)`
 
 ---
 
@@ -161,7 +164,7 @@ description: >-
 * **通用导入前置服务 (`Application::Common`)**：
   * `ImportPrerequisiteService`：Map / Model / Particle 共用前置保障，校验基础请求、使用与 `GameEnvironmentService` 共享的 `std::shared_ptr<VpkSignatureLeaseService>` 独占获取 CS2 `vpk.signatures` 租约、经 `GameInstallationResolver::inspectGameInfo` 解析 S1 `gameinfo.txt` 并同步确保 `VpkIndex` 就绪；头文件前置声明 `Workflow::Common::ImportContext`。
 * **VPK 索引服务 (`Application::Package`)**：
-  * `VpkIndexService`：管理 `<AppDir>/data/indices/<game_id>.idx` 持久化缓存。PassKey + `create()` 强制 `std::shared_ptr` 所有权；异步入口前置 `weak_from_this().lock()`；后台构建走 `runSystemTask`；信号经主线程亲和性调度（`dispatchIndexReady` / `dispatchIndexUpdated`）发射；头文件前置声明 `Domain::Package::VpkIndex`；VPK 目标解析委托 `GameInstallationResolver::resolveCs2VpkTargets` / `resolveSource1VpkTargets`；返回 `VpkIndexResult{index, persisted, persistenceError}`。
+  * `VpkIndexService`：按 `GameInstallationResolver::resolveIndexCategory` 分类（内置游戏用规范短名，Custom 模组自动带 `gameinfo` 游戏名如 `custom_<slug>`）、单 VPK SHA-256 内容寻址管理 `<AppDir>/data/indices/<category>/<sha256>.vpkidx` 持久化缓存（进程内 `m_indices` 快路径 + `m_archiveCache` + 单飞 `InFlightArchiveLoad` 去重）。PassKey + `create(cacheRootDir = {})` 强制 `std::shared_ptr` 所有权；提供 `indexDirectory()`、`archiveIndexDirectory(gameId)` 与 `archiveIndexPath(gameId, sha256)`；异步入口前置 `weak_from_this().lock()`；后台构建走 `runSystemTask`；信号经主线程亲和性调度（`dispatchIndexReady` / `dispatchIndexUpdated` / `dispatchIndexPersistenceFailed`）发射；头文件前置声明 `Domain::Package::VpkIndex` 与 `Domain::Package::VpkArchiveIndex`；VPK 目标解析委托 `GameInstallationResolver::resolveCs2VpkTargets` / `resolveSource1VpkTargets`；返回 `VpkIndexResult{index, persisted, persistenceError, reusedArchiveCount, rebuiltArchiveCount}`。
 * **环境与检测服务 (`Application::Environment`)**：
   * `GameInstallationInfo`：面向 UI 的游戏安装 DTO，由 `Domain::Game::ResolvedGameInstallation` 直接映射。
   * `Internal::SteamLibraryDetector`：仅负责 Windows 注册表与默认路径探测 Steam 根目录（`detectSteamInstallPath`），VDF/ACF 库解析委托 `Domain::Game::SteamGameLocator::discoverLibraries`。
