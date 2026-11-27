@@ -27,9 +27,13 @@ enum class KeyValuesEventType : int {
 struct KeyValuesReadOptions {
     bool unescapeStrings = true;
     bool supportConditionals = true;
+    bool stopUnquotedAtBraces = false;
 
     static KeyValuesReadOptions vdfDefault() noexcept { return {}; }
     static KeyValuesReadOptions vmf() noexcept { return {.unescapeStrings = false, .supportConditionals = false}; }
+    static KeyValuesReadOptions vmt() noexcept {
+        return {.unescapeStrings = false, .supportConditionals = true, .stopUnquotedAtBraces = true};
+    }
 };
 
 /**

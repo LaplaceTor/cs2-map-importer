@@ -201,7 +201,7 @@ Token KeyValuesLexer::nextToken() {
         const bool nextIsEof = (m_pos + 1) >= m_buffer.size();
         const unsigned char next = peekByte(1);
         const bool nextIsComment = (next == '/') && ((m_pos + 2) < m_buffer.size()) && (peekByte(2) == '/');
-        if (nextIsEof || isAsciiWhitespace(next) || nextIsComment || next == '"' || next == '{' || next == '}') {
+        if (m_options.stopUnquotedAtBraces || nextIsEof || isAsciiWhitespace(next) || nextIsComment || next == '"' || next == '{' || next == '}') {
             advanceByte();
             if (c == '{') {
                 return Token{TokenType::OpenBrace, QStringLiteral("{"), tokenLine, tokenCol};
@@ -256,7 +256,7 @@ Token KeyValuesLexer::readQuotedString() {
         bytes.append(static_cast<char>(advanceByte()));
     }
 
-    return Token{TokenType::String, QString::fromUtf8(bytes), tokenLine, tokenCol};
+    return Token{TokenType::String, QString::fromUtf8(bytes), tokenLine, tokenCol, true};
 }
 
 Token KeyValuesLexer::readUnquotedString() {
@@ -270,6 +270,10 @@ Token KeyValuesLexer::readUnquotedString() {
         const unsigned char c = peekByte(0);
 
         if (isAsciiWhitespace(c) || c == '"') {
+            break;
+        }
+
+        if (m_options.stopUnquotedAtBraces && (c == '{' || c == '}')) {
             break;
         }
 

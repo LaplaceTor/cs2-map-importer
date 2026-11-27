@@ -22,9 +22,11 @@ enum class TokenType : int {
  */
 struct KeyValuesLexerOptions {
     bool unescapeStrings = true;
+    bool stopUnquotedAtBraces = false;
 
     static KeyValuesLexerOptions vdfDefault() noexcept { return {}; }
     static KeyValuesLexerOptions vmf() noexcept { return {.unescapeStrings = false}; }
+    static KeyValuesLexerOptions vmt() noexcept { return {.unescapeStrings = false, .stopUnquotedAtBraces = true}; }
 };
 
 /**
@@ -35,6 +37,7 @@ struct Token {
     QString text;
     int line = 1;
     int column = 1;
+    bool quoted = false;
 
     bool is(TokenType t) const noexcept { return type == t; }
     bool isString() const noexcept { return type == TokenType::String; }

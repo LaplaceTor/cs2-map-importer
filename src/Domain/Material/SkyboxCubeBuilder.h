@@ -11,6 +11,7 @@
 #include "Core/Result/Result.h"
 
 #include "Domain/Material/SkyboxTypes.h"
+#include "Domain/Material/TextureImage.h"
 
 namespace Domain::Material {
 
@@ -37,6 +38,25 @@ public:
     static Core::Result<SkyboxFaces> loadFacesFromDirectory(
         const Core::Path::FilesystemPath& directory,
         const QString& baseName);
+
+    /**
+     * @brief Applies $basetexturetransform resampling (clamp-to-edge) and linear
+     *        $color scaling to an LDR skybox face, returning Straight RGBA8888.
+     */
+    static Core::Result<QImage> preprocessFace(
+        const QImage& ldrFace,
+        const SkyboxFaceTransform& transform = {},
+        int targetResolution = 0);
+
+    /**
+     * @brief Applies $basetexturetransform resampling, linear $color scaling,
+     *        smooth Reinhard tone mapping (v / (1 + v)), and sRGB encoding to an
+     *        HDR floating-point skybox face, returning Straight RGBA8888.
+     */
+    static Core::Result<QImage> preprocessHdrFace(
+        const TextureImage& hdrFace,
+        const SkyboxFaceTransform& transform = {},
+        int targetResolution = 0);
 
     /**
      * @brief Formats a valid Source 2 .vmat KeyValues string pointing to sky.vfx

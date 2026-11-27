@@ -12,6 +12,192 @@
 
 namespace Domain::Material {
 
+namespace {
+
+float sampleBilinearClamped(const float* plane, int w, int h, float tx, float ty) noexcept
+{
+    const float clampedX = std::clamp(tx, 0.0f, static_cast<float>(w - 1));
+    const float clampedY = std::clamp(ty, 0.0f, static_cast<float>(h - 1));
+    const int x0 = static_cast<int>(std::floor(clampedX));
+    const int y0 = static_cast<int>(std::floor(clampedY));
+    const int x1 = std::min(x0 + 1, w - 1);
+    const int y1 = std::min(y0 + 1, h - 1);
+    const float fx = clampedX - static_cast<float>(x0);
+    const float fy = clampedY - static_cast<float>(y0);
+
+    const float p00 = plane[static_cast<std::size_t>(y0) * w + x0];
+    const float p10 = plane[static_cast<std::size_t>(y0) * w + x1];
+    const float p01 = plane[static_cast<std::size_t>(y1) * w + x0];
+    const float p11 = plane[static_cast<std::size_t>(y1) * w + x1];
+
+    const float top = p00 * (1.0f - fx) + p10 * fx;
+    const float bottom = p01 * (1.0f - fx) + p11 * fx;
+    return top * (1.0f - fy) + bottom * fy;
+}
+
+Core::Result<TextureImage> resampleAndTintFaceToLinear(
+    const TextureImage& src,
+    const SkyboxFaceTransform& transform,
+    int targetResolution)
+{
+    if (!src.isValid() || src.channelCount() < 3) {
+        return Core::Result<TextureImage>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QCoreApplication::translate("SkyboxCubeBuilder", "skybox face image is invalid"));
+    }
+
+    const int srcW = src.width();
+    const int srcH = src.height();
+    const int outRes = targetResolution > 0 ? targetResolution : std::max(srcW, srcH);
+    if (outRes <= 0 || outRes > 8192) {
+        return Core::Result<TextureImage>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QCoreApplication::translate("SkyboxCubeBuilder", "face resolution exceeds maximum supported size (8192)"));
+    }
+
+    TextureImage dst(outRes, outRes, 4);
+    if (!dst.isValid()) {
+        return Core::Result<TextureImage>::failure(
+            Core::Error::ErrorCode::OperationFailed,
+            QCoreApplication::translate("SkyboxCubeBuilder", "failed to allocate skybox face buffer"));
+    }
+
+    const std::array<float, 3> colorScale = {
+        std::isfinite(transform.colorScale[0]) ? std::max(0.0f, transform.colorScale[0]) : 1.0f,
+        std::isfinite(transform.colorScale[1]) ? std::max(0.0f, transform.colorScale[1]) : 1.0f,
+        std::isfinite(transform.colorScale[2]) ? std::max(0.0f, transform.colorScale[2]) : 1.0f,
+    };
+
+    const float* srcR = src.planeData(0);
+    const float* srcG = src.planeData(1);
+    const float* srcB = src.planeData(2);
+    const float* srcA = src.channelCount() >= 4 ? src.planeData(3) : nullptr;
+
+    float* dstR = dst.planeData(0);
+    float* dstG = dst.planeData(1);
+    float* dstB = dst.planeData(2);
+    float* dstA = dst.planeData(3);
+
+    const bool needsResample = !transform.isIdentityTransform() || srcW != outRes || srcH != outRes;
+    if (!needsResample) {
+        const std::size_t count = static_cast<std::size_t>(outRes) * static_cast<std::size_t>(outRes);
+        for (std::size_t i = 0; i < count; ++i) {
+            dstR[i] = srcR[i] * colorScale[0];
+            dstG[i] = srcG[i] * colorScale[1];
+            dstB[i] = srcB[i] * colorScale[2];
+            dstA[i] = srcA != nullptr ? srcA[i] : 1.0f;
+        }
+        return Core::Result<TextureImage>::success(std::move(dst));
+    }
+
+    constexpr float kDegToRad = 0.01745329251994329577f;
+    const float rad = transform.uvRotateDeg * kDegToRad;
+    const float cosR = std::cos(rad);
+    const float sinR = std::sin(rad);
+    const float cx = transform.uvCenter[0];
+    const float cy = transform.uvCenter[1];
+    const float sx = transform.uvScale[0];
+    const float sy = transform.uvScale[1];
+    const float txOff = transform.uvTranslate[0];
+    const float tyOff = transform.uvTranslate[1];
+
+    const float invOutRes = 1.0f / static_cast<float>(outRes);
+    const float fSrcW = static_cast<float>(srcW);
+    const float fSrcH = static_cast<float>(srcH);
+
+    for (int y = 0; y < outRes; ++y) {
+        const float v = (static_cast<float>(y) + 0.5f) * invOutRes;
+        const float dv = (v - cy) * sy;
+        const std::size_t rowStart = static_cast<std::size_t>(y) * static_cast<std::size_t>(outRes);
+
+        for (int x = 0; x < outRes; ++x) {
+            const float u = (static_cast<float>(x) + 0.5f) * invOutRes;
+            const float du = (u - cx) * sx;
+
+            const float ru = du * cosR - dv * sinR;
+            const float rv = du * sinR + dv * cosR;
+            const float uPrime = std::clamp(ru + cx + txOff, 0.0f, 1.0f);
+            const float vPrime = std::clamp(rv + cy + tyOff, 0.0f, 1.0f);
+
+            const float texelX = uPrime * fSrcW - 0.5f;
+            const float texelY = vPrime * fSrcH - 0.5f;
+
+            const std::size_t idx = rowStart + static_cast<std::size_t>(x);
+            dstR[idx] = sampleBilinearClamped(srcR, srcW, srcH, texelX, texelY) * colorScale[0];
+            dstG[idx] = sampleBilinearClamped(srcG, srcW, srcH, texelX, texelY) * colorScale[1];
+            dstB[idx] = sampleBilinearClamped(srcB, srcW, srcH, texelX, texelY) * colorScale[2];
+            dstA[idx] = srcA != nullptr ? sampleBilinearClamped(srcA, srcW, srcH, texelX, texelY) : 1.0f;
+        }
+    }
+
+    return Core::Result<TextureImage>::success(std::move(dst));
+}
+
+} // namespace
+
+Core::Result<QImage> SkyboxCubeBuilder::preprocessFace(
+    const QImage& ldrFace,
+    const SkyboxFaceTransform& transform,
+    int targetResolution)
+{
+    if (ldrFace.isNull() || ldrFace.width() <= 0 || ldrFace.height() <= 0) {
+        return Core::Result<QImage>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QCoreApplication::translate("SkyboxCubeBuilder", "skybox face image is null or empty"));
+    }
+
+    const int outRes = targetResolution > 0
+        ? targetResolution
+        : std::max(ldrFace.width(), ldrFace.height());
+    if (transform.isIdentity() && ldrFace.width() == outRes && ldrFace.height() == outRes) {
+        QImage direct = ensureNormalizedFace(ldrFace, outRes, false);
+        if (direct.isNull()) {
+            return Core::Result<QImage>::failure(
+                Core::Error::ErrorCode::OperationFailed,
+                QCoreApplication::translate("SkyboxCubeBuilder", "failed to normalize skybox face image"));
+        }
+        return Core::Result<QImage>::success(std::move(direct));
+    }
+
+    auto linearRes = TextureIO::fromQImage(ldrFace, true);
+    if (linearRes.isFailure()) {
+        return Core::Result<QImage>::failure(linearRes.error());
+    }
+
+    auto resampledRes = resampleAndTintFaceToLinear(linearRes.value(), transform, targetResolution);
+    if (resampledRes.isFailure()) {
+        return Core::Result<QImage>::failure(resampledRes.error());
+    }
+
+    return TextureIO::toQImage(resampledRes.value(), true);
+}
+
+Core::Result<QImage> SkyboxCubeBuilder::preprocessHdrFace(
+    const TextureImage& hdrFace,
+    const SkyboxFaceTransform& transform,
+    int targetResolution)
+{
+    auto linearRes = resampleAndTintFaceToLinear(hdrFace, transform, targetResolution);
+    if (linearRes.isFailure()) {
+        return Core::Result<QImage>::failure(linearRes.error());
+    }
+
+    TextureImage& toneMapped = linearRes.value();
+    const std::size_t pixelCount =
+        static_cast<std::size_t>(toneMapped.width()) * static_cast<std::size_t>(toneMapped.height());
+    for (int c = 0; c < 3; ++c) {
+        float* plane = toneMapped.planeData(c);
+        for (std::size_t i = 0; i < pixelCount; ++i) {
+            const float lin = (std::isfinite(plane[i]) && plane[i] > 0.0f) ? plane[i] : 0.0f;
+            plane[i] = lin / (1.0f + lin);
+        }
+    }
+    float* alpha = toneMapped.planeData(3);
+    std::fill_n(alpha, pixelCount, 1.0f);
+
+    return TextureIO::toQImage(toneMapped, true);
+}
+
 QImage SkyboxCubeBuilder::ensureNormalizedFace(const QImage& img, int resolution, bool allowNonSquare)
 {
     if (img.isNull() || img.width() <= 0 || img.height() <= 0 || resolution <= 0 || resolution > 8192) {
@@ -65,17 +251,17 @@ Core::Result<SkyboxBuildResult> SkyboxCubeBuilder::build(
         CubeFace::Right, CubeFace::Up,   CubeFace::Down
     };
 
-    // Validate that all present faces are square to prevent aspect ratio distortion (unless allowNonSquareFaces is enabled)
-    if (!options.allowNonSquareFaces) {
-        for (CubeFace f : allFaces) {
-            if (faces.hasFace(f)) {
-                const auto& img = faces.face(f);
-                if (img.width() != img.height()) {
-                    return Core::Result<SkyboxBuildResult>::failure(
-                        Core::Error::ErrorCode::InvalidArgument,
-                        QCoreApplication::translate("SkyboxCubeBuilder", "skybox face image must be square"),
-                        QStringLiteral("%1 (%2x%3)").arg(cubeFaceName(f)).arg(img.width()).arg(img.height()));
-                }
+    // Validate that all present faces are square unless allowNonSquareFaces or a per-face transform is supplied.
+    for (int i = 0; i < CubeFaceCount; ++i) {
+        const CubeFace f = allFaces[i];
+        if (faces.hasFace(f)) {
+            const auto& img = faces.face(f);
+            const bool hasTransform = !options.faceTransforms[static_cast<std::size_t>(i)].isIdentity();
+            if (!options.allowNonSquareFaces && !hasTransform && img.width() != img.height()) {
+                return Core::Result<SkyboxBuildResult>::failure(
+                    Core::Error::ErrorCode::InvalidArgument,
+                    QCoreApplication::translate("SkyboxCubeBuilder", "skybox face image must be square"),
+                    QStringLiteral("%1 (%2x%3)").arg(cubeFaceName(f)).arg(img.width()).arg(img.height()));
             }
         }
     }
@@ -104,11 +290,22 @@ Core::Result<SkyboxBuildResult> SkyboxCubeBuilder::build(
             QCoreApplication::translate("SkyboxCubeBuilder", "face resolution exceeds maximum supported size (8192)"));
     }
 
-    // Normalize present faces to resolution x resolution, Format_RGBA8888
+    // Normalize and preprocess present faces to resolution x resolution, Format_RGBA8888
     SkyboxFaces normalizedFaces;
-    for (CubeFace f : allFaces) {
+    for (int i = 0; i < CubeFaceCount; ++i) {
+        const CubeFace f = allFaces[i];
         if (faces.hasFace(f)) {
-            QImage norm = ensureNormalizedFace(faces.face(f), res, options.allowNonSquareFaces);
+            const auto& faceTransform = options.faceTransforms[static_cast<std::size_t>(i)];
+            QImage norm;
+            if (!faceTransform.isIdentity()) {
+                auto prepRes = preprocessFace(faces.face(f), faceTransform, res);
+                if (prepRes.isFailure()) {
+                    return Core::Result<SkyboxBuildResult>::failure(prepRes.error());
+                }
+                norm = std::move(prepRes.value());
+            } else {
+                norm = ensureNormalizedFace(faces.face(f), res, options.allowNonSquareFaces);
+            }
             if (norm.isNull()) {
                 return Core::Result<SkyboxBuildResult>::failure(
                     Core::Error::ErrorCode::OperationFailed,

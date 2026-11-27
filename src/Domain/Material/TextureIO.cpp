@@ -148,22 +148,39 @@ Core::Result<TextureImage> TextureIO::loadTexture(const Core::Path::FilesystemPa
     if (imageResult.isFailure()) {
         return Core::Result<TextureImage>::failure(imageResult.error());
     }
+    return fromQImage(imageResult.value(), srgbDecode);
+}
 
-    const QImage& rgba = imageResult.value();
-    TextureImage image(rgba.width(), rgba.height(), 4);
-    if (!image.isValid()) {
+Core::Result<TextureImage> TextureIO::fromQImage(const QImage& image, bool srgbDecode)
+{
+    if (image.isNull() || image.width() <= 0 || image.height() <= 0) {
+        return Core::Result<TextureImage>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QCoreApplication::translate("TextureIO", "image is null or has invalid dimensions"));
+    }
+
+    const QImage rgba = image.format() == QImage::Format_RGBA8888
+        ? image
+        : image.convertToFormat(QImage::Format_RGBA8888);
+    if (rgba.isNull() || rgba.width() <= 0 || rgba.height() <= 0) {
         return Core::Result<TextureImage>::failure(
             Core::Error::ErrorCode::InvalidFile,
-            QCoreApplication::translate("TextureIO", "image has invalid dimensions"),
-            path.toString());
+            QCoreApplication::translate("TextureIO", "image has invalid dimensions"));
+    }
+
+    TextureImage result(rgba.width(), rgba.height(), 4);
+    if (!result.isValid()) {
+        return Core::Result<TextureImage>::failure(
+            Core::Error::ErrorCode::InvalidFile,
+            QCoreApplication::translate("TextureIO", "image has invalid dimensions"));
     }
 
     float* planes[4] = {
-        image.planeData(0), image.planeData(1), image.planeData(2), image.planeData(3)
+        result.planeData(0), result.planeData(1), result.planeData(2), result.planeData(3)
     };
-    const int width = image.width();
+    const int width = result.width();
 
-    for (int y = 0; y < image.height(); ++y) {
+    for (int y = 0; y < result.height(); ++y) {
         const auto* row = rgba.constScanLine(y);
         const qsizetype rowStart = static_cast<qsizetype>(y) * width;
         for (int x = 0; x < width; ++x) {
@@ -181,7 +198,63 @@ Core::Result<TextureImage> TextureIO::loadTexture(const Core::Path::FilesystemPa
             planes[3][index] = static_cast<float>(pixel[3]) / 255.0f;
         }
     }
-    return Core::Result<TextureImage>::success(std::move(image));
+    return Core::Result<TextureImage>::success(std::move(result));
+}
+
+Core::Result<QImage> TextureIO::toQImage(const TextureImage& image, bool srgbEncode)
+{
+    if (!image.isValid()) {
+        return Core::Result<QImage>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QCoreApplication::translate("TextureIO", "texture image is not valid"));
+    }
+
+    const int width = image.width();
+    const int height = image.height();
+    const int channels = image.channelCount();
+    QImage out(width, height, QImage::Format_RGBA8888);
+    if (out.isNull()) {
+        return Core::Result<QImage>::failure(
+            Core::Error::ErrorCode::OperationFailed,
+            QCoreApplication::translate("TextureIO", "failed to allocate RGBA8888 image"));
+    }
+
+    const float* p0 = image.planeData(0);
+    const float* p1 = channels >= 2 ? image.planeData(1) : nullptr;
+    const float* p2 = channels >= 3 ? image.planeData(2) : nullptr;
+    const float* p3 = channels >= 4 ? image.planeData(3) : nullptr;
+    auto encodeComp = [srgbEncode](float value) noexcept {
+        return srgbEncode ? srgbEncodeChannel(value) : quantizeLinear(value);
+    };
+
+    for (int y = 0; y < height; ++y) {
+        auto* row = out.scanLine(y);
+        const qsizetype rowStart = static_cast<qsizetype>(y) * width;
+        for (int x = 0; x < width; ++x) {
+            const qsizetype idx = rowStart + x;
+            auto* pixel = row + x * 4;
+            if (channels == 1) {
+                const unsigned char v = encodeComp(p0[idx]);
+                pixel[0] = v;
+                pixel[1] = v;
+                pixel[2] = v;
+                pixel[3] = 255u;
+            } else if (channels == 2) {
+                pixel[0] = encodeComp(p0[idx]);
+                pixel[1] = encodeComp(p1[idx]);
+                pixel[2] = 0u;
+                pixel[3] = 255u;
+            } else {
+                pixel[0] = encodeComp(p0[idx]);
+                pixel[1] = encodeComp(p1[idx]);
+                pixel[2] = encodeComp(p2[idx]);
+                // Alpha travels raw; it is not color-managed.
+                pixel[3] = p3 != nullptr ? quantizeLinear(p3[idx]) : 255u;
+            }
+        }
+    }
+
+    return Core::Result<QImage>::success(std::move(out));
 }
 
 Core::Result<void> TextureIO::writeTexture(const Core::Path::FilesystemPath& path,
@@ -233,7 +306,10 @@ Core::Result<void> TextureIO::writeTexture(const Core::Path::FilesystemPath& pat
                     const float value = image.at(c, x, y);
                     pixel[c] = srgbEncode ? srgbEncodeChannel(value) : quantizeLinear(value);
                 }
-                if (channels == 4) {
+                if (channels == 2) {
+                    pixel[2] = 0u;
+                    pixel[3] = 255u;
+                } else if (channels == 4) {
                     // Alpha travels raw; it is not color-managed.
                     pixel[3] = quantizeLinear(image.at(3, x, y));
                 }

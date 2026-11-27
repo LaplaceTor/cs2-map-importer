@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cmath>
 #include <optional>
 #include <vector>
 
@@ -207,6 +208,38 @@ struct SkyboxFaces {
 };
 
 /**
+ * @brief Per-face Source 1 VMT $color and $basetexturetransform parameters for
+ *        linear-space skybox preprocessing prior to 4x3 cubemap stitching.
+ */
+struct SkyboxFaceTransform {
+    std::array<float, 3> colorScale = {1.0f, 1.0f, 1.0f};
+    std::array<float, 2> uvCenter = {0.5f, 0.5f};
+    std::array<float, 2> uvScale = {1.0f, 1.0f};
+    float uvRotateDeg = 0.0f;
+    std::array<float, 2> uvTranslate = {0.0f, 0.0f};
+
+    bool isIdentityTransform() const noexcept {
+        constexpr float kEps = 1e-5f;
+        return std::abs(uvScale[0] - 1.0f) <= kEps
+            && std::abs(uvScale[1] - 1.0f) <= kEps
+            && std::abs(uvRotateDeg) <= kEps
+            && std::abs(uvTranslate[0]) <= kEps
+            && std::abs(uvTranslate[1]) <= kEps;
+    }
+
+    bool isIdentityColor() const noexcept {
+        constexpr float kEps = 1e-5f;
+        return std::abs(colorScale[0] - 1.0f) <= kEps
+            && std::abs(colorScale[1] - 1.0f) <= kEps
+            && std::abs(colorScale[2] - 1.0f) <= kEps;
+    }
+
+    bool isIdentity() const noexcept {
+        return isIdentityTransform() && isIdentityColor();
+    }
+};
+
+/**
  * @brief Build options for the skybox cube generator.
  */
 struct SkyboxBuildOptions {
@@ -218,6 +251,7 @@ struct SkyboxBuildOptions {
     double gradientWeight = 0.2;       // Weight for GradientCost (edge derivative differences)
     double ambiguityThreshold = 0.005; // Margin threshold below which the optimal solution is marked ambiguous
     bool allowNonSquareFaces = false; // When true, non-square faces (e.g. Source 1 512x256 side faces) are automatically scaled to square resolution
+    std::array<SkyboxFaceTransform, CubeFaceCount> faceTransforms = {};
     QString skyboxName;
     QString skyTextureRelativePath;
 };

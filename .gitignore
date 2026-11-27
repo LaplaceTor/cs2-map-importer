@@ -11,6 +11,7 @@ build/
 build_dir/
 _build/
 build_test/
+docs/
 .qt/
 mybuild/
 cmake_build/

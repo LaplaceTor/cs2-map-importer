@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QImage>
+
 #include "Core/Error/ErrorCode.h"
 #include "Core/Path/FilesystemPath.h"
 #include "Core/Result/Result.h"
@@ -57,6 +59,18 @@ public:
     static Core::Result<void> writeImage(const Core::Path::FilesystemPath& path,
                                          const QImage& image,
                                          const Core::Path::FilesystemPath& expectedBaseDir = {});
+
+    /**
+     * @brief Converts an in-memory QImage into a 4-channel linear TextureImage
+     *        working buffer without touching disk.
+     */
+    static Core::Result<TextureImage> fromQImage(const QImage& image, bool srgbDecode = true);
+
+    /**
+     * @brief Converts a TextureImage working buffer into a Straight RGBA8888
+     *        QImage in memory without touching disk.
+     */
+    static Core::Result<QImage> toQImage(const TextureImage& image, bool srgbEncode = true);
 
     static bool isSupportedLoadExtension(const QString& lowerCaseExtension);
     static bool isSupportedWriteExtension(const QString& lowerCaseExtension);

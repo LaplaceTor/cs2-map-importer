@@ -18,6 +18,8 @@
 #include <utility>
 #include <vector>
 
+namespace Domain::Material {
+
 namespace {
 
 constexpr std::uint32_t kVtfSignature = 0x00465456u; // "VTF\0" little-endian
@@ -25,13 +27,15 @@ constexpr std::uint32_t kPcVersionMajor = 7u;
 constexpr std::uint32_t kMaxSupportedMinor = 6u;
 constexpr std::uint32_t kMinVtfHeaderSize = 64u;
 constexpr std::uint32_t kV73HeaderBaseSize = 80u;
+constexpr std::uint32_t kMaxHeaderReadBytes = 16u * 1024u * 1024u;
 
-constexpr std::uint32_t kFlagNoMip = 1u << 8;
-constexpr std::uint32_t kFlagOneBitAlpha = 1u << 12;
-constexpr std::uint32_t kFlagMultiBitAlpha = 1u << 13;
-constexpr std::uint32_t kFlagEnvMap = 1u << 14;
+constexpr std::uint32_t kFlagNoMip = static_cast<std::uint32_t>(VtfFlag::NoMip);
+constexpr std::uint32_t kFlagOneBitAlpha = static_cast<std::uint32_t>(VtfFlag::OneBitAlpha);
+constexpr std::uint32_t kFlagMultiBitAlpha = static_cast<std::uint32_t>(VtfFlag::EightBitAlpha);
+constexpr std::uint32_t kFlagEnvMap = static_cast<std::uint32_t>(VtfFlag::EnvMap);
 
-constexpr std::uint32_t kResourceTypeImageData = 48u;       // {0x30, 0x00, 0x00}
+constexpr std::uint32_t kResourceTypeSheet = 0x00000010u;
+constexpr std::uint32_t kResourceTypeImageData = 48u; // {0x30, 0x00, 0x00}
 constexpr std::uint32_t kResourceTypeAuxCompression = 0x00435841u; // "AXC"
 constexpr std::uint8_t kResourceFlagLocalData = 1u << 1;
 
@@ -39,48 +43,7 @@ constexpr std::int16_t kCompressionDeflate = 8;
 constexpr std::int16_t kCompressionZstd = 93;
 
 constexpr std::uint64_t kMaxDecodeBufferBytes = 256ull * 1024ull * 1024ull;
-
-enum class VtfImageFormat : std::int32_t {
-    RGBA8888 = 0,
-    ABGR8888 = 1,
-    RGB888 = 2,
-    BGR888 = 3,
-    RGB565 = 4,
-    I8 = 5,
-    IA88 = 6,
-    P8 = 7,
-    A8 = 8,
-    RGB888_BLUESCREEN = 9,
-    BGR888_BLUESCREEN = 10,
-    ARGB8888 = 11,
-    BGRA8888 = 12,
-    DXT1 = 13,
-    DXT3 = 14,
-    DXT5 = 15,
-    BGRX8888 = 16,
-    BGR565 = 17,
-    BGRX5551 = 18,
-    BGRA4444 = 19,
-    DXT1_ONE_BIT_ALPHA = 20,
-    BGRA5551 = 21,
-    UV88 = 22,
-    UVWQ8888 = 23,
-    RGBA16161616F = 24,
-    RGBA16161616 = 25,
-    UVLX8888 = 26,
-    R32F = 27,
-    RGB323232F = 28,
-    RGBA32323232F = 29,
-    RG1616F = 30,
-    RG3232F = 31,
-    RGBX8888 = 32,
-    EMPTY = 33,
-    ATI2N = 34,
-    ATI1N = 35,
-    RGBA1010102 = 36,
-    BGRA1010102 = 37,
-    R16F = 38,
-};
+constexpr qint64 kMaxVtfFileReadBytes = 512ll * 1024ll * 1024ll;
 
 struct VtfResourceEntry {
     std::uint32_t type = 0;
@@ -90,6 +53,7 @@ struct VtfResourceEntry {
 };
 
 struct DecodedVtfHeader {
+    std::uint32_t versionMajor = kPcVersionMajor;
     std::uint32_t versionMinor = 0;
     std::uint32_t headerSize = 0;
     std::uint16_t width = 0;
@@ -97,6 +61,8 @@ struct DecodedVtfHeader {
     std::uint16_t depth = 1;
     std::uint32_t flags = 0;
     std::uint16_t frameCount = 1;
+    std::array<float, 3> reflectivity = {0.0f, 0.0f, 0.0f};
+    float bumpmapScale = 1.0f;
     VtfImageFormat format = VtfImageFormat::EMPTY;
     std::uint8_t mipCount = 1;
     bool isCompressedHdrBgra = false;
@@ -106,6 +72,9 @@ struct DecodedVtfHeader {
     bool hasAxc = false;
     std::uint64_t axcOffset = 0;
     std::uint64_t axcSize = 0;
+    bool hasSheet = false;
+    std::uint64_t sheetOffset = 0;
+    std::uint64_t sheetSize = 0;
     std::uint8_t faceCount = 1;
 };
 
@@ -187,6 +156,34 @@ bool isFloatingPointFormat(VtfImageFormat format, bool isCompressedHdrBgra, bool
         case VtfImageFormat::RG1616F:
         case VtfImageFormat::RG3232F:
         case VtfImageFormat::R16F:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool formatHasAlpha(VtfImageFormat format) noexcept
+{
+    switch (format) {
+        case VtfImageFormat::RGBA8888:
+        case VtfImageFormat::ABGR8888:
+        case VtfImageFormat::IA88:
+        case VtfImageFormat::A8:
+        case VtfImageFormat::RGB888_BLUESCREEN:
+        case VtfImageFormat::BGR888_BLUESCREEN:
+        case VtfImageFormat::ARGB8888:
+        case VtfImageFormat::BGRA8888:
+        case VtfImageFormat::DXT3:
+        case VtfImageFormat::DXT5:
+        case VtfImageFormat::BGRA4444:
+        case VtfImageFormat::DXT1_ONE_BIT_ALPHA:
+        case VtfImageFormat::BGRA5551:
+        case VtfImageFormat::UVWQ8888:
+        case VtfImageFormat::RGBA16161616F:
+        case VtfImageFormat::RGBA16161616:
+        case VtfImageFormat::RGBA32323232F:
+        case VtfImageFormat::RGBA1010102:
+        case VtfImageFormat::BGRA1010102:
             return true;
         default:
             return false;
@@ -509,34 +506,49 @@ void copyBlockToImage(
     }
 }
 
-Core::Result<DecodedVtfHeader> parseVtfHeader(
-    QFile& file,
-    std::int64_t fileSize,
-    const Core::Path::FilesystemPath& path)
+VtfHeaderInfo toPublicHeaderInfo(const DecodedVtfHeader& h) noexcept
 {
-    if (fileSize < static_cast<std::int64_t>(kMinVtfHeaderSize)) {
+    VtfHeaderInfo info;
+    info.versionMajor = h.versionMajor;
+    info.versionMinor = h.versionMinor;
+    info.width = h.width;
+    info.height = h.height;
+    info.depth = h.depth;
+    info.frameCount = h.frameCount;
+    info.faceCount = h.faceCount;
+    info.mipCount = h.mipCount;
+    info.flags = h.flags;
+    info.format = h.format;
+    info.bumpmapScale = h.bumpmapScale;
+    info.reflectivity = h.reflectivity;
+    info.isHdr = isFloatingPointFormat(h.format, h.isCompressedHdrBgra, h.isCompressedHdrRgba16);
+    info.hasAlphaChannel = (!h.isCompressedHdrBgra && !h.isCompressedHdrRgba16)
+        && (formatHasAlpha(h.format) || (h.flags & (kFlagOneBitAlpha | kFlagMultiBitAlpha)) != 0u);
+    info.hasSheetResource = h.hasSheet && h.sheetSize >= 4u;
+    return info;
+}
+
+Core::Result<DecodedVtfHeader> parseVtfHeaderFromSpan(
+    std::span<const std::byte> headerBytes,
+    std::uint64_t totalFileSize,
+    const QString& sourceLabel,
+    bool treatAsCompressedHdr)
+{
+    const QString detailLabel = sourceLabel.isEmpty() ? QStringLiteral("<memory>") : sourceLabel;
+    if (totalFileSize < kMinVtfHeaderSize || headerBytes.size() < kMinVtfHeaderSize) {
         return Core::Result<DecodedVtfHeader>::failure(
             Core::Error::ErrorCode::InvalidFile,
             QCoreApplication::translate("VtfCodec", "VTF file is too small to contain a valid header"),
-            path.toString());
+            detailLabel);
     }
 
-    std::array<std::byte, kV73HeaderBaseSize> baseBuf{};
-    const qint64 baseReadLen = std::min<qint64>(fileSize, static_cast<qint64>(kV73HeaderBaseSize));
-    if (!file.seek(0) || file.read(reinterpret_cast<char*>(baseBuf.data()), baseReadLen) != baseReadLen) {
-        return Core::Result<DecodedVtfHeader>::failure(
-            Core::Error::ErrorCode::ReadFailed,
-            QCoreApplication::translate("VtfCodec", "Failed to read VTF header"),
-            path.toString());
-    }
-
-    const std::byte* h = baseBuf.data();
+    const std::byte* h = headerBytes.data();
     const std::uint32_t signature = readU32Le(h + 0);
     if (signature != kVtfSignature) {
         return Core::Result<DecodedVtfHeader>::failure(
             Core::Error::ErrorCode::InvalidFile,
             QCoreApplication::translate("VtfCodec", "Invalid VTF file signature"),
-            path.toString());
+            detailLabel);
     }
 
     const std::uint32_t versionMajor = readU32Le(h + 4);
@@ -545,25 +557,30 @@ Core::Result<DecodedVtfHeader> parseVtfHeader(
         return Core::Result<DecodedVtfHeader>::failure(
             Core::Error::ErrorCode::NotSupported,
             QCoreApplication::translate("VtfCodec", "Unsupported VTF version"),
-            QStringLiteral("%1 (v%2.%3)").arg(path.toString()).arg(versionMajor).arg(versionMinor));
+            QStringLiteral("%1 (v%2.%3)").arg(detailLabel).arg(versionMajor).arg(versionMinor));
     }
 
     const std::uint32_t headerSize = readU32Le(h + 12);
     const std::uint32_t minVersionHeader = versionMinor >= 3 ? kV73HeaderBaseSize : kMinVtfHeaderSize;
-    if (headerSize < minVersionHeader || static_cast<std::int64_t>(headerSize) > fileSize) {
+    if (headerSize < minVersionHeader
+        || static_cast<std::uint64_t>(headerSize) > totalFileSize
+        || headerSize > headerBytes.size()) {
         return Core::Result<DecodedVtfHeader>::failure(
             Core::Error::ErrorCode::InvalidFile,
             QCoreApplication::translate("VtfCodec", "Invalid VTF header size"),
-            path.toString());
+            detailLabel);
     }
 
     DecodedVtfHeader out;
+    out.versionMajor = versionMajor;
     out.versionMinor = versionMinor;
     out.headerSize = headerSize;
     out.width = readU16Le(h + 16);
     out.height = readU16Le(h + 18);
     out.flags = readU32Le(h + 20);
     out.frameCount = std::max<std::uint16_t>(readU16Le(h + 24), 1);
+    out.reflectivity = {readF32Le(h + 32), readF32Le(h + 36), readF32Le(h + 40)};
+    out.bumpmapScale = readF32Le(h + 48);
     const std::int32_t rawFormat = readI32Le(h + 52);
     out.mipCount = readU8(h + 56);
     const std::int32_t lowResFormat = readI32Le(h + 57);
@@ -574,26 +591,26 @@ Core::Result<DecodedVtfHeader> parseVtfHeader(
         return Core::Result<DecodedVtfHeader>::failure(
             Core::Error::ErrorCode::InvalidFile,
             QCoreApplication::translate("VtfCodec", "VTF image dimensions or mip count are zero"),
-            path.toString());
+            detailLabel);
     }
 
     if (versionMinor >= 2) {
         out.depth = std::max<std::uint16_t>(readU16Le(h + 63), 1);
     }
 
-    // Apply post-header engine compatibility fixups matching vtfpp::VTF::postHeaderReadTransform.
+    // Apply post-header engine compatibility fixups for DXT1 alpha flags and v7.2-v7.4 enum shift.
     std::int32_t fixedFormat = rawFormat;
     if (fixedFormat == static_cast<std::int32_t>(VtfImageFormat::DXT1)
         && (out.flags & (kFlagOneBitAlpha | kFlagMultiBitAlpha)) != 0) {
         fixedFormat = static_cast<std::int32_t>(VtfImageFormat::DXT1_ONE_BIT_ALPHA);
     }
     if (versionMinor < 5 && (fixedFormat == 36 || fixedFormat == 37 || fixedFormat == 38)) {
-        fixedFormat -= 3; // Legacy v7.2-v7.4 enum slot offset for EMPTY / ATI2N / ATI1N
+        fixedFormat -= 3;
     }
     out.format = static_cast<VtfImageFormat>(fixedFormat);
 
-    const QString lowerFileName = path.fileName().toLower();
-    if (lowerFileName.endsWith(QLatin1String(".hdr.vtf"))) {
+    const QString lowerName = sourceLabel.toLower();
+    if (treatAsCompressedHdr || lowerName.endsWith(QLatin1String(".hdr.vtf"))) {
         if (out.format == VtfImageFormat::BGRA8888) {
             out.isCompressedHdrBgra = true;
         } else if (out.format == VtfImageFormat::RGBA16161616) {
@@ -612,7 +629,7 @@ Core::Result<DecodedVtfHeader> parseVtfHeader(
         return Core::Result<DecodedVtfHeader>::failure(
             code,
             QCoreApplication::translate("VtfCodec", "Unsupported VTF pixel format"),
-            QStringLiteral("%1 (format=%2)").arg(path.toString()).arg(fixedFormat));
+            QStringLiteral("%1 (format=%2)").arg(detailLabel).arg(fixedFormat));
     }
 
     if (versionMinor < 3) {
@@ -622,49 +639,37 @@ Core::Result<DecodedVtfHeader> parseVtfHeader(
                 * 8u
             : 0u;
         out.imageDataOffset = static_cast<std::uint64_t>(headerSize) + lowResBytes;
-        if (out.imageDataOffset > static_cast<std::uint64_t>(fileSize)) {
+        if (out.imageDataOffset > totalFileSize) {
             return Core::Result<DecodedVtfHeader>::failure(
                 Core::Error::ErrorCode::CorruptedData,
                 QCoreApplication::translate("VtfCodec", "VTF image data offset exceeds file size"),
-                path.toString());
+                detailLabel);
         }
-        out.imageResourceSize = static_cast<std::uint64_t>(fileSize) - out.imageDataOffset;
+        out.imageResourceSize = totalFileSize - out.imageDataOffset;
     } else {
         const std::uint32_t resourceCount = readU32Le(h + 68);
         if (static_cast<std::uint64_t>(kV73HeaderBaseSize) + static_cast<std::uint64_t>(resourceCount) * 8u > headerSize) {
             return Core::Result<DecodedVtfHeader>::failure(
                 Core::Error::ErrorCode::InvalidFile,
                 QCoreApplication::translate("VtfCodec", "VTF resource directory exceeds header size"),
-                path.toString());
-        }
-
-        std::vector<std::byte> dirBuf(static_cast<std::size_t>(resourceCount) * 8u);
-        if (!dirBuf.empty()) {
-            if (!file.seek(kV73HeaderBaseSize)
-                || file.read(reinterpret_cast<char*>(dirBuf.data()), static_cast<qint64>(dirBuf.size()))
-                    != static_cast<qint64>(dirBuf.size())) {
-                return Core::Result<DecodedVtfHeader>::failure(
-                    Core::Error::ErrorCode::ReadFailed,
-                    QCoreApplication::translate("VtfCodec", "Failed to read VTF resource directory"),
-                    path.toString());
-            }
+                detailLabel);
         }
 
         std::vector<VtfResourceEntry> nonLocalResources;
         nonLocalResources.reserve(resourceCount);
         for (std::uint32_t i = 0; i < resourceCount; ++i) {
-            const std::byte* entryPtr = dirBuf.data() + static_cast<std::size_t>(i) * 8u;
+            const std::byte* entryPtr = h + kV73HeaderBaseSize + static_cast<std::size_t>(i) * 8u;
             const std::uint32_t typeAndFlags = readU32Le(entryPtr);
             VtfResourceEntry entry;
             entry.type = typeAndFlags & 0x00FFFFFFu;
             entry.flags = static_cast<std::uint8_t>((typeAndFlags >> 24) & 0xFFu);
             entry.offsetOrData = readU32Le(entryPtr + 4);
             if ((entry.flags & kResourceFlagLocalData) == 0) {
-                if (static_cast<std::int64_t>(entry.offsetOrData) > fileSize) {
+                if (static_cast<std::uint64_t>(entry.offsetOrData) > totalFileSize) {
                     return Core::Result<DecodedVtfHeader>::failure(
                         Core::Error::ErrorCode::CorruptedData,
                         QCoreApplication::translate("VtfCodec", "VTF resource offset exceeds file size"),
-                        path.toString());
+                        detailLabel);
                 }
                 nonLocalResources.push_back(entry);
             }
@@ -681,7 +686,7 @@ Core::Result<DecodedVtfHeader> parseVtfHeader(
             const std::uint64_t curOffset = nonLocalResources[i].offsetOrData;
             const std::uint64_t nextOffset = (i + 1 < nonLocalResources.size())
                 ? static_cast<std::uint64_t>(nonLocalResources[i + 1].offsetOrData)
-                : static_cast<std::uint64_t>(fileSize);
+                : totalFileSize;
             nonLocalResources[i].size = nextOffset >= curOffset ? (nextOffset - curOffset) : 0u;
 
             if (nonLocalResources[i].type == kResourceTypeImageData) {
@@ -691,6 +696,10 @@ Core::Result<DecodedVtfHeader> parseVtfHeader(
                 out.hasAxc = true;
                 out.axcOffset = curOffset;
                 out.axcSize = nonLocalResources[i].size;
+            } else if (nonLocalResources[i].type == kResourceTypeSheet) {
+                out.hasSheet = true;
+                out.sheetOffset = curOffset;
+                out.sheetSize = nonLocalResources[i].size;
             }
         }
 
@@ -698,7 +707,7 @@ Core::Result<DecodedVtfHeader> parseVtfHeader(
             return Core::Result<DecodedVtfHeader>::failure(
                 Core::Error::ErrorCode::InvalidFile,
                 QCoreApplication::translate("VtfCodec", "VTF file contains no image data resource"),
-                path.toString());
+                detailLabel);
         }
     }
 
@@ -713,7 +722,7 @@ Core::Result<DecodedVtfHeader> parseVtfHeader(
             return Core::Result<DecodedVtfHeader>::failure(
                 Core::Error::ErrorCode::InvalidFile,
                 QCoreApplication::translate("VtfCodec", "VTF image dimensions exceed safe decoding limits"),
-                path.toString());
+                detailLabel);
         }
         if (out.versionMinor == 5) {
             out.faceCount = out.imageResourceSize >= *expected6 ? 6 : 1;
@@ -729,39 +738,60 @@ Core::Result<DecodedVtfHeader> parseVtfHeader(
     return Core::Result<DecodedVtfHeader>::success(out);
 }
 
-Core::Result<std::vector<std::byte>> readMip0Bytes(
-    QFile& file,
+struct ExtractedSlice {
+    std::span<const std::byte> spanView;
+    std::vector<std::byte> ownedBuffer;
+
+    std::span<const std::byte> bytes() const noexcept {
+        return ownedBuffer.empty() ? spanView : std::span<const std::byte>(ownedBuffer);
+    }
+};
+
+Core::Result<ExtractedSlice> extractMip0SliceBytes(
+    std::span<const std::byte> data,
     const DecodedVtfHeader& header,
-    const Core::Path::FilesystemPath& path)
+    const VtfSliceSelector& slice,
+    const QString& sourceLabel)
 {
+    const QString detailLabel = sourceLabel.isEmpty() ? QStringLiteral("<memory>") : sourceLabel;
+    if (slice.frame >= header.frameCount || slice.face >= header.faceCount || slice.depthSlice >= header.depth) {
+        return Core::Result<ExtractedSlice>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QCoreApplication::translate("VtfCodec", "Requested VTF slice index is out of range"),
+            QStringLiteral("%1 (frame=%2/%3, face=%4/%5, depth=%6/%7)")
+                .arg(detailLabel)
+                .arg(slice.frame).arg(header.frameCount)
+                .arg(slice.face).arg(header.faceCount)
+                .arg(slice.depthSlice).arg(header.depth));
+    }
+
+    const std::uint64_t outputRgbaBytes =
+        static_cast<std::uint64_t>(header.width) * static_cast<std::uint64_t>(header.height) * 4ull;
     const std::uint64_t mip0SliceBytes = calcSliceBytes(header.format, header.width, header.height);
-    if (mip0SliceBytes == 0 || mip0SliceBytes > kMaxDecodeBufferBytes) {
-        return Core::Result<std::vector<std::byte>>::failure(
+    if (mip0SliceBytes == 0 || mip0SliceBytes > kMaxDecodeBufferBytes || outputRgbaBytes > kMaxDecodeBufferBytes) {
+        return Core::Result<ExtractedSlice>::failure(
             Core::Error::ErrorCode::InvalidFile,
             QCoreApplication::translate("VtfCodec", "VTF mip 0 dimensions exceed safe decoding limits"),
-            path.toString());
+            detailLabel);
     }
 
     // Check v7.6 AXC auxiliary compression first.
     if (header.versionMinor >= 6 && header.hasAxc && header.axcSize >= 8) {
         if (header.axcSize > 16ull * 1024ull * 1024ull) {
-            return Core::Result<std::vector<std::byte>>::failure(
+            return Core::Result<ExtractedSlice>::failure(
                 Core::Error::ErrorCode::CorruptedData,
                 QCoreApplication::translate("VtfCodec", "VTF AXC resource table is unexpectedly large"),
-                path.toString());
+                detailLabel);
+        }
+        if (header.axcOffset + header.axcSize > data.size()) {
+            return Core::Result<ExtractedSlice>::failure(
+                Core::Error::ErrorCode::CorruptedData,
+                QCoreApplication::translate("VtfCodec", "VTF AXC compression table is truncated"),
+                detailLabel);
         }
 
-        std::vector<std::byte> axcBuf(static_cast<std::size_t>(header.axcSize));
-        if (!file.seek(static_cast<qint64>(header.axcOffset))
-            || file.read(reinterpret_cast<char*>(axcBuf.data()), static_cast<qint64>(axcBuf.size()))
-                != static_cast<qint64>(axcBuf.size())) {
-            return Core::Result<std::vector<std::byte>>::failure(
-                Core::Error::ErrorCode::ReadFailed,
-                QCoreApplication::translate("VtfCodec", "Failed to read VTF AXC compression table"),
-                path.toString());
-        }
-
-        const std::uint32_t levelAndMethod = readU32Le(axcBuf.data() + 4);
+        const std::byte* axcPtr = data.data() + header.axcOffset;
+        const std::uint32_t levelAndMethod = readU32Le(axcPtr + 4);
         const std::uint16_t compressionLevel = static_cast<std::uint16_t>(levelAndMethod & 0xFFFFu);
         std::int16_t compressionMethod = static_cast<std::int16_t>((levelAndMethod >> 16) & 0xFFFFu);
         if (compressionMethod <= 0) {
@@ -770,100 +800,116 @@ Core::Result<std::vector<std::byte>> readMip0Bytes(
 
         if (compressionLevel != 0) {
             if (compressionMethod == kCompressionZstd) {
-                return Core::Result<std::vector<std::byte>>::failure(
+                return Core::Result<ExtractedSlice>::failure(
                     Core::Error::ErrorCode::NotSupported,
                     QCoreApplication::translate("VtfCodec", "Zstd-compressed VTF textures are not supported"),
-                    path.toString());
+                    detailLabel);
             }
             if (compressionMethod != kCompressionDeflate) {
-                return Core::Result<std::vector<std::byte>>::failure(
+                return Core::Result<ExtractedSlice>::failure(
                     Core::Error::ErrorCode::NotSupported,
                     QCoreApplication::translate("VtfCodec", "Unsupported VTF auxiliary compression method"),
-                    QStringLiteral("%1 (method=%2)").arg(path.toString()).arg(compressionMethod));
+                    QStringLiteral("%1 (method=%2)").arg(detailLabel).arg(compressionMethod));
             }
 
             const std::size_t totalEntries = static_cast<std::size_t>(header.mipCount)
                 * static_cast<std::size_t>(header.frameCount)
                 * static_cast<std::size_t>(header.faceCount);
-            if (axcBuf.size() < (2u + totalEntries) * sizeof(std::uint32_t)) {
-                return Core::Result<std::vector<std::byte>>::failure(
+            if (header.axcSize < (2u + totalEntries) * sizeof(std::uint32_t)) {
+                return Core::Result<ExtractedSlice>::failure(
                     Core::Error::ErrorCode::CorruptedData,
                     QCoreApplication::translate("VtfCodec", "VTF AXC compression table is truncated"),
-                    path.toString());
+                    detailLabel);
             }
 
             // AXC order: (mip = mipCount - 1 .. 0) x (frame = 0 .. frames - 1) x (face = 0 .. faces - 1).
-            // (mip=0, frame=0, face=0) starts at index (mipCount - 1) * frameCount * faceCount.
-            const std::size_t targetIndex = static_cast<std::size_t>(header.mipCount - 1)
+            const std::size_t mip0BaseIndex = static_cast<std::size_t>(header.mipCount - 1)
                 * static_cast<std::size_t>(header.frameCount)
                 * static_cast<std::size_t>(header.faceCount);
+            const std::size_t targetIndex = mip0BaseIndex
+                + static_cast<std::size_t>(slice.frame) * static_cast<std::size_t>(header.faceCount)
+                + static_cast<std::size_t>(slice.face);
 
             std::uint64_t compressedOffset = 0;
             for (std::size_t i = 0; i < targetIndex; ++i) {
-                compressedOffset += readU32Le(axcBuf.data() + (2u + i) * sizeof(std::uint32_t));
+                if (!checkedAdd(compressedOffset, readU32Le(axcPtr + (2u + i) * sizeof(std::uint32_t)), compressedOffset)) {
+                    return Core::Result<ExtractedSlice>::failure(
+                        Core::Error::ErrorCode::CorruptedData,
+                        QCoreApplication::translate("VtfCodec", "VTF AXC compressed image block is out of bounds"),
+                        detailLabel);
+                }
             }
-            const std::uint32_t compressedLen = readU32Le(axcBuf.data() + (2u + targetIndex) * sizeof(std::uint32_t));
+            const std::uint32_t compressedLen = readU32Le(axcPtr + (2u + targetIndex) * sizeof(std::uint32_t));
 
-            if (compressedLen == 0 || compressedOffset + compressedLen > header.imageResourceSize) {
-                return Core::Result<std::vector<std::byte>>::failure(
+            std::uint64_t compressedEndInRes = 0;
+            std::uint64_t compressedAbsEnd = 0;
+            if (compressedLen == 0
+                || !checkedAdd(compressedOffset, compressedLen, compressedEndInRes)
+                || compressedEndInRes > header.imageResourceSize
+                || !checkedAdd(header.imageDataOffset, compressedEndInRes, compressedAbsEnd)
+                || compressedAbsEnd > data.size()) {
+                return Core::Result<ExtractedSlice>::failure(
                     Core::Error::ErrorCode::CorruptedData,
                     QCoreApplication::translate("VtfCodec", "VTF AXC compressed image block is out of bounds"),
-                    path.toString());
+                    detailLabel);
             }
 
-            const std::uint64_t expectedDecompressedBytes = mip0SliceBytes * static_cast<std::uint64_t>(header.depth);
-            if (expectedDecompressedBytes > kMaxDecodeBufferBytes) {
-                return Core::Result<std::vector<std::byte>>::failure(
+            std::uint64_t expectedDecompressedBytes = 0;
+            if (!checkedMul(mip0SliceBytes, header.depth, expectedDecompressedBytes)
+                || expectedDecompressedBytes > kMaxDecodeBufferBytes) {
+                return Core::Result<ExtractedSlice>::failure(
                     Core::Error::ErrorCode::InvalidFile,
                     QCoreApplication::translate("VtfCodec", "VTF mip 0 volume exceeds safe decoding limits"),
-                    path.toString());
-            }
-
-            std::vector<std::byte> compressedBuf(compressedLen);
-            if (!file.seek(static_cast<qint64>(header.imageDataOffset + compressedOffset))
-                || file.read(reinterpret_cast<char*>(compressedBuf.data()), compressedLen) != compressedLen) {
-                return Core::Result<std::vector<std::byte>>::failure(
-                    Core::Error::ErrorCode::ReadFailed,
-                    QCoreApplication::translate("VtfCodec", "Failed to read compressed VTF image data"),
-                    path.toString());
+                    detailLabel);
             }
 
             std::vector<std::byte> decompressedBuf(static_cast<std::size_t>(expectedDecompressedBytes));
             InflateStreamGuard guard;
-            guard.strm.next_in = reinterpret_cast<Bytef*>(compressedBuf.data());
-            guard.strm.avail_in = static_cast<uInt>(compressedBuf.size());
+            guard.strm.next_in = reinterpret_cast<Bytef*>(
+                const_cast<std::byte*>(data.data() + header.imageDataOffset + compressedOffset));
+            guard.strm.avail_in = static_cast<uInt>(compressedLen);
             guard.strm.next_out = reinterpret_cast<Bytef*>(decompressedBuf.data());
             guard.strm.avail_out = static_cast<uInt>(decompressedBuf.size());
 
             if (inflateInit2(&guard.strm, MAX_WBITS) != Z_OK) {
-                return Core::Result<std::vector<std::byte>>::failure(
+                return Core::Result<ExtractedSlice>::failure(
                     Core::Error::ErrorCode::CorruptedData,
                     QCoreApplication::translate("VtfCodec", "Failed to initialize zlib decoder for VTF"),
-                    path.toString());
+                    detailLabel);
             }
             guard.initialized = true;
 
             const int inflateStatus = inflate(&guard.strm, Z_FINISH);
             if (inflateStatus != Z_STREAM_END || guard.strm.total_out != expectedDecompressedBytes) {
-                return Core::Result<std::vector<std::byte>>::failure(
+                return Core::Result<ExtractedSlice>::failure(
                     Core::Error::ErrorCode::CorruptedData,
                     QCoreApplication::translate("VtfCodec", "Failed to decompress VTF AXC image data"),
-                    path.toString());
+                    detailLabel);
             }
 
-            decompressedBuf.resize(static_cast<std::size_t>(mip0SliceBytes));
-            return Core::Result<std::vector<std::byte>>::success(std::move(decompressedBuf));
+            ExtractedSlice out;
+            const std::size_t depthByteOffset = static_cast<std::size_t>(slice.depthSlice) * static_cast<std::size_t>(mip0SliceBytes);
+            if (slice.depthSlice == 0) {
+                decompressedBuf.resize(static_cast<std::size_t>(mip0SliceBytes));
+                out.ownedBuffer = std::move(decompressedBuf);
+            } else {
+                out.ownedBuffer.assign(
+                    decompressedBuf.begin() + static_cast<std::ptrdiff_t>(depthByteOffset),
+                    decompressedBuf.begin() + static_cast<std::ptrdiff_t>(depthByteOffset + mip0SliceBytes));
+            }
+            return Core::Result<ExtractedSlice>::success(std::move(out));
         }
     }
 
-    // Uncompressed VTF image resource: skip mips (mipCount - 1 .. 1) to reach Mip 0, frame 0, face 0, slice 0.
+    // Uncompressed VTF image resource: skip mips (mipCount - 1 .. 1), then address (frame -> face -> depthSlice) within Mip 0.
     std::uint64_t frameFace = 0;
     if (!checkedMul(header.frameCount, header.faceCount, frameFace)) {
-        return Core::Result<std::vector<std::byte>>::failure(
+        return Core::Result<ExtractedSlice>::failure(
             Core::Error::ErrorCode::CorruptedData,
             QCoreApplication::translate("VtfCodec", "VTF image data is truncated or corrupted"),
-            path.toString());
+            detailLabel);
     }
+
     std::uint64_t skipBytes = 0;
     for (int m = static_cast<int>(header.mipCount) - 1; m >= 1; --m) {
         const std::uint16_t mw = mipDimension(static_cast<std::uint8_t>(m), header.width);
@@ -874,32 +920,40 @@ Core::Result<std::vector<std::byte>> readMip0Bytes(
         if (!checkedMul(frameFace, md, count)
             || !checkedMul(calcSliceBytes(header.format, mw, mh), count, mipBytes)
             || !checkedAdd(skipBytes, mipBytes, skipBytes)) {
-            return Core::Result<std::vector<std::byte>>::failure(
+            return Core::Result<ExtractedSlice>::failure(
                 Core::Error::ErrorCode::CorruptedData,
                 QCoreApplication::translate("VtfCodec", "VTF image data is truncated or corrupted"),
-                path.toString());
+                detailLabel);
         }
     }
 
-    std::uint64_t totalNeeded = 0;
-    if (!checkedAdd(skipBytes, mip0SliceBytes, totalNeeded) || totalNeeded > header.imageResourceSize) {
-        return Core::Result<std::vector<std::byte>>::failure(
+    const std::uint64_t frameFaceIndex =
+        static_cast<std::uint64_t>(slice.frame) * static_cast<std::uint64_t>(header.faceCount)
+        + static_cast<std::uint64_t>(slice.face);
+    std::uint64_t sliceLinearIndex = 0;
+    std::uint64_t sliceByteOffset = 0;
+    std::uint64_t sliceOffsetInResource = 0;
+    std::uint64_t totalNeededInResource = 0;
+    std::uint64_t absoluteEnd = 0;
+    if (!checkedMul(frameFaceIndex, header.depth, sliceLinearIndex)
+        || !checkedAdd(sliceLinearIndex, slice.depthSlice, sliceLinearIndex)
+        || !checkedMul(sliceLinearIndex, mip0SliceBytes, sliceByteOffset)
+        || !checkedAdd(skipBytes, sliceByteOffset, sliceOffsetInResource)
+        || !checkedAdd(sliceOffsetInResource, mip0SliceBytes, totalNeededInResource)
+        || totalNeededInResource > header.imageResourceSize
+        || !checkedAdd(header.imageDataOffset, totalNeededInResource, absoluteEnd)
+        || absoluteEnd > data.size()) {
+        return Core::Result<ExtractedSlice>::failure(
             Core::Error::ErrorCode::CorruptedData,
             QCoreApplication::translate("VtfCodec", "VTF image data is truncated or corrupted"),
-            path.toString());
+            detailLabel);
     }
 
-    std::vector<std::byte> mip0Buf(static_cast<std::size_t>(mip0SliceBytes));
-    if (!file.seek(static_cast<qint64>(header.imageDataOffset + skipBytes))
-        || file.read(reinterpret_cast<char*>(mip0Buf.data()), static_cast<qint64>(mip0SliceBytes))
-            != static_cast<qint64>(mip0SliceBytes)) {
-        return Core::Result<std::vector<std::byte>>::failure(
-            Core::Error::ErrorCode::ReadFailed,
-            QCoreApplication::translate("VtfCodec", "Failed to read VTF mip 0 image data"),
-            path.toString());
-    }
-
-    return Core::Result<std::vector<std::byte>>::success(std::move(mip0Buf));
+    ExtractedSlice out;
+    out.spanView = data.subspan(
+        static_cast<std::size_t>(header.imageDataOffset + sliceOffsetInResource),
+        static_cast<std::size_t>(mip0SliceBytes));
+    return Core::Result<ExtractedSlice>::success(std::move(out));
 }
 
 void decodeMip0ToFloatBuffer(
@@ -914,7 +968,7 @@ void decodeMip0ToFloatBuffer(
     if (header.isCompressedHdrBgra) {
         for (std::size_t i = 0; i < pixelCount; ++i) {
             const std::byte* p = src + i * 4u;
-            const float alpha = static_cast<float>(readU8(p + 3));
+            const float alpha = static_cast<float>(readU8(p + 3)) / 255.0f;
             outRgbaFloat[i * 4u + 0] = (static_cast<float>(readU8(p + 2)) / 255.0f) * alpha * 16.0f;
             outRgbaFloat[i * 4u + 1] = (static_cast<float>(readU8(p + 1)) / 255.0f) * alpha * 16.0f;
             outRgbaFloat[i * 4u + 2] = (static_cast<float>(readU8(p + 0)) / 255.0f) * alpha * 16.0f;
@@ -1265,16 +1319,15 @@ void decodeMip0ToQImage(
     }
 }
 
-Core::Result<std::pair<DecodedVtfHeader, std::vector<std::byte>>> loadVtfMip0(
-    const Core::Path::FilesystemPath& path)
+Core::Result<std::vector<std::byte>> readFileBytes(const Core::Path::FilesystemPath& path)
 {
     if (path.isEmpty() || !path.isValid()) {
-        return Core::Result<std::pair<DecodedVtfHeader, std::vector<std::byte>>>::failure(
+        return Core::Result<std::vector<std::byte>>::failure(
             Core::Error::ErrorCode::InvalidPath,
             QCoreApplication::translate("VtfCodec", "VTF file path is empty or invalid"));
     }
     if (!path.exists() || !path.isFile()) {
-        return Core::Result<std::pair<DecodedVtfHeader, std::vector<std::byte>>>::failure(
+        return Core::Result<std::vector<std::byte>>::failure(
             Core::Error::ErrorCode::FileNotFound,
             QCoreApplication::translate("VtfCodec", "VTF file not found"),
             path.toString());
@@ -1282,40 +1335,33 @@ Core::Result<std::pair<DecodedVtfHeader, std::vector<std::byte>>> loadVtfMip0(
 
     QFile file(path.toString());
     if (!file.open(QIODevice::ReadOnly)) {
-        return Core::Result<std::pair<DecodedVtfHeader, std::vector<std::byte>>>::failure(
+        return Core::Result<std::vector<std::byte>>::failure(
             Core::Error::ErrorCode::ReadFailed,
             QCoreApplication::translate("VtfCodec", "Failed to open VTF file"),
             path.toString() + QStringLiteral(" | ") + file.errorString());
     }
 
     const qint64 fileSize = file.size();
-    auto headerRes = parseVtfHeader(file, fileSize, path);
-    if (headerRes.isFailure()) {
-        return Core::Result<std::pair<DecodedVtfHeader, std::vector<std::byte>>>::failure(headerRes.error());
-    }
-    const DecodedVtfHeader header = headerRes.value();
-
-    const std::uint64_t outputRgbaBytes =
-        static_cast<std::uint64_t>(header.width) * static_cast<std::uint64_t>(header.height) * 4ull;
-    if (outputRgbaBytes > kMaxDecodeBufferBytes) {
-        return Core::Result<std::pair<DecodedVtfHeader, std::vector<std::byte>>>::failure(
+    if (fileSize < 0 || fileSize > kMaxVtfFileReadBytes) {
+        return Core::Result<std::vector<std::byte>>::failure(
             Core::Error::ErrorCode::InvalidFile,
-            QCoreApplication::translate("VtfCodec", "VTF image dimensions exceed safe decoding limits"),
+            QCoreApplication::translate("VtfCodec", "VTF file size exceeds safe reading limits"),
             path.toString());
     }
 
-    auto mip0Res = readMip0Bytes(file, header, path);
-    if (mip0Res.isFailure()) {
-        return Core::Result<std::pair<DecodedVtfHeader, std::vector<std::byte>>>::failure(mip0Res.error());
+    std::vector<std::byte> bytes(static_cast<std::size_t>(fileSize));
+    if (fileSize > 0
+        && file.read(reinterpret_cast<char*>(bytes.data()), fileSize) != fileSize) {
+        return Core::Result<std::vector<std::byte>>::failure(
+            Core::Error::ErrorCode::ReadFailed,
+            QCoreApplication::translate("VtfCodec", "Failed to read VTF file"),
+            path.toString() + QStringLiteral(" | ") + file.errorString());
     }
 
-    return Core::Result<std::pair<DecodedVtfHeader, std::vector<std::byte>>>::success(
-        std::make_pair(header, std::move(mip0Res.value())));
+    return Core::Result<std::vector<std::byte>>::success(std::move(bytes));
 }
 
 } // namespace
-
-namespace Domain::Material {
 
 namespace Detail {
 
@@ -1324,24 +1370,34 @@ Core::Result<std::vector<float>> readVtfMip0RgbaFloat(
     int& outWidth,
     int& outHeight)
 {
-    auto loaded = loadVtfMip0(path);
-    if (loaded.isFailure()) {
-        return Core::Result<std::vector<float>>::failure(loaded.error());
+    auto bytesRes = readFileBytes(path);
+    if (bytesRes.isFailure()) {
+        return Core::Result<std::vector<float>>::failure(bytesRes.error());
     }
 
-    const DecodedVtfHeader& header = loaded.value().first;
-    const std::vector<std::byte>& mip0 = loaded.value().second;
+    const auto& data = bytesRes.value();
+    auto headerRes = parseVtfHeaderFromSpan(data, data.size(), path.toString(), false);
+    if (headerRes.isFailure()) {
+        return Core::Result<std::vector<float>>::failure(headerRes.error());
+    }
+    const DecodedVtfHeader& header = headerRes.value();
+
+    auto sliceRes = extractMip0SliceBytes(data, header, VtfSliceSelector{}, path.toString());
+    if (sliceRes.isFailure()) {
+        return Core::Result<std::vector<float>>::failure(sliceRes.error());
+    }
+
     outWidth = static_cast<int>(header.width);
     outHeight = static_cast<int>(header.height);
 
     std::vector<float> floatRgba;
     if (isFloatingPointFormat(header.format, header.isCompressedHdrBgra, header.isCompressedHdrRgba16)) {
-        decodeMip0ToFloatBuffer(mip0, header, floatRgba);
+        decodeMip0ToFloatBuffer(sliceRes.value().bytes(), header, floatRgba);
         return Core::Result<std::vector<float>>::success(std::move(floatRgba));
     }
 
     QImage image;
-    decodeMip0ToQImage(mip0, header, image);
+    decodeMip0ToQImage(sliceRes.value().bytes(), header, image);
     const std::size_t pixelCount = static_cast<std::size_t>(outWidth) * static_cast<std::size_t>(outHeight);
     floatRgba.resize(pixelCount * 4u);
     for (int y = 0; y < outHeight; ++y) {
@@ -1364,23 +1420,280 @@ bool VtfCodec::isVtfExtension(const QString& lowerCaseExtension)
     return lowerCaseExtension == QLatin1String("vtf");
 }
 
-Core::Result<QImage> VtfCodec::read(const Core::Path::FilesystemPath& path)
+Core::Result<VtfHeaderInfo> VtfCodec::readHeader(const Core::Path::FilesystemPath& path)
 {
-    auto loaded = loadVtfMip0(path);
-    if (loaded.isFailure()) {
-        return Core::Result<QImage>::failure(loaded.error());
+    if (path.isEmpty() || !path.isValid()) {
+        return Core::Result<VtfHeaderInfo>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            QCoreApplication::translate("VtfCodec", "VTF file path is empty or invalid"));
+    }
+    if (!path.exists() || !path.isFile()) {
+        return Core::Result<VtfHeaderInfo>::failure(
+            Core::Error::ErrorCode::FileNotFound,
+            QCoreApplication::translate("VtfCodec", "VTF file not found"),
+            path.toString());
+    }
+
+    QFile file(path.toString());
+    if (!file.open(QIODevice::ReadOnly)) {
+        return Core::Result<VtfHeaderInfo>::failure(
+            Core::Error::ErrorCode::ReadFailed,
+            QCoreApplication::translate("VtfCodec", "Failed to open VTF file"),
+            path.toString() + QStringLiteral(" | ") + file.errorString());
+    }
+
+    const qint64 fileSize = file.size();
+    if (fileSize < static_cast<qint64>(kMinVtfHeaderSize)) {
+        return Core::Result<VtfHeaderInfo>::failure(
+            Core::Error::ErrorCode::InvalidFile,
+            QCoreApplication::translate("VtfCodec", "VTF file is too small to contain a valid header"),
+            path.toString());
+    }
+
+    std::vector<std::byte> headerBuf(static_cast<std::size_t>(std::min<qint64>(fileSize, kV73HeaderBaseSize)));
+    if (file.read(reinterpret_cast<char*>(headerBuf.data()), static_cast<qint64>(headerBuf.size()))
+        != static_cast<qint64>(headerBuf.size())) {
+        return Core::Result<VtfHeaderInfo>::failure(
+            Core::Error::ErrorCode::ReadFailed,
+            QCoreApplication::translate("VtfCodec", "Failed to read VTF header"),
+            path.toString());
+    }
+
+    const std::uint32_t headerSize = readU32Le(headerBuf.data() + 12);
+    if (headerSize > headerBuf.size() && headerSize <= kMaxHeaderReadBytes && static_cast<qint64>(headerSize) <= fileSize) {
+        headerBuf.resize(headerSize);
+        if (!file.seek(0)
+            || file.read(reinterpret_cast<char*>(headerBuf.data()), static_cast<qint64>(headerSize))
+                != static_cast<qint64>(headerSize)) {
+            return Core::Result<VtfHeaderInfo>::failure(
+                Core::Error::ErrorCode::ReadFailed,
+                QCoreApplication::translate("VtfCodec", "Failed to read VTF header"),
+                path.toString());
+        }
+    }
+
+    auto headerRes = parseVtfHeaderFromSpan(
+        headerBuf, static_cast<std::uint64_t>(fileSize), path.toString(), false);
+    if (headerRes.isFailure()) {
+        return Core::Result<VtfHeaderInfo>::failure(headerRes.error());
+    }
+    return Core::Result<VtfHeaderInfo>::success(toPublicHeaderInfo(headerRes.value()));
+}
+
+Core::Result<VtfHeaderInfo> VtfCodec::readHeaderFromMemory(
+    std::span<const std::byte> data,
+    const QString& virtualFileName)
+{
+    auto headerRes = parseVtfHeaderFromSpan(data, data.size(), virtualFileName, false);
+    if (headerRes.isFailure()) {
+        return Core::Result<VtfHeaderInfo>::failure(headerRes.error());
+    }
+    return Core::Result<VtfHeaderInfo>::success(toPublicHeaderInfo(headerRes.value()));
+}
+
+Core::Result<QImage> VtfCodec::readSlice(
+    std::span<const std::byte> data,
+    const VtfSliceSelector& slice,
+    const QString& virtualFileName,
+    VtfHeaderInfo* outHeader)
+{
+    auto headerRes = parseVtfHeaderFromSpan(data, data.size(), virtualFileName, slice.treatAsCompressedHdr);
+    if (headerRes.isFailure()) {
+        return Core::Result<QImage>::failure(headerRes.error());
+    }
+    const DecodedVtfHeader& header = headerRes.value();
+
+    auto sliceRes = extractMip0SliceBytes(data, header, slice, virtualFileName);
+    if (sliceRes.isFailure()) {
+        return Core::Result<QImage>::failure(sliceRes.error());
     }
 
     QImage image;
-    decodeMip0ToQImage(loaded.value().second, loaded.value().first, image);
+    decodeMip0ToQImage(sliceRes.value().bytes(), header, image);
     if (image.isNull() || image.width() <= 0 || image.height() <= 0) {
         return Core::Result<QImage>::failure(
             Core::Error::ErrorCode::InvalidFile,
             QCoreApplication::translate("VtfCodec", "VTF image data is missing or has unexpected size"),
-            path.toString());
+            virtualFileName);
     }
 
+    if (outHeader != nullptr) {
+        *outHeader = toPublicHeaderInfo(header);
+    }
     return Core::Result<QImage>::success(std::move(image));
+}
+
+Core::Result<TextureImage> VtfCodec::readFloatSlice(
+    std::span<const std::byte> data,
+    const VtfSliceSelector& slice,
+    const QString& virtualFileName,
+    VtfHeaderInfo* outHeader)
+{
+    auto headerRes = parseVtfHeaderFromSpan(data, data.size(), virtualFileName, slice.treatAsCompressedHdr);
+    if (headerRes.isFailure()) {
+        return Core::Result<TextureImage>::failure(headerRes.error());
+    }
+    const DecodedVtfHeader& header = headerRes.value();
+
+    auto sliceRes = extractMip0SliceBytes(data, header, slice, virtualFileName);
+    if (sliceRes.isFailure()) {
+        return Core::Result<TextureImage>::failure(sliceRes.error());
+    }
+
+    const int width = static_cast<int>(header.width);
+    const int height = static_cast<int>(header.height);
+    TextureImage out(width, height, 4);
+    if (!out.isValid()) {
+        return Core::Result<TextureImage>::failure(
+            Core::Error::ErrorCode::InvalidFile,
+            QCoreApplication::translate("VtfCodec", "VTF image data is missing or has unexpected size"),
+            virtualFileName);
+    }
+
+    float* p0 = out.planeData(0);
+    float* p1 = out.planeData(1);
+    float* p2 = out.planeData(2);
+    float* p3 = out.planeData(3);
+
+    if (isFloatingPointFormat(header.format, header.isCompressedHdrBgra, header.isCompressedHdrRgba16)) {
+        std::vector<float> floatRgba;
+        decodeMip0ToFloatBuffer(sliceRes.value().bytes(), header, floatRgba);
+        const std::size_t pixelCount = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+        for (std::size_t i = 0; i < pixelCount; ++i) {
+            p0[i] = floatRgba[i * 4u + 0];
+            p1[i] = floatRgba[i * 4u + 1];
+            p2[i] = floatRgba[i * 4u + 2];
+            p3[i] = floatRgba[i * 4u + 3];
+        }
+    } else {
+        QImage image;
+        decodeMip0ToQImage(sliceRes.value().bytes(), header, image);
+        if (image.isNull() || image.width() != width || image.height() != height) {
+            return Core::Result<TextureImage>::failure(
+                Core::Error::ErrorCode::InvalidFile,
+                QCoreApplication::translate("VtfCodec", "VTF image data is missing or has unexpected size"),
+                virtualFileName);
+        }
+        for (int y = 0; y < height; ++y) {
+            const std::uint8_t* row = image.constScanLine(y);
+            const std::size_t rowStart = static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
+            for (int x = 0; x < width; ++x) {
+                const std::size_t idx = rowStart + static_cast<std::size_t>(x);
+                p0[idx] = static_cast<float>(row[x * 4 + 0]) / 255.0f;
+                p1[idx] = static_cast<float>(row[x * 4 + 1]) / 255.0f;
+                p2[idx] = static_cast<float>(row[x * 4 + 2]) / 255.0f;
+                p3[idx] = static_cast<float>(row[x * 4 + 3]) / 255.0f;
+            }
+        }
+    }
+
+    if (outHeader != nullptr) {
+        *outHeader = toPublicHeaderInfo(header);
+    }
+    return Core::Result<TextureImage>::success(std::move(out));
+}
+
+Core::Result<std::optional<VtfSheetData>> VtfCodec::readSheetFromMemory(
+    std::span<const std::byte> data,
+    const QString& virtualFileName)
+{
+    const QString detailLabel = virtualFileName.isEmpty() ? QStringLiteral("<memory>") : virtualFileName;
+    auto headerRes = parseVtfHeaderFromSpan(data, data.size(), virtualFileName, false);
+    if (headerRes.isFailure()) {
+        return Core::Result<std::optional<VtfSheetData>>::failure(headerRes.error());
+    }
+    const DecodedVtfHeader& header = headerRes.value();
+    if (!header.hasSheet) {
+        return Core::Result<std::optional<VtfSheetData>>::success(std::nullopt);
+    }
+
+    std::uint64_t sheetEnd = 0;
+    if (header.sheetSize < 4u
+        || !checkedAdd(header.sheetOffset, header.sheetSize, sheetEnd)
+        || sheetEnd > data.size()) {
+        return Core::Result<std::optional<VtfSheetData>>::failure(
+            Core::Error::ErrorCode::CorruptedData,
+            QCoreApplication::translate("VtfCodec", "VTF sheet resource block is truncated"),
+            detailLabel);
+    }
+
+    // VTF_RSRC_SHEET stores a uint32 byte-size prefix followed by version and seqCount.
+    const std::uint32_t payloadSize = readU32Le(data.data() + header.sheetOffset);
+    if (payloadSize < 8u || static_cast<std::uint64_t>(payloadSize) > header.sheetSize - 4u) {
+        return Core::Result<std::optional<VtfSheetData>>::failure(
+            Core::Error::ErrorCode::CorruptedData,
+            QCoreApplication::translate("VtfCodec", "VTF sheet resource size is invalid"),
+            detailLabel);
+    }
+
+    const std::byte* cursor = data.data() + header.sheetOffset + 4u;
+    const std::byte* const end = cursor + payloadSize;
+
+    VtfSheetData sheet;
+    sheet.version = readU32Le(cursor);
+    const std::uint32_t seqCount = readU32Le(cursor + 4);
+    cursor += 8;
+
+    if (sheet.version != 0u && sheet.version != 1u) {
+        return Core::Result<std::optional<VtfSheetData>>::failure(
+            Core::Error::ErrorCode::NotSupported,
+            QCoreApplication::translate("VtfCodec", "Unsupported VTF sheet resource version"),
+            QStringLiteral("%1 (version=%2)").arg(detailLabel).arg(sheet.version));
+    }
+
+    const std::size_t coordSets = (sheet.version == 0u) ? 1u : 4u;
+    const std::size_t frameBytes = 4u + coordSets * 16u;
+
+    sheet.sequences.reserve(std::min<std::size_t>(seqCount, static_cast<std::size_t>(end - cursor) / 16u));
+    for (std::uint32_t s = 0; s < seqCount; ++s) {
+        if (static_cast<std::size_t>(end - cursor) < 16u) {
+            return Core::Result<std::optional<VtfSheetData>>::failure(
+                Core::Error::ErrorCode::CorruptedData,
+                QCoreApplication::translate("VtfCodec", "VTF sheet sequence header is truncated"),
+                detailLabel);
+        }
+
+        VtfSheetSequence seq;
+        seq.sequenceNumber = readU32Le(cursor + 0);
+        seq.clamp = readU32Le(cursor + 4) != 0u;
+        const std::uint32_t frameCount = readU32Le(cursor + 8);
+        seq.totalTime = readF32Le(cursor + 12);
+        cursor += 16;
+
+        const std::size_t remaining = static_cast<std::size_t>(end - cursor);
+        if (frameCount > remaining / frameBytes) {
+            return Core::Result<std::optional<VtfSheetData>>::failure(
+                Core::Error::ErrorCode::CorruptedData,
+                QCoreApplication::translate("VtfCodec", "VTF sheet frame data is truncated"),
+                detailLabel);
+        }
+
+        seq.frames.reserve(frameCount);
+        for (std::uint32_t f = 0; f < frameCount; ++f) {
+            VtfSheetFrame frame;
+            frame.duration = readF32Le(cursor);
+            frame.uvRect = {
+                readF32Le(cursor + 4),
+                readF32Le(cursor + 8),
+                readF32Le(cursor + 12),
+                readF32Le(cursor + 16),
+            };
+            seq.frames.push_back(frame);
+            cursor += frameBytes;
+        }
+        sheet.sequences.push_back(std::move(seq));
+    }
+
+    return Core::Result<std::optional<VtfSheetData>>::success(std::move(sheet));
+}
+
+Core::Result<QImage> VtfCodec::read(const Core::Path::FilesystemPath& path)
+{
+    auto bytesRes = readFileBytes(path);
+    if (bytesRes.isFailure()) {
+        return Core::Result<QImage>::failure(bytesRes.error());
+    }
+    return readSlice(bytesRes.value(), VtfSliceSelector{}, path.toString());
 }
 
 } // namespace Domain::Material

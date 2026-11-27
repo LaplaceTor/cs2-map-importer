@@ -1,6 +1,7 @@
 #include <QCoreApplication>
 #include "Core/KeyValues/KeyValuesReader.h"
 #include "Core/Error/ErrorCode.h"
+#include <cmath>
 #include <utility>
 
 namespace Core::KeyValues {
@@ -10,7 +11,21 @@ namespace {
 KeyValuesLexerOptions toLexerOptions(KeyValuesReadOptions options) noexcept {
     return KeyValuesLexerOptions{
         .unescapeStrings = options.unescapeStrings,
+        .stopUnquotedAtBraces = options.stopUnquotedAtBraces,
     };
+}
+
+bool isNumericToken(const QString& text) noexcept {
+    if (text.isEmpty()) {
+        return false;
+    }
+    const QChar first = text.at(0);
+    if (!first.isDigit() && first != QLatin1Char('.') && first != QLatin1Char('+') && first != QLatin1Char('-')) {
+        return false;
+    }
+    bool ok = false;
+    const double val = text.toDouble(&ok);
+    return ok && std::isfinite(val);
 }
 
 } // namespace
@@ -148,6 +163,57 @@ Core::Result<KeyValuesEventType> KeyValuesReader::readNext() {
 
     if (nextTok.isOpenBrace()) {
         m_lexer.nextToken(); // Consume '{'
+
+        if (m_options.stopUnquotedAtBraces && !m_sectionStack.empty()) {
+            const Token afterBrace = m_lexer.peekToken();
+            if (m_lexer.hasReadError()) {
+                return readErrorFailure();
+            }
+            if (afterBrace.isString() && !afterBrace.quoted && isNumericToken(afterBrace.text)) {
+                QString collected = QStringLiteral("{");
+                bool first = true;
+                while (true) {
+                    Token part = m_lexer.nextToken();
+                    if (m_lexer.hasReadError()) {
+                        return readErrorFailure();
+                    }
+                    if (part.isCloseBrace()) {
+                        collected += QLatin1Char('}');
+                        break;
+                    }
+                    if (!part.isString()) {
+                        return Core::Result<KeyValuesEventType>::failure(
+                            Core::Error::ErrorCode::InvalidFile,
+                            QCoreApplication::translate("KeyValuesReader", "Unclosed '{' in property value"),
+                            QStringLiteral("Key '%1' at line %2, column %3")
+                                .arg(keyToken.text)
+                                .arg(nextTok.line)
+                                .arg(nextTok.column));
+                    }
+                    if (!first) {
+                        collected += QLatin1Char(' ');
+                    }
+                    collected += part.text;
+                    first = false;
+                }
+
+                if (m_options.supportConditionals) {
+                    const Token maybeCond = m_lexer.peekToken();
+                    if (m_lexer.hasReadError()) {
+                        return readErrorFailure();
+                    }
+                    if (maybeCond.isString() && isConditional(maybeCond.text)) {
+                        m_lexer.nextToken();
+                    }
+                }
+
+                m_currentEvent = KeyValuesEventType::Property;
+                m_name = std::move(keyToken.text);
+                m_value = std::move(collected);
+                return Core::Result<KeyValuesEventType>::success(m_currentEvent);
+            }
+        }
+
         m_sectionStack.push_back(std::move(keyToken.text));
         m_currentEvent = KeyValuesEventType::BeginSection;
         m_name = m_sectionStack.back();
@@ -159,6 +225,36 @@ Core::Result<KeyValuesEventType> KeyValuesReader::readNext() {
         Token valToken = m_lexer.nextToken();
         if (m_lexer.hasReadError()) {
             return readErrorFailure();
+        }
+
+        if (m_options.stopUnquotedAtBraces &&
+            !valToken.quoted &&
+            valToken.text.startsWith(QLatin1Char('[')) &&
+            !valToken.text.endsWith(QLatin1Char(']'))) {
+            QString collected = valToken.text;
+            while (true) {
+                Token part = m_lexer.nextToken();
+                if (m_lexer.hasReadError()) {
+                    return readErrorFailure();
+                }
+                if (!part.isString()) {
+                    return Core::Result<KeyValuesEventType>::failure(
+                        Core::Error::ErrorCode::InvalidFile,
+                        QCoreApplication::translate("KeyValuesReader", "Unclosed '[' in property value"),
+                        QStringLiteral("Key '%1' at line %2, column %3")
+                            .arg(keyToken.text)
+                            .arg(valToken.line)
+                            .arg(valToken.column));
+                }
+                if (collected != QLatin1String("[") && part.text != QLatin1String("]")) {
+                    collected += QLatin1Char(' ');
+                }
+                collected += part.text;
+                if (part.text.endsWith(QLatin1Char(']'))) {
+                    break;
+                }
+            }
+            valToken.text = std::move(collected);
         }
 
         if (m_options.supportConditionals) {
