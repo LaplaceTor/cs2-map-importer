@@ -89,6 +89,16 @@ qt_add_library(cs2importer_domain STATIC
     Material/TextureProcess/DiffuseEditor.cpp
     Material/VtfConverter.h
     Material/VtfConverter.cpp
+    Material/VmtDocument.h
+    Material/VmtParser.h
+    Material/VmtParser.cpp
+    Material/MaterialConvertTypes.h
+    Material/MaterialTranslator.h
+    Material/MaterialTranslator.cpp
+    Material/MaterialTextureSynthesizer.h
+    Material/MaterialTextureSynthesizer.cpp
+    Material/VtexBuilder.h
+    Material/VtexBuilder.cpp
     Package/Internal/Lzma1Decoder.h
     Package/Internal/Lzma1Decoder.cpp
     Package/Internal/BspPakZipReader.h
