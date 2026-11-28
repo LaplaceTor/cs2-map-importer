@@ -28,57 +28,77 @@
 <context>
     <name>Application::Material::MaterialConvertService</name>
     <message>
-        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="95"/>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="99"/>
+        <source>Source VMT path does not exist: %1</source>
+        <translation>源 VMT 路径不存在：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="117"/>
+        <source>Ignoring non-VMT source file: %1</source>
+        <translation>已忽略非 VMT 源文件：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="191"/>
+        <source>VMT &apos;%1&apos; is outside a &apos;materials/&apos; folder; mapping as &apos;%2&apos; and treating its directory as a virtual materials root</source>
+        <translation>VMT“%1”位于 materials/ 目录结构之外，已映射为“%2”并将其所在目录视作虚拟 materials 根目录</translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="250"/>
         <source>Prerequisite service is unavailable</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="116"/>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="271"/>
         <source>Invalid target addon name: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="122"/>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="302"/>
+        <source>No valid source VMT files specified</source>
+        <translation>未指定有效的源 VMT 文件</translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="305"/>
         <source>Starting material conversion for addon &apos;%1&apos; (%2 item(s))</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="147"/>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="313"/>
         <source>Material conversion workflow was cancelled</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="152"/>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="318"/>
         <source>Material conversion workflow was skipped: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="206"/>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="372"/>
         <source>MaterialConvertService instance must be managed by std::shared_ptr to start async operations</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="217"/>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="383"/>
         <source>Another material conversion operation is already in progress</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="263"/>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="432"/>
         <source>Convert Material: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="265"/>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="434"/>
         <source>Convert Materials (%1 items)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="320"/>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="489"/>
         <source>Failed to start async material conversion task: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="327"/>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="496"/>
         <source>Failed to start async material conversion task due to an unknown exception</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2390,8 +2410,38 @@ Do you want to proceed?</source>
     </message>
     <message>
         <location filename="../src/qml/cs2importer/Main.qml" line="210"/>
+        <source>Select Model Folder</source>
+        <translation>选择模型文件夹</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/Main.qml" line="218"/>
         <source>Select Source 1 PCF Particle Files</source>
         <translation>选择 Source 1 PCF 粒子文件</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/Main.qml" line="232"/>
+        <source>Select Particle Folder</source>
+        <translation>选择粒子文件夹</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/Main.qml" line="240"/>
+        <source>Select Source 1 VMT Material Files</source>
+        <translation>选择 Source 1 VMT 材质文件</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/Main.qml" line="254"/>
+        <source>Select Material Folder</source>
+        <translation>选择材质文件夹</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/Main.qml" line="261"/>
+        <source>No Matching Files Found</source>
+        <translation>未找到匹配文件</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/Main.qml" line="262"/>
+        <source>No %1 files were found in the selected folder or dropped items.</source>
+        <translation>所选文件夹或拖入项目中未找到任何 %1 文件。</translation>
     </message>
     <message>
         <source>Select VMF or BSP Map File</source>
@@ -2406,48 +2456,53 @@ Do you want to proceed?</source>
         <translation type="vanished">选择 Source 1 PCF 粒子文件</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="249"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="293"/>
         <source>Map</source>
         <translation>地图</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="256"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="300"/>
         <source>Model</source>
         <translation>模型</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="263"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="307"/>
         <source>Particle</source>
         <translation>粒子</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="348"/>
-        <location filename="../src/qml/cs2importer/Main.qml" line="351"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="314"/>
+        <source>Material</source>
+        <translation>材质</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/Main.qml" line="423"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="426"/>
         <source>Theme:System</source>
         <translation>主题：跟随系统</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="349"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="424"/>
         <source>Theme:Light</source>
         <translation>主题：浅色</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="350"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="425"/>
         <source>Theme:Dark</source>
         <translation>主题：深色</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="365"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="440"/>
         <source>Check Update</source>
         <translation>检查更新</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="383"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="458"/>
         <source>v%1</source>
         <translation>v%1</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/Main.qml" line="397"/>
+        <location filename="../src/qml/cs2importer/Main.qml" line="472"/>
         <source>LOG</source>
         <translation>日志</translation>
     </message>
@@ -2455,73 +2510,122 @@ Do you want to proceed?</source>
 <context>
     <name>MainController</name>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="45"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="123"/>
         <source>Task in Progress</source>
         <translation>任务进行中</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="46"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="124"/>
         <source>An operation is currently executing. You cannot change tabs until the current operation completes.</source>
         <translation>当前有操作正在执行。在该操作完成前无法切换标签页。</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="100"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="178"/>
         <source>Feature in Development</source>
         <translation>功能开发中</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="101"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="179"/>
         <source>Import execution will be connected in the upcoming Workflow integration stage.</source>
         <translation>导入执行将在后续的 Workflow 集成阶段接入。</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="134"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="212"/>
         <source>Particle import service is not available.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="160"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="238"/>
         <source>Particle Import Completed with Warnings</source>
         <translation>粒子导入完成（包含警告）</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="161"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="239"/>
         <source>Particle Import Complete</source>
         <translation>粒子导入完成</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="165"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="243"/>
         <source>All particles were successfully imported and compiled.</source>
         <translation>所有粒子已成功导入并编译。</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="170"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="248"/>
         <source>Import Cancelled</source>
         <translation>导入已取消</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="171"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="249"/>
         <source>Particle import was cancelled by user.</source>
         <translation>粒子导入已被用户取消。</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="137"/>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="175"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="215"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="253"/>
         <source>Particle Import Failed</source>
         <translation>粒子导入失败</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="177"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="255"/>
         <source>An error occurred during particle import.</source>
         <translation>粒子导入过程中发生错误。</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="194"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="292"/>
+        <source>Material conversion service is not available.</source>
+        <translation>材质转换服务不可用。</translation>
+    </message>
+    <message>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="297"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="340"/>
+        <source>Material Conversion Failed</source>
+        <translation>材质转换失败</translation>
+    </message>
+    <message>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="319"/>
+        <source>Material Conversion Completed with Warnings</source>
+        <translation>材质转换完成（含警告）</translation>
+    </message>
+    <message>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="320"/>
+        <source>Material Conversion Complete</source>
+        <translation>材质转换完成</translation>
+    </message>
+    <message>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="321"/>
+        <source>Converted: %1
+Compiled: %2
+Skipped (native CS2): %3
+Skipped (unsupported): %4
+Failed: %5</source>
+        <translation>已转换：%1
+已编译：%2
+已跳过（CS2 原生）：%3
+已跳过（不支持）：%4
+失败：%5</translation>
+    </message>
+    <message>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="332"/>
+        <source>Conversion Cancelled</source>
+        <translation>转换已取消</translation>
+    </message>
+    <message>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="333"/>
+        <source>Material conversion was cancelled by user.</source>
+        <translation>材质转换已被用户取消。</translation>
+    </message>
+    <message>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="336"/>
+        <source>An error occurred during material conversion.</source>
+        <translation>材质转换过程中发生错误。</translation>
+    </message>
+    <message>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="359"/>
         <source>Check for Updates</source>
         <translation>检查更新</translation>
     </message>
     <message>
-        <location filename="../src/UI/Controllers/MainController.cpp" line="195"/>
+        <location filename="../src/UI/Controllers/MainController.cpp" line="360"/>
         <source>You are currently running the latest development version (v%1).</source>
         <translation>当前已是最新开发版本（v%1）。</translation>
     </message>
@@ -2648,228 +2752,234 @@ Do you want to proceed?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="327"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="361"/>
         <source>Destination path traverses outside content directory: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="468"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="672"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="502"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="706"/>
         <source>VTF texture not found: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="487"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="647"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="695"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="909"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1045"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1235"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1331"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1394"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1431"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1623"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1737"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1805"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1823"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1841"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1857"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="521"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="681"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="729"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="943"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1079"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1299"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1395"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1458"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1495"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1687"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1801"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1869"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1888"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1908"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1925"/>
         <source>Material conversion was cancelled</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="521"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="555"/>
         <source>Unsupported texture export flavor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="786"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="820"/>
         <source>Explicit sprite material &apos;%1&apos; is missing $basetexture</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="800"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="834"/>
         <source>Failed to locate VTF &apos;%1&apos; for explicit sprite &apos;%2&apos;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="817"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="851"/>
         <source>Failed to read VTF header &apos;%1&apos; for sprite &apos;%2&apos;: %3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="842"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="876"/>
         <source>Failed to decode sheet VTF &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="916"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="950"/>
         <source>Failed to decode frame %1 of sprite VTF &apos;%2&apos;: %3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="977"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1011"/>
         <source>Failed to decode sprite VTF &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1050"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1084"/>
         <source>Empty material relative path specified</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1063"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1097"/>
         <source>Failed to read material &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1077"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1111"/>
         <source>Material VMT not found: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1091"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1125"/>
         <source>Failed to parse VMT &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1129"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1163"/>
         <source>Subrect &apos;%1&apos; has invalid or cyclic $material reference: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1145"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1179"/>
         <source>Subrect &apos;%1&apos; parent material not found: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1160"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1194"/>
         <source>Failed to parse parent VMT &apos;%1&apos; for subrect &apos;%2&apos;: %3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1254"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1217"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1268"/>
+        <source>Skipping &apos;%1&apos;: Skybox, Sprite, and SpriteCard materials are not supported in regular material conversion</source>
+        <translation>已跳过“%1”：常规材质转换不支持 Skybox、Sprite 与 SpriteCard 材质</translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1318"/>
         <source>Failed to export animated atlas &apos;%1&apos; (role &apos;%2&apos;) for &apos;%3&apos;: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1282"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1346"/>
         <source>Failed to export texture &apos;%1&apos; (role &apos;%2&apos;) for &apos;%3&apos;: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1301"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1365"/>
         <source>Failed to build .vmat for &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1313"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1377"/>
         <source>Failed to write .vmat &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1336"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1400"/>
         <source>Empty explicit sprite VMT path specified</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1349"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1413"/>
         <source>Failed to read sprite VMT &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1363"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1427"/>
         <source>Explicit sprite VMT not found: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1377"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1441"/>
         <source>Failed to parse sprite VMT &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1399"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1463"/>
         <source>Empty skybox name specified</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1442"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1506"/>
         <source>Skybox &apos;%1&apos; is missing face VMT: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1455"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1519"/>
         <source>Failed to parse skybox face VMT &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1542"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1606"/>
         <source>Failed to decode any texture for skybox face &apos;%1&apos;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1554"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1618"/>
         <source>No valid skybox faces were found for skybox &apos;%1&apos;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1571"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1635"/>
         <source>Failed to build skybox cubemap &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1582"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1646"/>
         <source>Failed to write skybox texture &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1593"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1657"/>
         <source>Failed to write skybox .vmat &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1638"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1669"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1702"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1733"/>
         <source>Included parent VMT not found: %1</source>
         <translation>未找到引用的父级 VMT：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1745"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1809"/>
         <source>Destination content directory is empty</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1751"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1815"/>
         <source>CS2 base directory is required when compiling resources</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1760"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1824"/>
         <source>No materials, sprites, or skyboxes were specified for conversion</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1793"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1857"/>
         <source>Starting material conversion (%1 material(s), %2 sprite(s), %3 skybox(es))</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1867"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1935"/>
         <source>Compiling %1 generated material/texture resource(s)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1904"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1972"/>
         <source>Resource compilation failed: %1</source>
         <translation type="unfinished">资源编译失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1920"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1988"/>
         <source>Material conversion completed: %1 material(s), %2 sprite(s), %3 skybox(es), %4 skipped native, %5 skipped unsupported, %6 failed, %7 compiled</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1933"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="2001"/>
         <source>Material conversion completed</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2925,6 +3035,54 @@ Do you want to proceed?</source>
         <location filename="../src/Domain/Material/MaterialProxyCompiler.cpp" line="2090"/>
         <source>Frame parameter &apos;%1&apos; was tainted by an unsupported proxy; keeping static frame 0</source>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>MaterialTab</name>
+    <message>
+        <location filename="../src/qml/cs2importer/tabs/MaterialTab.qml" line="41"/>
+        <source>Source 1 Game</source>
+        <translation>Source 1 游戏</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/tabs/MaterialTab.qml" line="71"/>
+        <source>Counter-Strike 2</source>
+        <translation>Counter-Strike 2</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/tabs/MaterialTab.qml" line="98"/>
+        <source>ADDON NAME:</source>
+        <translation>ADDON 名称：</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/tabs/MaterialTab.qml" line="135"/>
+        <source>Addon Name</source>
+        <translation>Addon 名称</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/tabs/MaterialTab.qml" line="155"/>
+        <source>NEW</source>
+        <translation>新建</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/tabs/MaterialTab.qml" line="184"/>
+        <source>MATERIAL FILES</source>
+        <translation>材质文件</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/tabs/MaterialTab.qml" line="205"/>
+        <source>OPTIONS</source>
+        <translation>选项</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/tabs/MaterialTab.qml" line="234"/>
+        <source>START</source>
+        <translation>开始</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/tabs/MaterialTab.qml" line="266"/>
+        <source>STOP</source>
+        <translation>停止</translation>
     </message>
 </context>
 <context>
@@ -3113,12 +3271,12 @@ Do you want to proceed?</source>
 <context>
     <name>ModelTab</name>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="35"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="41"/>
         <source>Source 1 Game</source>
         <translation>Source 1 游戏</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="65"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="71"/>
         <source>Counter-Strike 2</source>
         <translation>Counter-Strike 2</translation>
     </message>
@@ -3127,97 +3285,97 @@ Do you want to proceed?</source>
         <translation type="vanished">选择 MDL</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="92"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="98"/>
         <source>ADDON NAME:</source>
         <translation>ADDON 名称：</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="128"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="134"/>
         <source>Addon Name</source>
         <translation>Addon 名称</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="148"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="154"/>
         <source>NEW</source>
         <translation>新建</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="176"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="182"/>
         <source>MODEL FILES</source>
         <translation>模型文件</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="192"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="202"/>
         <source>OPTIONS</source>
         <translation>选项</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="221"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="231"/>
         <source>Skip Animation Import (-skipcommondmxwrite)</source>
         <translation>跳过动画导入（-skipcommondmxwrite）</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="223"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="233"/>
         <source>Converts only the static 3D mesh model without extracting skeletal animations (.dmx files), significantly accelerating conversion.</source>
         <translation>仅转换静态 3D 网格模型，不提取骨骼动画（.dmx 文件），显著加快转换速度。</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="229"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="239"/>
         <source>Convert Coordinate (Y-Up to Z-Up) (-YupToZup)</source>
         <translation>转换坐标（Y 轴向上转 Z 轴向上）（-YupToZup）</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="231"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="241"/>
         <source>Transforms the model&apos;s base pose from Y-axis Up (Source 1/Maya) to Z-axis Up (Source 2 standard) to fix lying-down or rotated models.</source>
         <translation>将模型的基础姿态从 Y 轴向上（Source 1/Maya）转换为 Z 轴向上（Source 2 标准），修复模型躺倒或旋转的问题。</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="237"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="247"/>
         <source>Override &quot;lean&quot; Sequence (-overridelean)</source>
         <translation>覆盖 lean 序列（-overridelean）</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="239"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="249"/>
         <source>Overrides directional leaning animation sequences for characters or weapons with standard default poses.</source>
         <translation>用标准默认姿态覆盖角色或武器的方向倾斜动画序列。</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="245"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="255"/>
         <source>Use Studiohdr Bounds (-header_hull_bounds)</source>
         <translation>使用 Studiohdr 边界（-header_hull_bounds）</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="247"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="257"/>
         <source>Uses the bounding box dimensions defined in the MDL studio header directly, rather than calculating boundaries from collision physics hulls.</source>
         <translation>直接使用 MDL studio 头中定义的包围盒尺寸，而不是通过碰撞物理包络计算边界。</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="253"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="263"/>
         <source>Import All LODs (-lods)</source>
         <translation>导入全部 LOD（-lods）</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="255"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="265"/>
         <source>Imports all distance-based Level-of-Detail meshes (LOD 0, 1, 2...). When unchecked, only the highest detail LOD 0 is imported.</source>
         <translation>导入所有基于距离的细节层级网格（LOD 0、1、2……）。未勾选时仅导入细节最高的 LOD 0。</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="261"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="271"/>
         <source>Export Weapon Anim Prefab (-write_weapon_anim_prefab)</source>
         <translation>导出武器动画 Prefab（-write_weapon_anim_prefab）</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="263"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="273"/>
         <source>Writes weapon animation sequences and bone weightlists into a reusable prefab file, prefixing each entry with the weapon filename.</source>
         <translation>将武器动画序列和骨骼权重列表写入可复用的 prefab 文件，每个条目以武器文件名作为前缀。</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="281"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="291"/>
         <source>START</source>
         <translation>开始</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="305"/>
+        <location filename="../src/qml/cs2importer/tabs/ModelTab.qml" line="315"/>
         <source>STOP</source>
         <translation>停止</translation>
     </message>
@@ -3703,12 +3861,12 @@ Do you want to proceed?</source>
 <context>
     <name>ParticleTab</name>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="35"/>
+        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="41"/>
         <source>Source 1 Game</source>
         <translation>Source 1 游戏</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="65"/>
+        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="71"/>
         <source>Counter-Strike 2</source>
         <translation>Counter-Strike 2</translation>
     </message>
@@ -3717,57 +3875,57 @@ Do you want to proceed?</source>
         <translation type="vanished">选择 PCF</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="92"/>
+        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="98"/>
         <source>ADDON NAME:</source>
         <translation>ADDON 名称：</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="129"/>
+        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="135"/>
         <source>Addon Name</source>
         <translation>Addon 名称</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="149"/>
+        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="155"/>
         <source>NEW</source>
         <translation>新建</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="177"/>
+        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="183"/>
         <source>PARTICLE FILES</source>
         <translation>粒子文件</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="193"/>
+        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="203"/>
         <source>OPTIONS</source>
         <translation>选项</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="225"/>
+        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="235"/>
         <source>Allow Depth Blend (-particle_allow_depth_blend)</source>
         <translation>允许深度混合（-particle_allow_depth_blend）</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="227"/>
+        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="237"/>
         <source>Respects $DEPTHBLEND in particle materials to smoothly feather and blend smoke, fire, and fog edges with surrounding world geometry.</source>
         <translation>遵循粒子材质中的 $DEPTHBLEND，使烟雾、火焰和雾的边缘与周围世界几何体平滑羽化融合。</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="235"/>
+        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="245"/>
         <source>Disable Diffuse Lighting (-particle_disable_diffuse)</source>
         <translation>禁用漫反射光照（-particle_disable_diffuse）</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="237"/>
+        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="247"/>
         <source>Prevents scene lighting from tinting or darkening particle sprites, preserving their intended self-luminous or vivid colors.</source>
         <translation>防止场景光照对粒子精灵染色或变暗，保留其自发光或鲜艳的原有色彩。</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="256"/>
+        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="266"/>
         <source>START</source>
         <translation>开始</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="290"/>
+        <location filename="../src/qml/cs2importer/tabs/ParticleTab.qml" line="300"/>
         <source>STOP</source>
         <translation>停止</translation>
     </message>
@@ -4405,17 +4563,29 @@ Do you want to proceed?</source>
         <translation>文件列表</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/components/SourceFileListBox.qml" line="68"/>
+        <location filename="../src/qml/cs2importer/components/SourceFileListBox.qml" line="93"/>
         <source>Add</source>
         <translation>添加</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/components/SourceFileListBox.qml" line="86"/>
+        <location filename="../src/qml/cs2importer/components/SourceFileListBox.qml" line="112"/>
+        <source>Folder</source>
+        <translation>文件夹</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/components/SourceFileListBox.qml" line="130"/>
         <source>Clear</source>
         <translation>清空</translation>
     </message>
     <message>
-        <location filename="../src/qml/cs2importer/components/SourceFileListBox.qml" line="157"/>
+        <location filename="../src/qml/cs2importer/components/SourceFileListBox.qml" line="220"/>
+        <source>Drop files or folders here
+or click Add / Folder</source>
+        <translation>将文件或文件夹拖放到此处
+或点击“添加 / 文件夹”</translation>
+    </message>
+    <message>
+        <location filename="../src/qml/cs2importer/components/SourceFileListBox.qml" line="221"/>
         <source>Drop files here
 or click Add</source>
         <translation>拖入文件至此

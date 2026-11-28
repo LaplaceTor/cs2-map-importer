@@ -14,11 +14,17 @@ Item {
     signal requestBrowseS1()
     signal requestBrowseS2()
     signal requestBrowsePcf()
+    signal requestBrowsePcfFolder()
     signal requestValidateS1()
     signal requestValidateS2()
+    signal emptyFolderEncountered()
 
     function addFiles(newFiles) {
         sourceFilesBox.addFiles(newFiles)
+    }
+
+    function addFolder(folderPath) {
+        return sourceFilesBox.addFolder(folderPath)
     }
 
     ColumnLayout {
@@ -177,12 +183,16 @@ Item {
                 titleText: qsTr("PARTICLE FILES")
                 files: root.selectedFiles
                 allowedExtensions: [".pcf"]
+                allowFolders: true
+                pathExpander: root.mainController
                 enabledState: !(root.mainController && root.mainController.isProcessing)
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.preferredWidth: 1
 
                 onAddRequested: root.requestBrowsePcf()
+                onAddFolderRequested: root.requestBrowsePcfFolder()
+                onEmptySelectionEncountered: root.emptyFolderEncountered()
                 onFilesChanged: root.selectedFiles = files
                 onFileRemoved: function(idx) { root.selectedFiles = files }
                 onClearRequested: root.selectedFiles = []

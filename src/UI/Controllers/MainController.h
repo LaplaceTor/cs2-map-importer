@@ -2,8 +2,11 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <memory>
 
+#include "Application/Material/MaterialConvertDTOs.h"
+#include "Application/Material/MaterialConvertService.h"
 #include "Application/Particle/ParticleImportDTOs.h"
 #include "Application/Particle/ParticleImportService.h"
 
@@ -46,6 +49,10 @@ public:
     bool isProcessing() const noexcept { return m_isProcessing; }
     bool canStart() const noexcept { return m_canStart; }
 
+    Q_INVOKABLE QStringList expandSourcePaths(
+        const QStringList& rawPaths,
+        const QStringList& allowedExtensions) const;
+
     Q_INVOKABLE void startParticleImport(
         const QString& source1GameDir,
         const QString& cs2BaseDir,
@@ -57,11 +64,27 @@ public:
         const QString& s1GameInfoDir = QString()
     );
 
+    Q_INVOKABLE void startMaterialConversion(
+        const QString& source1GameDir,
+        const QString& cs2BaseDir,
+        const QString& addonName,
+        const QStringList& sourceVmtPaths,
+        const QString& s1GameType = QString(),
+        const QString& s1GameInfoDir = QString()
+    );
+
     void setParticleImportService(std::shared_ptr<Application::Particle::ParticleImportService> service) noexcept {
         m_particleImportService = std::move(service);
     }
     Application::Particle::ParticleImportService* particleImportService() const noexcept {
         return m_particleImportService.get();
+    }
+
+    void setMaterialConvertService(std::shared_ptr<Application::Material::MaterialConvertService> service) noexcept {
+        m_materialConvertService = std::move(service);
+    }
+    Application::Material::MaterialConvertService* materialConvertService() const noexcept {
+        return m_materialConvertService.get();
     }
 
 public slots:
@@ -80,18 +103,20 @@ signals:
     void isProcessingChanged();
     void canStartChanged();
     void particleImportFailed(const QString& message);
+    void materialConversionFailed(const QString& message);
     void alertRequested(const QString& title, const QString& message);
     void logWindowToggleRequested();
 
 private:
     void applyTheme(const QString& themeName);
 
-    int m_activeTab = 0; // 0: Map, 1: Model, 2: Particle
+    int m_activeTab = 0; // 0: Map, 1: Model, 2: Particle, 3: Material
     QString m_theme = QStringLiteral("system");
     bool m_isProcessing = false;
     bool m_canStart = false;
     UI::ViewModels::LogViewModel* m_logViewModel = nullptr;
     std::shared_ptr<Application::Particle::ParticleImportService> m_particleImportService;
+    std::shared_ptr<Application::Material::MaterialConvertService> m_materialConvertService;
 };
 
 } // namespace UI::Controllers

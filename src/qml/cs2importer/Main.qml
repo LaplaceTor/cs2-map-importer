@@ -205,6 +205,14 @@ ApplicationWindow {
         }
     }
 
+    FolderDialog {
+        id: mdlFolderDialog
+        title: qsTr("Select Model Folder")
+        onAccepted: {
+            modelTab.addFolder(window.fileUrlToNativePath(selectedFolder))
+        }
+    }
+
     FileDialog {
         id: pcfFileDialog
         title: qsTr("Select Source 1 PCF Particle Files")
@@ -217,6 +225,42 @@ ApplicationWindow {
             }
             particleTab.addFiles(paths)
         }
+    }
+
+    FolderDialog {
+        id: pcfFolderDialog
+        title: qsTr("Select Particle Folder")
+        onAccepted: {
+            particleTab.addFolder(window.fileUrlToNativePath(selectedFolder))
+        }
+    }
+
+    FileDialog {
+        id: vmtFileDialog
+        title: qsTr("Select Source 1 VMT Material Files")
+        nameFilters: ["Material files (*.vmt)", "All files (*.*)"]
+        fileMode: FileDialog.OpenFiles
+        onAccepted: {
+            let paths = []
+            for (let i = 0; i < selectedFiles.length; ++i) {
+                paths.push(window.fileUrlToNativePath(selectedFiles[i]))
+            }
+            materialTab.addFiles(paths)
+        }
+    }
+
+    FolderDialog {
+        id: vmtFolderDialog
+        title: qsTr("Select Material Folder")
+        onAccepted: {
+            materialTab.addFolder(window.fileUrlToNativePath(selectedFolder))
+        }
+    }
+
+    function showEmptyFolderAlert(extensionLabel) {
+        alertDialog.title = qsTr("No Matching Files Found")
+        alertDialog.text = qsTr("No %1 files were found in the selected folder or dropped items.").arg(extensionLabel)
+        alertDialog.open()
     }
 
     // Standalone Log Window instance
@@ -266,6 +310,13 @@ ApplicationWindow {
                 topPadding: 6
                 bottomPadding: 6
             }
+            TabButton {
+                text: qsTr("Material")
+                font.pixelSize: 13
+                implicitHeight: 25
+                topPadding: 6
+                bottomPadding: 6
+            }
         }
 
         // Center Content Stack
@@ -307,6 +358,8 @@ ApplicationWindow {
                 }
                 onRequestBrowseS2: s2FolderDialog.open()
                 onRequestBrowseMdl: mdlFileDialog.open()
+                onRequestBrowseMdlFolder: mdlFolderDialog.open()
+                onEmptyFolderEncountered: window.showEmptyFolderAlert(".mdl")
                 onRequestValidateS1: window.confirmAndValidateS1()
                 onRequestValidateS2: window.confirmAndValidateS2()
             }
@@ -325,6 +378,28 @@ ApplicationWindow {
                 }
                 onRequestBrowseS2: s2FolderDialog.open()
                 onRequestBrowsePcf: pcfFileDialog.open()
+                onRequestBrowsePcfFolder: pcfFolderDialog.open()
+                onEmptyFolderEncountered: window.showEmptyFolderAlert(".pcf")
+                onRequestValidateS1: window.confirmAndValidateS1()
+                onRequestValidateS2: window.confirmAndValidateS2()
+            }
+
+            MaterialTab {
+                id: materialTab
+                gameViewModel: window.gameViewModel
+                mainController: window.mainController
+
+                onRequestBrowseS1: {
+                    if (window.gameViewModel && (window.gameViewModel.selectedS1Type.toLowerCase() === "custom" || window.gameViewModel.selectedS1Type.toLowerCase() === "other")) {
+                        s1GameInfoDialog.open()
+                    } else {
+                        s1FolderDialog.open()
+                    }
+                }
+                onRequestBrowseS2: s2FolderDialog.open()
+                onRequestBrowseVmt: vmtFileDialog.open()
+                onRequestBrowseVmtFolder: vmtFolderDialog.open()
+                onEmptyFolderEncountered: window.showEmptyFolderAlert(".vmt")
                 onRequestValidateS1: window.confirmAndValidateS1()
                 onRequestValidateS2: window.confirmAndValidateS2()
             }

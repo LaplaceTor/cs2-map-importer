@@ -14,6 +14,7 @@ qt_add_qml_module(cs2importer_qml
         tabs/MapTab.qml
         tabs/ModelTab.qml
         tabs/ParticleTab.qml
+        tabs/MaterialTab.qml
 )
 
 target_link_libraries(cs2importer_qml PUBLIC

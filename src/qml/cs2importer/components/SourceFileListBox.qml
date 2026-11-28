@@ -8,25 +8,50 @@ GroupBox {
     property string titleText: qsTr("FILES")
     property var files: []
     property var allowedExtensions: []
+    property bool allowFolders: false
+    property QtObject pathExpander: null
     property bool enabledState: true
 
     signal addRequested()
+    signal addFolderRequested()
     signal clearRequested()
     signal fileRemoved(int index)
+    signal emptySelectionEncountered()
 
     function addFiles(newFileList) {
         let current = root.files.slice()
+        let seen = {}
+        for (let i = 0; i < current.length; ++i) {
+            seen[current[i].toLowerCase()] = true
+        }
         let changed = false
         for (let i = 0; i < newFileList.length; ++i) {
             let p = newFileList[i]
-            if (p && current.indexOf(p) === -1) {
-                current.push(p)
-                changed = true
+            if (p) {
+                let lower = p.toLowerCase()
+                if (!seen[lower]) {
+                    seen[lower] = true
+                    current.push(p)
+                    changed = true
+                }
             }
         }
         if (changed) {
             root.files = current
         }
+    }
+
+    function addFolder(folderPath) {
+        if (!folderPath || !root.pathExpander) {
+            return 0
+        }
+        let expanded = root.pathExpander.expandSourcePaths([folderPath], root.allowedExtensions)
+        if (expanded && expanded.length > 0) {
+            root.addFiles(expanded)
+            return expanded.length
+        }
+        root.emptySelectionEncountered()
+        return 0
     }
 
     function removeFileAt(index) {
@@ -58,7 +83,7 @@ GroupBox {
         anchors.fill: parent
         spacing: 4
 
-        // Top toolbar: Add & Clear buttons
+        // Top toolbar: Add, optional Folder, & Clear buttons
         RowLayout {
             Layout.fillWidth: true
             spacing: 4
@@ -79,6 +104,25 @@ GroupBox {
                 }
 
                 onClicked: root.addRequested()
+            }
+
+            Button {
+                id: addFolderBtn
+                visible: root.allowFolders
+                text: qsTr("Folder")
+                Layout.fillWidth: true
+                Layout.preferredHeight: 24
+                enabled: root.enabledState
+
+                contentItem: Text {
+                    text: addFolderBtn.text
+                    font.pixelSize: 11
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    color: addFolderBtn.palette.buttonText
+                }
+
+                onClicked: root.addFolderRequested()
             }
 
             Button {
@@ -118,7 +162,7 @@ GroupBox {
 
                 onDropped: function(drop) {
                     if (!drop.hasUrls) return
-                    let droppedPaths = []
+                    let rawPaths = []
                     for (let i = 0; i < drop.urls.length; ++i) {
                         let u = drop.urls[i].toString()
                         let p = ""
@@ -130,7 +174,25 @@ GroupBox {
                             p = u
                         }
                         p = decodeURIComponent(p).replace(/\//g, "\\")
+                        if (p) {
+                            rawPaths.push(p)
+                        }
+                    }
 
+                    if (root.allowFolders && root.pathExpander) {
+                        let expanded = root.pathExpander.expandSourcePaths(rawPaths, root.allowedExtensions)
+                        if (expanded && expanded.length > 0) {
+                            root.addFiles(expanded)
+                        } else if (rawPaths.length > 0) {
+                            root.emptySelectionEncountered()
+                        }
+                        drop.acceptProposedAction()
+                        return
+                    }
+
+                    let droppedPaths = []
+                    for (let i = 0; i < rawPaths.length; ++i) {
+                        let p = rawPaths[i]
                         if (root.allowedExtensions && root.allowedExtensions.length > 0) {
                             let match = false
                             let lower = p.toLowerCase()
@@ -154,7 +216,9 @@ GroupBox {
             Label {
                 anchors.centerIn: parent
                 visible: root.files.length === 0
-                text: qsTr("Drop files here\nor click Add")
+                text: root.allowFolders
+                    ? qsTr("Drop files or folders here\nor click Add / Folder")
+                    : qsTr("Drop files here\nor click Add")
                 font.pixelSize: 11
                 color: root.palette.placeholderText
                 horizontalAlignment: Text.AlignHCenter

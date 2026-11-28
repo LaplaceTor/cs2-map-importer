@@ -1,8 +1,12 @@
 #include <QCoreApplication>
 #include "UI/Controllers/MainController.h"
 #include "UI/ViewModels/LogViewModel.h"
+#include <QDir>
+#include <QDirIterator>
+#include <QFileInfo>
 #include <QGuiApplication>
 #include <QQmlEngine>
+#include <QSet>
 #include <QStyleHints>
 #include <QPointer>
 
@@ -31,12 +35,86 @@ MainController::MainController(UI::ViewModels::LogViewModel* logViewModel, QObje
 MainController::~MainController() {
     cancelAllOperations();
     m_particleImportService.reset();
+    m_materialConvertService.reset();
 }
 
 void MainController::cancelAllOperations() {
     if (m_particleImportService && m_particleImportService->isImporting()) {
         m_particleImportService->cancelCurrentImport();
     }
+    if (m_materialConvertService && m_materialConvertService->isConverting()) {
+        m_materialConvertService->cancelCurrentConversion();
+    }
+}
+
+QStringList MainController::expandSourcePaths(
+    const QStringList& rawPaths,
+    const QStringList& allowedExtensions) const
+{
+    QStringList normalizedExts;
+    normalizedExts.reserve(allowedExtensions.size());
+    for (const QString& ext : allowedExtensions) {
+        const QString trimmed = ext.trimmed().toLower();
+        if (!trimmed.isEmpty()) {
+            normalizedExts.append(trimmed);
+        }
+    }
+
+    auto matchesExtension = [&](const QString& filePath) -> bool {
+        if (normalizedExts.isEmpty()) {
+            return true;
+        }
+        const QString lower = filePath.toLower();
+        for (const QString& ext : normalizedExts) {
+            if (lower.endsWith(ext)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    QStringList result;
+    QSet<QString> seen;
+
+    auto appendIfUnique = [&](const QString& filePath) {
+        const QString nativePath = QDir::toNativeSeparators(QDir::cleanPath(filePath));
+        const QString key = nativePath.toLower();
+        if (!seen.contains(key)) {
+            seen.insert(key);
+            result.append(nativePath);
+        }
+    };
+
+    for (const QString& raw : rawPaths) {
+        const QString trimmed = raw.trimmed();
+        if (trimmed.isEmpty()) {
+            continue;
+        }
+        const QFileInfo fi(trimmed);
+        if (!fi.exists()) {
+            continue;
+        }
+        if (fi.isFile()) {
+            if (matchesExtension(fi.absoluteFilePath())) {
+                appendIfUnique(fi.absoluteFilePath());
+            }
+        } else if (fi.isDir()) {
+            QStringList dirMatches;
+            QDirIterator it(fi.absoluteFilePath(), QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                const QString candidate = it.next();
+                if (matchesExtension(candidate)) {
+                    dirMatches.append(candidate);
+                }
+            }
+            dirMatches.sort(Qt::CaseInsensitive);
+            for (const QString& matched : dirMatches) {
+                appendIfUnique(matched);
+            }
+        }
+    }
+
+    return result;
 }
 
 void MainController::setActiveTab(int tab) {
@@ -182,9 +260,96 @@ void MainController::startParticleImport(
     );
 }
 
+void MainController::startMaterialConversion(
+    const QString& source1GameDir,
+    const QString& cs2BaseDir,
+    const QString& addonName,
+    const QStringList& sourceVmtPaths,
+    const QString& s1GameType,
+    const QString& s1GameInfoDir
+) {
+    if (m_isProcessing) {
+        return;
+    }
+
+    if (m_logViewModel) {
+        m_logViewModel->collapseAll();
+    }
+
+    Application::Material::MaterialConvertRequest request;
+    request.source1GameDir = source1GameDir;
+    request.s1GameInfoDir = s1GameInfoDir;
+    request.cs2BaseDir = cs2BaseDir;
+    request.addonName = addonName;
+    request.gameId = s1GameType;
+    request.sourceVmtPaths = sourceVmtPaths;
+    request.preserveDetailViaComplex = true;
+    request.overwriteNativeAssets = false;
+    request.compileResources = true;
+    request.regularMaterialsOnly = true;
+
+    if (!m_materialConvertService) {
+        const QString warningMsg = QCoreApplication::translate(
+            "MainController",
+            "Material conversion service is not available.");
+        emit materialConversionFailed(warningMsg);
+        emit alertRequested(
+            QCoreApplication::translate("MainController", "Material Conversion Failed"),
+            warningMsg);
+        return;
+    }
+
+    m_isProcessing = true;
+    emit isProcessingChanged();
+
+    QPointer<MainController> self(this);
+    (void)m_materialConvertService->convertMaterialsAsync(
+        request,
+        [self](const Core::Result<Application::Material::MaterialConvertResultDTO>& result) {
+            if (!self) {
+                return;
+            }
+            self->m_isProcessing = false;
+            emit self->isProcessingChanged();
+
+            if (result.isSuccess()) {
+                const auto& data = result.valueOr(Application::Material::MaterialConvertResultDTO{});
+                const bool hasIssues = (data.failedCount > 0 || data.skippedUnsupported > 0);
+                const QString title = hasIssues
+                    ? QCoreApplication::translate("MainController", "Material Conversion Completed with Warnings")
+                    : QCoreApplication::translate("MainController", "Material Conversion Complete");
+                const QString summary = QCoreApplication::translate(
+                    "MainController",
+                    "Converted: %1\nCompiled: %2\nSkipped (native CS2): %3\nSkipped (unsupported): %4\nFailed: %5")
+                    .arg(data.convertedMaterials)
+                    .arg(data.compiledCount)
+                    .arg(data.skippedNative)
+                    .arg(data.skippedUnsupported)
+                    .arg(data.failedCount);
+                emit self->alertRequested(title, summary);
+            } else if (result.isCancelled()) {
+                emit self->alertRequested(
+                    QCoreApplication::translate("MainController", "Conversion Cancelled"),
+                    QCoreApplication::translate("MainController", "Material conversion was cancelled by user."));
+            } else {
+                const QString errMsg = result.message().isEmpty()
+                    ? QCoreApplication::translate("MainController", "An error occurred during material conversion.")
+                    : result.message();
+                emit self->materialConversionFailed(errMsg);
+                emit self->alertRequested(
+                    QCoreApplication::translate("MainController", "Material Conversion Failed"),
+                    errMsg);
+            }
+        }
+    );
+}
+
 void MainController::stopImport() {
     if (m_particleImportService && m_particleImportService->isImporting()) {
         m_particleImportService->cancelCurrentImport();
+    }
+    if (m_materialConvertService && m_materialConvertService->isConverting()) {
+        m_materialConvertService->cancelCurrentConversion();
     }
 }
 

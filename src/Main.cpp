@@ -13,6 +13,7 @@
 #include "Application/Environment/GameEnvironmentService.h"
 #include "Application/Environment/VpkSignatureLeaseService.h"
 #include "Application/Logging/TaskLogService.h"
+#include "Application/Material/MaterialConvertService.h"
 #include "Application/Package/VpkIndexService.h"
 #include "Application/Particle/ParticleImportService.h"
 #include "Core/Logging/ApplicationLogger.h"
@@ -75,9 +76,11 @@ int main(int argc, char *argv[])
 
     auto prereqService = std::make_shared<Application::Common::ImportPrerequisiteService>(leaseService, vpkIndexService);
     auto particleImportService = Application::Particle::ParticleImportService::create(prereqService);
+    auto materialConvertService = Application::Material::MaterialConvertService::create(prereqService);
 
     auto mainController = std::make_unique<UI::Controllers::MainController>(logViewModel.get());
     mainController->setParticleImportService(particleImportService);
+    mainController->setMaterialConvertService(materialConvertService);
 
     logViewModel->attachToLogService(taskLogService.get());
 

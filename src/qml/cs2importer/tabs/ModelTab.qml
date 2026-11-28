@@ -14,11 +14,17 @@ Item {
     signal requestBrowseS1()
     signal requestBrowseS2()
     signal requestBrowseMdl()
+    signal requestBrowseMdlFolder()
     signal requestValidateS1()
     signal requestValidateS2()
+    signal emptyFolderEncountered()
 
     function addFiles(newFiles) {
         sourceFilesBox.addFiles(newFiles)
+    }
+
+    function addFolder(folderPath) {
+        return sourceFilesBox.addFolder(folderPath)
     }
 
     ColumnLayout {
@@ -176,12 +182,16 @@ Item {
                 titleText: qsTr("MODEL FILES")
                 files: root.selectedFiles
                 allowedExtensions: [".mdl"]
+                allowFolders: true
+                pathExpander: root.mainController
                 enabledState: !(root.mainController && root.mainController.isProcessing)
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.preferredWidth: 1
 
                 onAddRequested: root.requestBrowseMdl()
+                onAddFolderRequested: root.requestBrowseMdlFolder()
+                onEmptySelectionEncountered: root.emptyFolderEncountered()
                 onFilesChanged: root.selectedFiles = files
                 onFileRemoved: function(idx) { root.selectedFiles = files }
                 onClearRequested: root.selectedFiles = []
