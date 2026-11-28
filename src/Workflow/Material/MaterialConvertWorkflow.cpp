@@ -1083,7 +1083,10 @@ public:
             return Core::Result<void>::success();
         }
 
-        auto parseRes = Domain::Material::VmtParser::parse(loadedRes.value().bytes, vmtRelPath);
+        auto parseRes = parseVmtWithPatch(loadedRes.value().bytes, vmtRelPath);
+        if (parseRes.isCancelled()) {
+            return Core::Result<void>::cancelled(parseRes.message());
+        }
         if (parseRes.isFailure()) {
             const QString err = QCoreApplication::translate(
                 "MaterialConvertWorkflow",
@@ -1149,7 +1152,10 @@ public:
                     return Core::Result<void>::success();
                 }
 
-                auto parentParseRes = Domain::Material::VmtParser::parse(parentLoadedRes.value().bytes, vmtRelPath);
+                auto parentParseRes = parseVmtWithPatch(parentLoadedRes.value().bytes, parentVmtRel);
+                if (parentParseRes.isCancelled()) {
+                    return Core::Result<void>::cancelled(parentParseRes.message());
+                }
                 if (parentParseRes.isFailure()) {
                     const QString err = QCoreApplication::translate(
                         "MaterialConvertWorkflow",
@@ -1363,7 +1369,10 @@ public:
             return Core::Result<void>::success();
         }
 
-        auto parseRes = Domain::Material::VmtParser::parse(loadedRes.value().bytes, vmtRelPath);
+        auto parseRes = parseVmtWithPatch(loadedRes.value().bytes, vmtRelPath);
+        if (parseRes.isCancelled()) {
+            return Core::Result<void>::cancelled(parseRes.message());
+        }
         if (parseRes.isFailure()) {
             const QString err = QCoreApplication::translate(
                 "MaterialConvertWorkflow",
@@ -1438,7 +1447,10 @@ public:
                 continue;
             }
 
-            auto parseRes = Domain::Material::VmtParser::parse(vmtLoadedRes.value().bytes, faceVmtRel);
+            auto parseRes = parseVmtWithPatch(vmtLoadedRes.value().bytes, faceVmtRel);
+            if (parseRes.isCancelled()) {
+                return Core::Result<void>::cancelled(parseRes.message());
+            }
             if (parseRes.isFailure()) {
                 const QString warn = QCoreApplication::translate(
                     "MaterialConvertWorkflow",
@@ -1596,6 +1608,87 @@ public:
     const QStringList& compilableFiles() const noexcept { return m_compilableFiles; }
 
 private:
+    struct CachedVmtSource {
+        Domain::Asset::AssetMatchKind kind = Domain::Asset::AssetMatchKind::NotFound;
+        QByteArray bytes;
+        Core::Error::ErrorCode errorCode = Core::Error::ErrorCode::Success;
+        QString errorMessage;
+        QString errorDetails;
+    };
+
+    Core::Result<QByteArray> resolvePatchInclude(const QString& normalizedVmtPath)
+    {
+        if (m_context.isCancelled()) {
+            return Core::Result<QByteArray>::cancelled(
+                QCoreApplication::translate("MaterialConvertWorkflow", "Material conversion was cancelled"));
+        }
+
+        const auto cachedIt = m_vmtIncludeCache.constFind(normalizedVmtPath);
+        if (cachedIt != m_vmtIncludeCache.constEnd()) {
+            const CachedVmtSource& cached = cachedIt.value();
+            if (cached.errorCode != Core::Error::ErrorCode::Success) {
+                return Core::Result<QByteArray>::failure(
+                    cached.errorCode,
+                    cached.errorMessage,
+                    cached.errorDetails);
+            }
+            if (cached.kind == Domain::Asset::AssetMatchKind::NotFound) {
+                return Core::Result<QByteArray>::failure(
+                    Core::Error::ErrorCode::FileNotFound,
+                    QCoreApplication::translate(
+                        "MaterialConvertWorkflow",
+                        "Included parent VMT not found: %1").arg(normalizedVmtPath),
+                    normalizedVmtPath);
+            }
+            return Core::Result<QByteArray>::success(cached.bytes);
+        }
+
+        // Bypass NativeCs2 skip for Patch parents so custom child materials can inherit stock bases.
+        auto loadedRes = locateAndReadAsset(normalizedVmtPath, /*checkCs2Native=*/false);
+        if (loadedRes.isCancelled()) {
+            return Core::Result<QByteArray>::cancelled(loadedRes.message());
+        }
+
+        CachedVmtSource entry;
+        if (loadedRes.isFailure()) {
+            entry.errorCode = loadedRes.errorCode();
+            entry.errorMessage = loadedRes.message();
+            entry.errorDetails = loadedRes.details();
+            m_vmtIncludeCache.insert(normalizedVmtPath, entry);
+            return Core::Result<QByteArray>::failure(
+                entry.errorCode,
+                entry.errorMessage,
+                entry.errorDetails);
+        }
+
+        entry.kind = loadedRes.value().kind;
+        if (entry.kind == Domain::Asset::AssetMatchKind::NotFound) {
+            m_vmtIncludeCache.insert(normalizedVmtPath, entry);
+            return Core::Result<QByteArray>::failure(
+                Core::Error::ErrorCode::FileNotFound,
+                QCoreApplication::translate(
+                    "MaterialConvertWorkflow",
+                    "Included parent VMT not found: %1").arg(normalizedVmtPath),
+                normalizedVmtPath);
+        }
+
+        entry.bytes = std::move(loadedRes.value().bytes);
+        m_vmtIncludeCache.insert(normalizedVmtPath, entry);
+        return Core::Result<QByteArray>::success(entry.bytes);
+    }
+
+    Core::Result<Domain::Material::VmtMaterial> parseVmtWithPatch(
+        const QByteArray& bytes,
+        const QString& vmtRelPath)
+    {
+        return Domain::Material::VmtParser::parse(
+            bytes,
+            vmtRelPath,
+            [this](const QString& normalizedIncludePath) {
+                return resolvePatchInclude(normalizedIncludePath);
+            });
+    }
+
     void recordGeneratedFile(const QString& fullPath, bool isNewlyCreated)
     {
         if (!m_generatedFileSet.contains(fullPath)) {
@@ -1621,6 +1714,7 @@ private:
     const Common::ImportContext& m_context;
     MaterialConvertResult& m_result;
 
+    QHash<QString, CachedVmtSource> m_vmtIncludeCache;
     QHash<QString, Domain::Material::VtfProbeInfo> m_vtfProbeCache;
     QHash<QString, QString> m_exportedTextureCache;
     QHash<QString, CachedAtlasExport> m_exportedAtlasCache;

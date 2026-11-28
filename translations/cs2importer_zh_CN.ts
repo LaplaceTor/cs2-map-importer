@@ -2664,15 +2664,16 @@ Do you want to proceed?</source>
         <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="695"/>
         <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="909"/>
         <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1045"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1229"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1325"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1385"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1422"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1643"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1711"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1729"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1747"/>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1763"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1235"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1331"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1394"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1431"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1623"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1737"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1805"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1823"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1841"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1857"/>
         <source>Material conversion was cancelled</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2727,142 +2728,148 @@ Do you want to proceed?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1088"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1091"/>
         <source>Failed to parse VMT &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1126"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1129"/>
         <source>Subrect &apos;%1&apos; has invalid or cyclic $material reference: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1142"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1145"/>
         <source>Subrect &apos;%1&apos; parent material not found: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1154"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1160"/>
         <source>Failed to parse parent VMT &apos;%1&apos; for subrect &apos;%2&apos;: %3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1248"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1254"/>
         <source>Failed to export animated atlas &apos;%1&apos; (role &apos;%2&apos;) for &apos;%3&apos;: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1276"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1282"/>
         <source>Failed to export texture &apos;%1&apos; (role &apos;%2&apos;) for &apos;%3&apos;: %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1295"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1301"/>
         <source>Failed to build .vmat for &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1307"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1313"/>
         <source>Failed to write .vmat &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1330"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1336"/>
         <source>Empty explicit sprite VMT path specified</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1343"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1349"/>
         <source>Failed to read sprite VMT &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1357"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1363"/>
         <source>Explicit sprite VMT not found: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1368"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1377"/>
         <source>Failed to parse sprite VMT &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1390"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1399"/>
         <source>Empty skybox name specified</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1433"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1442"/>
         <source>Skybox &apos;%1&apos; is missing face VMT: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1443"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1455"/>
         <source>Failed to parse skybox face VMT &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1530"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1542"/>
         <source>Failed to decode any texture for skybox face &apos;%1&apos;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1542"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1554"/>
         <source>No valid skybox faces were found for skybox &apos;%1&apos;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1559"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1571"/>
         <source>Failed to build skybox cubemap &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1570"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1582"/>
         <source>Failed to write skybox texture &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1581"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1593"/>
         <source>Failed to write skybox .vmat &apos;%1&apos;: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1651"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1638"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1669"/>
+        <source>Included parent VMT not found: %1</source>
+        <translation>未找到引用的父级 VMT：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1745"/>
         <source>Destination content directory is empty</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1657"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1751"/>
         <source>CS2 base directory is required when compiling resources</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1666"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1760"/>
         <source>No materials, sprites, or skyboxes were specified for conversion</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1699"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1793"/>
         <source>Starting material conversion (%1 material(s), %2 sprite(s), %3 skybox(es))</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1773"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1867"/>
         <source>Compiling %1 generated material/texture resource(s)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1810"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1904"/>
         <source>Resource compilation failed: %1</source>
         <translation type="unfinished">资源编译失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1826"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1920"/>
         <source>Material conversion completed: %1 material(s), %2 sprite(s), %3 skybox(es), %4 skipped native, %5 skipped unsupported, %6 failed, %7 compiled</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1839"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1933"/>
         <source>Material conversion completed</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3051,8 +3058,8 @@ Do you want to proceed?</source>
     </message>
     <message>
         <location filename="../src/Domain/Material/MaterialTranslator.cpp" line="722"/>
-        <source>Patch VMT inheritance is not yet supported; skipping material.</source>
-        <translation type="unfinished"></translation>
+        <source>Unresolved Patch VMT requires include flattening before translation; skipping raw patch.</source>
+        <translation>未展平的 Patch VMT 需先解析 include 继承链才能转换；已跳过原始 Patch。</translation>
     </message>
     <message>
         <location filename="../src/Domain/Material/MaterialTranslator.cpp" line="729"/>
@@ -4804,19 +4811,54 @@ or click Add</source>
 <context>
     <name>VmtParser</name>
     <message>
-        <location filename="../src/Domain/Material/VmtParser.cpp" line="279"/>
+        <location filename="../src/Domain/Material/VmtParser.cpp" line="186"/>
         <source>Failed to parse VMT KeyValues syntax</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VmtParser.cpp" line="294"/>
+        <location filename="../src/Domain/Material/VmtParser.cpp" line="201"/>
         <source>VMT content does not contain a root shader section</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VmtParser.cpp" line="305"/>
-        <source>Patch shader is not recursively resolved in this phase</source>
-        <translation type="unfinished"></translation>
+        <location filename="../src/Domain/Material/VmtParser.cpp" line="222"/>
+        <source>Patch VMT is missing a required &apos;include&apos; directive</source>
+        <translation>Patch VMT 缺少必需的 include 指令</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VmtParser.cpp" line="233"/>
+        <source>Patch VMT contains an invalid &apos;include&apos; path: %1</source>
+        <translation>Patch VMT 包含无效的 include 路径：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VmtParser.cpp" line="270"/>
+        <source>Cyclic Patch VMT include detected</source>
+        <translation>检测到 Patch VMT 循环引用</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VmtParser.cpp" line="279"/>
+        <source>Patch VMT include depth exceeds maximum limit (%1)</source>
+        <translation>Patch VMT 继承深度超过最大限制（%1）</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VmtParser.cpp" line="297"/>
+        <source>Failed to load included parent VMT &apos;%1&apos;</source>
+        <translation>加载引用的父级 VMT 失败：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VmtParser.cpp" line="331"/>
+        <source>Ignoring non-standard top-level parameter &apos;%1&apos; in Patch VMT</source>
+        <translation>已忽略 Patch VMT 中的非标准顶层参数“%1”</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VmtParser.cpp" line="348"/>
+        <source>Ignoring unknown section &apos;%1&apos; in Patch VMT</source>
+        <translation>已忽略 Patch VMT 中的未知子块“%1”</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VmtParser.cpp" line="365"/>
+        <source>Patch shader requires an include resolver and was not flattened</source>
+        <translation>Patch 着色器需要提供 include 解析回调，当前未展平</translation>
     </message>
 </context>
 <context>
