@@ -251,8 +251,42 @@ public:
 
     Core::Result<LoadedAsset> locateAndReadAsset(const QString& relativePath, bool checkCs2Native)
     {
+        QString normalizedKey = relativePath.trimmed().toLower();
+        normalizedKey.replace(u'\\', u'/');
+        while (normalizedKey.startsWith(u'/')) {
+            normalizedKey.remove(0, 1);
+        }
+
         const Domain::Package::VpkIndex* effectiveCs2Index =
             (checkCs2Native && !m_options.overwriteNativeAssets) ? m_options.cs2Index.get() : nullptr;
+
+        if (effectiveCs2Index && effectiveCs2Index->hasCs2NativeAsset(normalizedKey)) {
+            return Core::Result<LoadedAsset>::success(LoadedAsset{Domain::Asset::AssetMatchKind::NativeCs2, {}});
+        }
+
+        auto readLoosePath = [](const Core::Path::FilesystemPath& filePath) -> Core::Result<LoadedAsset> {
+            Core::Error::ExecutionContext readCtx{
+                .stage = QStringLiteral("Reading loose asset"),
+                .resourcePath = filePath.toString()
+            };
+            auto bytesRes = Core::Error::ExecutionGuard::guard([&]() -> Core::Result<QByteArray> {
+                return Core::Result<QByteArray>::success(
+                    Core::FileSystem::FileSystem::readAll(filePath.toString()));
+            }, readCtx);
+            if (bytesRes.isCancelled()) {
+                return Core::Result<LoadedAsset>::cancelled(bytesRes.message());
+            }
+            if (bytesRes.isFailure()) {
+                return Core::Result<LoadedAsset>::failure(bytesRes.error(), bytesRes.message());
+            }
+            return Core::Result<LoadedAsset>::success(
+                LoadedAsset{Domain::Asset::AssetMatchKind::LooseFile, std::move(bytesRes.value())});
+        };
+
+        if (const auto overrideIt = m_options.directAssetOverrides.constFind(normalizedKey);
+            overrideIt != m_options.directAssetOverrides.constEnd() && overrideIt.value().exists()) {
+            return readLoosePath(overrideIt.value());
+        }
 
         auto locateRes = Domain::Asset::AssetLocateStrategy::locate(
             relativePath,
@@ -270,6 +304,20 @@ public:
         }
 
         const auto& outcome = locateRes.value();
+        if (outcome.kind == Domain::Asset::AssetMatchKind::NotFound
+            && normalizedKey.startsWith(QStringLiteral("materials/"))
+            && !m_options.virtualMaterialRoots.empty()) {
+            const QString subRel = normalizedKey.mid(10);
+            if (!subRel.isEmpty()) {
+                for (const auto& vRoot : m_options.virtualMaterialRoots) {
+                    const auto resolvedOpt = vRoot.resolveBelow(subRel);
+                    if (resolvedOpt.has_value() && resolvedOpt->exists()) {
+                        return readLoosePath(*resolvedOpt);
+                    }
+                }
+            }
+        }
+
         if (outcome.kind == Domain::Asset::AssetMatchKind::NativeCs2
             || outcome.kind == Domain::Asset::AssetMatchKind::NotFound
             || !outcome.location.has_value()) {
@@ -278,21 +326,7 @@ public:
 
         const auto& loc = *outcome.location;
         if (!loc.isInsidePack) {
-            Core::Error::ExecutionContext readCtx{
-                .stage = QStringLiteral("Reading loose asset"),
-                .resourcePath = loc.looseFilePath.toString()
-            };
-            auto bytesRes = Core::Error::ExecutionGuard::guard([&]() -> Core::Result<QByteArray> {
-                return Core::Result<QByteArray>::success(
-                    Core::FileSystem::FileSystem::readAll(loc.looseFilePath.toString()));
-            }, readCtx);
-            if (bytesRes.isCancelled()) {
-                return Core::Result<LoadedAsset>::cancelled(bytesRes.message());
-            }
-            if (bytesRes.isFailure()) {
-                return Core::Result<LoadedAsset>::failure(bytesRes.error(), bytesRes.message());
-            }
-            return Core::Result<LoadedAsset>::success(LoadedAsset{outcome.kind, std::move(bytesRes.value())});
+            return readLoosePath(loc.looseFilePath);
         }
 
         auto archiveRes = m_pool.getOrOpen(loc.sourceTargetPath, m_context.token());
@@ -1173,6 +1207,24 @@ public:
             }
         }
 
+        // Regular-materials-only filter (e.g., Material Tab): reject Skybox/Sprite/SpriteCard after Patch/Subrect expansion
+        if (m_options.regularMaterialsOnly) {
+            const QString& shader = effectiveVmt.normalizedShaderName;
+            if (vmtRelPath.startsWith(QStringLiteral("materials/skybox/"))
+                || shader == QStringLiteral("sky")
+                || shader == QStringLiteral("sprite")
+                || shader == QStringLiteral("spritecard")) {
+                const QString warn = QCoreApplication::translate(
+                    "MaterialConvertWorkflow",
+                    "Skipping '%1': Skybox, Sprite, and SpriteCard materials are not supported in regular material conversion")
+                    .arg(vmtRelPath);
+                m_result.warnings.append(warn);
+                m_result.skippedUnsupported += 1;
+                m_context.warning(warn);
+                return Core::Result<void>::success();
+            }
+        }
+
         // Probe referenced VTF headers and alpha metadata
         QHash<QString, Domain::Material::VtfProbeInfo> vtfProbes;
         const QString baseVtf = effectiveVmt.normalizedTexturePath(QStringLiteral("$basetexture"));
@@ -1208,6 +1260,18 @@ public:
 
         if (plan.targetShader == Domain::Material::TargetShader::Skip) {
             m_result.skippedUnsupported += 1;
+            return Core::Result<void>::success();
+        }
+        if (m_options.regularMaterialsOnly
+            && (plan.targetShader == Domain::Material::TargetShader::ExplicitVtexOnly
+                || plan.targetShader == Domain::Material::TargetShader::Sky)) {
+            const QString warn = QCoreApplication::translate(
+                "MaterialConvertWorkflow",
+                "Skipping '%1': Skybox, Sprite, and SpriteCard materials are not supported in regular material conversion")
+                .arg(vmtRelPath);
+            m_result.warnings.append(warn);
+            m_result.skippedUnsupported += 1;
+            m_context.warning(warn);
             return Core::Result<void>::success();
         }
         if (plan.targetShader == Domain::Material::TargetShader::ExplicitVtexOnly) {
@@ -1751,9 +1815,9 @@ Core::Result<MaterialConvertResult> MaterialConvertWorkflow::execute(
             QCoreApplication::translate("MaterialConvertWorkflow", "CS2 base directory is required when compiling resources"));
     }
 
-    const int totalRequested = options.materialRelativePaths.size()
-        + options.explicitSpriteVmtPaths.size()
-        + options.skyboxNames.size();
+    const int spriteCount = options.regularMaterialsOnly ? 0 : options.explicitSpriteVmtPaths.size();
+    const int skyboxCount = options.regularMaterialsOnly ? 0 : options.skyboxNames.size();
+    const int totalRequested = options.materialRelativePaths.size() + spriteCount + skyboxCount;
     if (totalRequested == 0) {
         return Core::Result<MaterialConvertResult>::failure(
             Core::Error::ErrorCode::InvalidArgument,
@@ -1794,8 +1858,8 @@ Core::Result<MaterialConvertResult> MaterialConvertWorkflow::execute(
         "MaterialConvertWorkflow",
         "Starting material conversion (%1 material(s), %2 sprite(s), %3 skybox(es))")
         .arg(options.materialRelativePaths.size())
-        .arg(options.explicitSpriteVmtPaths.size())
-        .arg(options.skyboxNames.size()));
+        .arg(spriteCount)
+        .arg(skyboxCount));
 
     // Track A: Regular VMT materials
     for (const QString& vmtPath : options.materialRelativePaths) {
@@ -1816,39 +1880,43 @@ Core::Result<MaterialConvertResult> MaterialConvertWorkflow::execute(
     }
 
     // Track B: Explicit Sprite VMTs -> .vtex (+ .mks when multi-frame or sheet)
-    for (const QString& spriteVmtPath : options.explicitSpriteVmtPaths) {
-        if (context.isCancelled()) {
-            rollbackIfEnabled();
-            return Core::Result<MaterialConvertResult>::cancelled(
-                QCoreApplication::translate("MaterialConvertWorkflow", "Material conversion was cancelled"));
-        }
+    if (!options.regularMaterialsOnly) {
+        for (const QString& spriteVmtPath : options.explicitSpriteVmtPaths) {
+            if (context.isCancelled()) {
+                rollbackIfEnabled();
+                return Core::Result<MaterialConvertResult>::cancelled(
+                    QCoreApplication::translate("MaterialConvertWorkflow", "Material conversion was cancelled"));
+            }
 
-        auto itemRes = session.processExplicitSprite(spriteVmtPath);
-        if (itemRes.isCancelled()) {
-            rollbackIfEnabled();
-            return Core::Result<MaterialConvertResult>::cancelled(itemRes.message());
-        }
+            auto itemRes = session.processExplicitSprite(spriteVmtPath);
+            if (itemRes.isCancelled()) {
+                rollbackIfEnabled();
+                return Core::Result<MaterialConvertResult>::cancelled(itemRes.message());
+            }
 
-        ++processedCount;
-        context.updateProgress(conversionWeight * (static_cast<double>(processedCount) / totalRequested));
+            ++processedCount;
+            context.updateProgress(conversionWeight * (static_cast<double>(processedCount) / totalRequested));
+        }
     }
 
     // Track C: Skyboxes -> 4x3 .png + sky.vfx .vmat
-    for (const QString& skyboxName : options.skyboxNames) {
-        if (context.isCancelled()) {
-            rollbackIfEnabled();
-            return Core::Result<MaterialConvertResult>::cancelled(
-                QCoreApplication::translate("MaterialConvertWorkflow", "Material conversion was cancelled"));
-        }
+    if (!options.regularMaterialsOnly) {
+        for (const QString& skyboxName : options.skyboxNames) {
+            if (context.isCancelled()) {
+                rollbackIfEnabled();
+                return Core::Result<MaterialConvertResult>::cancelled(
+                    QCoreApplication::translate("MaterialConvertWorkflow", "Material conversion was cancelled"));
+            }
 
-        auto itemRes = session.processSkybox(skyboxName);
-        if (itemRes.isCancelled()) {
-            rollbackIfEnabled();
-            return Core::Result<MaterialConvertResult>::cancelled(itemRes.message());
-        }
+            auto itemRes = session.processSkybox(skyboxName);
+            if (itemRes.isCancelled()) {
+                rollbackIfEnabled();
+                return Core::Result<MaterialConvertResult>::cancelled(itemRes.message());
+            }
 
-        ++processedCount;
-        context.updateProgress(conversionWeight * (static_cast<double>(processedCount) / totalRequested));
+            ++processedCount;
+            context.updateProgress(conversionWeight * (static_cast<double>(processedCount) / totalRequested));
+        }
     }
 
     if (context.isCancelled()) {

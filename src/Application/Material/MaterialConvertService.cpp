@@ -1,8 +1,11 @@
 #include "Application/Material/MaterialConvertService.h"
 
+#include <QDir>
+#include <QDirIterator>
 #include <QFileInfo>
 #include <QMetaObject>
 #include <QScopeGuard>
+#include <QSet>
 #include <QThreadPool>
 
 #include "Application/Async/AsyncTaskRunner.h"
@@ -33,6 +36,25 @@ QStringList cleanRelativeList(const QStringList& rawItems)
     return cleaned;
 }
 
+QStringList cleanLocalPathList(const QStringList& rawItems)
+{
+    QStringList cleaned;
+    QSet<QString> seen;
+    cleaned.reserve(rawItems.size());
+    for (const QString& item : rawItems) {
+        const QString path = Environment::GameEnvironmentService::cleanPath(item);
+        if (path.isEmpty()) {
+            continue;
+        }
+        const QString key = path.toLower();
+        if (!seen.contains(key)) {
+            seen.insert(key);
+            cleaned.append(path);
+        }
+    }
+    return cleaned;
+}
+
 MaterialConvertRequest sanitizeRequest(const MaterialConvertRequest& request)
 {
     MaterialConvertRequest cleaned = request;
@@ -41,10 +63,143 @@ MaterialConvertRequest sanitizeRequest(const MaterialConvertRequest& request)
     cleaned.s1GameInfoDir = Environment::GameEnvironmentService::cleanPath(request.s1GameInfoDir);
     cleaned.addonName = request.addonName.trimmed();
     cleaned.gameId = request.gameId.trimmed();
+    cleaned.sourceVmtPaths = cleanLocalPathList(request.sourceVmtPaths);
     cleaned.materialRelativePaths = cleanRelativeList(request.materialRelativePaths);
     cleaned.explicitSpriteVmtPaths = cleanRelativeList(request.explicitSpriteVmtPaths);
     cleaned.skyboxNames = cleanRelativeList(request.skyboxNames);
     return cleaned;
+}
+
+void resolveLocalVmtInputs(
+    const QStringList& sourceVmtPaths,
+    Workflow::Material::MaterialConvertOptions& options,
+    const Workflow::Common::ImportContext& context)
+{
+    if (sourceVmtPaths.isEmpty()) {
+        return;
+    }
+
+    QStringList expandedFiles;
+    QSet<QString> seenFiles;
+    auto pushFile = [&](const QString& filePath) {
+        const QString cleaned = QDir::cleanPath(filePath);
+        const QString lower = cleaned.toLower();
+        if (!lower.endsWith(QStringLiteral(".vmt"))) {
+            return;
+        }
+        if (!seenFiles.contains(lower)) {
+            seenFiles.insert(lower);
+            expandedFiles.append(cleaned);
+        }
+    };
+
+    for (const QString& rawPath : sourceVmtPaths) {
+        const QFileInfo fi(rawPath);
+        if (!fi.exists()) {
+            context.warning(MaterialConvertService::tr("Source VMT path does not exist: %1").arg(rawPath));
+            continue;
+        }
+        if (fi.isDir()) {
+            QStringList dirMatches;
+            QDirIterator it(fi.absoluteFilePath(), QDir::Files, QDirIterator::Subdirectories);
+            while (it.hasNext()) {
+                const QString f = it.next();
+                if (f.endsWith(QStringLiteral(".vmt"), Qt::CaseInsensitive)) {
+                    dirMatches.append(f);
+                }
+            }
+            dirMatches.sort(Qt::CaseInsensitive);
+            for (const QString& f : dirMatches) {
+                pushFile(f);
+            }
+        } else if (fi.isFile()) {
+            if (!fi.fileName().endsWith(QStringLiteral(".vmt"), Qt::CaseInsensitive)) {
+                context.warning(MaterialConvertService::tr("Ignoring non-VMT source file: %1").arg(rawPath));
+                continue;
+            }
+            pushFile(fi.absoluteFilePath());
+        }
+    }
+
+    std::vector<Domain::Game::SearchTarget> highPriorityTargets;
+    QSet<QString> seenHighPriorityRoots;
+    QSet<QString> seenVirtualRoots;
+    QSet<QString> seenMaterialRelPaths;
+    for (const QString& existing : options.materialRelativePaths) {
+        seenMaterialRelPaths.insert(existing.trimmed().toLower());
+    }
+
+    for (const QString& absPath : expandedFiles) {
+        QString slashPath = absPath;
+        slashPath.replace(u'\\', u'/');
+        const QStringList parts = slashPath.split(u'/', Qt::KeepEmptyParts);
+
+        int materialsSegIdx = -1;
+        for (int i = parts.size() - 2; i >= 0; --i) {
+            if (parts.at(i).compare(QStringLiteral("materials"), Qt::CaseInsensitive) == 0) {
+                materialsSegIdx = i;
+                break;
+            }
+        }
+
+        if (materialsSegIdx > 0) {
+            const QString searchRoot = parts.mid(0, materialsSegIdx).join(u'/');
+            const QString relPath = parts.mid(materialsSegIdx).join(u'/').toLower();
+            const QString rootKey = searchRoot.toLower();
+            if (!searchRoot.isEmpty() && !seenHighPriorityRoots.contains(rootKey)) {
+                seenHighPriorityRoots.insert(rootKey);
+                highPriorityTargets.push_back(
+                    Domain::Game::SearchTarget::makeDirectory(Core::Path::FilesystemPath(searchRoot)));
+            }
+            if (!seenMaterialRelPaths.contains(relPath)) {
+                seenMaterialRelPaths.insert(relPath);
+                options.materialRelativePaths.append(relPath);
+            }
+        } else {
+            // Fallback for loose VMTs located outside any "materials/" directory hierarchy.
+            const QFileInfo fi(absPath);
+            const QString parentDir = fi.absolutePath();
+            const QString parentKey = parentDir.toLower();
+            if (!parentDir.isEmpty() && !seenVirtualRoots.contains(parentKey)) {
+                seenVirtualRoots.insert(parentKey);
+                options.virtualMaterialRoots.emplace_back(parentDir);
+            }
+
+            const QString lowerName = fi.fileName().toLower();
+            QString relPath = QStringLiteral("materials/%1").arg(lowerName);
+            if (options.directAssetOverrides.contains(relPath)
+                && options.directAssetOverrides.value(relPath).toString().compare(absPath, Qt::CaseInsensitive) != 0) {
+                const QString folderTag = QFileInfo(parentDir).fileName().toLower();
+                const QString basePrefix = folderTag.isEmpty()
+                    ? QStringLiteral("materials")
+                    : QStringLiteral("materials/%1").arg(folderTag);
+                relPath = QStringLiteral("%1/%2").arg(basePrefix, lowerName);
+                int suffix = 1;
+                while (options.directAssetOverrides.contains(relPath)) {
+                    relPath = QStringLiteral("%1/%2_%3.vmt")
+                                  .arg(basePrefix, fi.completeBaseName().toLower())
+                                  .arg(suffix++);
+                }
+            }
+
+            options.directAssetOverrides.insert(relPath, Core::Path::FilesystemPath(absPath));
+            if (!seenMaterialRelPaths.contains(relPath)) {
+                seenMaterialRelPaths.insert(relPath);
+                options.materialRelativePaths.append(relPath);
+            }
+            context.warning(
+                MaterialConvertService::tr(
+                    "VMT '%1' is outside a 'materials/' folder; mapping as '%2' and treating its directory as a virtual materials root")
+                    .arg(absPath, relPath));
+        }
+    }
+
+    if (!highPriorityTargets.empty()) {
+        options.searchTargets.insert(
+            options.searchTargets.begin(),
+            std::make_move_iterator(highPriorityTargets.begin()),
+            std::make_move_iterator(highPriorityTargets.end()));
+    }
 }
 
 std::vector<Domain::Game::SearchTarget> resolveSearchTargets(const Common::ValidatedBaseImport& base)
@@ -116,13 +271,6 @@ Core::Result<MaterialConvertResultDTO> executeConversionInternal(
             MaterialConvertService::tr("Invalid target addon name: %1").arg(base.addonName));
     }
 
-    const int totalItems = request.materialRelativePaths.size()
-        + request.explicitSpriteVmtPaths.size()
-        + request.skyboxNames.size();
-    context.info(MaterialConvertService::tr("Starting material conversion for addon '%1' (%2 item(s))")
-                     .arg(base.addonName)
-                     .arg(totalItems));
-
     Workflow::Material::MaterialConvertOptions options;
     options.searchTargets = resolveSearchTargets(base);
     options.destContentDir = *resolvedContentDir;
@@ -131,14 +279,32 @@ Core::Result<MaterialConvertResultDTO> executeConversionInternal(
     options.cs2Index = base.cs2Index;
     options.archivePool = nullptr;
     options.materialRelativePaths = request.materialRelativePaths;
-    options.explicitSpriteVmtPaths = request.explicitSpriteVmtPaths;
-    options.skyboxNames = request.skyboxNames;
+    if (!request.regularMaterialsOnly) {
+        options.explicitSpriteVmtPaths = request.explicitSpriteVmtPaths;
+        options.skyboxNames = request.skyboxNames;
+    }
     options.translatePolicy.detailMode = request.preserveDetailViaComplex
         ? Domain::Material::DetailHandlingMode::PreserveViaComplex
         : Domain::Material::DetailHandlingMode::BakeToEnvironment;
     options.overwriteNativeAssets = request.overwriteNativeAssets;
     options.compileResources = request.compileResources;
     options.cleanupOnFailure = true;
+    options.regularMaterialsOnly = request.regularMaterialsOnly;
+
+    resolveLocalVmtInputs(request.sourceVmtPaths, options, context);
+
+    const int totalItems = options.materialRelativePaths.size()
+        + options.explicitSpriteVmtPaths.size()
+        + options.skyboxNames.size();
+    if (totalItems == 0) {
+        return Core::Result<MaterialConvertResultDTO>::failure(
+            Core::Error::ErrorCode::InvalidPath,
+            MaterialConvertService::tr("No valid source VMT files specified"));
+    }
+
+    context.info(MaterialConvertService::tr("Starting material conversion for addon '%1' (%2 item(s))")
+                     .arg(base.addonName)
+                     .arg(totalItems));
 
     Workflow::Material::MaterialConvertWorkflow workflow;
     auto wfResult = workflow.execute(options, context);
@@ -240,15 +406,18 @@ Async::TaskHandle MaterialConvertService::convertMaterialsAsync(
 
     try {
         const MaterialConvertRequest cleanedRequest = sanitizeRequest(request);
-        const int totalItems = cleanedRequest.materialRelativePaths.size()
-            + cleanedRequest.explicitSpriteVmtPaths.size()
-            + cleanedRequest.skyboxNames.size();
+        const int totalItems = cleanedRequest.sourceVmtPaths.size()
+            + cleanedRequest.materialRelativePaths.size()
+            + (cleanedRequest.regularMaterialsOnly ? 0 : cleanedRequest.explicitSpriteVmtPaths.size())
+            + (cleanedRequest.regularMaterialsOnly ? 0 : cleanedRequest.skyboxNames.size());
 
         QString logBaseName = QStringLiteral("materials_batch");
         QString taskName;
         if (totalItems == 1) {
             QString singleItem;
-            if (!cleanedRequest.materialRelativePaths.isEmpty()) {
+            if (!cleanedRequest.sourceVmtPaths.isEmpty()) {
+                singleItem = cleanedRequest.sourceVmtPaths.first();
+            } else if (!cleanedRequest.materialRelativePaths.isEmpty()) {
                 singleItem = cleanedRequest.materialRelativePaths.first();
             } else if (!cleanedRequest.explicitSpriteVmtPaths.isEmpty()) {
                 singleItem = cleanedRequest.explicitSpriteVmtPaths.first();

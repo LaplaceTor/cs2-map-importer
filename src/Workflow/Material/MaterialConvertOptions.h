@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 
+#include <QHash>
 #include <QStringList>
 
 #include "Core/Path/FilesystemPath.h"
@@ -31,10 +32,16 @@ struct MaterialConvertOptions {
     QStringList explicitSpriteVmtPaths;
     QStringList skyboxNames;
 
+    /// Optional direct disk-path overrides keyed by normalized relative path (e.g. "materials/foo.vmt").
+    QHash<QString, Core::Path::FilesystemPath> directAssetOverrides;
+    /// Optional directories treated as virtual "materials/" roots for loose files outside a standard materials/ tree.
+    std::vector<Core::Path::FilesystemPath> virtualMaterialRoots;
+
     Domain::Material::MaterialTranslatePolicy translatePolicy;
     bool overwriteNativeAssets = false;
     bool compileResources = true;
     bool cleanupOnFailure = true;
+    bool regularMaterialsOnly = false;
 };
 
 /**

@@ -11,12 +11,14 @@ namespace Application::Material {
  * @brief User-level request DTO for Source 1 material, sprite, and skybox conversion.
  */
 struct MaterialConvertRequest : public Common::BaseImportRequest {
+    QStringList sourceVmtPaths;
     QStringList materialRelativePaths;
     QStringList explicitSpriteVmtPaths;
     QStringList skyboxNames;
     bool preserveDetailViaComplex = true;
     bool overwriteNativeAssets = false;
     bool compileResources = true;
+    bool regularMaterialsOnly = false;
 
     bool operator==(const MaterialConvertRequest& other) const = default;
 };
