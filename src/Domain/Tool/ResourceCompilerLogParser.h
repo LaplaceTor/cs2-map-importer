@@ -13,6 +13,7 @@ struct ResourceCompilerLogResult {
     int compiledCount = 0;
     int failedCount = 0;
     int skippedCount = 0;
+    QStringList compiledAssetPaths;
     QStringList compiledVpcfCPaths;
     QStringList compileErrors;
     QStringList warnings;

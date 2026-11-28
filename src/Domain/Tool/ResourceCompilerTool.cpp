@@ -166,6 +166,7 @@ Core::Result<ResourceCompilerToolResult> compileInternal(
     toolResult.compiledCount = logResult.compiledCount;
     toolResult.failedCount = logResult.failedCount;
     toolResult.skippedCount = logResult.skippedCount;
+    toolResult.compiledAssetPaths = logResult.compiledAssetPaths;
     toolResult.compiledVpcfCPaths = logResult.compiledVpcfCPaths;
     toolResult.compileErrors = logResult.compileErrors;
     toolResult.rawOutput = logResult.rawOutput;

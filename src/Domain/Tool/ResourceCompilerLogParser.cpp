@@ -57,17 +57,26 @@ ResourceCompilerLogResult ResourceCompilerLogParser::parse(
 
     bool hasOkBanner = false;
     bool hasErrorBanner = false;
-    QSet<QString> seenVpcfCPaths;
+    QSet<QString> seenAssetPaths;
     QSet<QString> seenCompileErrors;
     QSet<QString> seenWarnings;
 
-    auto checkAndAddVpcfC = [&result, &seenVpcfCPaths, &workingDirectory](QStringView rawPath) {
+    auto recordCompiledAsset = [&result, &seenAssetPaths, &workingDirectory](QStringView rawPath) {
+        if (rawPath.isEmpty()) {
+            return;
+        }
         QString resolved = rawPath.toString();
         if (QDir::isRelativePath(resolved) && !workingDirectory.isEmpty()) {
             resolved = QDir(workingDirectory).absoluteFilePath(resolved);
         }
         const QString clean = QDir::cleanPath(resolved);
-        appendUnique(result.compiledVpcfCPaths, seenVpcfCPaths, clean);
+        if (!seenAssetPaths.contains(clean)) {
+            seenAssetPaths.insert(clean);
+            result.compiledAssetPaths.append(clean);
+            if (clean.endsWith(QStringLiteral(".vpcf_c"), Qt::CaseInsensitive)) {
+                result.compiledVpcfCPaths.append(clean);
+            }
+        }
     };
 
     QStringView lastMeaningfulOutLine;
@@ -84,9 +93,7 @@ ResourceCompilerLogResult ResourceCompilerLogParser::parse(
         const auto matchWrote = wroteToRegex.matchView(trimmed);
         if (matchWrote.hasMatch()) {
             const QStringView path = matchWrote.capturedView(1).trimmed();
-            if (path.endsWith(u".vpcf_c", Qt::CaseInsensitive)) {
-                checkAndAddVpcfC(path);
-            }
+            recordCompiledAsset(path);
         }
 
         // Compile error pattern
@@ -149,14 +156,14 @@ ResourceCompilerLogResult ResourceCompilerLogParser::parse(
     }
 
     // Determine success:
-    // If at least one file was compiled to .vpcf_c, or compiledCount > 0, consider it a success (even if some failed).
-    if (!result.compiledVpcfCPaths.isEmpty() || result.compiledCount > 0) {
+    // If at least one asset was compiled, or compiledCount > 0, consider it a success (even if some failed).
+    if (!result.compiledAssetPaths.isEmpty() || result.compiledCount > 0) {
         result.success = true;
     } else if (hasOkBanner) {
         result.success = (result.failedCount == 0 && (result.compiledCount > 0 || result.skippedCount > 0));
     } else {
         // Fallback: no banner, exitCode 0, produced compiled files, no compile errors
-        result.success = (exitCode == 0 && !result.compiledVpcfCPaths.isEmpty() && result.compileErrors.isEmpty());
+        result.success = (exitCode == 0 && !result.compiledAssetPaths.isEmpty() && result.compileErrors.isEmpty());
     }
 
     return result;

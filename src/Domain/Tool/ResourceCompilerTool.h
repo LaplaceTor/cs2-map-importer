@@ -15,7 +15,7 @@ namespace Domain::Tool {
  */
 struct ResourceCompilerOptions {
     Core::Path::FilesystemPath gameDir; // e.g. <cs2Base>/game/csgo
-    QStringList inputFiles;             // list of .vpcf files
+    QStringList inputFiles;             // list of resource files (.vmat, .vtex, .vpcf, etc.)
     bool forceCompile = true;
     bool verbose = true;
     int timeoutMs = 120000;
@@ -30,6 +30,7 @@ struct ResourceCompilerToolResult {
     int compiledCount = 0;
     int failedCount = 0;
     int skippedCount = 0;
+    QStringList compiledAssetPaths;
     QStringList compiledVpcfCPaths;
     QStringList compileErrors;
     QString rawOutput;
