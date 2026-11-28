@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QDir>
 #include <QString>
 #include <QFile>
 #include <QTemporaryFile>
@@ -67,9 +68,22 @@ public:
     /// Creates a new temporary file in the system temp directory backed by QTemporaryFile.
     static TempFile create(const QString& templatePattern = QString()) {
         TempFile tf;
-        tf.m_tempFile = templatePattern.isEmpty()
-            ? std::make_unique<QTemporaryFile>()
-            : std::make_unique<QTemporaryFile>(templatePattern);
+        if (templatePattern.isEmpty()) {
+            tf.m_tempFile = std::make_unique<QTemporaryFile>();
+        } else {
+            QString resolvedPattern = templatePattern;
+            if (QDir::isRelativePath(resolvedPattern)) {
+                const Core::Path::FilesystemPath tempRoot(QDir::tempPath());
+                const auto resolvedOpt = tempRoot.resolveBelow(resolvedPattern);
+                if (!resolvedOpt.has_value()) {
+                    throw Core::Error::Exception(
+                        Core::Error::ErrorCode::InvalidPath,
+                        QStringLiteral("Temporary file template escapes system temp directory: %1").arg(templatePattern));
+                }
+                resolvedPattern = resolvedOpt->toString();
+            }
+            tf.m_tempFile = std::make_unique<QTemporaryFile>(resolvedPattern);
+        }
         if (!tf.m_tempFile->open()) {
             throw Core::Error::Exception(
                 Core::Error::ErrorCode::OperationFailed,
