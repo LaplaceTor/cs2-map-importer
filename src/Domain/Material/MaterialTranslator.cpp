@@ -15,7 +15,7 @@ namespace Domain::Material {
 namespace {
 
 constexpr const char* kDefaultAoTexture = "materials/default/default_ao.tga";
-constexpr const char* kDefaultDetailMask = "materials/default/default_detailmask_tga.vtex";
+constexpr const char* kDefaultDetailMask = "[1.000000 1.000000 1.000000 0.000000]";
 constexpr const char* kMatteRoughnessVec = "[1.000000 1.000000 1.000000 0.000000]";
 constexpr const char* kZeroVec4 = "[0.000000 0.000000 0.000000 0.000000]";
 constexpr const char* kWhiteVec4ZeroW = "[1.000000 1.000000 1.000000 0.000000]";
