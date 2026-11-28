@@ -70,9 +70,11 @@ struct VmtMaterial {
     QString normalizedShaderName;
     QHash<QString, QString> params;
     QVector<VmtProxyEntry> proxies;
+    QStringList patchIncludeChain;
     QStringList warnings;
 
     bool hadProxies() const noexcept { return !proxies.isEmpty(); }
+    bool wasPatched() const noexcept { return !patchIncludeChain.isEmpty(); }
 
     bool hasParam(const QString& key) const;
     QString stringParam(const QString& key, const QString& defaultValue = {}) const;

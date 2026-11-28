@@ -6,6 +6,8 @@
 
 #include <QCoreApplication>
 #include <QRegularExpression>
+#include <QSet>
+#include <QStringList>
 
 #include <cmath>
 #include <utility>
@@ -16,6 +18,7 @@ namespace Domain::Material {
 namespace {
 
 constexpr int kMaxSubblockDepth = 4;
+constexpr int kMaxPatchDepth = 16;
 
 std::vector<QStringView> splitWhitespace(QStringView text) {
     std::vector<QStringView> tokens;
@@ -119,17 +122,25 @@ void extractProxies(const Core::KeyValues::KeyValuesNode& proxiesNode, QVector<V
     }
 }
 
-void mergeModernSubblock(const Core::KeyValues::KeyValuesNode& section, VmtMaterial& material, int depth) {
+void applySubblock(
+    const Core::KeyValues::KeyValuesNode& section,
+    VmtMaterial& material,
+    int depth,
+    bool replaceOnly) {
     if (depth > kMaxSubblockDepth) {
         return;
     }
 
     for (const auto& child : section.children()) {
-        if (child.isProperty()) {
-            const QString key = child.name().trimmed().toLower();
-            if (!key.isEmpty()) {
-                material.params.insert(key, child.value());
-            }
+        if (!child.isProperty()) {
+            continue;
+        }
+        const QString key = child.name().trimmed().toLower();
+        if (key.isEmpty()) {
+            continue;
+        }
+        if (!replaceOnly || material.params.contains(key)) {
+            material.params.insert(key, child.value());
         }
     }
 
@@ -139,11 +150,253 @@ void mergeModernSubblock(const Core::KeyValues::KeyValuesNode& section, VmtMater
         }
         const QString subName = child.name().trimmed().toLower();
         if (subName == QLatin1String("proxies")) {
-            extractProxies(child, material.proxies);
+            if (replaceOnly) {
+                if (!material.proxies.isEmpty()) {
+                    material.proxies.clear();
+                    extractProxies(child, material.proxies);
+                }
+            } else {
+                extractProxies(child, material.proxies);
+            }
         } else if (!isObsoleteSubblock(subName) && isModernDx9Subblock(subName, material.normalizedShaderName)) {
-            mergeModernSubblock(child, material, depth + 1);
+            applySubblock(child, material, depth + 1, replaceOnly);
         }
     }
+}
+
+Core::Result<VmtMaterial> parseInternal(
+    const QByteArray& utf8Content,
+    const QString& relativeVmtPath,
+    const VmtIncludeResolver& includeResolver,
+    QSet<QString>& visitedPaths,
+    QStringList& activeChain,
+    int depth) {
+    Core::KeyValues::KeyValuesReader reader(utf8Content, Core::KeyValues::KeyValuesReadOptions::vmt());
+    Core::KeyValues::KeyValuesNode docRoot;
+    const auto readRes = reader.readDocument(docRoot);
+    if (!readRes.isSuccess()) {
+        QString details = readRes.details();
+        if (!relativeVmtPath.isEmpty()) {
+            details = details.isEmpty()
+                ? relativeVmtPath
+                : QStringLiteral("%1: %2").arg(relativeVmtPath, details);
+        }
+        return Core::Result<VmtMaterial>::failure(
+            readRes.errorCode(),
+            QCoreApplication::translate("VmtParser", "Failed to parse VMT KeyValues syntax"),
+            details);
+    }
+
+    const Core::KeyValues::KeyValuesNode* shaderSection = nullptr;
+    for (const auto& child : docRoot.children()) {
+        if (child.isSection()) {
+            shaderSection = &child;
+            break;
+        }
+    }
+
+    if (shaderSection == nullptr || shaderSection->name().trimmed().isEmpty()) {
+        return Core::Result<VmtMaterial>::failure(
+            Core::Error::ErrorCode::InvalidFile,
+            QCoreApplication::translate("VmtParser", "VMT content does not contain a root shader section"),
+            relativeVmtPath);
+    }
+
+    const QString rawShaderName = shaderSection->name().trimmed();
+    const QString normalizedShaderName = VmtParser::normalizeShaderName(rawShaderName);
+
+    if (normalizedShaderName == QLatin1String("patch") && includeResolver) {
+        QString rawInclude;
+        for (const auto& child : shaderSection->children()) {
+            if (child.isProperty() && child.name().trimmed().toLower() == QLatin1String("include")) {
+                const QString candidate = child.value().trimmed();
+                if (!candidate.isEmpty()) {
+                    rawInclude = candidate;
+                }
+            }
+        }
+
+        if (rawInclude.isEmpty()) {
+            return Core::Result<VmtMaterial>::failure(
+                Core::Error::ErrorCode::InvalidFile,
+                QCoreApplication::translate("VmtParser", "Patch VMT is missing a required 'include' directive"),
+                relativeVmtPath);
+        }
+
+        const QString normalizedInclude = VmtParser::normalizeVmtPath(rawInclude);
+        if (normalizedInclude.isEmpty()) {
+            const QString details = relativeVmtPath.isEmpty()
+                ? rawInclude
+                : QStringLiteral("%1 -> %2").arg(relativeVmtPath, rawInclude);
+            return Core::Result<VmtMaterial>::failure(
+                Core::Error::ErrorCode::InvalidPath,
+                QCoreApplication::translate("VmtParser", "Patch VMT contains an invalid 'include' path: %1")
+                    .arg(rawInclude),
+                details);
+        }
+
+        bool insertedSelf = false;
+        QString normalizedSelf;
+        if (depth == 0) {
+            normalizedSelf = VmtParser::normalizeVmtPath(relativeVmtPath);
+            if (!normalizedSelf.isEmpty() && !visitedPaths.contains(normalizedSelf)) {
+                visitedPaths.insert(normalizedSelf);
+                activeChain.append(normalizedSelf);
+                insertedSelf = true;
+            }
+        }
+
+        auto cleanupSelf = [&]() {
+            if (insertedSelf) {
+                activeChain.removeLast();
+                visitedPaths.remove(normalizedSelf);
+            }
+        };
+
+        auto formatChain = [&]() -> QString {
+            QStringList chain = activeChain;
+            if (chain.isEmpty() && !relativeVmtPath.isEmpty()) {
+                chain.append(relativeVmtPath);
+            }
+            chain.append(normalizedInclude);
+            return chain.join(QStringLiteral(" -> "));
+        };
+
+        if (visitedPaths.contains(normalizedInclude)) {
+            const QString chainDetails = formatChain();
+            cleanupSelf();
+            return Core::Result<VmtMaterial>::failure(
+                Core::Error::ErrorCode::InvalidFile,
+                QCoreApplication::translate("VmtParser", "Cyclic Patch VMT include detected"),
+                chainDetails);
+        }
+
+        if (depth >= kMaxPatchDepth) {
+            const QString chainDetails = formatChain();
+            cleanupSelf();
+            return Core::Result<VmtMaterial>::failure(
+                Core::Error::ErrorCode::InvalidFile,
+                QCoreApplication::translate("VmtParser", "Patch VMT include depth exceeds maximum limit (%1)")
+                    .arg(kMaxPatchDepth),
+                chainDetails);
+        }
+
+        auto includeRes = includeResolver(normalizedInclude);
+        if (includeRes.isCancelled()) {
+            cleanupSelf();
+            return Core::Result<VmtMaterial>::cancelled(includeRes.message());
+        }
+        if (includeRes.isFailure()) {
+            QString details = formatChain();
+            if (!includeRes.details().isEmpty()) {
+                details = QStringLiteral("%1 (%2)").arg(details, includeRes.details());
+            }
+            cleanupSelf();
+            return Core::Result<VmtMaterial>::failure(
+                includeRes.errorCode(),
+                QCoreApplication::translate("VmtParser", "Failed to load included parent VMT '%1'")
+                    .arg(normalizedInclude),
+                details);
+        }
+
+        visitedPaths.insert(normalizedInclude);
+        activeChain.append(normalizedInclude);
+        auto parentRes = parseInternal(
+            includeRes.value(),
+            normalizedInclude,
+            includeResolver,
+            visitedPaths,
+            activeChain,
+            depth + 1);
+        activeChain.removeLast();
+        visitedPaths.remove(normalizedInclude);
+        cleanupSelf();
+
+        if (parentRes.isCancelled()) {
+            return Core::Result<VmtMaterial>::cancelled(parentRes.message());
+        }
+        if (parentRes.isFailure()) {
+            return parentRes;
+        }
+
+        VmtMaterial material = std::move(parentRes.value());
+        material.relativePath = relativeVmtPath;
+        material.patchIncludeChain.prepend(normalizedInclude);
+
+        for (const auto& child : shaderSection->children()) {
+            if (child.isProperty()) {
+                const QString key = child.name().trimmed().toLower();
+                if (!key.isEmpty() && key != QLatin1String("include")) {
+                    material.warnings.append(
+                        QCoreApplication::translate(
+                            "VmtParser",
+                            "Ignoring non-standard top-level parameter '%1' in Patch VMT")
+                            .arg(child.name().trimmed()));
+                }
+                continue;
+            }
+            if (!child.isSection()) {
+                continue;
+            }
+            const QString blockName = child.name().trimmed().toLower();
+            if (blockName == QLatin1String("insert")) {
+                applySubblock(child, material, 0, /*replaceOnly=*/false);
+            } else if (blockName == QLatin1String("replace")) {
+                applySubblock(child, material, 0, /*replaceOnly=*/true);
+            } else if (!blockName.isEmpty()) {
+                material.warnings.append(
+                    QCoreApplication::translate(
+                        "VmtParser",
+                        "Ignoring unknown section '%1' in Patch VMT")
+                        .arg(child.name().trimmed()));
+            }
+        }
+
+        return Core::Result<VmtMaterial>::success(std::move(material));
+    }
+
+    VmtMaterial material;
+    material.relativePath = relativeVmtPath;
+    material.rawShaderName = rawShaderName;
+    material.normalizedShaderName = normalizedShaderName;
+
+    if (material.normalizedShaderName == QLatin1String("patch")) {
+        material.warnings.append(
+            QCoreApplication::translate(
+                "VmtParser",
+                "Patch shader requires an include resolver and was not flattened"));
+    }
+
+    // Pass 1: preserve all top-level properties (including custom $var variables).
+    for (const auto& child : shaderSection->children()) {
+        if (!child.isProperty()) {
+            continue;
+        }
+        const QString key = child.name().trimmed().toLower();
+        if (!key.isEmpty()) {
+            material.params.insert(key, child.value());
+        }
+    }
+
+    // Pass 2: arbitrate subblocks (merge DX9+, skip legacy DX6/7/8, extract ordered Proxies).
+    for (const auto& child : shaderSection->children()) {
+        if (!child.isSection()) {
+            continue;
+        }
+        const QString blockName = child.name().trimmed().toLower();
+        if (blockName == QLatin1String("proxies")) {
+            extractProxies(child, material.proxies);
+            continue;
+        }
+        if (isObsoleteSubblock(blockName)) {
+            continue;
+        }
+        if (isModernDx9Subblock(blockName, material.normalizedShaderName)) {
+            applySubblock(child, material, 1, /*replaceOnly=*/false);
+        }
+    }
+
+    return Core::Result<VmtMaterial>::success(std::move(material));
 }
 
 } // namespace
@@ -263,82 +516,20 @@ QString VmtMaterial::normalizedTexturePath(const QString& key) const {
 // VmtParser
 // ============================================================================
 
-Core::Result<VmtMaterial> VmtParser::parse(const QByteArray& utf8Content, const QString& relativeVmtPath) {
-    Core::KeyValues::KeyValuesReader reader(utf8Content, Core::KeyValues::KeyValuesReadOptions::vmt());
-    Core::KeyValues::KeyValuesNode docRoot;
-    const auto readRes = reader.readDocument(docRoot);
-    if (!readRes.isSuccess()) {
-        QString details = readRes.details();
-        if (!relativeVmtPath.isEmpty()) {
-            details = details.isEmpty()
-                ? relativeVmtPath
-                : QStringLiteral("%1: %2").arg(relativeVmtPath, details);
-        }
-        return Core::Result<VmtMaterial>::failure(
-            readRes.errorCode(),
-            QCoreApplication::translate("VmtParser", "Failed to parse VMT KeyValues syntax"),
-            details);
-    }
-
-    const Core::KeyValues::KeyValuesNode* shaderSection = nullptr;
-    for (const auto& child : docRoot.children()) {
-        if (child.isSection()) {
-            shaderSection = &child;
-            break;
-        }
-    }
-
-    if (shaderSection == nullptr || shaderSection->name().trimmed().isEmpty()) {
-        return Core::Result<VmtMaterial>::failure(
-            Core::Error::ErrorCode::InvalidFile,
-            QCoreApplication::translate("VmtParser", "VMT content does not contain a root shader section"),
-            relativeVmtPath);
-    }
-
-    VmtMaterial material;
-    material.relativePath = relativeVmtPath;
-    material.rawShaderName = shaderSection->name().trimmed();
-    material.normalizedShaderName = normalizeShaderName(material.rawShaderName);
-
-    if (material.normalizedShaderName == QLatin1String("patch")) {
-        material.warnings.append(
-            QCoreApplication::translate("VmtParser", "Patch shader is not recursively resolved in this phase"));
-    }
-
-    // Pass 1: preserve all top-level properties (including custom $var variables).
-    for (const auto& child : shaderSection->children()) {
-        if (!child.isProperty()) {
-            continue;
-        }
-        const QString key = child.name().trimmed().toLower();
-        if (!key.isEmpty()) {
-            material.params.insert(key, child.value());
-        }
-    }
-
-    // Pass 2: arbitrate subblocks (merge DX9+, skip legacy DX6/7/8, extract ordered Proxies).
-    for (const auto& child : shaderSection->children()) {
-        if (!child.isSection()) {
-            continue;
-        }
-        const QString blockName = child.name().trimmed().toLower();
-        if (blockName == QLatin1String("proxies")) {
-            extractProxies(child, material.proxies);
-            continue;
-        }
-        if (isObsoleteSubblock(blockName)) {
-            continue;
-        }
-        if (isModernDx9Subblock(blockName, material.normalizedShaderName)) {
-            mergeModernSubblock(child, material, 1);
-        }
-    }
-
-    return Core::Result<VmtMaterial>::success(std::move(material));
+Core::Result<VmtMaterial> VmtParser::parse(
+    const QByteArray& utf8Content,
+    const QString& relativeVmtPath,
+    const VmtIncludeResolver& includeResolver) {
+    QSet<QString> visitedPaths;
+    QStringList activeChain;
+    return parseInternal(utf8Content, relativeVmtPath, includeResolver, visitedPaths, activeChain, 0);
 }
 
-Core::Result<VmtMaterial> VmtParser::parseString(const QString& content, const QString& relativeVmtPath) {
-    return parse(content.toUtf8(), relativeVmtPath);
+Core::Result<VmtMaterial> VmtParser::parseString(
+    const QString& content,
+    const QString& relativeVmtPath,
+    const VmtIncludeResolver& includeResolver) {
+    return parse(content.toUtf8(), relativeVmtPath, includeResolver);
 }
 
 QString VmtParser::normalizeShaderName(const QString& rawShaderName) {
@@ -346,6 +537,55 @@ QString VmtParser::normalizeShaderName(const QString& rawShaderName) {
     static const QRegularExpression kDxSuffixRegex(QStringLiteral("_(?:hdr_)?dx\\d+$"));
     normalized.remove(kDxSuffixRegex);
     return normalized;
+}
+
+QString VmtParser::normalizeVmtPath(const QString& rawPath) {
+    QString normalized = rawPath.trimmed();
+    if (normalized.isEmpty()) {
+        return {};
+    }
+
+    normalized.replace(QLatin1Char('\\'), QLatin1Char('/'));
+    normalized = normalized.toLower();
+
+    if (normalized.contains(QLatin1Char(':'))) {
+        return {};
+    }
+
+    QStringList rawParts = normalized.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+    if (!rawParts.isEmpty() && rawParts.first() == QLatin1String("materials")) {
+        rawParts.removeFirst();
+    }
+
+    QStringList segments;
+    segments.reserve(rawParts.size());
+    for (const QString& part : rawParts) {
+        if (part == QLatin1String(".")) {
+            continue;
+        }
+        if (part == QLatin1String("..")) {
+            if (segments.isEmpty()) {
+                return {};
+            }
+            segments.removeLast();
+            continue;
+        }
+        segments.append(part);
+    }
+
+    if (segments.isEmpty()) {
+        return {};
+    }
+
+    QString rel = segments.join(QLatin1Char('/'));
+    if (!rel.endsWith(QLatin1String(".vmt"))) {
+        rel.append(QLatin1String(".vmt"));
+    }
+    if (rel == QLatin1String(".vmt")) {
+        return {};
+    }
+
+    return QStringLiteral("materials/") + rel;
 }
 
 std::optional<VmtColor> VmtParser::parseColor(const QString& rawValue) {

@@ -721,7 +721,7 @@ TargetShader routeTargetShader(
     if (shader == QStringLiteral("patch")) {
         warnings.append(QCoreApplication::translate(
             "MaterialTranslator",
-            "Patch VMT inheritance is not yet supported; skipping material."));
+            "Unresolved Patch VMT requires include flattening before translation; skipping raw patch."));
         return TargetShader::Skip;
     }
 
