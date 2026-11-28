@@ -862,4 +862,158 @@ Core::Result<QImage> MaterialTextureSynthesizer::synthesizeMetalnessFromSpecMask
     return Core::Result<QImage>::success(std::move(out));
 }
 
+// =============================================================================
+// 5. Uniform power-of-2 grid sequence atlas synthesis
+// =============================================================================
+
+Core::Result<TextureAtlasResult> MaterialTextureSynthesizer::synthesizeUniformGridAtlas(
+    const QVector<QImage>& frames,
+    bool extractAlphaAtlas,
+    const Core::Async::CancellationToken& token,
+    int maxAtlasDim)
+{
+    if (token.isCancelled()) {
+        return Core::Result<TextureAtlasResult>::cancelled();
+    }
+    if (frames.isEmpty()) {
+        return Core::Result<TextureAtlasResult>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QCoreApplication::translate("MaterialTextureSynthesizer", "frame list is empty"));
+    }
+    if (maxAtlasDim <= 0) {
+        return Core::Result<TextureAtlasResult>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QCoreApplication::translate("MaterialTextureSynthesizer", "maximum atlas dimension must be positive"));
+    }
+
+    for (const QImage& frame : frames) {
+        if (frame.isNull() || frame.width() <= 0 || frame.height() <= 0) {
+            return Core::Result<TextureAtlasResult>::failure(
+                Core::Error::ErrorCode::InvalidArgument,
+                QCoreApplication::translate("MaterialTextureSynthesizer", "animation frame is null or has invalid dimensions"));
+        }
+    }
+
+    auto nextPow2 = [](int value) noexcept -> int {
+        if (value <= 1) {
+            return 1;
+        }
+        int p = 1;
+        while (p < value && p <= (1 << 29)) {
+            p <<= 1;
+        }
+        return p;
+    };
+
+    const int frameCount = static_cast<int>(frames.size());
+    const int minCols = static_cast<int>(std::ceil(std::sqrt(static_cast<double>(frameCount))));
+    const int cols = nextPow2(minCols);
+    const int minRows = (frameCount + cols - 1) / cols;
+    const int rows = nextPow2(minRows);
+
+    if (cols > maxAtlasDim || rows > maxAtlasDim) {
+        return Core::Result<TextureAtlasResult>::failure(
+            Core::Error::ErrorCode::InvalidArgument,
+            QCoreApplication::translate("MaterialTextureSynthesizer", "grid dimensions exceed maximum atlas dimension"));
+    }
+
+    int cellW = frames[0].width();
+    int cellH = frames[0].height();
+    const double rawTotalW = static_cast<double>(cols) * static_cast<double>(cellW);
+    const double rawTotalH = static_cast<double>(rows) * static_cast<double>(cellH);
+    if (rawTotalW > static_cast<double>(maxAtlasDim) || rawTotalH > static_cast<double>(maxAtlasDim)) {
+        const double scale = std::min(
+            static_cast<double>(maxAtlasDim) / rawTotalW,
+            static_cast<double>(maxAtlasDim) / rawTotalH);
+        cellW = std::max(1, static_cast<int>(std::floor(static_cast<double>(cellW) * scale)));
+        cellH = std::max(1, static_cast<int>(std::floor(static_cast<double>(cellH) * scale)));
+        cellW = std::min(cellW, std::max(1, maxAtlasDim / cols));
+        cellH = std::min(cellH, std::max(1, maxAtlasDim / rows));
+    }
+
+    const int atlasW = cols * cellW;
+    const int atlasH = rows * cellH;
+
+    QImage colorAtlas(atlasW, atlasH, QImage::Format_RGB888);
+    if (colorAtlas.isNull()) {
+        return Core::Result<TextureAtlasResult>::failure(
+            Core::Error::ErrorCode::OperationFailed,
+            QCoreApplication::translate("MaterialTextureSynthesizer", "failed to allocate color atlas image"));
+    }
+    colorAtlas.fill(0u);
+
+    QImage alphaAtlas;
+    if (extractAlphaAtlas) {
+        alphaAtlas = QImage(atlasW, atlasH, QImage::Format_Grayscale8);
+        if (alphaAtlas.isNull()) {
+            return Core::Result<TextureAtlasResult>::failure(
+                Core::Error::ErrorCode::OperationFailed,
+                QCoreApplication::translate("MaterialTextureSynthesizer", "failed to allocate alpha atlas image"));
+        }
+        alphaAtlas.fill(0u);
+    }
+
+    bool anyNonOpaqueAlpha = false;
+
+    for (int i = 0; i < frameCount; ++i) {
+        if (token.isCancelled()) {
+            return Core::Result<TextureAtlasResult>::cancelled();
+        }
+
+        auto rgbaRes = toRgba8888OrError(frames[i]);
+        if (rgbaRes.isFailure()) {
+            return Core::Result<TextureAtlasResult>::failure(rgbaRes.error());
+        }
+        QImage cell = std::move(rgbaRes.value());
+        if (cell.width() != cellW || cell.height() != cellH) {
+            cell = cell.scaled(cellW, cellH, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            if (cell.isNull()) {
+                return Core::Result<TextureAtlasResult>::failure(
+                    Core::Error::ErrorCode::OperationFailed,
+                    QCoreApplication::translate("MaterialTextureSynthesizer", "failed to scale animation frame for atlas"));
+            }
+            if (cell.format() != QImage::Format_RGBA8888) {
+                cell = cell.convertToFormat(QImage::Format_RGBA8888);
+            }
+        }
+
+        const int col = i % cols;
+        const int row = i / cols;
+        const int dstX = col * cellW;
+        const int dstY = row * cellH;
+
+        for (int y = 0; y < cellH; ++y) {
+            if ((y & kCancelCheckRowMask) == 0 && token.isCancelled()) {
+                return Core::Result<TextureAtlasResult>::cancelled();
+            }
+            const unsigned char* srcRow = cell.constScanLine(y);
+            unsigned char* dstColorRow = colorAtlas.scanLine(dstY + y) + dstX * 3;
+            unsigned char* dstAlphaRow = extractAlphaAtlas ? (alphaAtlas.scanLine(dstY + y) + dstX) : nullptr;
+            for (int x = 0; x < cellW; ++x) {
+                const unsigned char* sp = srcRow + x * 4;
+                unsigned char* dp = dstColorRow + x * 3;
+                dp[0] = sp[0];
+                dp[1] = sp[1];
+                dp[2] = sp[2];
+                if (dstAlphaRow != nullptr) {
+                    dstAlphaRow[x] = sp[3];
+                    if (sp[3] < 255u) {
+                        anyNonOpaqueAlpha = true;
+                    }
+                }
+            }
+        }
+    }
+
+    TextureAtlasResult result;
+    result.colorAtlas = std::move(colorAtlas);
+    if (extractAlphaAtlas && anyNonOpaqueAlpha) {
+        result.alphaAtlas = std::move(alphaAtlas);
+    }
+    result.cols = cols;
+    result.rows = rows;
+    result.cellCount = frameCount;
+    return Core::Result<TextureAtlasResult>::success(std::move(result));
+}
+
 } // namespace Domain::Material

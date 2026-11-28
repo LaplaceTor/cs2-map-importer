@@ -10,6 +10,7 @@
 #include <QSet>
 #include <QString>
 #include <QStringList>
+#include <QVector>
 
 #include <array>
 #include <cmath>
@@ -24,6 +25,7 @@
 #include "Core/FileSystem/FileSystem.h"
 #include "Domain/Asset/AssetLocateStrategy.h"
 #include "Domain/Material/MaterialConvertTypes.h"
+#include "Domain/Material/MaterialProxyCompiler.h"
 #include "Domain/Material/MaterialTextureSynthesizer.h"
 #include "Domain/Material/MaterialTranslator.h"
 #include "Domain/Material/SkyboxCubeBuilder.h"
@@ -587,6 +589,11 @@ public:
             synthRes = Core::Result<QImage>::success(std::move(combRes.value().colorImage));
             break;
         }
+
+        case Flavor::AnimatedColorAtlas:
+        case Flavor::AnimatedAlphaAtlas:
+            // Handled via exportAnimatedAtlas() in processRegularMaterial().
+            break;
         }
 
         if (synthRes.isCancelled()) {
@@ -619,6 +626,155 @@ public:
         m_exportedTextureCache.insert(cacheKey, targetRelPng);
         m_writtenPngKeyByPath.insert(targetRelPng, cacheKey);
         return Core::Result<QString>::success(targetRelPng);
+    }
+
+    struct CachedAtlasExport {
+        QString colorAtlasRelPath;
+        QString alphaAtlasRelPath;
+        Domain::Material::TextureAtlasFrameInfo frameInfo;
+        bool alphaChecked = false;
+    };
+
+    Core::Result<CachedAtlasExport> exportAnimatedAtlas(
+        const QString& sourceVtfPath,
+        const QString& requestedColorRelPng,
+        const QString& requestedAlphaRelPng,
+        bool wantAlphaAtlas,
+        const std::optional<SubrectCrop>& crop)
+    {
+        if (m_context.isCancelled()) {
+            return Core::Result<CachedAtlasExport>::cancelled(
+                QCoreApplication::translate("MaterialConvertWorkflow", "Material conversion was cancelled"));
+        }
+
+        QString atlasCacheKey = sourceVtfPath;
+        if (crop.has_value() && crop->isValid()) {
+            atlasCacheKey += QStringLiteral("|crop:%1,%2,%3,%4")
+                .arg(crop->x).arg(crop->y).arg(crop->width).arg(crop->height);
+        }
+
+        const auto cachedIt = m_exportedAtlasCache.constFind(atlasCacheKey);
+        if (cachedIt != m_exportedAtlasCache.constEnd()
+            && (!wantAlphaAtlas || cachedIt.value().alphaChecked)) {
+            return Core::Result<CachedAtlasExport>::success(cachedIt.value());
+        }
+
+        auto loadedRes = locateAndReadAsset(vtfAssetRelativePath(sourceVtfPath), /*checkCs2Native=*/false);
+        if (loadedRes.isCancelled()) {
+            return Core::Result<CachedAtlasExport>::cancelled(loadedRes.message());
+        }
+        if (loadedRes.isFailure()) {
+            return Core::Result<CachedAtlasExport>::failure(loadedRes.error(), loadedRes.message());
+        }
+        if (loadedRes.value().kind == Domain::Asset::AssetMatchKind::NotFound) {
+            return Core::Result<CachedAtlasExport>::failure(
+                Core::Error::ErrorCode::FileNotFound,
+                QCoreApplication::translate(
+                    "MaterialConvertWorkflow",
+                    "VTF texture not found: %1").arg(vtfAssetRelativePath(sourceVtfPath)),
+                sourceVtfPath);
+        }
+
+        const QByteArray& bytes = loadedRes.value().bytes;
+        const std::span<const std::byte> dataSpan(
+            reinterpret_cast<const std::byte*>(bytes.constData()),
+            static_cast<std::size_t>(bytes.size()));
+
+        auto headerRes = Domain::Material::VtfCodec::readHeaderFromMemory(dataSpan, sourceVtfPath);
+        if (headerRes.isFailure()) {
+            return Core::Result<CachedAtlasExport>::failure(headerRes.error(), headerRes.message());
+        }
+
+        const std::uint16_t frameCount = headerRes.value().frameCount > 0 ? headerRes.value().frameCount : 1;
+        QVector<QImage> frames;
+        frames.reserve(frameCount);
+
+        for (std::uint16_t f = 0; f < frameCount; ++f) {
+            if (m_context.isCancelled()) {
+                return Core::Result<CachedAtlasExport>::cancelled(
+                    QCoreApplication::translate("MaterialConvertWorkflow", "Material conversion was cancelled"));
+            }
+
+            Domain::Material::VtfSliceSelector sel;
+            sel.frame = f;
+            auto frameRes = Domain::Material::VtfCodec::readSlice(dataSpan, sel, sourceVtfPath);
+            if (frameRes.isFailure()) {
+                return Core::Result<CachedAtlasExport>::failure(frameRes.error(), frameRes.message());
+            }
+
+            QImage frameImg = std::move(frameRes.value());
+            if (crop.has_value() && crop->isValid()) {
+                auto cropRes = Domain::Material::MaterialTextureSynthesizer::cropSubrect(
+                    frameImg, crop->x, crop->y, crop->width, crop->height, m_context.token());
+                if (cropRes.isCancelled()) {
+                    return Core::Result<CachedAtlasExport>::cancelled(cropRes.message());
+                }
+                if (cropRes.isFailure()) {
+                    return Core::Result<CachedAtlasExport>::failure(cropRes.error(), cropRes.message());
+                }
+                frameImg = std::move(cropRes.value());
+            }
+
+            frames.push_back(std::move(frameImg));
+        }
+
+        auto atlasRes = Domain::Material::MaterialTextureSynthesizer::synthesizeUniformGridAtlas(
+            frames, wantAlphaAtlas, m_context.token());
+        if (atlasRes.isCancelled()) {
+            return Core::Result<CachedAtlasExport>::cancelled(atlasRes.message());
+        }
+        if (atlasRes.isFailure()) {
+            return Core::Result<CachedAtlasExport>::failure(atlasRes.error(), atlasRes.message());
+        }
+
+        const auto& atlas = atlasRes.value();
+
+        QString colorRelPng = !requestedColorRelPng.isEmpty()
+            ? requestedColorRelPng
+            : QStringLiteral("materials/%1_atlas.png").arg(sourceVtfPath);
+        QString alphaRelPng = !requestedAlphaRelPng.isEmpty()
+            ? requestedAlphaRelPng
+            : QStringLiteral("materials/%1_atlas_trans.png").arg(sourceVtfPath);
+
+        if (crop.has_value() && crop->isValid()) {
+            const QString cropSuffix = QStringLiteral("_subrect_%1_%2_%3_%4")
+                .arg(crop->x).arg(crop->y).arg(crop->width).arg(crop->height);
+            colorRelPng = insertSuffixBeforeExtension(colorRelPng, cropSuffix);
+            alphaRelPng = insertSuffixBeforeExtension(alphaRelPng, cropSuffix);
+        }
+
+        const bool colorAlreadyWritten = (cachedIt != m_exportedAtlasCache.constEnd()
+            && !cachedIt.value().colorAtlasRelPath.isEmpty());
+        if (!colorAlreadyWritten) {
+            auto colorWriteRes = writePngFile(colorRelPng, atlas.colorAtlas);
+            if (colorWriteRes.isFailure()) {
+                return Core::Result<CachedAtlasExport>::failure(colorWriteRes.error(), colorWriteRes.message());
+            }
+        } else {
+            colorRelPng = cachedIt.value().colorAtlasRelPath;
+        }
+
+        QString writtenAlphaRelPng;
+        if (wantAlphaAtlas && atlas.alphaAtlas.has_value()) {
+            auto alphaWriteRes = writePngFile(alphaRelPng, *atlas.alphaAtlas);
+            if (alphaWriteRes.isFailure()) {
+                return Core::Result<CachedAtlasExport>::failure(alphaWriteRes.error(), alphaWriteRes.message());
+            }
+            writtenAlphaRelPng = alphaRelPng;
+        }
+
+        CachedAtlasExport entry;
+        entry.colorAtlasRelPath = colorRelPng;
+        entry.alphaAtlasRelPath = writtenAlphaRelPng;
+        entry.frameInfo = Domain::Material::TextureAtlasFrameInfo{
+            atlas.cols,
+            atlas.rows,
+            atlas.cellCount
+        };
+        entry.alphaChecked = wantAlphaAtlas;
+
+        m_exportedAtlasCache.insert(atlasCacheKey, entry);
+        return Core::Result<CachedAtlasExport>::success(std::move(entry));
     }
 
     Core::Result<void> convertExplicitSpriteParsed(
@@ -1054,6 +1210,19 @@ public:
 
         // Synthesize and export all planned PNG textures (regular .vmat NEVER emits .mks)
         QHash<QString, QString> exportedPaths;
+        std::optional<Domain::Material::TextureAtlasFrameInfo> atlasInfo;
+
+        // Pre-scan for animated uniform grid atlas exports (color + optional alpha)
+        QHash<QString, QString> atlasColorTargets;
+        QHash<QString, QString> atlasAlphaTargets;
+        for (const auto& item : plan.textureExports) {
+            if (item.flavor == Domain::Material::TextureExportFlavor::AnimatedColorAtlas) {
+                atlasColorTargets.insert(item.sourceVtfPath, item.targetRelativePngPath);
+            } else if (item.flavor == Domain::Material::TextureExportFlavor::AnimatedAlphaAtlas) {
+                atlasAlphaTargets.insert(item.sourceVtfPath, item.targetRelativePngPath);
+            }
+        }
+
         for (const auto& item : plan.textureExports) {
             if (m_context.isCancelled()) {
                 return Core::Result<void>::cancelled(
@@ -1062,6 +1231,42 @@ public:
 
             const std::optional<SubrectCrop> itemCrop =
                 (subrectCrop.has_value() && item.sourceVtfPath == baseVtf) ? subrectCrop : std::nullopt;
+
+            if (item.flavor == Domain::Material::TextureExportFlavor::AnimatedColorAtlas
+                || item.flavor == Domain::Material::TextureExportFlavor::AnimatedAlphaAtlas) {
+                const bool wantAlpha = atlasAlphaTargets.contains(item.sourceVtfPath);
+                auto atlasRes = exportAnimatedAtlas(
+                    item.sourceVtfPath,
+                    atlasColorTargets.value(item.sourceVtfPath),
+                    atlasAlphaTargets.value(item.sourceVtfPath),
+                    wantAlpha,
+                    itemCrop);
+                if (atlasRes.isCancelled()) {
+                    return Core::Result<void>::cancelled(atlasRes.message());
+                }
+                if (atlasRes.isFailure()) {
+                    const QString warn = QCoreApplication::translate(
+                        "MaterialConvertWorkflow",
+                        "Failed to export animated atlas '%1' (role '%2') for '%3': %4")
+                        .arg(item.sourceVtfPath, item.role, vmtRelPath, atlasRes.message());
+                    m_result.warnings.append(warn);
+                    m_context.warning(warn);
+                    continue;
+                }
+
+                const auto& cachedAtlas = atlasRes.value();
+                if (!atlasInfo.has_value()) {
+                    atlasInfo = cachedAtlas.frameInfo;
+                }
+                if (item.flavor == Domain::Material::TextureExportFlavor::AnimatedColorAtlas
+                    && !cachedAtlas.colorAtlasRelPath.isEmpty()) {
+                    exportedPaths.insert(item.role, cachedAtlas.colorAtlasRelPath);
+                } else if (item.flavor == Domain::Material::TextureExportFlavor::AnimatedAlphaAtlas
+                    && !cachedAtlas.alphaAtlasRelPath.isEmpty()) {
+                    exportedPaths.insert(item.role, cachedAtlas.alphaAtlasRelPath);
+                }
+                continue;
+            }
 
             auto exportRes = exportPlannedTexture(item, itemCrop);
             if (exportRes.isCancelled()) {
@@ -1081,7 +1286,7 @@ public:
 
         // Build and write .vmat
         auto vmatRes = Domain::Material::MaterialTranslator::buildVmat(
-            effectiveVmt, plan, exportedPaths, m_options.translatePolicy);
+            effectiveVmt, plan, exportedPaths, m_options.translatePolicy, atlasInfo);
         if (vmatRes.isSkipped()) {
             m_result.skippedUnsupported += 1;
             return Core::Result<void>::success();
@@ -1418,6 +1623,7 @@ private:
 
     QHash<QString, Domain::Material::VtfProbeInfo> m_vtfProbeCache;
     QHash<QString, QString> m_exportedTextureCache;
+    QHash<QString, CachedAtlasExport> m_exportedAtlasCache;
     QHash<QString, QString> m_writtenPngKeyByPath;
 
     QSet<QString> m_generatedFileSet;

@@ -3,8 +3,11 @@
 #include <QHash>
 #include <QString>
 
+#include <optional>
+
 #include "Core/Result/Result.h"
 #include "Domain/Material/MaterialConvertTypes.h"
+#include "Domain/Material/MaterialProxyCompiler.h"
 #include "Domain/Material/VmtDocument.h"
 
 namespace Domain::Material {
@@ -30,14 +33,15 @@ public:
         MaterialUsage usage = MaterialUsage::WorldSurface);
 
     /**
-     * @brief Builds the `.vmat` text from a parsed VMT, its plan, and exported PNG paths
-     *        keyed by `TextureExportItem::role`.
+     * @brief Builds the `.vmat` text from a parsed VMT, its plan, exported PNG paths
+     *        keyed by `TextureExportItem::role`, and optional animated grid atlas metadata.
      */
     static Core::Result<VmatBuildOutput> buildVmat(
         const VmtMaterial& vmt,
         const MaterialPlan& plan,
         const QHash<QString, QString>& exportedPaths,
-        const MaterialTranslatePolicy& policy = {});
+        const MaterialTranslatePolicy& policy = {},
+        const std::optional<TextureAtlasFrameInfo>& atlasInfo = std::nullopt);
 };
 
 } // namespace Domain::Material

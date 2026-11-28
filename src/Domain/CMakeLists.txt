@@ -95,6 +95,8 @@ qt_add_library(cs2importer_domain STATIC
     Material/MaterialConvertTypes.h
     Material/MaterialTranslator.h
     Material/MaterialTranslator.cpp
+    Material/MaterialProxyCompiler.h
+    Material/MaterialProxyCompiler.cpp
     Material/MaterialTextureSynthesizer.h
     Material/MaterialTextureSynthesizer.cpp
     Material/VtexBuilder.h

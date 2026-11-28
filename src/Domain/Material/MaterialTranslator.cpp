@@ -1,6 +1,8 @@
 #include "Domain/Material/MaterialTranslator.h"
 
 #include <QCoreApplication>
+#include <QPair>
+#include <QVector>
 
 #include <algorithm>
 #include <array>
@@ -8,6 +10,7 @@
 #include <optional>
 
 #include "Core/KeyValues/KeyValuesWriter.h"
+#include "Domain/Material/MaterialProxyCompiler.h"
 #include "Domain/Material/MaterialTextureSynthesizer.h"
 
 namespace Domain::Material {
@@ -19,6 +22,62 @@ constexpr const char* kDefaultDetailMask = "[1.000000 1.000000 1.000000 0.000000
 constexpr const char* kMatteRoughnessVec = "[1.000000 1.000000 1.000000 0.000000]";
 constexpr const char* kZeroVec4 = "[0.000000 0.000000 0.000000 0.000000]";
 constexpr const char* kWhiteVec4ZeroW = "[1.000000 1.000000 1.000000 0.000000]";
+
+/**
+ * @brief Ordered key-value map for Layer0 properties, guaranteeing zero duplicate keys
+ *        when merging proxy feature/static overrides over base material parameters.
+ */
+class OrderedProperties {
+public:
+    void set(const QString& key, const QString& value)
+    {
+        for (auto& entry : m_entries) {
+            if (entry.first == key) {
+                entry.second = value;
+                return;
+            }
+        }
+        m_entries.push_back({key, value});
+    }
+
+    void remove(const QString& key)
+    {
+        m_entries.erase(
+            std::remove_if(m_entries.begin(), m_entries.end(),
+                [&key](const auto& entry) { return entry.first == key; }),
+            m_entries.end());
+    }
+
+    bool contains(const QString& key) const
+    {
+        for (const auto& entry : m_entries) {
+            if (entry.first == key) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    QString value(const QString& key, const QString& defaultValue = {}) const
+    {
+        for (const auto& entry : m_entries) {
+            if (entry.first == key) {
+                return entry.second;
+            }
+        }
+        return defaultValue;
+    }
+
+    void writeTo(Core::KeyValues::KeyValuesWriter& writer) const
+    {
+        for (const auto& [k, v] : m_entries) {
+            writer.writeProperty(k, v);
+        }
+    }
+
+private:
+    QVector<QPair<QString, QString>> m_entries;
+};
 
 QString formatFloat(float value)
 {
@@ -224,6 +283,18 @@ bool probeHasAlpha(const QHash<QString, VtfProbeInfo>& vtfProbes, const QString&
         return true;
     }
     return it.value().hasNonOpaqueAlpha;
+}
+
+std::uint16_t probeFrameCount(const QHash<QString, VtfProbeInfo>& vtfProbes, const QString& normalizedVtfPath)
+{
+    if (normalizedVtfPath.isEmpty()) {
+        return 1;
+    }
+    const auto it = vtfProbes.constFind(normalizedVtfPath);
+    if (it == vtfProbes.constEnd() || !it.value().header.has_value()) {
+        return 1;
+    }
+    return it.value().header->frameCount;
 }
 
 struct ComplexFeatures {
@@ -445,7 +516,7 @@ QString resolveRoughnessValue(
 }
 
 void writeUvTransform(
-    Core::KeyValues::KeyValuesWriter& writer,
+    OrderedProperties& props,
     const std::optional<VmtTransform>& transform,
     const QString& suffix = {},
     bool includeCenter = true)
@@ -454,36 +525,36 @@ void writeUvTransform(
         return;
     }
     if (includeCenter) {
-        writer.writeProperty(
+        props.set(
             QStringLiteral("g_vTexCoordCenter%1").arg(suffix),
             formatVec2(transform->center[0], transform->center[1]));
     }
-    writer.writeProperty(
+    props.set(
         QStringLiteral("g_vTexCoordScale%1").arg(suffix),
         formatVec2(transform->scale[0], transform->scale[1]));
-    writer.writeProperty(
+    props.set(
         QStringLiteral("g_flTexCoordRotation%1").arg(suffix),
         formatFloat(transform->rotateDeg));
-    writer.writeProperty(
+    props.set(
         QStringLiteral("g_vTexCoordOffset%1").arg(suffix),
         formatVec2(transform->translate[0], transform->translate[1]));
 }
 
 void writeCommonFlags(
-    Core::KeyValues::KeyValuesWriter& writer,
+    OrderedProperties& props,
     const VmtMaterial& vmt,
     bool supportsBackfaces,
     bool supportsFog,
     bool supportsDisableZBuffering)
 {
     if (supportsBackfaces && vmt.boolParam(QStringLiteral("$nocull"))) {
-        writer.writeProperty(QStringLiteral("F_RENDER_BACKFACES"), QStringLiteral("1"));
+        props.set(QStringLiteral("F_RENDER_BACKFACES"), QStringLiteral("1"));
     }
     if (supportsDisableZBuffering && vmt.boolParam(QStringLiteral("$ignorez"))) {
-        writer.writeProperty(QStringLiteral("F_DISABLE_Z_BUFFERING"), QStringLiteral("1"));
+        props.set(QStringLiteral("F_DISABLE_Z_BUFFERING"), QStringLiteral("1"));
     }
     if (supportsFog) {
-        writer.writeProperty(
+        props.set(
             QStringLiteral("g_bFogEnabled"),
             vmt.boolParam(QStringLiteral("$nofog")) ? QStringLiteral("0") : QStringLiteral("1"));
     }
@@ -558,8 +629,70 @@ Core::KeyValues::KeyValuesWriter::Options vmatWriterOptions()
     return opts;
 }
 
+void applyAnimationOverrides(
+    OrderedProperties& props,
+    TargetShader targetShader,
+    const MaterialAnimationPlan& animPlan)
+{
+    for (const auto& [featKey, featVal] : animPlan.featureOverrides) {
+        props.set(featKey, featVal);
+    }
+
+    // Re-enforce FeatureRules after proxy feature overrides.
+    if (targetShader == TargetShader::CsgoComplex) {
+        if (props.value(QStringLiteral("F_SELF_ILLUM")) == QStringLiteral("1")) {
+            // Allow1(F_DETAIL_TEXTURE, F_SELF_ILLUM)
+            props.remove(QStringLiteral("F_DETAIL_TEXTURE"));
+            props.remove(QStringLiteral("TextureDetail"));
+            props.remove(QStringLiteral("TextureDetailMask"));
+            props.remove(QStringLiteral("g_vDetailTexCoordScale"));
+            props.remove(QStringLiteral("g_flDetailBlendFactor"));
+
+            if (!props.contains(QStringLiteral("g_flSelfIllumAlbedoFactor"))) {
+                props.set(QStringLiteral("g_flSelfIllumAlbedoFactor"), QStringLiteral("1.000000"));
+            }
+            if (!props.contains(QStringLiteral("g_flSelfIllumBrightness"))) {
+                props.set(QStringLiteral("g_flSelfIllumBrightness"), QStringLiteral("1.000000"));
+            }
+            if (!props.contains(QStringLiteral("TextureSelfIllumMask"))) {
+                props.set(QStringLiteral("TextureSelfIllumMask"), QString::fromLatin1(kWhiteVec4ZeroW));
+            }
+        }
+
+        if (props.value(QStringLiteral("F_ADDITIVE_BLEND")) == QStringLiteral("1")) {
+            props.set(QStringLiteral("F_TRANSLUCENT"), QStringLiteral("1"));
+            // Allow1(F_DETAIL_TEXTURE, F_ADDITIVE_BLEND)
+            props.remove(QStringLiteral("F_DETAIL_TEXTURE"));
+            props.remove(QStringLiteral("TextureDetail"));
+            props.remove(QStringLiteral("TextureDetailMask"));
+            props.remove(QStringLiteral("g_vDetailTexCoordScale"));
+            props.remove(QStringLiteral("g_flDetailBlendFactor"));
+            props.remove(QStringLiteral("F_METALNESS_TEXTURE"));
+            props.remove(QStringLiteral("TextureMetalness"));
+        }
+
+        if (props.value(QStringLiteral("F_TRANSLUCENT")) == QStringLiteral("1")) {
+            // Allow1(F_ALPHA_TEST, F_TRANSLUCENT) and Allow1(F_TRANSLUCENT, F_DO_NOT_CAST_SHADOWS)
+            props.remove(QStringLiteral("F_ALPHA_TEST"));
+            props.remove(QStringLiteral("g_flAlphaTestReference"));
+            props.remove(QStringLiteral("g_flAntiAliasedEdgeStrength"));
+            props.remove(QStringLiteral("F_DO_NOT_CAST_SHADOWS"));
+        }
+    } else if (targetShader == TargetShader::CsgoStaticOverlay) {
+        const int blendMode = props.value(QStringLiteral("F_BLEND_MODE"), QStringLiteral("0")).toInt();
+        if (blendMode < 0 || blendMode > 2) {
+            props.set(QStringLiteral("F_LIT"), QStringLiteral("0"));
+        }
+    }
+
+    for (const auto& [paramKey, paramVal] : animPlan.staticParamOverrides) {
+        props.set(paramKey, paramVal);
+    }
+}
+
 TargetShader routeTargetShader(
     const VmtMaterial& vmt,
+    const ProxyRoutingHints& hints,
     const MaterialTranslatePolicy& policy,
     MaterialUsage usage,
     QStringList& warnings)
@@ -617,6 +750,10 @@ TargetShader routeTargetShader(
             : TargetShader::CsgoEffects;
     }
 
+    if (hints.hasBreakableSurface) {
+        return TargetShader::CsgoGlass;
+    }
+
     if (shader == QStringLiteral("lightmappedgeneric")) {
         if (!vmt.normalizedTexturePath(QStringLiteral("$basetexture2")).isEmpty()) {
             return TargetShader::CsgoEnvironmentBlend;
@@ -624,7 +761,7 @@ TargetShader routeTargetShader(
         if (vmt.boolParam(QStringLiteral("$decal")) || usage == MaterialUsage::WorldOverlay) {
             return TargetShader::CsgoStaticOverlay;
         }
-        const bool translucentLike = hasTranslucentLikeFlag(vmt);
+        const bool translucentLike = hasTranslucentLikeFlag(vmt) || hints.hasDynamicAlpha;
         if (translucentLike && isGlassSurfaceProp(vmt)) {
             return TargetShader::CsgoGlass;
         }
@@ -632,7 +769,7 @@ TargetShader routeTargetShader(
             || !vmt.normalizedTexturePath(QStringLiteral("$selfillummask")).isEmpty();
         const bool preserveDetail = !vmt.normalizedTexturePath(QStringLiteral("$detail")).isEmpty()
             && policy.detailMode == DetailHandlingMode::PreserveViaComplex;
-        if (hasSelfIllum || translucentLike || preserveDetail) {
+        if (hasSelfIllum || translucentLike || preserveDetail || hints.hasFrameAnimation) {
             return TargetShader::CsgoComplex;
         }
         return TargetShader::CsgoEnvironment;
@@ -667,6 +804,9 @@ TargetShader routeTargetShader(
     }
 
     if (shader == QStringLiteral("unlittwotexture")) {
+        if (hints.hasDualAsyncScroll) {
+            return TargetShader::CsgoEffects;
+        }
         return TargetShader::CsgoComplex;
     }
 
@@ -738,7 +878,8 @@ MaterialPlan MaterialTranslator::plan(
     MaterialUsage usage)
 {
     MaterialPlan result;
-    result.targetShader = routeTargetShader(vmt, policy, usage, result.warnings);
+    const ProxyRoutingHints hints = MaterialProxyCompiler::analyzeRoutingHints(vmt);
+    result.targetShader = routeTargetShader(vmt, hints, policy, usage, result.warnings);
     result.targetShaderFileName = targetShaderFileName(result.targetShader);
 
     if (result.targetShader == TargetShader::Skip) {
@@ -752,6 +893,14 @@ MaterialPlan MaterialTranslator::plan(
     const TextureExportFlavor normalFlavor = isSsbump
         ? TextureExportFlavor::SsbumpToNormal
         : TextureExportFlavor::NormalDirectX;
+
+    const bool shaderSupportsAtlas = (result.targetShader == TargetShader::CsgoComplex
+        || result.targetShader == TargetShader::CsgoStaticOverlay);
+    const bool useFrameAtlas = shaderSupportsAtlas
+        && hints.hasFrameAnimation
+        && !baseVtf.isEmpty()
+        && probeFrameCount(vtfProbes, baseVtf) > 1;
+    result.needsFrameAtlas = useFrameAtlas;
 
     switch (result.targetShader) {
     case TargetShader::ExplicitVtexOnly: {
@@ -914,7 +1063,14 @@ MaterialPlan MaterialTranslator::plan(
             && (vmt.normalizedShaderName == QStringLiteral("unlittwotexture")
                 || vmt.normalizedShaderName == QStringLiteral("modulate"));
 
-        if (isTwoTextureCombine && !baseVtf.isEmpty()) {
+        if (useFrameAtlas) {
+            addExport(
+                result,
+                QStringLiteral("TextureColor"),
+                baseVtf,
+                TextureExportFlavor::AnimatedColorAtlas,
+                QStringLiteral("_atlas"));
+        } else if (isTwoTextureCombine && !baseVtf.isEmpty()) {
             TextureExportItem combineItem;
             combineItem.role = QStringLiteral("TextureColor");
             combineItem.sourceVtfPath = baseVtf;
@@ -938,8 +1094,23 @@ MaterialPlan MaterialTranslator::plan(
                 baseVtf, bumpVtf, layerSurfaceProp(vmt, 1), !features.additiveBlend, result);
         }
 
-        if ((features.alphaTest || features.translucent) && !baseVtf.isEmpty() && probeHasAlpha(vtfProbes, baseVtf)) {
-            addExport(result, QStringLiteral("TextureTranslucency"), baseVtf, TextureExportFlavor::AlphaMask, QStringLiteral("_trans"));
+        const bool needsAlpha = features.alphaTest || features.translucent || hints.hasDynamicAlpha;
+        if (needsAlpha && !baseVtf.isEmpty() && probeHasAlpha(vtfProbes, baseVtf)) {
+            if (useFrameAtlas) {
+                addExport(
+                    result,
+                    QStringLiteral("TextureTranslucency"),
+                    baseVtf,
+                    TextureExportFlavor::AnimatedAlphaAtlas,
+                    QStringLiteral("_atlas_trans"));
+            } else {
+                addExport(
+                    result,
+                    QStringLiteral("TextureTranslucency"),
+                    baseVtf,
+                    TextureExportFlavor::AlphaMask,
+                    QStringLiteral("_trans"));
+            }
         }
 
         if (features.selfIllum && !features.isUnlitMode) {
@@ -968,7 +1139,14 @@ MaterialPlan MaterialTranslator::plan(
         const bool isTwoTextureCombine = !tex2Vtf.isEmpty()
             && vmt.normalizedShaderName == QStringLiteral("modulate");
 
-        if (isTwoTextureCombine && !baseVtf.isEmpty()) {
+        if (useFrameAtlas) {
+            addExport(
+                result,
+                QStringLiteral("TextureColor"),
+                baseVtf,
+                TextureExportFlavor::AnimatedColorAtlas,
+                QStringLiteral("_atlas"));
+        } else if (isTwoTextureCombine && !baseVtf.isEmpty()) {
             TextureExportItem combineItem;
             combineItem.role = QStringLiteral("TextureColor");
             combineItem.sourceVtfPath = baseVtf;
@@ -983,7 +1161,21 @@ MaterialPlan MaterialTranslator::plan(
 
         const bool needsAlpha = (mode.blendMode == 1 || mode.blendMode == 2 || vmt.boolParam(QStringLiteral("$translucent")));
         if (needsAlpha && !baseVtf.isEmpty() && probeHasAlpha(vtfProbes, baseVtf)) {
-            addExport(result, QStringLiteral("TextureTranslucency"), baseVtf, TextureExportFlavor::AlphaMask, QStringLiteral("_trans"));
+            if (useFrameAtlas) {
+                addExport(
+                    result,
+                    QStringLiteral("TextureTranslucency"),
+                    baseVtf,
+                    TextureExportFlavor::AnimatedAlphaAtlas,
+                    QStringLiteral("_atlas_trans"));
+            } else {
+                addExport(
+                    result,
+                    QStringLiteral("TextureTranslucency"),
+                    baseVtf,
+                    TextureExportFlavor::AlphaMask,
+                    QStringLiteral("_trans"));
+            }
         }
 
         if (mode.lit) {
@@ -1048,6 +1240,10 @@ MaterialPlan MaterialTranslator::plan(
         if (!baseVtf.isEmpty() && probeHasAlpha(vtfProbes, baseVtf)) {
             addExport(result, QStringLiteral("TextureTranslucency"), baseVtf, TextureExportFlavor::AlphaMask, QStringLiteral("_trans"));
         }
+        const QString tex2Vtf = vmt.normalizedTexturePath(QStringLiteral("$texture2"));
+        if (!tex2Vtf.isEmpty()) {
+            addExport(result, QStringLiteral("TextureMask1"), tex2Vtf, TextureExportFlavor::OpaqueColor);
+        }
         return result;
     }
 
@@ -1105,7 +1301,8 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
     const VmtMaterial& vmt,
     const MaterialPlan& plan,
     const QHash<QString, QString>& exportedPaths,
-    const MaterialTranslatePolicy& /*policy*/)
+    const MaterialTranslatePolicy& /*policy*/,
+    const std::optional<TextureAtlasFrameInfo>& atlasInfo)
 {
     VmatBuildOutput output;
     output.targetShader = plan.targetShader;
@@ -1132,53 +1329,55 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
             QCoreApplication::translate("MaterialTranslator", "Target shader filename is empty."));
     }
 
-    Core::KeyValues::KeyValuesWriter writer(vmatWriterOptions());
-    writer.startSection(QStringLiteral("Layer0"));
-    writer.writeProperty(QStringLiteral("shader"), shaderFile);
+    OrderedProperties props;
+    props.set(QStringLiteral("shader"), shaderFile);
 
     const QString sp1 = layerSurfaceProp(vmt, 1);
+    int systemAttrMaxLayers = 1;
+    bool isWaterAttributes = false;
+    bool emitAttributesBlocks = true;
 
     switch (plan.targetShader) {
     case TargetShader::CsgoEnvironment: {
         const bool alphaTest = vmt.boolParam(QStringLiteral("$alphatest"));
         if (alphaTest) {
-            writer.writeProperty(QStringLiteral("F_ALPHA_TEST"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_ALPHA_TEST"), QStringLiteral("1"));
         }
-        writeCommonFlags(writer, vmt, true, true, true);
+        writeCommonFlags(props, vmt, true, true, true);
 
         const QString colorPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureColor1"));
         if (!colorPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureColor1"), colorPath);
+            props.set(QStringLiteral("TextureColor1"), colorPath);
         }
         const QString normalPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureNormal1"));
         if (!normalPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureNormal1"), normalPath);
+            props.set(QStringLiteral("TextureNormal1"), normalPath);
         }
-        writer.writeProperty(
+        props.set(
             QStringLiteral("TextureRoughness1"),
             resolveRoughnessValue(vmt, 1, QStringLiteral("TextureRoughness1"), sp1, exportedPaths));
 
         const QString metalPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureMetalness1"));
         if (!metalPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureMetalness1"), metalPath);
+            props.set(QStringLiteral("TextureMetalness1"), metalPath);
         }
-        writer.writeProperty(QStringLiteral("TextureAmbientOcclusion1"), QString::fromLatin1(kDefaultAoTexture));
+        props.set(QStringLiteral("TextureAmbientOcclusion1"), QString::fromLatin1(kDefaultAoTexture));
 
         if (alphaTest) {
             const QString transPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureTranslucency1"));
             if (!transPath.isEmpty()) {
-                writer.writeProperty(QStringLiteral("TextureTranslucency1"), transPath);
+                props.set(QStringLiteral("TextureTranslucency1"), transPath);
             }
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_flAlphaTestReference"),
                 formatFloat(vmt.floatParam(QStringLiteral("$alphatestreference"), 0.5f)));
-            writer.writeProperty(QStringLiteral("g_flAntiAliasedEdgeStrength"), QStringLiteral("1.000000"));
+            props.set(QStringLiteral("g_flAntiAliasedEdgeStrength"), QStringLiteral("1.000000"));
         }
 
         if (vmt.boolParam(QStringLiteral("$blendtintbybasealpha"))) {
             const QString tintMaskPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureTintMask1"));
             if (!tintMaskPath.isEmpty()) {
-                writer.writeProperty(QStringLiteral("TextureTintMask1"), tintMaskPath);
+                props.set(QStringLiteral("TextureTintMask1"), tintMaskPath);
             }
         }
 
@@ -1186,94 +1385,92 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
                 vmt.colorParam(QStringLiteral("$color")),
                 vmt.colorParam(QStringLiteral("$color2")));
             tint.has_value()) {
-            writer.writeProperty(QStringLiteral("g_vColorTint"), formatVec4((*tint)[0], (*tint)[1], (*tint)[2], 0.0f));
+            props.set(QStringLiteral("g_vColorTint"), formatVec4((*tint)[0], (*tint)[1], (*tint)[2], 0.0f));
         }
 
         if (vmt.hasParam(QStringLiteral("$seamless_scale"))) {
             const float seamless = vmt.floatParam(QStringLiteral("$seamless_scale"), 1.0f);
-            writer.writeProperty(QStringLiteral("g_nUVSet1"), QStringLiteral("0"));
-            writer.writeProperty(QStringLiteral("g_vTexCoordScale1"), formatVec2(seamless, seamless));
+            props.set(QStringLiteral("g_nUVSet1"), QStringLiteral("0"));
+            props.set(QStringLiteral("g_vTexCoordScale1"), formatVec2(seamless, seamless));
         } else {
-            writeUvTransform(writer, vmt.transformParam(QStringLiteral("$basetexturetransform")), QStringLiteral("1"));
+            writeUvTransform(props, vmt.transformParam(QStringLiteral("$basetexturetransform")), QStringLiteral("1"));
         }
-
-        writeSystemAttributes(writer, vmt, 1);
-        writeMapBuilderAttributes(writer, vmt, false);
         break;
     }
 
     case TargetShader::CsgoEnvironmentBlend: {
+        systemAttrMaxLayers = 2;
         if (vmt.boolParam(QStringLiteral("$newlayerblending"))) {
-            writer.writeProperty(QStringLiteral("F_USE_NEW_BLENDING"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_USE_NEW_BLENDING"), QStringLiteral("1"));
         }
         const float borderStrength = vmt.floatParam(QStringLiteral("$layerborderstrength"), 0.0f);
         if (borderStrength > 0.0f) {
-            writer.writeProperty(QStringLiteral("F_BLEND_EFFECTS_2"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_BLEND_EFFECTS_2"), QStringLiteral("1"));
         }
-        writeCommonFlags(writer, vmt, true, true, true);
+        writeCommonFlags(props, vmt, true, true, true);
 
         const QString color1 = resolveExportedPath(exportedPaths, QStringLiteral("TextureColor1"));
         const QString color2 = resolveExportedPath(exportedPaths, QStringLiteral("TextureColor2"));
         if (!color1.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureColor1"), color1);
+            props.set(QStringLiteral("TextureColor1"), color1);
         }
         if (!color2.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureColor2"), color2);
+            props.set(QStringLiteral("TextureColor2"), color2);
         }
 
         const QString normal1 = resolveExportedPath(exportedPaths, QStringLiteral("TextureNormal1"));
         const QString normal2 = resolveExportedPath(exportedPaths, QStringLiteral("TextureNormal2"));
         if (!normal1.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureNormal1"), normal1);
+            props.set(QStringLiteral("TextureNormal1"), normal1);
         }
         if (!normal2.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureNormal2"), normal2);
+            props.set(QStringLiteral("TextureNormal2"), normal2);
         }
 
         const QString height2 = resolveExportedPath(exportedPaths, QStringLiteral("TextureHeight2"));
         if (!height2.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureHeight2"), height2);
+            props.set(QStringLiteral("TextureHeight2"), height2);
         }
 
         const QString sp2 = layerSurfaceProp(vmt, 2);
-        writer.writeProperty(
+        props.set(
             QStringLiteral("TextureRoughness1"),
             resolveRoughnessValue(vmt, 1, QStringLiteral("TextureRoughness1"), sp1, exportedPaths));
-        writer.writeProperty(
+        props.set(
             QStringLiteral("TextureRoughness2"),
             resolveRoughnessValue(vmt, 2, QStringLiteral("TextureRoughness2"), sp2, exportedPaths));
 
         const QString metal1 = resolveExportedPath(exportedPaths, QStringLiteral("TextureMetalness1"));
         const QString metal2 = resolveExportedPath(exportedPaths, QStringLiteral("TextureMetalness2"));
         if (!metal1.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureMetalness1"), metal1);
+            props.set(QStringLiteral("TextureMetalness1"), metal1);
         }
         if (!metal2.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureMetalness2"), metal2);
+            props.set(QStringLiteral("TextureMetalness2"), metal2);
         }
 
-        writer.writeProperty(QStringLiteral("TextureAmbientOcclusion1"), QString::fromLatin1(kDefaultAoTexture));
-        writer.writeProperty(QStringLiteral("TextureAmbientOcclusion2"), QString::fromLatin1(kDefaultAoTexture));
+        props.set(QStringLiteral("TextureAmbientOcclusion1"), QString::fromLatin1(kDefaultAoTexture));
+        props.set(QStringLiteral("TextureAmbientOcclusion2"), QString::fromLatin1(kDefaultAoTexture));
 
         if (vmt.hasParam(QStringLiteral("$blendsoftness"))) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_flBlendSoftness2"),
                 formatFloat(vmt.floatParam(QStringLiteral("$blendsoftness"), 0.5f)));
         }
 
         if (borderStrength > 0.0f) {
             if (vmt.hasParam(QStringLiteral("$layerbordersoftness"))) {
-                writer.writeProperty(
+                props.set(
                     QStringLiteral("g_flBorderSoftness2"),
                     formatFloat(vmt.floatParam(QStringLiteral("$layerbordersoftness"), 0.5f)));
             }
             if (vmt.hasParam(QStringLiteral("$layerborderoffset"))) {
-                writer.writeProperty(
+                props.set(
                     QStringLiteral("g_flBorderOffset2"),
                     formatFloat(vmt.floatParam(QStringLiteral("$layerborderoffset"), 0.0f)));
             }
             if (const auto borderTint = vmt.colorParam(QStringLiteral("$layerbordertint")); borderTint.has_value()) {
-                writer.writeProperty(
+                props.set(
                     QStringLiteral("g_vBorderTint2"),
                     formatVec4(borderTint->r, borderTint->g, borderTint->b, 0.0f));
             }
@@ -1287,34 +1484,32 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
             equalLayerTint = layerTint1;
         }
         if (const auto tint = combinedTintSrgb(colorParam, equalLayerTint); tint.has_value()) {
-            writer.writeProperty(QStringLiteral("g_vColorTint"), formatVec4((*tint)[0], (*tint)[1], (*tint)[2], 0.0f));
+            props.set(QStringLiteral("g_vColorTint"), formatVec4((*tint)[0], (*tint)[1], (*tint)[2], 0.0f));
         }
 
-        writeUvTransform(writer, vmt.transformParam(QStringLiteral("$basetexturetransform")), QStringLiteral("1"));
-        writeUvTransform(writer, vmt.transformParam(QStringLiteral("$basetexturetransform2")), QStringLiteral("2"));
-
-        writeSystemAttributes(writer, vmt, 2);
-        writeMapBuilderAttributes(writer, vmt, false);
+        writeUvTransform(props, vmt.transformParam(QStringLiteral("$basetexturetransform")), QStringLiteral("1"));
+        writeUvTransform(props, vmt.transformParam(QStringLiteral("$basetexturetransform2")), QStringLiteral("2"));
         break;
     }
 
     case TargetShader::CsgoLightmapped4WayBlend: {
+        systemAttrMaxLayers = 4;
         const bool hasSpecIndirect = !vmt.stringParam(QStringLiteral("$envmap")).isEmpty()
             || !vmt.normalizedTexturePath(QStringLiteral("$envmapmask")).isEmpty()
             || vmt.boolParam(QStringLiteral("$basealphaenvmapmask"))
             || vmt.boolParam(QStringLiteral("$basemapalphaphongmask"));
         if (hasSpecIndirect) {
-            writer.writeProperty(QStringLiteral("F_SPECULAR_INDIRECT"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_SPECULAR_INDIRECT"), QStringLiteral("1"));
         }
         if (vmt.boolParam(QStringLiteral("$phong"))) {
-            writer.writeProperty(QStringLiteral("F_SPECULAR_DIRECT"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_SPECULAR_DIRECT"), QStringLiteral("1"));
         }
         const QString detailPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureDetail"));
         const bool hasDetail = !vmt.normalizedTexturePath(QStringLiteral("$detail")).isEmpty();
         if (hasDetail) {
-            writer.writeProperty(QStringLiteral("F_DETAILTEXTURE"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_DETAILTEXTURE"), QStringLiteral("1"));
         }
-        writeCommonFlags(writer, vmt, true, true, true);
+        writeCommonFlags(props, vmt, true, true, true);
 
         for (int layer = 1; layer <= 4; ++layer) {
             const QString colorKey = QStringLiteral("TextureLayer%1Color").arg(layer);
@@ -1324,22 +1519,22 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
 
             const QString colorPath = resolveExportedPath(exportedPaths, colorKey);
             if (!colorPath.isEmpty()) {
-                writer.writeProperty(colorKey, colorPath);
+                props.set(colorKey, colorPath);
             }
             const QString normalPath = resolveExportedPath(exportedPaths, normalKey);
             if (!normalPath.isEmpty()) {
-                writer.writeProperty(normalKey, normalPath);
+                props.set(normalKey, normalPath);
             }
-            writer.writeProperty(
+            props.set(
                 roughKey,
                 resolveRoughnessValue(vmt, layer, roughKey, layerSurfaceProp(vmt, layer), exportedPaths));
-            writer.writeProperty(aoKey, QString::fromLatin1(kDefaultAoTexture));
+            props.set(aoKey, QString::fromLatin1(kDefaultAoTexture));
         }
 
         if (vmt.hasParam(QStringLiteral("$texture2_blendstart"))
             || vmt.hasParam(QStringLiteral("$texture3_blendstart"))
             || vmt.hasParam(QStringLiteral("$texture4_blendstart"))) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_vBlendStart"),
                 formatVec4(
                     0.0f,
@@ -1350,7 +1545,7 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
         if (vmt.hasParam(QStringLiteral("$texture2_blendend"))
             || vmt.hasParam(QStringLiteral("$texture3_blendend"))
             || vmt.hasParam(QStringLiteral("$texture4_blendend"))) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_vBlendEnd"),
                 formatVec4(
                     1.0f,
@@ -1361,7 +1556,7 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
         if (vmt.hasParam(QStringLiteral("$texture2_lumstart"))
             || vmt.hasParam(QStringLiteral("$texture3_lumstart"))
             || vmt.hasParam(QStringLiteral("$texture4_lumstart"))) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_vLumStart"),
                 formatVec4(
                     0.0f,
@@ -1372,7 +1567,7 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
         if (vmt.hasParam(QStringLiteral("$texture2_lumend"))
             || vmt.hasParam(QStringLiteral("$texture3_lumend"))
             || vmt.hasParam(QStringLiteral("$texture4_lumend"))) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_vLumEnd"),
                 formatVec4(
                     1.0f,
@@ -1383,7 +1578,7 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
         if (vmt.hasParam(QStringLiteral("$lumblendfactor2"))
             || vmt.hasParam(QStringLiteral("$lumblendfactor3"))
             || vmt.hasParam(QStringLiteral("$lumblendfactor4"))) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_vLumBlends"),
                 formatVec4(
                     0.0f,
@@ -1394,7 +1589,7 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
         if (vmt.hasParam(QStringLiteral("$texture2_uvscale"))
             || vmt.hasParam(QStringLiteral("$texture3_uvscale"))
             || vmt.hasParam(QStringLiteral("$texture4_uvscale"))) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_vUVScale"),
                 formatVec4(
                     1.0f,
@@ -1405,12 +1600,12 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
 
         if (hasDetail) {
             if (!detailPath.isEmpty()) {
-                writer.writeProperty(QStringLiteral("TextureDetail"), detailPath);
+                props.set(QStringLiteral("TextureDetail"), detailPath);
             }
             const float dScale = vmt.floatParam(QStringLiteral("$detailscale"), 4.0f);
-            writer.writeProperty(QStringLiteral("g_vDetailScale"), formatVec2(dScale, dScale));
+            props.set(QStringLiteral("g_vDetailScale"), formatVec2(dScale, dScale));
             const float defaultFactor = vmt.floatParam(QStringLiteral("$detailblendfactor"), 1.0f);
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_vDetailBlendFactors"),
                 formatVec4(
                     vmt.floatParam(QStringLiteral("$detailblendfactor1"), defaultFactor),
@@ -1420,11 +1615,8 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
         }
 
         if (const auto color = vmt.colorParam(QStringLiteral("$color")); color.has_value()) {
-            writer.writeProperty(QStringLiteral("g_vColorTint"), formatVec4(color->r, color->g, color->b, 0.0f));
+            props.set(QStringLiteral("g_vColorTint"), formatVec4(color->r, color->g, color->b, 0.0f));
         }
-
-        writeSystemAttributes(writer, vmt, 4);
-        writeMapBuilderAttributes(writer, vmt, false);
         break;
     }
 
@@ -1433,21 +1625,21 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
 
         // Feature macros (statically arbitrated)
         if (features.alphaTest) {
-            writer.writeProperty(QStringLiteral("F_ALPHA_TEST"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_ALPHA_TEST"), QStringLiteral("1"));
         } else if (features.translucent) {
-            writer.writeProperty(QStringLiteral("F_TRANSLUCENT"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_TRANSLUCENT"), QStringLiteral("1"));
             if (features.additiveBlend) {
-                writer.writeProperty(QStringLiteral("F_ADDITIVE_BLEND"), QStringLiteral("1"));
+                props.set(QStringLiteral("F_ADDITIVE_BLEND"), QStringLiteral("1"));
             }
         }
 
         if (features.selfIllum) {
-            writer.writeProperty(QStringLiteral("F_SELF_ILLUM"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_SELF_ILLUM"), QStringLiteral("1"));
         }
 
         if (features.detailTexture) {
             const int detailBlendMode = vmt.intParam(QStringLiteral("$detailblendmode"), 0);
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("F_DETAIL_TEXTURE"),
                 detailBlendMode == 2 ? QStringLiteral("2") : QStringLiteral("1"));
         }
@@ -1456,74 +1648,80 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
             ? resolveExportedPath(exportedPaths, QStringLiteral("TextureMetalness"))
             : QString();
         if (!metalPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("F_METALNESS_TEXTURE"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_METALNESS_TEXTURE"), QStringLiteral("1"));
         }
 
         if (vmt.boolParam(QStringLiteral("$vertexcolor"))) {
-            writer.writeProperty(QStringLiteral("F_PAINT_VERTEX_COLORS"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_PAINT_VERTEX_COLORS"), QStringLiteral("1"));
         }
         if (vmt.boolParam(QStringLiteral("$forceuv2"))) {
-            writer.writeProperty(QStringLiteral("F_SECONDARY_UV"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_SECONDARY_UV"), QStringLiteral("1"));
         }
 
         const bool noTint = vmt.boolParam(QStringLiteral("$notint"));
         const QString tintMaskPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureTintMask"));
         const bool enableTintMask = noTint || (vmt.boolParam(QStringLiteral("$blendtintbybasealpha")) && !tintMaskPath.isEmpty());
         if (enableTintMask) {
-            writer.writeProperty(QStringLiteral("F_TINT_MASK"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_TINT_MASK"), QStringLiteral("1"));
         }
 
-        writeCommonFlags(writer, vmt, true, true, true);
+        writeCommonFlags(props, vmt, true, true, true);
 
         // Textures & PBR slots
         const QString colorPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureColor"));
         if (!colorPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureColor"), colorPath);
+            props.set(QStringLiteral("TextureColor"), colorPath);
         }
 
         if (!features.isUnlitMode) {
             const QString normalPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureNormal"));
             if (!normalPath.isEmpty()) {
-                writer.writeProperty(QStringLiteral("TextureNormal"), normalPath);
+                props.set(QStringLiteral("TextureNormal"), normalPath);
             }
         }
 
-        writer.writeProperty(
+        props.set(
             QStringLiteral("TextureRoughness"),
             resolveRoughnessValue(
                 vmt, 1, QStringLiteral("TextureRoughness"), sp1, exportedPaths, features.isUnlitMode));
 
         if (!metalPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureMetalness"), metalPath);
+            props.set(QStringLiteral("TextureMetalness"), metalPath);
         } else {
-            writer.writeProperty(QStringLiteral("g_flMetalness"), QStringLiteral("0.000000"));
+            props.set(QStringLiteral("g_flMetalness"), QStringLiteral("0.000000"));
         }
 
         if (features.alphaTest) {
             const QString transPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureTranslucency"));
             if (!transPath.isEmpty()) {
-                writer.writeProperty(QStringLiteral("TextureTranslucency"), transPath);
+                props.set(QStringLiteral("TextureTranslucency"), transPath);
             }
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_flAlphaTestReference"),
                 formatFloat(vmt.floatParam(QStringLiteral("$alphatestreference"), 0.5f)));
-            writer.writeProperty(QStringLiteral("g_flAntiAliasedEdgeStrength"), QStringLiteral("1.000000"));
+            props.set(QStringLiteral("g_flAntiAliasedEdgeStrength"), QStringLiteral("1.000000"));
         } else if (features.translucent) {
             const QString transPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureTranslucency"));
             if (!transPath.isEmpty()) {
-                writer.writeProperty(QStringLiteral("TextureTranslucency"), transPath);
+                props.set(QStringLiteral("TextureTranslucency"), transPath);
+            }
+        } else {
+            // Dynamic alpha proxy may later enable F_TRANSLUCENT; preserve exported translucency mask if present.
+            const QString transPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureTranslucency"));
+            if (!transPath.isEmpty()) {
+                props.set(QStringLiteral("TextureTranslucency"), transPath);
             }
         }
 
         if (vmt.hasParam(QStringLiteral("$alpha"))) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_flOpacityScale"),
                 formatFloat(std::clamp(vmt.floatParam(QStringLiteral("$alpha"), 1.0f), 0.0f, 1.0f)));
         }
 
         if (features.selfIllum) {
-            writer.writeProperty(QStringLiteral("g_flSelfIllumAlbedoFactor"), QStringLiteral("1.000000"));
-            writer.writeProperty(
+            props.set(QStringLiteral("g_flSelfIllumAlbedoFactor"), QStringLiteral("1.000000"));
+            props.set(
                 QStringLiteral("g_flSelfIllumBrightness"),
                 (features.isUnlitMode && features.additiveBlend)
                     ? QStringLiteral("1.200000")
@@ -1534,10 +1732,10 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
                     exportedPaths,
                     QStringLiteral("TextureSelfIllumMask"),
                     QString::fromLatin1(kWhiteVec4ZeroW));
-            writer.writeProperty(QStringLiteral("TextureSelfIllumMask"), selfIllumPath);
+            props.set(QStringLiteral("TextureSelfIllumMask"), selfIllumPath);
 
             if (const auto selfTint = vmt.colorParam(QStringLiteral("$selfillumtint")); selfTint.has_value()) {
-                writer.writeProperty(
+                props.set(
                     QStringLiteral("g_vSelfIllumTint"),
                     formatVec4(selfTint->r, selfTint->g, selfTint->b, 0.0f));
             }
@@ -1546,22 +1744,22 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
         if (features.detailTexture) {
             const QString detailPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureDetail"));
             if (!detailPath.isEmpty()) {
-                writer.writeProperty(QStringLiteral("TextureDetail"), detailPath);
+                props.set(QStringLiteral("TextureDetail"), detailPath);
             }
-            writer.writeProperty(QStringLiteral("TextureDetailMask"), QString::fromLatin1(kDefaultDetailMask));
+            props.set(QStringLiteral("TextureDetailMask"), QString::fromLatin1(kDefaultDetailMask));
             if (const auto dVec = vmt.vec2Param(QStringLiteral("$detailscale")); dVec.has_value()) {
-                writer.writeProperty(QStringLiteral("g_vDetailTexCoordScale"), formatVec2((*dVec)[0], (*dVec)[1]));
+                props.set(QStringLiteral("g_vDetailTexCoordScale"), formatVec2((*dVec)[0], (*dVec)[1]));
             } else {
                 const float dScale = vmt.floatParam(QStringLiteral("$detailscale"), 4.0f);
-                writer.writeProperty(QStringLiteral("g_vDetailTexCoordScale"), formatVec2(dScale, dScale));
+                props.set(QStringLiteral("g_vDetailTexCoordScale"), formatVec2(dScale, dScale));
             }
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_flDetailBlendFactor"),
                 formatFloat(vmt.floatParam(QStringLiteral("$detailblendfactor"), 0.25f)));
         }
 
         if (enableTintMask) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("TextureTintMask"),
                 noTint ? QString::fromLatin1(kZeroVec4) : tintMaskPath);
         }
@@ -1570,12 +1768,10 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
                 vmt.colorParam(QStringLiteral("$color")),
                 vmt.colorParam(QStringLiteral("$color2")));
             tint.has_value()) {
-            writer.writeProperty(QStringLiteral("g_vColorTint"), formatVec4((*tint)[0], (*tint)[1], (*tint)[2], 1.0f));
+            props.set(QStringLiteral("g_vColorTint"), formatVec4((*tint)[0], (*tint)[1], (*tint)[2], 1.0f));
         }
 
-        writeUvTransform(writer, vmt.transformParam(QStringLiteral("$basetexturetransform")));
-        writeSystemAttributes(writer, vmt, 1);
-        writeMapBuilderAttributes(writer, vmt, false);
+        writeUvTransform(props, vmt.transformParam(QStringLiteral("$basetexturetransform")));
         break;
     }
 
@@ -1584,106 +1780,102 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
         // FeatureRule: F_LIT 1 is strictly limited to F_BLEND_MODE 0, 1, 2.
         const bool allowLit = mode.lit && (mode.blendMode >= 0 && mode.blendMode <= 2);
 
-        writer.writeProperty(QStringLiteral("F_BLEND_MODE"), QString::number(mode.blendMode));
-        writer.writeProperty(QStringLiteral("F_LIT"), allowLit ? QStringLiteral("1") : QStringLiteral("0"));
+        props.set(QStringLiteral("F_BLEND_MODE"), QString::number(mode.blendMode));
+        props.set(QStringLiteral("F_LIT"), allowLit ? QStringLiteral("1") : QStringLiteral("0"));
 
         if (vmt.boolParam(QStringLiteral("$vertexcolor")) || vmt.boolParam(QStringLiteral("$vertexalpha"))) {
-            writer.writeProperty(QStringLiteral("F_PAINT_VERTEX_COLORS"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_PAINT_VERTEX_COLORS"), QStringLiteral("1"));
         }
         const QString tintMaskPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureTintMask"));
         if (vmt.boolParam(QStringLiteral("$blendtintbybasealpha")) && !tintMaskPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("F_TINT_MASK"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_TINT_MASK"), QStringLiteral("1"));
         }
-        writeCommonFlags(writer, vmt, true, true, true);
+        writeCommonFlags(props, vmt, true, true, true);
 
         const QString colorPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureColor"));
         if (!colorPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureColor"), colorPath);
+            props.set(QStringLiteral("TextureColor"), colorPath);
         }
         const QString transPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureTranslucency"));
         if (!transPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureTranslucency"), transPath);
+            props.set(QStringLiteral("TextureTranslucency"), transPath);
         }
 
         if (allowLit) {
             const QString normalPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureNormal"));
             if (!normalPath.isEmpty()) {
-                writer.writeProperty(QStringLiteral("TextureNormal"), normalPath);
+                props.set(QStringLiteral("TextureNormal"), normalPath);
             }
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("TextureRoughness"),
                 resolveRoughnessValue(vmt, 1, QStringLiteral("TextureRoughness"), sp1, exportedPaths));
         }
 
         if (mode.blendMode == 2) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_flAlphaTestReference"),
                 formatFloat(vmt.floatParam(QStringLiteral("$alphatestreference"), 0.5f)));
-            writer.writeProperty(QStringLiteral("g_flAntiAliasedEdgeStrength"), QStringLiteral("1.000000"));
+            props.set(QStringLiteral("g_flAntiAliasedEdgeStrength"), QStringLiteral("1.000000"));
         }
 
         if (vmt.hasParam(QStringLiteral("$alpha"))) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_flOpacityScale"),
                 formatFloat(std::clamp(vmt.floatParam(QStringLiteral("$alpha"), 1.0f), 0.0f, 1.0f)));
         }
 
         if (vmt.boolParam(QStringLiteral("$blendtintbybasealpha")) && !tintMaskPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureTintMask"), tintMaskPath);
+            props.set(QStringLiteral("TextureTintMask"), tintMaskPath);
         }
 
         if (const auto tint = combinedTintSrgb(
                 vmt.colorParam(QStringLiteral("$color")),
                 vmt.colorParam(QStringLiteral("$color2")));
             tint.has_value()) {
-            writer.writeProperty(QStringLiteral("g_vColorTint"), formatVec4((*tint)[0], (*tint)[1], (*tint)[2], 0.0f));
+            props.set(QStringLiteral("g_vColorTint"), formatVec4((*tint)[0], (*tint)[1], (*tint)[2], 0.0f));
         }
 
-        writeUvTransform(writer, vmt.transformParam(QStringLiteral("$basetexturetransform")));
-        writeSystemAttributes(writer, vmt, 1);
-        writeMapBuilderAttributes(writer, vmt, false);
+        writeUvTransform(props, vmt.transformParam(QStringLiteral("$basetexturetransform")));
         break;
     }
 
     case TargetShader::CsgoGlass: {
         if (vmt.normalizedShaderName == QStringLiteral("shatteredglass")) {
-            writer.writeProperty(QStringLiteral("F_VERTEX_BREAK_ANIMATION"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_VERTEX_BREAK_ANIMATION"), QStringLiteral("1"));
         }
         if (vmt.boolParam(QStringLiteral("$vertexcolor"))) {
-            writer.writeProperty(QStringLiteral("F_PAINT_VERTEX_COLORS"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_PAINT_VERTEX_COLORS"), QStringLiteral("1"));
         }
         // FeatureRule: F_DISABLE_Z_BUFFERING requires F_OPAQUE_CUBEMAP_REFRACTION 1 on csgo_glass.vfx.
-        writeCommonFlags(writer, vmt, true, true, false);
+        writeCommonFlags(props, vmt, true, true, false);
 
         const QString glassTintPath = resolveExportedPath(exportedPaths, QStringLiteral("GlassTintColor"));
         if (!glassTintPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("GlassTintColor"), glassTintPath);
+            props.set(QStringLiteral("GlassTintColor"), glassTintPath);
         }
         const QString glassTransPath = resolveExportedPath(exportedPaths, QStringLiteral("GlassMaskTranslucency"));
         if (!glassTransPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("GlassMaskTranslucency"), glassTransPath);
+            props.set(QStringLiteral("GlassMaskTranslucency"), glassTransPath);
         }
         const QString normalPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureNormal"));
         if (!normalPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureNormal"), normalPath);
+            props.set(QStringLiteral("TextureNormal"), normalPath);
         }
-        writer.writeProperty(
+        props.set(
             QStringLiteral("TextureRoughness"),
             resolveRoughnessValue(vmt, 1, QStringLiteral("TextureRoughness"), sp1, exportedPaths));
-
-        writeSystemAttributes(writer, vmt, 1);
-        writeMapBuilderAttributes(writer, vmt, false);
         break;
     }
 
     case TargetShader::CsgoWaterFancy: {
+        isWaterAttributes = true;
         const bool refractEnabled = !vmt.hasParam(QStringLiteral("$refract"))
             || vmt.boolParam(QStringLiteral("$refract"), true);
         if (refractEnabled) {
-            writer.writeProperty(QStringLiteral("F_REFRACTION"), QStringLiteral("1"));
-            writer.writeProperty(QStringLiteral("F_BLUR_REFRACTION"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_REFRACTION"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_BLUR_REFRACTION"), QStringLiteral("1"));
         } else {
-            writer.writeProperty(QStringLiteral("F_REFRACTION"), QStringLiteral("0"));
+            props.set(QStringLiteral("F_REFRACTION"), QStringLiteral("0"));
         }
 
         int reflectionType = 2; // SSR + EnvCube
@@ -1692,15 +1884,15 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
         } else if (vmt.boolParam(QStringLiteral("$forceenvmap"))) {
             reflectionType = 1;
         }
-        writer.writeProperty(QStringLiteral("F_REFLECTION_TYPE"), QString::number(reflectionType));
+        props.set(QStringLiteral("F_REFLECTION_TYPE"), QString::number(reflectionType));
 
         const QString waveNormalPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureWavesNormal"));
         if (!waveNormalPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureWavesNormal"), waveNormalPath);
+            props.set(QStringLiteral("TextureWavesNormal"), waveNormalPath);
         }
 
         if (const auto fogColor = vmt.colorParam(QStringLiteral("$fogcolor")); fogColor.has_value()) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_vWaterFogColor"),
                 formatVec4(fogColor->r, fogColor->g, fogColor->b, 0.0f));
         }
@@ -1708,12 +1900,12 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
         const bool fogEnabled = !vmt.hasParam(QStringLiteral("$fogenable"))
             || vmt.boolParam(QStringLiteral("$fogenable"), true);
         if (!fogEnabled) {
-            writer.writeProperty(QStringLiteral("g_flWaterFogStrength"), QStringLiteral("0.000000"));
+            props.set(QStringLiteral("g_flWaterFogStrength"), QStringLiteral("0.000000"));
         } else {
             const float fogStart = vmt.floatParam(QStringLiteral("$fogstart"), 0.0f);
             const float fogEnd = vmt.floatParam(QStringLiteral("$fogend"), 50.0f);
             if (vmt.hasParam(QStringLiteral("$fogend"))) {
-                writer.writeProperty(
+                props.set(
                     QStringLiteral("g_flWaterMaxDepth"),
                     formatFloat(std::clamp(fogEnd, 1.0f, 100.0f)));
             }
@@ -1721,30 +1913,30 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
             const float fogStrength = (vmt.hasParam(QStringLiteral("$fogend")) && span > 1e-3f)
                 ? std::clamp(50.0f / span, 0.05f, 1.0f)
                 : 0.5f;
-            writer.writeProperty(QStringLiteral("g_flWaterFogStrength"), formatFloat(fogStrength));
+            props.set(QStringLiteral("g_flWaterFogStrength"), formatFloat(fogStrength));
         }
 
         if (const auto refractTint = vmt.colorParam(QStringLiteral("$refracttint")); refractTint.has_value()) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_vWaterDecayColor"),
                 formatVec4(refractTint->r, refractTint->g, refractTint->b, 0.0f));
         }
-        writer.writeProperty(
+        props.set(
             QStringLiteral("g_flRefractionLimit"),
             formatFloat(std::clamp(vmt.floatParam(QStringLiteral("$refractamount"), 0.1f), 0.0f, 1.0f)));
 
         if (const auto reflectTint = vmt.colorParam(QStringLiteral("$reflecttint")); reflectTint.has_value()) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_vSimpleSkyReflectionColor"),
                 formatVec4(reflectTint->r, reflectTint->g, reflectTint->b, 0.0f));
         }
-        writer.writeProperty(
+        props.set(
             QStringLiteral("g_flReflectance"),
             formatFloat(std::clamp(vmt.floatParam(QStringLiteral("$reflectamount"), 0.2f), 0.0f, 1.0f)));
 
         std::optional<float> wavesSpeed;
         if (const auto scroll1 = vmt.vec2Param(QStringLiteral("$scroll1")); scroll1.has_value()) {
-            writer.writeProperty(QStringLiteral("g_vTexCoordScrollSpeed"), formatVec2((*scroll1)[0], (*scroll1)[1]));
+            props.set(QStringLiteral("g_vTexCoordScrollSpeed"), formatVec2((*scroll1)[0], (*scroll1)[1]));
             wavesSpeed = std::clamp(
                 std::sqrt((*scroll1)[0] * (*scroll1)[0] + (*scroll1)[1] * (*scroll1)[1]),
                 -8.0f,
@@ -1753,7 +1945,7 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
         if (vmt.hasParam(QStringLiteral("$flow_timescale"))) {
             wavesSpeed = std::clamp(vmt.floatParam(QStringLiteral("$flow_timescale"), 1.0f), -8.0f, 8.0f);
         }
-        writer.writeProperty(QStringLiteral("g_flWavesSpeed"), formatFloat(wavesSpeed.value_or(1.0f)));
+        props.set(QStringLiteral("g_flWavesSpeed"), formatFloat(wavesSpeed.value_or(1.0f)));
 
         float waveScale = 15.0f;
         if (vmt.hasParam(QStringLiteral("$flow_normaluvscale"))) {
@@ -1761,14 +1953,11 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
         } else if (vmt.hasParam(QStringLiteral("$flow_uvscale"))) {
             waveScale = std::clamp(vmt.floatParam(QStringLiteral("$flow_uvscale"), 15.0f), 5.0f, 100.0f);
         }
-        writer.writeProperty(QStringLiteral("g_vWaveScale"), formatVec2(waveScale, waveScale));
+        props.set(QStringLiteral("g_vWaveScale"), formatVec2(waveScale, waveScale));
 
-        writer.writeProperty(
+        props.set(
             QStringLiteral("g_flWavesNormalStrength"),
             formatFloat(std::clamp(vmt.floatParam(QStringLiteral("$flow_bumpstrength"), 1.0f), 0.0f, 2.0f)));
-
-        writeSystemAttributes(writer, vmt, 1);
-        writeMapBuilderAttributes(writer, vmt, true);
         break;
     }
 
@@ -1776,90 +1965,92 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
         // csgo_refract.vfx does not declare F_RENDER_BACKFACES, g_bFogEnabled, or F_DISABLE_Z_BUFFERING.
         const QString normal2Path = resolveExportedPath(exportedPaths, QStringLiteral("TextureNormal2"));
         if (!normal2Path.isEmpty()) {
-            writer.writeProperty(QStringLiteral("F_SECONDARY_NORMAL"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_SECONDARY_NORMAL"), QStringLiteral("1"));
         }
         const QString tintTexPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureTintTexture"));
         if (!tintTexPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("F_TINT_TEXTURE"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_TINT_TEXTURE"), QStringLiteral("1"));
         }
         if (vmt.floatParam(QStringLiteral("$bluramount"), 0.0f) > 0.0f) {
-            writer.writeProperty(QStringLiteral("F_BLUR"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_BLUR"), QStringLiteral("1"));
         }
         if (vmt.boolParam(QStringLiteral("$vertexcolor"))
             || vmt.boolParam(QStringLiteral("$vertexalpha"))
             || vmt.boolParam(QStringLiteral("$vertexcolormodulate"))) {
-            writer.writeProperty(QStringLiteral("F_VERTEX_COLOR"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_VERTEX_COLOR"), QStringLiteral("1"));
         }
 
         const QString normalPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureNormal"));
         if (!normalPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureNormal"), normalPath);
+            props.set(QStringLiteral("TextureNormal"), normalPath);
         }
         if (!normal2Path.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureNormal2"), normal2Path);
+            props.set(QStringLiteral("TextureNormal2"), normal2Path);
         }
         if (!tintTexPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureTintTexture"), tintTexPath);
+            props.set(QStringLiteral("TextureTintTexture"), tintTexPath);
         }
 
-        writer.writeProperty(
+        props.set(
             QStringLiteral("g_flRefractScale"),
             formatFloat(vmt.floatParam(QStringLiteral("$refractamount"), 0.1f)));
 
         if (const auto refractTint = vmt.colorParam(QStringLiteral("$refracttint")); refractTint.has_value()) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_vColorTint"),
                 formatVec4(refractTint->r, refractTint->g, refractTint->b, 0.0f));
         }
 
         const auto baseXf = vmt.transformParam(QStringLiteral("$basetexturetransform"));
         if (baseXf.has_value() && !baseXf->isIdentity()) {
-            writeUvTransform(writer, baseXf, {}, false);
+            writeUvTransform(props, baseXf, {}, false);
         } else if (vmt.hasParam(QStringLiteral("$scale")) || vmt.hasParam(QStringLiteral("$scaleamount"))) {
             const QString scaleKey = vmt.hasParam(QStringLiteral("$scale"))
                 ? QStringLiteral("$scale")
                 : QStringLiteral("$scaleamount");
             if (const auto sv = vmt.vec2Param(scaleKey); sv.has_value()) {
-                writer.writeProperty(QStringLiteral("g_vTexCoordScale"), formatVec2((*sv)[0], (*sv)[1]));
+                props.set(QStringLiteral("g_vTexCoordScale"), formatVec2((*sv)[0], (*sv)[1]));
             } else {
                 const float s = vmt.floatParam(scaleKey, 1.0f);
-                writer.writeProperty(QStringLiteral("g_vTexCoordScale"), formatVec2(s, s));
+                props.set(QStringLiteral("g_vTexCoordScale"), formatVec2(s, s));
             }
         }
-
-        writeSystemAttributes(writer, vmt, 1);
-        writeMapBuilderAttributes(writer, vmt, false);
         break;
     }
 
     case TargetShader::CsgoEffects: {
         if (vmt.boolParam(QStringLiteral("$additive"))) {
-            writer.writeProperty(QStringLiteral("F_ADDITIVE_BLEND"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_ADDITIVE_BLEND"), QStringLiteral("1"));
         }
-        writeCommonFlags(writer, vmt, true, true, true);
+        writeCommonFlags(props, vmt, true, true, true);
 
         const QString colorPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureColor"));
         if (!colorPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureColor"), colorPath);
+            props.set(QStringLiteral("TextureColor"), colorPath);
         }
         const QString transPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureTranslucency"));
         if (!transPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureTranslucency"), transPath);
+            props.set(QStringLiteral("TextureTranslucency"), transPath);
+        }
+        const QString mask1Path = resolveExportedPath(exportedPaths, QStringLiteral("TextureMask1"));
+        if (!mask1Path.isEmpty()) {
+            props.set(QStringLiteral("TextureMask1"), mask1Path);
+            if (const auto tex2Xf = vmt.transformParam(QStringLiteral("$texture2transform"));
+                tex2Xf.has_value() && !tex2Xf->isIdentity()) {
+                props.set(QStringLiteral("g_vMask1Scale"), formatVec2(tex2Xf->scale[0], tex2Xf->scale[1]));
+            }
         }
         if (const auto color = vmt.colorParam(QStringLiteral("$color")); color.has_value()) {
-            writer.writeProperty(QStringLiteral("g_vColorTint"), formatVec4(color->r, color->g, color->b, 0.0f));
+            props.set(QStringLiteral("g_vColorTint"), formatVec4(color->r, color->g, color->b, 0.0f));
         }
         if (vmt.hasParam(QStringLiteral("$alpha"))) {
-            writer.writeProperty(
+            props.set(
                 QStringLiteral("g_flOpacityScale"),
                 formatFloat(std::clamp(vmt.floatParam(QStringLiteral("$alpha"), 1.0f), 0.0f, 1.0f)));
         }
-        writer.writeProperty(
+        props.set(
             QStringLiteral("g_flColorBoost"),
             formatFloat(vmt.floatParam(QStringLiteral("$overbrightfactor"), 1.0f)));
-
-        writeSystemAttributes(writer, vmt, 1);
-        writeMapBuilderAttributes(writer, vmt, false);
         break;
     }
 
@@ -1867,53 +2058,48 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
         // cables.vfx does not declare F_RENDER_BACKFACES, g_vColorTint, or g_bFogEnabled.
         const QString normalPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureNormal"));
         if (!normalPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("F_NORMAL_MAP"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_NORMAL_MAP"), QStringLiteral("1"));
         }
         const QString colorPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureColor"));
         if (!colorPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureColor"), colorPath);
+            props.set(QStringLiteral("TextureColor"), colorPath);
         }
         if (!normalPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureNormal"), normalPath);
+            props.set(QStringLiteral("TextureNormal"), normalPath);
         }
         const float cableRough = MaterialTextureSynthesizer::surfacePropBaselineRoughness(sp1).value_or(1.0f);
-        writer.writeProperty(QStringLiteral("g_flRoughness"), formatFloat(cableRough));
-
-        writeSystemAttributes(writer, vmt, 1);
-        writeMapBuilderAttributes(writer, vmt, false);
+        props.set(QStringLiteral("g_flRoughness"), formatFloat(cableRough));
         break;
     }
 
     case TargetShader::Sky: {
+        emitAttributesBlocks = false;
         const QString skyPath = resolveExportedPath(exportedPaths, QStringLiteral("SkyTexture"));
         if (!skyPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("SkyTexture"), skyPath);
+            props.set(QStringLiteral("SkyTexture"), skyPath);
         }
         break;
     }
 
     case TargetShader::CsgoFoliage: {
-        writer.writeProperty(QStringLiteral("F_ALPHA_TEST"), QStringLiteral("1"));
-        writer.writeProperty(QStringLiteral("F_RENDER_BACKFACES"), QStringLiteral("1"));
-        writeCommonFlags(writer, vmt, false, true, true);
+        props.set(QStringLiteral("F_ALPHA_TEST"), QStringLiteral("1"));
+        props.set(QStringLiteral("F_RENDER_BACKFACES"), QStringLiteral("1"));
+        writeCommonFlags(props, vmt, false, true, true);
 
         const QString colorPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureColor"));
         if (!colorPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureColor"), colorPath);
+            props.set(QStringLiteral("TextureColor"), colorPath);
         }
         const QString transPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureTranslucency"));
         if (!transPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureTranslucency"), transPath);
+            props.set(QStringLiteral("TextureTranslucency"), transPath);
         }
-        writer.writeProperty(
+        props.set(
             QStringLiteral("g_flAlphaTestReference"),
             formatFloat(vmt.floatParam(QStringLiteral("$alphatestreference"), 0.5f)));
-        writer.writeProperty(
+        props.set(
             QStringLiteral("TextureRoughness"),
             resolveRoughnessValue(vmt, 1, QStringLiteral("TextureRoughness"), sp1, exportedPaths));
-
-        writeSystemAttributes(writer, vmt, 1);
-        writeMapBuilderAttributes(writer, vmt, false);
         break;
     }
 
@@ -1921,73 +2107,89 @@ Core::Result<VmatBuildOutput> MaterialTranslator::buildVmat(
         const bool alphaTest = vmt.boolParam(QStringLiteral("$alphatest"));
         const bool translucent = !alphaTest && vmt.boolParam(QStringLiteral("$translucent"));
         if (alphaTest) {
-            writer.writeProperty(QStringLiteral("F_ALPHA_TEST"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_ALPHA_TEST"), QStringLiteral("1"));
         } else if (translucent) {
-            writer.writeProperty(QStringLiteral("F_TRANSLUCENT"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_TRANSLUCENT"), QStringLiteral("1"));
         }
         if (vmt.floatParam(QStringLiteral("$anisotropyamount"), 0.0f) > 0.0f
             && !vmt.boolParam(QStringLiteral("$additive"))) {
-            writer.writeProperty(QStringLiteral("F_ANISOTROPIC_GLOSS"), QStringLiteral("1"));
+            props.set(QStringLiteral("F_ANISOTROPIC_GLOSS"), QStringLiteral("1"));
         }
-        writeCommonFlags(writer, vmt, true, true, true);
+        writeCommonFlags(props, vmt, true, true, true);
 
         const QString colorPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureColor"));
         if (!colorPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureColor"), colorPath);
+            props.set(QStringLiteral("TextureColor"), colorPath);
         }
         const QString normalPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureNormal"));
         if (!normalPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureNormal"), normalPath);
+            props.set(QStringLiteral("TextureNormal"), normalPath);
         }
-        writer.writeProperty(
+        props.set(
             QStringLiteral("TextureRoughness"),
             resolveRoughnessValue(vmt, 1, QStringLiteral("TextureRoughness"), sp1, exportedPaths));
-        writer.writeProperty(
+        props.set(
             QStringLiteral("TextureMetalness"),
             resolveExportedPath(exportedPaths, QStringLiteral("TextureMetalness"), QString::fromLatin1(kZeroVec4)));
 
         if (alphaTest || translucent) {
             const QString transPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureTranslucency"));
             if (!transPath.isEmpty()) {
-                writer.writeProperty(QStringLiteral("TextureTranslucency"), transPath);
+                props.set(QStringLiteral("TextureTranslucency"), transPath);
             }
         }
-
-        writeSystemAttributes(writer, vmt, 1);
-        writeMapBuilderAttributes(writer, vmt, false);
         break;
     }
 
     case TargetShader::CsgoEyeball: {
-        writeCommonFlags(writer, vmt, true, true, true);
+        writeCommonFlags(props, vmt, true, true, true);
         const QString colorPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureColor"));
         if (!colorPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureColor"), colorPath);
-            writer.writeProperty(QStringLiteral("TextureEyeAlbedo1"), colorPath);
+            props.set(QStringLiteral("TextureColor"), colorPath);
+            props.set(QStringLiteral("TextureEyeAlbedo1"), colorPath);
         }
         const QString irisPath = resolveExportedPath(exportedPaths, QStringLiteral("TextureIrisMask1"));
         if (!irisPath.isEmpty()) {
-            writer.writeProperty(QStringLiteral("TextureIrisMask1"), irisPath);
+            props.set(QStringLiteral("TextureIrisMask1"), irisPath);
         }
-        writer.writeProperty(
+        props.set(
             QStringLiteral("g_flEyeBallRadius1"),
             formatFloat(vmt.floatParam(QStringLiteral("$eyeballradius"), 0.6f)));
-
-        writeSystemAttributes(writer, vmt, 1);
-        writeMapBuilderAttributes(writer, vmt, false);
         break;
     }
 
     case TargetShader::CsgoBlackUnlit: {
-        writeCommonFlags(writer, vmt, true, true, true);
-        writeSystemAttributes(writer, vmt, 1);
-        writeMapBuilderAttributes(writer, vmt, false);
+        writeCommonFlags(props, vmt, true, true, true);
         break;
     }
 
     case TargetShader::ExplicitVtexOnly:
     case TargetShader::Skip:
         break;
+    }
+
+    // Compile and merge Step 6 Proxies -> featureOverrides, staticParamOverrides, and DynamicParams.
+    const MaterialAnimationPlan animPlan = MaterialProxyCompiler::compile(vmt, plan.targetShader, atlasInfo);
+    output.warnings.append(animPlan.warnings);
+    if (animPlan.hasAnimation || !animPlan.featureOverrides.isEmpty() || !animPlan.staticParamOverrides.isEmpty()) {
+        applyAnimationOverrides(props, plan.targetShader, animPlan);
+    }
+
+    Core::KeyValues::KeyValuesWriter writer(vmatWriterOptions());
+    writer.startSection(QStringLiteral("Layer0"));
+    props.writeTo(writer);
+
+    if (emitAttributesBlocks) {
+        writeSystemAttributes(writer, vmt, systemAttrMaxLayers);
+        writeMapBuilderAttributes(writer, vmt, isWaterAttributes);
+    }
+
+    if (!animPlan.dynamicParams.isEmpty()) {
+        writer.startSection(QStringLiteral("DynamicParams"));
+        for (const auto& [paramKey, expr] : animPlan.dynamicParams) {
+            writer.writeProperty(paramKey, expr);
+        }
+        writer.endSection(QStringLiteral("DynamicParams"));
     }
 
     writer.endSection(QStringLiteral("Layer0"));

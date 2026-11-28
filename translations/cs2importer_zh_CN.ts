@@ -26,6 +26,64 @@
     </message>
 </context>
 <context>
+    <name>Application::Material::MaterialConvertService</name>
+    <message>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="95"/>
+        <source>Prerequisite service is unavailable</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="116"/>
+        <source>Invalid target addon name: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="122"/>
+        <source>Starting material conversion for addon &apos;%1&apos; (%2 item(s))</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="147"/>
+        <source>Material conversion workflow was cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="152"/>
+        <source>Material conversion workflow was skipped: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="206"/>
+        <source>MaterialConvertService instance must be managed by std::shared_ptr to start async operations</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="217"/>
+        <source>Another material conversion operation is already in progress</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="263"/>
+        <source>Convert Material: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="265"/>
+        <source>Convert Materials (%1 items)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="320"/>
+        <source>Failed to start async material conversion task: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Application/Material/MaterialConvertService.cpp" line="327"/>
+        <source>Failed to start async material conversion task due to an unknown exception</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>AssetExtractor</name>
     <message>
         <location filename="../src/Workflow/Common/AssetExtractor.cpp" line="140"/>
@@ -1463,32 +1521,32 @@
         <translation>目标文件不是 Source 2 的 gameinfo.gi</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Game/GameInstallationResolver.cpp" line="392"/>
+        <location filename="../src/Domain/Game/GameInstallationResolver.cpp" line="468"/>
         <source>CS2 base path is invalid or empty</source>
         <translation type="unfinished">CS2 基目录路径无效或为空</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Game/GameInstallationResolver.cpp" line="399"/>
+        <location filename="../src/Domain/Game/GameInstallationResolver.cpp" line="475"/>
         <source>CS2 gameinfo.gi not found at %1</source>
         <translation type="unfinished">在 %1 未找到 CS2 gameinfo.gi</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Game/GameInstallationResolver.cpp" line="406"/>
+        <location filename="../src/Domain/Game/GameInstallationResolver.cpp" line="482"/>
         <source>Failed to parse CS2 gameinfo.gi</source>
         <translation type="unfinished">解析 CS2 gameinfo.gi 失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Game/GameInstallationResolver.cpp" line="457"/>
+        <location filename="../src/Domain/Game/GameInstallationResolver.cpp" line="534"/>
         <source>Game path is invalid or empty</source>
         <translation type="unfinished">游戏路径无效或为空</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Game/GameInstallationResolver.cpp" line="480"/>
+        <location filename="../src/Domain/Game/GameInstallationResolver.cpp" line="557"/>
         <source>gameinfo.txt not found at %1</source>
         <translation type="unfinished">在 %1 未找到 gameinfo.txt</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Game/GameInstallationResolver.cpp" line="487"/>
+        <location filename="../src/Domain/Game/GameInstallationResolver.cpp" line="564"/>
         <source>Failed to parse gameinfo.txt</source>
         <translation type="unfinished">解析 gameinfo.txt 失败</translation>
     </message>
@@ -1959,57 +2017,67 @@ Please ensure it contains game/csgo/gameinfo.gi or a valid Source 2 game layout.
 <context>
     <name>KeyValuesReader</name>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="39"/>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="54"/>
         <source>Failed to read KeyValues input stream</source>
         <translation>读取 KeyValues 输入流失败</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="59"/>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="74"/>
         <source>Unclosed &apos;{&apos; block (reached EOF)</source>
         <translation>未闭合的 &apos;{&apos; 块（已到文件末尾）</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="79"/>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="94"/>
         <source>Unexpected &apos;}&apos; at top level</source>
         <translation>顶层出现意外的 &apos;}&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="96"/>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="111"/>
         <source>Unexpected &apos;{&apos; without a preceding key</source>
         <translation>出现意外的 &apos;{&apos;（缺少前置键名）</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="101"/>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="116"/>
         <source>Unexpected &apos;{&apos; inside section</source>
         <translation>节内部出现意外的 &apos;{&apos;</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="113"/>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="128"/>
         <source>Expected string token for key</source>
         <translation>键名应为字符串标记</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="182"/>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="187"/>
+        <source>Unclosed &apos;{&apos; in property value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="243"/>
+        <source>Unclosed &apos;[&apos; in property value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="278"/>
         <source>Unexpected token</source>
         <translation>意外的标记</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="190"/>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="286"/>
         <source>readSubtree() requires currentEvent() to be BeginSection</source>
         <translation>readSubtree() 要求 currentEvent() 为 BeginSection</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="221"/>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="317"/>
         <source>Unexpected end of document while reading subtree</source>
         <translation>读取子树时意外到达文档末尾</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="230"/>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="326"/>
         <source>skipCurrentSection() requires currentEvent() to be BeginSection</source>
         <translation>skipCurrentSection() 要求 currentEvent() 为 BeginSection</translation>
     </message>
     <message>
-        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="273"/>
+        <location filename="../src/Core/KeyValues/KeyValuesReader.cpp" line="369"/>
         <source>Unexpected event at document root</source>
         <translation>文档根层级出现意外事件</translation>
     </message>
@@ -2560,6 +2628,461 @@ Do you want to proceed?</source>
         <location filename="../src/qml/cs2importer/tabs/MapTab.qml" line="294"/>
         <source>STOP</source>
         <translation>停止</translation>
+    </message>
+</context>
+<context>
+    <name>MaterialConvertWorkflow</name>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="214"/>
+        <source>Skipping rollback cleanup of file outside destination directory: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="224"/>
+        <source>Failed to remove newly created artifact during rollback: %1 (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="232"/>
+        <source>Rolled back %1 newly created file(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="327"/>
+        <source>Destination path traverses outside content directory: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="468"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="672"/>
+        <source>VTF texture not found: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="487"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="647"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="695"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="909"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1045"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1229"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1325"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1385"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1422"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1643"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1711"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1729"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1747"/>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1763"/>
+        <source>Material conversion was cancelled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="521"/>
+        <source>Unsupported texture export flavor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="786"/>
+        <source>Explicit sprite material &apos;%1&apos; is missing $basetexture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="800"/>
+        <source>Failed to locate VTF &apos;%1&apos; for explicit sprite &apos;%2&apos;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="817"/>
+        <source>Failed to read VTF header &apos;%1&apos; for sprite &apos;%2&apos;: %3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="842"/>
+        <source>Failed to decode sheet VTF &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="916"/>
+        <source>Failed to decode frame %1 of sprite VTF &apos;%2&apos;: %3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="977"/>
+        <source>Failed to decode sprite VTF &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1050"/>
+        <source>Empty material relative path specified</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1063"/>
+        <source>Failed to read material &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1077"/>
+        <source>Material VMT not found: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1088"/>
+        <source>Failed to parse VMT &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1126"/>
+        <source>Subrect &apos;%1&apos; has invalid or cyclic $material reference: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1142"/>
+        <source>Subrect &apos;%1&apos; parent material not found: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1154"/>
+        <source>Failed to parse parent VMT &apos;%1&apos; for subrect &apos;%2&apos;: %3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1248"/>
+        <source>Failed to export animated atlas &apos;%1&apos; (role &apos;%2&apos;) for &apos;%3&apos;: %4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1276"/>
+        <source>Failed to export texture &apos;%1&apos; (role &apos;%2&apos;) for &apos;%3&apos;: %4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1295"/>
+        <source>Failed to build .vmat for &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1307"/>
+        <source>Failed to write .vmat &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1330"/>
+        <source>Empty explicit sprite VMT path specified</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1343"/>
+        <source>Failed to read sprite VMT &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1357"/>
+        <source>Explicit sprite VMT not found: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1368"/>
+        <source>Failed to parse sprite VMT &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1390"/>
+        <source>Empty skybox name specified</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1433"/>
+        <source>Skybox &apos;%1&apos; is missing face VMT: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1443"/>
+        <source>Failed to parse skybox face VMT &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1530"/>
+        <source>Failed to decode any texture for skybox face &apos;%1&apos;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1542"/>
+        <source>No valid skybox faces were found for skybox &apos;%1&apos;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1559"/>
+        <source>Failed to build skybox cubemap &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1570"/>
+        <source>Failed to write skybox texture &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1581"/>
+        <source>Failed to write skybox .vmat &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1651"/>
+        <source>Destination content directory is empty</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1657"/>
+        <source>CS2 base directory is required when compiling resources</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1666"/>
+        <source>No materials, sprites, or skyboxes were specified for conversion</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1699"/>
+        <source>Starting material conversion (%1 material(s), %2 sprite(s), %3 skybox(es))</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1773"/>
+        <source>Compiling %1 generated material/texture resource(s)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1810"/>
+        <source>Resource compilation failed: %1</source>
+        <translation type="unfinished">资源编译失败：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1826"/>
+        <source>Material conversion completed: %1 material(s), %2 sprite(s), %3 skybox(es), %4 skipped native, %5 skipped unsupported, %6 failed, %7 compiled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Workflow/Material/MaterialConvertWorkflow.cpp" line="1839"/>
+        <source>Material conversion completed</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>MaterialProxyCompiler</name>
+    <message>
+        <location filename="../src/Domain/Material/MaterialProxyCompiler.cpp" line="1576"/>
+        <source>Division by zero in Divide proxy guarded to 0.0</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialProxyCompiler.cpp" line="1589"/>
+        <source>Modulo by zero in Modulo proxy guarded to 0.0</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialProxyCompiler.cpp" line="1806"/>
+        <source>Entity-driven frame proxy &apos;%1&apos; mapped to scripted F_TEXTURE_ANIMATION_MODE 2 with fallback 0.0</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialProxyCompiler.cpp" line="1822"/>
+        <source>Unsupported runtime/gameplay proxy &apos;%1&apos; skipped; keeping static initial value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialProxyCompiler.cpp" line="1832"/>
+        <source>Dynamic parameter &apos;%1&apos; is not supported by target shader and was omitted</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialProxyCompiler.cpp" line="1864"/>
+        <source>Transform &apos;%1&apos; was tainted by an unsupported proxy; keeping static initial value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialProxyCompiler.cpp" line="1973"/>
+        <source>Color parameter &apos;%1&apos; was tainted by an unsupported proxy; keeping static initial value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialProxyCompiler.cpp" line="2017"/>
+        <source>Scalar parameter &apos;%1&apos; was tainted by an unsupported proxy; keeping static initial value</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialProxyCompiler.cpp" line="2059"/>
+        <source>Frame animation is not supported by target shader; skipping F_TEXTURE_ANIMATION</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialProxyCompiler.cpp" line="2090"/>
+        <source>Frame parameter &apos;%1&apos; was tainted by an unsupported proxy; keeping static frame 0</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>MaterialTextureSynthesizer</name>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="89"/>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="196"/>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="227"/>
+        <source>source image is null or has invalid dimensions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="98"/>
+        <source>failed to convert source image to RGBA8888</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="155"/>
+        <source>failed to allocate RGB888 color image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="204"/>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="781"/>
+        <source>failed to allocate grayscale mask image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="232"/>
+        <source>subrect width and height must be positive</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="247"/>
+        <source>subrect lies completely outside source image bounds</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="254"/>
+        <source>failed to crop subrect from source image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="265"/>
+        <source>failed to normalize cropped subrect image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="298"/>
+        <source>failed to allocate tinted output image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="335"/>
+        <source>base texture is null or has invalid dimensions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="340"/>
+        <source>secondary texture is null or has invalid dimensions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="365"/>
+        <source>failed to allocate combined texture buffers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="486"/>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="529"/>
+        <source>failed to allocate roughness output image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="663"/>
+        <source>failed to allocate normal output image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="739"/>
+        <source>failed to allocate flipped normal image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="844"/>
+        <source>failed to allocate metalness output image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="881"/>
+        <source>frame list is empty</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="886"/>
+        <source>maximum atlas dimension must be positive</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="893"/>
+        <source>animation frame is null or has invalid dimensions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="917"/>
+        <source>grid dimensions exceed maximum atlas dimension</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="941"/>
+        <source>failed to allocate color atlas image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="951"/>
+        <source>failed to allocate alpha atlas image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTextureSynthesizer.cpp" line="973"/>
+        <source>failed to scale animation frame for atlas</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>MaterialTranslator</name>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTranslator.cpp" line="715"/>
+        <source>Material has an empty shader name; skipping.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTranslator.cpp" line="722"/>
+        <source>Patch VMT inheritance is not yet supported; skipping material.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTranslator.cpp" line="729"/>
+        <source>Subrect VMT requires expanding $material before translation; skipping raw subrect.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTranslator.cpp" line="865"/>
+        <source>Unrecognized Source 1 shader &apos;%1&apos;; falling back to csgo_complex.vfx.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTranslator.cpp" line="958"/>
+        <source>$bumptransform scale differs from $basetexturetransform and is not independently supported by csgo_environment.vfx.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTranslator.cpp" line="1313"/>
+        <source>Material is marked as Skip; no .vmat generated.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTranslator.cpp" line="1319"/>
+        <source>Material targets an explicit .vtex asset; no .vmat generated.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/MaterialTranslator.cpp" line="1329"/>
+        <source>Target shader filename is empty.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3264,22 +3787,22 @@ Do you want to proceed?</source>
 <context>
     <name>ResourceCompilerTool</name>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="260"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="261"/>
         <source>Resource compiler path is invalid</source>
         <translation>资源编译器路径无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="265"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="266"/>
         <source>Resource compiler does not exist</source>
         <translation>资源编译器不存在</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="270"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="271"/>
         <source>CS2 game directory cannot be empty</source>
         <translation>CS2 游戏目录不能为空</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="275"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="276"/>
         <source>Resource list to compile cannot be empty</source>
         <translation>待编译资源列表不能为空</translation>
     </message>
@@ -3357,32 +3880,32 @@ Do you want to proceed?</source>
         <translation type="vanished">已编译 VPCF_C：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="193"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="194"/>
         <source>resourcecompiler returned failure with exit code %1</source>
         <translation>resourcecompiler 返回失败，退出码 %1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="194"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="195"/>
         <source>; </source>
         <translation>; </translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="200"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="201"/>
         <source>resourcecompiler failed: %1</source>
         <translation>resourcecompiler 失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="204"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="205"/>
         <source>Resource compilation failed</source>
         <translation>资源编译失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="209"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="210"/>
         <source>Compiled %1 asset(s)</source>
         <translation>已编译 %1 个资源</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="219"/>
+        <location filename="../src/Domain/Tool/ResourceCompilerTool.cpp" line="220"/>
         <source>Successfully compiled %1 resource(s)</source>
         <translation>成功编译 %1 个资源</translation>
     </message>
@@ -3438,62 +3961,79 @@ Do you want to proceed?</source>
 <context>
     <name>SkyboxCubeBuilder</name>
     <message>
-        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="60"/>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="246"/>
         <source>no skybox faces provided</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="76"/>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="263"/>
         <source>skybox face image must be square</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="87"/>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="273"/>
         <source>face resolution cannot be negative</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="104"/>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="55"/>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="290"/>
         <source>face resolution exceeds maximum supported size (8192)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="115"/>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="46"/>
+        <source>skybox face image is invalid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="62"/>
+        <source>failed to allocate skybox face buffer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="146"/>
+        <source>skybox face image is null or empty</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="157"/>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="312"/>
         <source>failed to normalize skybox face image</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="152"/>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="349"/>
         <source>failed to allocate cube canvas</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="175"/>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="372"/>
         <source>directory path is invalid</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="180"/>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="377"/>
         <source>directory does not exist</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="187"/>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="384"/>
         <source>directory permission denied</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="193"/>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="390"/>
         <source>skybox base name cannot be empty</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="257"/>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="454"/>
         <source>failed to read skybox face texture</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="264"/>
+        <location filename="../src/Domain/Material/SkyboxCubeBuilder.cpp" line="461"/>
         <source>no skybox face textures found for base name</source>
         <translation type="unfinished"></translation>
     </message>
@@ -4057,29 +4597,37 @@ or click Add</source>
     </message>
     <message>
         <location filename="../src/Domain/Material/TextureIO.cpp" line="137"/>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="157"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="168"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="175"/>
         <source>image has invalid dimensions</source>
         <translation>图像尺寸无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="195"/>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="254"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="219"/>
+        <source>failed to allocate RGBA8888 image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="268"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="330"/>
         <source>destination path is empty or invalid</source>
         <translation>目标路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="200"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="209"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="273"/>
         <source>texture image is not valid</source>
         <translation>纹理图像无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="207"/>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="266"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="280"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="342"/>
         <source>unsupported texture write extension</source>
         <translation>不支持的纹理写入扩展名</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="259"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="159"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="335"/>
         <source>image is null or has invalid dimensions</source>
         <translation type="unfinished"></translation>
     </message>
@@ -4088,7 +4636,7 @@ or click Add</source>
         <translation type="obsolete">创建目标目录失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/TextureIO.cpp" line="284"/>
+        <location filename="../src/Domain/Material/TextureIO.cpp" line="360"/>
         <source>failed to write PNG file</source>
         <translation>PNG 文件写入失败</translation>
     </message>
@@ -4251,6 +4799,24 @@ or click Add</source>
         <location filename="../src/qml/cs2importer/ToolLogWindow.qml" line="214"/>
         <source>Earlier %1 log line(s) omitted from view. Open the log file for full history.</source>
         <translation>已从视图中省略较早的 %1 行日志，请打开日志文件查看完整记录。</translation>
+    </message>
+</context>
+<context>
+    <name>VmtParser</name>
+    <message>
+        <location filename="../src/Domain/Material/VmtParser.cpp" line="279"/>
+        <source>Failed to parse VMT KeyValues syntax</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VmtParser.cpp" line="294"/>
+        <source>VMT content does not contain a root shader section</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VmtParser.cpp" line="305"/>
+        <source>Patch shader is not recursively resolved in this phase</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4511,23 +5077,23 @@ or click Add</source>
 <context>
     <name>VpkIndexService</name>
     <message>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="83"/>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="189"/>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="263"/>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="270"/>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="323"/>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="337"/>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="431"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="133"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="219"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="304"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="311"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="389"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="405"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="502"/>
         <source>Index build cancelled</source>
         <translation>索引构建已取消</translation>
     </message>
     <message>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="121"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="61"/>
         <source>Failed to resolve archive index cache path</source>
         <translation>解析归档索引缓存路径失败</translation>
     </message>
     <message>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="357"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="425"/>
         <source>Failed to compute SHA-256 for VPK: %1</source>
         <translation>计算 VPK 的 SHA-256 失败：%1</translation>
     </message>
@@ -4536,9 +5102,9 @@ or click Add</source>
         <translation type="vanished">为 %1 构建 VPK 索引失败</translation>
     </message>
     <message>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="520"/>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="564"/>
-        <location filename="../src/Application/Package/VpkIndexService.cpp" line="609"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="600"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="644"/>
+        <location filename="../src/Application/Package/VpkIndexService.cpp" line="694"/>
         <source>VpkIndexService instance must be managed by std::shared_ptr to start async operations</source>
         <translation>VpkIndexService 实例必须由 std::shared_ptr 管理才能启动异步操作</translation>
     </message>
@@ -4606,152 +5172,257 @@ or click Add</source>
     </message>
 </context>
 <context>
+    <name>VtexBuilder</name>
+    <message>
+        <location filename="../src/Domain/Material/VtexBuilder.cpp" line="45"/>
+        <source>Texture input path must not be empty</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtexBuilder.cpp" line="53"/>
+        <source>Texture input path contains invalid characters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtexBuilder.cpp" line="63"/>
+        <source>Texture input path must be relative and must not contain a drive specifier</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtexBuilder.cpp" line="72"/>
+        <source>Texture input path must use forward slashes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtexBuilder.cpp" line="81"/>
+        <source>Texture input path must be a relative file path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtexBuilder.cpp" line="92"/>
+        <source>Texture input path must not contain empty or parent traversal segments</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtexBuilder.cpp" line="113"/>
+        <source>MKS frame file name must not contain whitespace or parentheses</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtexBuilder.cpp" line="410"/>
+        <source>Unsupported VTEX preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtexBuilder.cpp" line="472"/>
+        <source>Multi-frame MKS requires at least one frame file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtexBuilder.cpp" line="508"/>
+        <source>Sheet image dimensions must be positive</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtexBuilder.cpp" line="516"/>
+        <source>Sheet metadata must contain at least one sequence</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtexBuilder.cpp" line="525"/>
+        <source>Sheet sequence must contain at least one frame</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>VtfCodec</name>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="520"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="541"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1449"/>
         <source>VTF file is too small to contain a valid header</source>
         <translation>VTF 文件过小，无法包含有效头部</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="529"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1348"/>
+        <source>VTF file size exceeds safe reading limits</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1357"/>
+        <source>Failed to read VTF file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1458"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1470"/>
         <source>Failed to read VTF header</source>
         <translation>读取 VTF 头部失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="538"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="550"/>
         <source>Invalid VTF file signature</source>
         <translation>无效的 VTF 文件签名</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="547"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="559"/>
         <source>Unsupported VTF version</source>
         <translation>不支持的 VTF 版本</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="556"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="570"/>
         <source>Invalid VTF header size</source>
         <translation>无效的 VTF 头部大小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="576"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="593"/>
         <source>VTF image dimensions or mip count are zero</source>
         <translation>VTF 图像尺寸或 Mip 层数为零</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="614"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="631"/>
         <source>Unsupported VTF pixel format</source>
         <translation>不支持的 VTF 像素格式</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="628"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="645"/>
         <source>VTF image data offset exceeds file size</source>
         <translation>VTF 图像数据偏移超出文件大小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="637"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="654"/>
         <source>VTF resource directory exceeds header size</source>
         <translation>VTF 资源目录超出头部大小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="648"/>
-        <source>Failed to read VTF resource directory</source>
-        <translation>读取 VTF 资源目录失败</translation>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1616"/>
+        <source>VTF sheet resource block is truncated</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="666"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1625"/>
+        <source>VTF sheet resource size is invalid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1640"/>
+        <source>Unsupported VTF sheet resource version</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1652"/>
+        <source>VTF sheet sequence header is truncated</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1667"/>
+        <source>VTF sheet frame data is truncated</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to read VTF resource directory</source>
+        <translation type="vanished">读取 VTF 资源目录失败</translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="671"/>
         <source>VTF resource offset exceeds file size</source>
         <translation>VTF 资源偏移超出文件大小</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="700"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="709"/>
         <source>VTF file contains no image data resource</source>
         <translation>VTF 文件不包含图像数据资源</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="741"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="760"/>
+        <source>Requested VTF slice index is out of range</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="774"/>
         <source>VTF mip 0 dimensions exceed safe decoding limits</source>
         <translation>VTF Mip 0 尺寸超出安全解码限制</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="750"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="783"/>
         <source>VTF AXC resource table is unexpectedly large</source>
         <translation>VTF AXC 资源表异常过大</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="760"/>
         <source>Failed to read VTF AXC compression table</source>
-        <translation>读取 VTF AXC 压缩表失败</translation>
+        <translation type="vanished">读取 VTF AXC 压缩表失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="775"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="805"/>
         <source>Zstd-compressed VTF textures are not supported</source>
         <translation>不支持 Zstd 压缩的 VTF 纹理</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="781"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="811"/>
         <source>Unsupported VTF auxiliary compression method</source>
         <translation>不支持的 VTF 辅助压缩方式</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="791"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="789"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="821"/>
         <source>VTF AXC compression table is truncated</source>
         <translation>VTF AXC 压缩表已截断</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="810"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="838"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="853"/>
         <source>VTF AXC compressed image block is out of bounds</source>
         <translation>VTF AXC 压缩图像块越界</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="818"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="862"/>
         <source>VTF mip 0 volume exceeds safe decoding limits</source>
         <translation>VTF Mip 0 体积超出安全解码限制</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="827"/>
         <source>Failed to read compressed VTF image data</source>
-        <translation>读取压缩 VTF 图像数据失败</translation>
+        <translation type="vanished">读取压缩 VTF 图像数据失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="841"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="877"/>
         <source>Failed to initialize zlib decoder for VTF</source>
         <translation>初始化 VTF zlib 解码器失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="850"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="886"/>
         <source>Failed to decompress VTF AXC image data</source>
         <translation>解压 VTF AXC 图像数据失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="864"/>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="879"/>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="888"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="909"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="925"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="948"/>
         <source>VTF image data is truncated or corrupted</source>
         <translation>VTF 图像数据已截断或损坏</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="898"/>
         <source>Failed to read VTF mip 0 image data</source>
-        <translation>读取 VTF Mip 0 图像数据失败</translation>
+        <translation type="vanished">读取 VTF Mip 0 图像数据失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1274"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1327"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1428"/>
         <source>VTF file path is empty or invalid</source>
         <translation>VTF 文件路径为空或无效</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1279"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1332"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1433"/>
         <source>VTF file not found</source>
         <translation>未找到 VTF 文件</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1287"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1340"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1441"/>
         <source>Failed to open VTF file</source>
         <translation>打开 VTF 文件失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="715"/>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1303"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="724"/>
         <source>VTF image dimensions exceed safe decoding limits</source>
         <translation>VTF 图像尺寸超出安全解码限制</translation>
     </message>
@@ -4760,7 +5431,9 @@ or click Add</source>
         <translation type="vanished">VTF 文件解析失败</translation>
     </message>
     <message>
-        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1379"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1516"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1549"/>
+        <location filename="../src/Domain/Material/VtfCodec.cpp" line="1574"/>
         <source>VTF image data is missing or has unexpected size</source>
         <translation>VTF 图像数据缺失或尺寸异常</translation>
     </message>

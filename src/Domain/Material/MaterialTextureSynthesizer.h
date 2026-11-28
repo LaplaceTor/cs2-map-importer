@@ -2,6 +2,7 @@
 
 #include <QImage>
 #include <QString>
+#include <QVector>
 
 #include <array>
 #include <cmath>
@@ -50,6 +51,17 @@ struct UvTransform2D {
 struct TwoTextureCombineResult {
     QImage colorImage;                ///< Opaque 24-bit sRGB color (Format_RGB888).
     std::optional<QImage> alphaMask;  ///< Optional 8-bit linear alpha mask (Format_Grayscale8) when non-opaque.
+};
+
+/**
+ * @brief Uniform power-of-2 grid texture atlas for animated multi-frame VTFs.
+ */
+struct TextureAtlasResult {
+    QImage colorAtlas;                 ///< Row-major RGB888 grid atlas of frames 0..cellCount-1.
+    std::optional<QImage> alphaAtlas;  ///< Optional Grayscale8 linear alpha atlas when non-opaque.
+    int cols = 1;
+    int rows = 1;
+    int cellCount = 1;
 };
 
 /**
@@ -219,6 +231,22 @@ public:
         TextureChannel maskChannel,
         const std::optional<std::array<float, 3>>& envmapTint = std::nullopt,
         const Core::Async::CancellationToken& token = {});
+
+    // =========================================================================
+    // 5. Uniform power-of-2 grid sequence atlas synthesis
+    // =========================================================================
+
+    /**
+     * @brief Packs multi-frame animation frames (0 .. N-1) in row-major order into a
+     *        uniform power-of-2 grid atlas (cols = nextPow2(ceil(sqrt(N))),
+     *        rows = nextPow2(ceil(N / cols))), downscaling cells uniformly if needed
+     *        to stay within maxAtlasDim in both dimensions.
+     */
+    static Core::Result<TextureAtlasResult> synthesizeUniformGridAtlas(
+        const QVector<QImage>& frames,
+        bool extractAlphaAtlas = false,
+        const Core::Async::CancellationToken& token = {},
+        int maxAtlasDim = 4096);
 };
 
 } // namespace Domain::Material

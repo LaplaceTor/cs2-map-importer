@@ -89,6 +89,8 @@ enum class TextureExportFlavor : int {
     LinearTintedColor,
     TwoTextureCombine,
     LinearPassThrough,
+    AnimatedColorAtlas,
+    AnimatedAlphaAtlas,
 };
 
 /**
@@ -115,6 +117,7 @@ struct MaterialPlan {
     QString targetShaderFileName;
     QVector<TextureExportItem> textureExports;
     bool needsExplicitVtex = false;
+    bool needsFrameAtlas = false;
     VtexPreset vtexPreset = VtexPreset::Sprite2DAlpha;
     QStringList warnings;
 };
