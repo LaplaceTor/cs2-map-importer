@@ -13,6 +13,9 @@ qt_add_library(cs2importer_workflow STATIC
     Particle/ParticleImportOptions.h
     Particle/ParticleImportWorkflow.h
     Particle/ParticleImportWorkflow.cpp
+    Material/MaterialConvertOptions.h
+    Material/MaterialConvertWorkflow.h
+    Material/MaterialConvertWorkflow.cpp
     Soundscape/SoundscapeConvertOptions.h
     Soundscape/SoundscapeConvertWorkflow.h
     Soundscape/SoundscapeConvertWorkflow.cpp
